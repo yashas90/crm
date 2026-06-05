@@ -12,7 +12,9 @@
     "format:check": "biome format .",
     "check": "biome check --write .",
     "check:ci": "turbo lint test build",
-    "prepare": "husky"
+    "railway:build": "pnpm --filter @propninja/db build && pnpm --filter @propninja/api build",
+    "railway:start": "pnpm db:migrate && pnpm --filter @propninja/api start",
+    "prepare": "node -e \"if (process.env.CI || process.env.RAILWAY) process.exit(0)\" && husky || exit 0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
