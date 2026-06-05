@@ -27,9 +27,6 @@ export function InlineEstimatedValue({ lead }: InlineEstimatedValueProps) {
           toast.success("Estimated value updated");
           setEditing(false);
         },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Failed to update");
-        },
       },
     );
   }

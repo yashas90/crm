@@ -1,6 +1,7 @@
 "use client";
 
 import { apiGet, apiPatch } from "@/lib/apiClient";
+import { toast } from "@/lib/toast";
 // User list is readable by all roles; PATCH requires admin (enforced server-side).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 export { isForbiddenError } from "@/lib/query-errors";
@@ -35,6 +36,7 @@ export function useUpdateUser() {
     }) => apiPatch<UserRow>(`/api/users/${userId}`, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast.success("User updated");
     },
   });
 }

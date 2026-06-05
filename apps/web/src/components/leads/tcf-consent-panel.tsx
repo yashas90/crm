@@ -2,7 +2,6 @@
 
 import type { ConsentType, TcfConsentByChannel } from "@/hooks/use-tcf";
 import { useUpsertTcfConsent } from "@/hooks/use-tcf";
-import { toast } from "@/lib/toast";
 import { cn } from "@propninja/ui/lib/utils";
 import { ShieldCheck } from "lucide-react";
 
@@ -95,14 +94,7 @@ export function TcfConsentPanel({ leadId, data, isLoading }: TcfConsentPanelProp
   }
 
   function handleToggle(consentType: ConsentType, consented: boolean) {
-    upsert.mutate(
-      { consent_type: consentType, consented },
-      {
-        onSuccess: () => toast.success("Consent updated"),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "Failed to update consent"),
-      },
-    );
+    upsert.mutate({ consent_type: consentType, consented });
   }
 
   return (

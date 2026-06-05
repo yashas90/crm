@@ -9,7 +9,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useDeleteLead } from "@/hooks/use-leads";
-import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { useRouter } from "next/navigation";
 
@@ -35,13 +34,11 @@ export function LeadDeleteDialog({
   function confirmDelete() {
     deleteLead.mutate(leadId, {
       onSuccess: () => {
-        toast.success("Lead archived");
         onOpenChange(false);
         if (redirectOnSuccess) {
           router.push("/leads");
         }
       },
-      onError: (err) => toast.error(err instanceof Error ? err.message : "Delete failed"),
     });
   }
 

@@ -3,6 +3,7 @@
 import { LEAD_SOURCES } from "@/components/leads/lead-sources";
 import type { LeadRow } from "@/hooks/use-leads";
 import { apiPatch } from "@/lib/apiClient";
+import { getErrorMessage } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
@@ -103,8 +104,7 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
       onSuccess?.();
     },
     onError: (err: Error) => {
-      setError(err.message);
-      toast.error(err.message);
+      setError(getErrorMessage(err, "Failed to update lead"));
     },
   });
 

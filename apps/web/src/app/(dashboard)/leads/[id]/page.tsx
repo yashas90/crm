@@ -15,6 +15,7 @@ import { useUsers } from "@/hooks/use-users";
 import { apiPost } from "@/lib/apiClient";
 import { getSession } from "@/lib/auth";
 import { formatDaysAgo, formatRelativeTime, isOverdue } from "@/lib/relative-time";
+import { getErrorMessage } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
@@ -79,10 +80,6 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
     addNote.mutate(noteText.trim(), {
       onSuccess: () => {
         setNoteText("");
-        toast.success("Note saved");
-      },
-      onError: (err) => {
-        toast.error(err instanceof Error ? err.message : "Failed to save note");
       },
     });
   }
@@ -249,7 +246,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                     toast.success("Lead assigned");
                     setShowAssign(false);
                   },
-                  (err) => toast.error(err instanceof Error ? err.message : "Assign failed"),
+                  (err) => toast.error(getErrorMessage(err, "Assign failed")),
                 );
               }}
             >

@@ -28,7 +28,6 @@ export function LeadTagsEditor({ lead }: LeadTagsEditorProps) {
           toast.success("Tags updated");
           setEditing(false);
         },
-        onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update tags"),
       },
     );
   }

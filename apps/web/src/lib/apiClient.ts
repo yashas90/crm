@@ -29,12 +29,31 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers,
+    });
+  } catch {
+    throw new ApiRequestError(
+      "NETWORK_ERROR",
+      "Unable to reach the server. Check your connection and API URL.",
+    );
+  }
 
-  const json = (await response.json()) as ApiSuccess<T> | ApiError;
+  const raw = await response.text();
+  let json: ApiSuccess<T> | ApiError;
+  try {
+    json = raw
+      ? (JSON.parse(raw) as ApiSuccess<T> | ApiError)
+      : { ok: false, error: { code: "HTTP_ERROR", message: response.statusText || "Request failed" } };
+  } catch {
+    throw new ApiRequestError(
+      "PARSE_ERROR",
+      response.ok ? "Invalid server response" : `Request failed (${response.status})`,
+    );
+  }
 
   if (!response.ok || !json.ok) {
     const error = json.ok ? { code: "HTTP_ERROR", message: response.statusText } : json.error;

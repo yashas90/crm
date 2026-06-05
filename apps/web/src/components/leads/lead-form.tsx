@@ -2,6 +2,7 @@
 
 import { LEAD_SOURCES } from "@/components/leads/lead-sources";
 import { apiPost } from "@/lib/apiClient";
+import { getErrorMessage } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
@@ -69,8 +70,7 @@ export function LeadForm({ onSuccess }: LeadFormProps) {
       onSuccess?.();
     },
     onError: (err: Error) => {
-      setError(err.message);
-      toast.error(err.message);
+      setError(getErrorMessage(err, "Failed to create lead"));
     },
   });
 

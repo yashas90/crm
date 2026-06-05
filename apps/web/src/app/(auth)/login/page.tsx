@@ -1,6 +1,7 @@
 "use client";
 
 import { apiPost } from "@/lib/apiClient";
+import { getErrorMessage } from "@/lib/errors";
 import { fetchCurrentUser, setAuth } from "@/lib/auth";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
@@ -30,7 +31,7 @@ export default function LoginPage() {
       toast.success(`Welcome, ${me?.name ?? data.user.name}`);
       router.push("/");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Login failed");
+      toast.error(getErrorMessage(err, "Login failed"));
     } finally {
       setLoading(false);
     }

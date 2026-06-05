@@ -10,6 +10,7 @@ import {
 } from "@propninja/db";
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
+import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 
 const DEMO_SLUG = "propninja-demo";
 const DEMO_ORG_NAME = "PropNinja Demo";
@@ -63,7 +64,18 @@ function randomBetween(min: number, max: number, seed: number) {
 }
 
 async function clearDemoOrg(db: ReturnType<typeof createDb>) {
-  const [org] = await db.select().from(organizations).where(eq(organizations.slug, DEMO_SLUG));
+  const [orgById] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, SINGLE_TENANT_ORG_ID));
+  let org = orgById;
+  if (!org) {
+    const [orgBySlug] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, DEMO_SLUG));
+    org = orgBySlug;
+  }
   if (!org) return;
 
   const orgLeads = await db.select({ id: leads.id }).from(leads).where(eq(leads.orgId, org.id));
@@ -91,6 +103,7 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
   const [org] = await db
     .insert(organizations)
     .values({
+      id: SINGLE_TENANT_ORG_ID,
       name: DEMO_ORG_NAME,
       slug: DEMO_SLUG,
       subscriptionTier: "demo",

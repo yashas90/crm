@@ -1,6 +1,7 @@
 "use client";
 
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { toast } from "@/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type LeadsListData = {
@@ -151,6 +152,7 @@ export function useDeleteLead() {
     mutationFn: (leadId: string) => apiDelete(`/api/leads/${leadId}`),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast.success("Lead archived");
     },
   });
 }
@@ -162,6 +164,7 @@ export function useAddLeadNote(leadId: string) {
     mutationFn: (text: string) => apiPost(`/api/leads/${leadId}/notes`, { text }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
+      toast.success("Note saved");
     },
   });
 }

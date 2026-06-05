@@ -1,6 +1,7 @@
 "use client";
 
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { toast } from "@/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type ConsentType = "call" | "sms" | "email";
@@ -41,6 +42,7 @@ export function useUpsertTcfConsent(leadId: string) {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["tcf", "consent", leadId] });
+      toast.success("Consent updated");
     },
   });
 }
