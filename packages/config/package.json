@@ -1,0 +1,15 @@
+{
+  "name": "@propninja/config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./biome": "./biome.json",
+    "./typescript/base": "./typescript/base.json",
+    "./typescript/nextjs": "./typescript/nextjs.json",
+    "./typescript/react-native": "./typescript/react-native.json",
+    "./typescript/node": "./typescript/node.json"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4"
+  }
+}

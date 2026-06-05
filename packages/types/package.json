@@ -1,0 +1,43 @@
+{
+  "name": "@propninja/types",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./entities": {
+      "types": "./src/entities/index.ts",
+      "default": "./src/entities/index.ts"
+    },
+    "./api": {
+      "types": "./src/api/index.ts",
+      "default": "./src/api/index.ts"
+    },
+    "./enums": {
+      "types": "./src/enums/index.ts",
+      "default": "./src/enums/index.ts"
+    },
+    "./filters": {
+      "types": "./src/filters/index.ts",
+      "default": "./src/filters/index.ts"
+    },
+    "./brands": {
+      "types": "./src/brands.ts",
+      "default": "./src/brands.ts"
+    }
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "@propninja/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@propninja/config": "workspace:*",
+    "typescript": "^5.8.3"
+  }
+}
