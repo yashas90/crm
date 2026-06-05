@@ -43,11 +43,9 @@ const leadWritableFieldsSchema = z.object({
 /** Create requires firstName + phone; all other fields optional. */
 export const createLeadBodySchema = leadWritableFieldsSchema;
 
-export const updateLeadBodySchema = leadWritableFieldsSchema
-  .partial()
-  .extend({
-    estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
-  });
+export const updateLeadBodySchema = leadWritableFieldsSchema.partial().extend({
+  estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
+});
 
 export const assignLeadBodySchema = z.object({
   user_id: z.string().uuid(),
