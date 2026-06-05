@@ -36,6 +36,9 @@ export function getErrorMessage(error: unknown, fallback = "Something went wrong
     if (error.code === "LEAD_DUPLICATE_PHONE") {
       return error.message;
     }
+    if (error.code === "EMAIL_IN_USE") {
+      return error.message;
+    }
     if (error.message) return error.message;
   }
 

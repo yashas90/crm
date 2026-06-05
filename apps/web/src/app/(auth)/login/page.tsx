@@ -1,8 +1,8 @@
 "use client";
 
 import { apiPost } from "@/lib/apiClient";
-import { getErrorMessage } from "@/lib/errors";
 import { fetchCurrentUser, setAuth } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";

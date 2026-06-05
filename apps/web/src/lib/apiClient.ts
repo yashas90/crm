@@ -47,7 +47,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   try {
     json = raw
       ? (JSON.parse(raw) as ApiSuccess<T> | ApiError)
-      : { ok: false, error: { code: "HTTP_ERROR", message: response.statusText || "Request failed" } };
+      : {
+          ok: false,
+          error: { code: "HTTP_ERROR", message: response.statusText || "Request failed" },
+        };
   } catch {
     throw new ApiRequestError(
       "PARSE_ERROR",

@@ -1,9 +1,17 @@
 import { users } from "@propninja/db";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import type { Database } from "../lib/db.js";
-import { notFound } from "../lib/errors.js";
-import type { ListUsersQuery, UpdateUserInput } from "../lib/validators/users.js";
+import { conflict, forbidden, notFound } from "../lib/errors.js";
+import { hashPassword } from "../lib/password.js";
+import type { CreateUserInput, ListUsersQuery, UpdateUserInput } from "../lib/validators/users.js";
+
+type UserRow = typeof users.$inferSelect;
+
+function toPublicUser(row: UserRow) {
+  const { passwordHash: _passwordHash, ...publicUser } = row;
+  return publicUser;
+}
 
 export function createUserService(db: Database) {
   return {
@@ -40,7 +48,12 @@ export function createUserService(db: Database) {
         .from(users)
         .where(whereClause);
 
-      return { rows, page: query.page, pageSize: query.pageSize, total: count };
+      return {
+        rows: rows.map(toPublicUser),
+        page: query.page,
+        pageSize: query.pageSize,
+        total: count,
+      };
     },
 
     async getById(id: string) {
@@ -54,10 +67,37 @@ export function createUserService(db: Database) {
         throw notFound("User not found");
       }
 
-      return row;
+      return toPublicUser(row);
     },
 
-    async update(id: string, payload: UpdateUserInput) {
+    async create(payload: CreateUserInput) {
+      const email = payload.email.toLowerCase();
+
+      const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+
+      if (existing) {
+        throw conflict("A user with this email already exists", "EMAIL_IN_USE");
+      }
+
+      const passwordHash = await hashPassword(payload.password);
+
+      const [row] = await db
+        .insert(users)
+        .values({
+          orgId: SINGLE_TENANT_ORG_ID,
+          email,
+          name: payload.name.trim(),
+          role: payload.role,
+          phone: payload.phone?.trim() || null,
+          passwordHash,
+          isActive: true,
+        })
+        .returning();
+
+      return toPublicUser(row!);
+    },
+
+    async update(id: string, payload: UpdateUserInput, actingUserId?: string) {
       const [existing] = await db
         .select()
         .from(users)
@@ -68,13 +108,47 @@ export function createUserService(db: Database) {
         throw notFound("User not found");
       }
 
-      const update: Partial<{ role: string; isActive: boolean }> = {};
+      if (actingUserId && actingUserId === id) {
+        if (payload.isActive === false) {
+          throw forbidden("You cannot deactivate your own account");
+        }
+        if (payload.role && payload.role !== existing.role) {
+          throw forbidden("You cannot change your own role");
+        }
+      }
+
+      if (payload.email) {
+        const email = payload.email.toLowerCase();
+        const [duplicate] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.email, email), ne(users.id, id)))
+          .limit(1);
+
+        if (duplicate) {
+          throw conflict("A user with this email already exists", "EMAIL_IN_USE");
+        }
+      }
+
+      const update: Partial<{
+        name: string;
+        email: string;
+        phone: string | null;
+        role: string;
+        isActive: boolean;
+        passwordHash: string;
+      }> = {};
+
+      if (payload.name !== undefined) update.name = payload.name.trim();
+      if (payload.email !== undefined) update.email = payload.email.toLowerCase();
+      if (payload.phone !== undefined) update.phone = payload.phone?.trim() || null;
       if (payload.role !== undefined) update.role = payload.role;
       if (payload.isActive !== undefined) update.isActive = payload.isActive;
+      if (payload.password) update.passwordHash = await hashPassword(payload.password);
 
       const [row] = await db.update(users).set(update).where(eq(users.id, id)).returning();
 
-      return row!;
+      return toPublicUser(row!);
     },
   };
 }
