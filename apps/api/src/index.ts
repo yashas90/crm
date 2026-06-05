@@ -21,10 +21,19 @@ const app = new Hono();
 
 app.use("*", requestContextMiddleware);
 
+const defaultOrigins = ["http://localhost:3000", "http://localhost:8081"];
+
+function parseCorsOrigins(): string[] {
+  const fromEnv = process.env.CORS_ORIGINS?.split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  return fromEnv?.length ? [...defaultOrigins, ...fromEnv] : defaultOrigins;
+}
+
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:3000", "http://localhost:8081"],
+    origin: parseCorsOrigins(),
     credentials: true,
   }),
 );
