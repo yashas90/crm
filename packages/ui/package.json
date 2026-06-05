@@ -1,0 +1,53 @@
+{
+  "name": "@propninja/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./globals.css": "./src/globals.css",
+    "./lib/utils": {
+      "types": "./src/lib/utils.ts",
+      "default": "./src/lib/utils.ts"
+    },
+    "./button": {
+      "types": "./src/components/button.tsx",
+      "default": "./src/components/button.tsx"
+    },
+    "./card": {
+      "types": "./src/components/card.tsx",
+      "default": "./src/components/card.tsx"
+    },
+    "./input": {
+      "types": "./src/components/input.tsx",
+      "default": "./src/components/input.tsx"
+    },
+    "./label": {
+      "types": "./src/components/label.tsx",
+      "default": "./src/components/label.tsx"
+    }
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-slot": "^1.2.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.513.0",
+    "tailwind-merge": "^3.3.0"
+  },
+  "devDependencies": {
+    "@propninja/config": "workspace:*",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  }
+}

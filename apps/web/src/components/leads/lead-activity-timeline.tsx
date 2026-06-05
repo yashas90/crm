@@ -1,0 +1,103 @@
+"use client";
+
+import { EmptyState } from "@/components/common/empty-state";
+import type { LeadActivity } from "@/hooks/use-leads";
+import { formatRelativeTime } from "@/lib/relative-time";
+import { cn } from "@propninja/ui/lib/utils";
+import { ArrowRightLeft, Clock, Phone, StickyNote } from "lucide-react";
+
+function activityMeta(activity: LeadActivity) {
+  const meta = activity.metadata;
+
+  if (activity.type === "note" && meta?.text) {
+    return {
+      icon: StickyNote,
+      title: "Note added",
+      body: String(meta.text),
+    };
+  }
+
+  if (activity.type === "status_change") {
+    if (meta?.kind === "assignment") {
+      return { icon: ArrowRightLeft, title: "Lead reassigned", body: "Assignment updated" };
+    }
+    if (meta?.from && meta?.to) {
+      return {
+        icon: ArrowRightLeft,
+        title: "Status changed",
+        body: `${meta.from} → ${meta.to}`,
+      };
+    }
+  }
+
+  if (activity.type === "call") {
+    const disposition = meta?.disposition ? ` (${meta.disposition})` : "";
+    return {
+      icon: Phone,
+      title: `Call — ${meta?.status ?? "logged"}${disposition}`,
+      body: meta?.notes ? String(meta.notes) : undefined,
+    };
+  }
+
+  return {
+    icon: Clock,
+    title: activity.type.replace(/_/g, " "),
+    body: undefined,
+  };
+}
+
+type LeadActivityTimelineProps = {
+  activities: LeadActivity[];
+};
+
+export function LeadActivityTimeline({ activities }: LeadActivityTimelineProps) {
+  if (activities.length === 0) {
+    return (
+      <EmptyState
+        title="No activity yet"
+        description="Calls, notes, and status changes will appear here as your team works this lead."
+        icon={<Clock className="h-7 w-7" />}
+      />
+    );
+  }
+
+  return (
+    <div className="relative space-y-0">
+      <div className="absolute bottom-2 left-[18px] top-2 w-px bg-border" />
+      {activities.map((activity, index) => {
+        const { icon: Icon, title, body } = activityMeta(activity);
+        return (
+          <div key={activity.id} className="relative flex gap-4 pb-6 last:pb-0">
+            <div
+              className={cn(
+                "relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-card shadow-sm",
+                activity.type === "call" && "border-emerald-500/30 text-emerald-600",
+                activity.type === "note" && "border-indigo-500/30 text-indigo-600",
+                activity.type === "status_change" && "border-amber-500/30 text-amber-600",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1 rounded-xl border border-border/60 bg-muted/20 p-3 transition-all duration-200 hover:shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-sm font-semibold">{title}</p>
+                <span className="text-xs text-muted-foreground">
+                  {formatRelativeTime(activity.createdAt)}
+                </span>
+              </div>
+              {activity.userName ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">{activity.userName}</p>
+              ) : null}
+              {body ? <p className="mt-2 text-sm text-foreground/90">{body}</p> : null}
+              {index === 0 ? (
+                <span className="mt-2 inline-block text-[10px] font-medium uppercase tracking-wide text-primary">
+                  Latest
+                </span>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

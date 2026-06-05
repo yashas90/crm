@@ -1,0 +1,83 @@
+"use client";
+
+import { apiPost } from "@/lib/apiClient";
+import { fetchCurrentUser, setAuth } from "@/lib/auth";
+import { toast } from "@/lib/toast";
+import { Button } from "@propninja/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
+import { Input } from "@propninja/ui/input";
+import { Label } from "@propninja/ui/label";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("admin@propninja.local");
+  const [password, setPassword] = useState("admin");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin(event: React.FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      const data = await apiPost<{
+        token: string;
+        user: { id: string; email: string; name: string; role: string };
+      }>("/api/auth/login", { email, password });
+      setAuth(data.token, data.user);
+      const me = await fetchCurrentUser();
+      toast.success(`Welcome, ${me?.name ?? data.user.name}`);
+      router.push("/");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle>Sign in to PropNinja</CardTitle>
+        <CardDescription>Use your organization credentials.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="space-y-4" onSubmit={(e) => void handleLogin(e)}>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Signing in..." : "Sign in"}
+          </Button>
+        </form>
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          Demo: admin@propninja.local / admin
+        </p>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          No account?{" "}
+          <Link href="/register" className="font-medium text-primary hover:underline">
+            Register
+          </Link>
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
