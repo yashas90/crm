@@ -1,9 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "pnpm install && pnpm db:migrate && pnpm railway:build"
+buildCommand = "pnpm install && pnpm railway:build"
 
 [deploy]
-startCommand = "pnpm --filter @propninja/api start"
+startCommand = "pnpm railway:start"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
