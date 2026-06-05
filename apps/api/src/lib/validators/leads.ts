@@ -22,7 +22,7 @@ export const listLeadsQuerySchema = z.object({
     .transform((v) => v === "true"),
 });
 
-export const createLeadBodySchema = z.object({
+const leadWritableFieldsSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().optional(),
   email: z.string().email().optional(),
@@ -40,23 +40,14 @@ export const createLeadBodySchema = z.object({
   projectName: z.string().optional(),
 });
 
-export const updateLeadBodySchema = z.object({
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
-  secondaryPhone: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  leadSource: z.string().optional(),
-  leadStatus: leadStatusSchema.optional(),
-  temperature: temperatureSchema.optional(),
-  notes: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  nextFollowupAt: z.string().datetime().optional(),
-  estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
-  projectName: z.string().optional(),
-});
+/** Create requires firstName + phone; all other fields optional. */
+export const createLeadBodySchema = leadWritableFieldsSchema;
+
+export const updateLeadBodySchema = leadWritableFieldsSchema
+  .partial()
+  .extend({
+    estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
+  });
 
 export const assignLeadBodySchema = z.object({
   user_id: z.string().uuid(),

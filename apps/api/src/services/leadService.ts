@@ -2,6 +2,7 @@ import { callRecords, leadActivities, leads, users } from "@propninja/db";
 import { and, asc, desc, eq, gte, ilike, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import type { CreateLeadBody } from "../lib/validators/leads.js";
 
 type LeadStatus = "new" | "contacted" | "qualified" | "negotiation" | "won" | "lost";
 type Temperature = "cold" | "warm" | "hot";
@@ -20,23 +21,7 @@ export interface ListLeadsParams {
   orderByFollowUp?: boolean;
 }
 
-export interface CreateLeadInput {
-  firstName: string;
-  lastName?: string;
-  email?: string;
-  phone: string;
-  secondaryPhone?: string;
-  city?: string;
-  state?: string;
-  leadSource?: string;
-  leadStatus?: LeadStatus;
-  temperature?: Temperature;
-  notes?: string;
-  tags?: string[];
-  nextFollowupAt?: string;
-  estimatedValue?: number;
-  projectName?: string;
-}
+export type CreateLeadInput = CreateLeadBody;
 
 export interface UpdateLeadInput {
   leadId: string;

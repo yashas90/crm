@@ -6,6 +6,7 @@ import {
   canViewLead,
   forbiddenResponse,
 } from "../lib/permissions.js";
+import { validate } from "../lib/validate.js";
 import {
   addNoteBodySchema,
   assignLeadBodySchema,
@@ -89,26 +90,9 @@ leadsRoute.get("/", async (c) => {
   return c.json({ ok: true, data });
 });
 
-leadsRoute.post("/", writeRateLimit, async (c) => {
-  const body = await c.req.json();
-  const parsed = createLeadBodySchema.safeParse(body);
-
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Invalid body",
-          details: parsed.error.flatten(),
-        },
-      },
-      400,
-    );
-  }
-
+leadsRoute.post("/", writeRateLimit, validate("json", createLeadBodySchema), async (c) => {
   try {
-    const lead = await leadService.createLead(parsed.data);
+    const lead = await leadService.createLead(c.req.valid("json"));
     return c.json({ ok: true, data: lead }, 201);
   } catch (err) {
     if (err instanceof LeadDuplicatePhoneError) {
