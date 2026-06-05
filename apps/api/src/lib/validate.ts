@@ -6,7 +6,7 @@ type ValidationTarget = "json" | "query" | "param";
 
 export function validate<T extends z.ZodTypeAny>(target: ValidationTarget, schema: T) {
   return zValidator(target, schema, (result, c) => {
-    if (!result.success) {
+    if (result.success === false) {
       return jsonError(c, "VALIDATION_ERROR", "Invalid request", 400, result.error.flatten());
     }
   });
