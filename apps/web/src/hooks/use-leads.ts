@@ -1,8 +1,9 @@
 "use client";
 
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import type { LeadScopeCounts } from "@/lib/leads-scope";
 import { toast } from "@/lib/toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type LeadsListData = {
   items: LeadRow[];
@@ -23,10 +24,13 @@ export type LeadRow = {
   temperature: string | null;
   leadSource: string | null;
   projectName?: string | null;
+  projectId?: string | null;
   estimatedValue?: string | null;
   lastContactedAt: string | null;
   nextFollowupAt?: string | null;
   assignedUser?: { id: string; name: string; email: string } | null;
+  tags?: string[] | null;
+  customFields?: Record<string, unknown> | null;
   createdAt: string;
 };
 
@@ -77,7 +81,15 @@ export type LeadsQueryParams = {
   status?: string;
   temperature?: string;
   assignedTo?: string;
+  source?: string;
+  adLeads?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  unassigned?: string;
+  activeOnly?: string;
+  deletedOnly?: string;
   followUpDueBefore?: string;
+  followUpDueAfter?: string;
   orderByFollowUp?: string;
   page?: string;
   pageSize?: string;
@@ -101,12 +113,124 @@ function buildQuery(params: Record<string, string | undefined>) {
   return query ? `?${query}` : "";
 }
 
-export function useLeads(params: LeadsQueryParams) {
+/** Stable query key — only changes when filter values change. */
+export function leadsListQueryKey(params: LeadsQueryParams) {
+  return [
+    "leads",
+    "list",
+    params.search ?? null,
+    params.status ?? null,
+    params.temperature ?? null,
+    params.assignedTo ?? null,
+    params.source ?? null,
+    params.adLeads ?? null,
+    params.dateFrom ?? null,
+    params.dateTo ?? null,
+    params.unassigned ?? null,
+    params.activeOnly ?? null,
+    params.deletedOnly ?? null,
+    params.followUpDueBefore ?? null,
+    params.followUpDueAfter ?? null,
+    params.orderByFollowUp ?? null,
+    params.page ?? "1",
+    params.pageSize ?? "10",
+  ] as const;
+}
+
+function sharedCountsQueryKey(
+  prefix: "scope-counts" | "stage-counts",
+  params: Record<string, string | undefined>,
+) {
+  return [
+    "leads",
+    prefix,
+    params.search ?? null,
+    params.temperature ?? null,
+    params.source ?? null,
+    params.adLeads ?? null,
+    params.dateFrom ?? null,
+    params.dateTo ?? null,
+    params.assignedTo ?? null,
+    params.unassigned ?? null,
+    params.deletedOnly ?? null,
+  ] as const;
+}
+
+export type LeadStageCounts = {
+  active: number;
+  new: number;
+  pending: number;
+  scheduled: number;
+  overdue: number;
+  eoi: number;
+};
+
+export type { LeadScopeCounts } from "@/lib/leads-scope";
+
+export function useLeadScopeCounts(
+  params: Omit<
+    LeadsQueryParams,
+    | "status"
+    | "activeOnly"
+    | "followUpDueBefore"
+    | "followUpDueAfter"
+    | "orderByFollowUp"
+    | "assignedTo"
+    | "unassigned"
+    | "deletedOnly"
+    | "page"
+    | "pageSize"
+  >,
+  options?: { enabled?: boolean },
+) {
   const query = buildQuery(params);
 
   return useQuery({
-    queryKey: ["leads", query],
+    queryKey: sharedCountsQueryKey("scope-counts", params),
+    queryFn: () => apiGet<LeadScopeCounts>(`/api/leads/scope-counts${query}`),
+    enabled: options?.enabled !== false,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useLeadStageCounts(
+  params: Omit<
+    LeadsQueryParams,
+    | "status"
+    | "activeOnly"
+    | "followUpDueBefore"
+    | "followUpDueAfter"
+    | "orderByFollowUp"
+    | "page"
+    | "pageSize"
+  >,
+  options?: { enabled?: boolean },
+) {
+  const query = buildQuery(params);
+
+  return useQuery({
+    queryKey: sharedCountsQueryKey("stage-counts", params),
+    queryFn: () => apiGet<LeadStageCounts>(`/api/leads/stage-counts${query}`),
+    enabled: options?.enabled !== false,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useLeads(
+  params: LeadsQueryParams,
+  options?: { enabled?: boolean; suppressErrorToast?: boolean },
+) {
+  const query = buildQuery(params);
+
+  return useQuery({
+    queryKey: leadsListQueryKey(params),
     queryFn: () => apiGet<LeadsListData>(`/api/leads${query}`),
+    enabled: options?.enabled !== false,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    meta: options?.suppressErrorToast ? { suppressErrorToast: true } : undefined,
   });
 }
 

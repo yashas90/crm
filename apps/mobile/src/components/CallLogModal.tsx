@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export type QuickLogPayload = {
   disposition: string;
@@ -86,104 +87,109 @@ export function CallLogModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.title}>Log call outcome</Text>
-            {phoneNumber ? <Text style={styles.subtitle}>{phoneNumber}</Text> : null}
+        {/* SafeAreaView keeps the sheet above the iOS home indicator */}
+        <SafeAreaView edges={["bottom"]} style={styles.sheetSafe}>
+          <View style={styles.sheet}>
+            <ScrollView contentContainerStyle={styles.content}>
+              <Text style={styles.title}>Log call outcome</Text>
+              {phoneNumber ? <Text style={styles.subtitle}>{phoneNumber}</Text> : null}
 
-            <Text style={styles.label}>Call outcome</Text>
-            <View style={styles.chipRow}>
-              {OUTCOMES.map((outcome, index) => (
-                <Pressable
-                  key={outcome.disposition}
-                  style={[styles.chip, selectedOutcome === index && styles.chipActive]}
-                  onPress={() => setSelectedOutcome(index)}
-                >
-                  <Text
-                    style={[styles.chipText, selectedOutcome === index && styles.chipTextActive]}
+              <Text style={styles.label}>Call outcome</Text>
+              <View style={styles.chipRow}>
+                {OUTCOMES.map((outcome, index) => (
+                  <Pressable
+                    key={outcome.disposition}
+                    style={[styles.chip, selectedOutcome === index && styles.chipActive]}
+                    onPress={() => setSelectedOutcome(index)}
                   >
-                    {outcome.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            {isNoAnswer ? (
-              <Text style={styles.hint}>Disposition set to no answer (missed call)</Text>
-            ) : null}
+                    <Text
+                      style={[styles.chipText, selectedOutcome === index && styles.chipTextActive]}
+                    >
+                      {outcome.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {isNoAnswer ? (
+                <Text style={styles.hint}>Disposition set to no answer (missed call)</Text>
+              ) : null}
 
-            <Text style={styles.label}>Duration</Text>
-            <View style={styles.durationRow}>
-              {DURATION_PRESETS.map((preset) => (
-                <Pressable
-                  key={preset}
-                  style={[
-                    styles.durationChip,
-                    durationSeconds === String(preset) && styles.chipActive,
-                  ]}
-                  onPress={() => setDurationSeconds(String(preset))}
-                >
-                  <Text
+              <Text style={styles.label}>Duration</Text>
+              <View style={styles.durationRow}>
+                {DURATION_PRESETS.map((preset) => (
+                  <Pressable
+                    key={preset}
                     style={[
-                      styles.chipText,
-                      durationSeconds === String(preset) && styles.chipTextActive,
+                      styles.durationChip,
+                      durationSeconds === String(preset) && styles.chipActive,
                     ]}
+                    onPress={() => setDurationSeconds(String(preset))}
                   >
-                    {preset}s
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <TextInput
-              style={styles.input}
-              keyboardType="number-pad"
-              value={durationSeconds}
-              onChangeText={setDurationSeconds}
-              placeholder="Custom seconds"
-              placeholderTextColor="#64748b"
-            />
-
-            <Pressable onPress={() => setShowNotes((v) => !v)}>
-              <Text style={styles.notesToggle}>
-                {showNotes ? "Hide notes" : "+ Add notes (optional)"}
-              </Text>
-            </Pressable>
-            {showNotes ? (
+                    <Text
+                      style={[
+                        styles.chipText,
+                        durationSeconds === String(preset) && styles.chipTextActive,
+                      ]}
+                    >
+                      {preset}s
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
               <TextInput
-                style={[styles.input, styles.textArea]}
-                multiline
-                numberOfLines={3}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Optional notes"
+                style={styles.input}
+                keyboardType="number-pad"
+                value={durationSeconds}
+                onChangeText={setDurationSeconds}
+                placeholder="Custom seconds"
                 placeholderTextColor="#64748b"
               />
-            ) : null}
 
-            <View style={styles.actions}>
-              <Pressable style={styles.secondaryButton} onPress={onClose}>
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
-                onPress={() => handleSave(false)}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.primaryButtonText}>{isSubmitting ? "Saving..." : "Save"}</Text>
-              </Pressable>
-            </View>
-            {showSaveAndNext ? (
-              <Pressable
-                style={[styles.nextButton, isSubmitting && styles.buttonDisabled]}
-                onPress={() => handleSave(true)}
-                disabled={isSubmitting}
-              >
-                <Text style={styles.nextButtonText}>
-                  {isSubmitting ? "Saving..." : "Save & Next"}
+              <Pressable onPress={() => setShowNotes((v) => !v)}>
+                <Text style={styles.notesToggle}>
+                  {showNotes ? "Hide notes" : "+ Add notes (optional)"}
                 </Text>
               </Pressable>
-            ) : null}
-          </ScrollView>
-        </View>
+              {showNotes ? (
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  multiline
+                  numberOfLines={3}
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Optional notes"
+                  placeholderTextColor="#64748b"
+                />
+              ) : null}
+
+              <View style={styles.actions}>
+                <Pressable style={styles.secondaryButton} onPress={onClose}>
+                  <Text style={styles.secondaryButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
+                  onPress={() => handleSave(false)}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {isSubmitting ? "Saving..." : "Save"}
+                  </Text>
+                </Pressable>
+              </View>
+              {showSaveAndNext ? (
+                <Pressable
+                  style={[styles.nextButton, isSubmitting && styles.buttonDisabled]}
+                  onPress={() => handleSave(true)}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.nextButtonText}>
+                    {isSubmitting ? "Saving..." : "Save & Next"}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </ScrollView>
+          </View>
+        </SafeAreaView>
       </View>
     </Modal>
   );
@@ -195,11 +201,14 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     backgroundColor: "rgba(0,0,0,0.5)",
   },
+  sheetSafe: {
+    maxHeight: "92%",
+  },
   sheet: {
     backgroundColor: "#1e293b",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: "92%",
+    maxHeight: "100%",
   },
   content: { padding: 20, gap: 10 },
   title: { color: "#f8fafc", fontSize: 20, fontWeight: "700" },

@@ -8,8 +8,8 @@ import { Label } from "@propninja/ui/label";
 import { useState } from "react";
 
 const CREATE_ROLES = [
-  { value: "manager", label: "Manager" },
-  { value: "agent", label: "Agent" },
+  { value: "Manager", label: "Manager" },
+  { value: "Basic", label: "Basic" },
 ] as const;
 
 type UserCreateFormProps = {
@@ -18,11 +18,12 @@ type UserCreateFormProps = {
 
 export function UserCreateForm({ onSuccess }: UserCreateFormProps) {
   const createUser = useCreateUser();
+  const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"manager" | "agent">("agent");
+  const [roleLabel, setRoleLabel] = useState<"Manager" | "Basic">("Basic");
   const [error, setError] = useState<string | null>(null);
 
   const selectClass =
@@ -33,19 +34,22 @@ export function UserCreateForm({ onSuccess }: UserCreateFormProps) {
     setError(null);
     createUser.mutate(
       {
-        name,
+        username,
+        name: name || undefined,
         email,
+        workEmail: email,
         password,
-        role,
+        roleLabel,
         phone: phone || undefined,
       },
       {
         onSuccess: () => {
+          setUsername("");
           setName("");
           setEmail("");
           setPhone("");
           setPassword("");
-          setRole("agent");
+          setRoleLabel("Basic");
           setError(null);
           onSuccess?.();
         },
@@ -59,13 +63,18 @@ export function UserCreateForm({ onSuccess }: UserCreateFormProps) {
   return (
     <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
       <div className="space-y-2">
-        <Label htmlFor="user-name">Full name</Label>
+        <Label htmlFor="user-username">Username</Label>
         <Input
-          id="user-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          id="user-username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="jane.doe"
           required
         />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="user-name">Full name</Label>
+        <Input id="user-name" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <div className="space-y-2">
         <Label htmlFor="user-email">Email</Label>
@@ -91,8 +100,8 @@ export function UserCreateForm({ onSuccess }: UserCreateFormProps) {
         <select
           id="user-role"
           className={selectClass}
-          value={role}
-          onChange={(e) => setRole(e.target.value as "manager" | "agent")}
+          value={roleLabel}
+          onChange={(e) => setRoleLabel(e.target.value as "Manager" | "Basic")}
         >
           {CREATE_ROLES.map((option) => (
             <option key={option.value} value={option.value}>

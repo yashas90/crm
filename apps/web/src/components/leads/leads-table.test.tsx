@@ -7,8 +7,12 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-vi.mock("@/lib/auth", () => ({
-  getSession: () => ({ id: "u1", role: "admin", email: "admin@test", name: "Admin" }),
+vi.mock("@/hooks/use-session", () => ({
+  useSession: () => ({
+    ready: true,
+    isAdmin: true,
+    session: { id: "u1", role: "admin", email: "admin@test", name: "Admin" },
+  }),
 }));
 
 const mockLeads: LeadRow[] = [
@@ -48,8 +52,9 @@ describe("LeadsTable", () => {
 
     expect(screen.getByText("Aarav Sharma")).toBeInTheDocument();
     expect(screen.getByText("Priya Patel")).toBeInTheDocument();
-    expect(screen.getByText("+919876543210")).toBeInTheDocument();
-    expect(screen.getByText("Mumbai")).toBeInTheDocument();
-    expect(screen.getByText("Pune")).toBeInTheDocument();
+    expect(screen.getByText("website")).toBeInTheDocument();
+    expect(screen.getByText("referral")).toBeInTheDocument();
+    expect(screen.getByLabelText("Select Aarav Sharma")).toBeInTheDocument();
+    expect(screen.getAllByText("New").length).toBeGreaterThan(0);
   });
 });

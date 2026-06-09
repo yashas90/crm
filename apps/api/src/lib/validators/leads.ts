@@ -11,12 +11,30 @@ export const listLeadsQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   pageSize: z.coerce.number().min(1).max(100).default(20),
   assignedTo: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional(),
   temperature: temperatureSchema.optional(),
   source: z.string().optional(),
   dateFrom: z.string().datetime({ offset: true }).optional(),
   dateTo: z.string().datetime({ offset: true }).optional(),
   followUpDueBefore: z.string().datetime({ offset: true }).optional(),
+  followUpDueAfter: z.string().datetime({ offset: true }).optional(),
   orderByFollowUp: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+  unassigned: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+  activeOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+  deletedOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+  adLeads: z
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),
@@ -38,6 +56,7 @@ const leadWritableFieldsSchema = z.object({
   nextFollowupAt: z.string().datetime().optional(),
   estimatedValue: z.coerce.number().nonnegative().optional(),
   projectName: z.string().optional(),
+  projectId: z.string().uuid().optional().nullable(),
 });
 
 /** Create requires firstName + phone; all other fields optional. */
@@ -55,6 +74,29 @@ export const addNoteBodySchema = z.object({
   text: z.string().min(1),
 });
 
+export const upcomingFollowupsQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(60).default(14),
+});
+
 export type ListLeadsQuery = z.infer<typeof listLeadsQuerySchema>;
+
+/** Base list filters for stage count aggregation (no stage-specific fields). */
+export const leadStageCountsQuerySchema = listLeadsQuerySchema.omit({
+  page: true,
+  pageSize: true,
+  status: true,
+  activeOnly: true,
+  followUpDueBefore: true,
+  followUpDueAfter: true,
+  orderByFollowUp: true,
+});
+
+export type LeadStageCountsQuery = z.infer<typeof leadStageCountsQuerySchema>;
+
+/** Same shape as stage counts — shared list filters only. */
+export const leadScopeCountsQuerySchema = leadStageCountsQuerySchema;
+
+export type LeadScopeCountsQuery = z.infer<typeof leadScopeCountsQuerySchema>;
+export type UpcomingFollowupsQuery = z.infer<typeof upcomingFollowupsQuerySchema>;
 export type CreateLeadBody = z.infer<typeof createLeadBodySchema>;
 export type UpdateLeadBody = z.infer<typeof updateLeadBodySchema>;

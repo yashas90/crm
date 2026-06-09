@@ -74,6 +74,50 @@ export function apiGet<T>(path: string) {
   return apiFetch<T>(path, { method: "GET", cache: "no-store" });
 }
 
+export async function apiDownload(path: string, filename: string) {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiRequestError(
+      "NETWORK_ERROR",
+      "Unable to reach the server. Check your connection and API URL.",
+    );
+  }
+
+  if (!response.ok) {
+    const raw = await response.text();
+    try {
+      const json = JSON.parse(raw) as ApiError;
+      if (!json.ok) {
+        throw new ApiRequestError(json.error.code, json.error.message, json.error.details);
+      }
+    } catch (error) {
+      if (error instanceof ApiRequestError) throw error;
+      throw new ApiRequestError("HTTP_ERROR", `Download failed (${response.status})`);
+    }
+    throw new ApiRequestError("HTTP_ERROR", `Download failed (${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function apiPost<T>(path: string, body: unknown) {
   return apiFetch<T>(path, { method: "POST", body: JSON.stringify(body) });
 }

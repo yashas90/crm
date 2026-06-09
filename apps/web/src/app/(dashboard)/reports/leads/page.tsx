@@ -19,8 +19,8 @@ function formatAvgTimeToFirstCall(seconds: number): string {
 }
 
 export default function LeadsAnalyticsPage() {
-  const { filters, setFilters, dateFrom, dateTo, labelFrom, labelTo } = useReportFilters();
-  const report = useLeadsReport(dateFrom, dateTo);
+  const { filters, setFilters, dateFrom, dateTo, userId, labelFrom, labelTo } = useReportFilters();
+  const report = useLeadsReport({ dateFrom, dateTo, userId });
 
   return (
     <div className="space-y-6">

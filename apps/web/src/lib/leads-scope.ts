@@ -1,0 +1,79 @@
+import type { LeadsUrlFilters } from "@/lib/leads-url-filters";
+
+export type LeadsScope =
+  | "all"
+  | "my"
+  | "teams"
+  | "unassigned"
+  | "deleted"
+  | "duplicate"
+  | "re-enquired";
+
+export type LeadScopeCounts = Record<LeadsScope, number>;
+
+export const LEADS_QUICK_FILTER_TABS: { id: LeadsScope; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "my", label: "My Leads" },
+  { id: "teams", label: "Team's" },
+  { id: "unassigned", label: "Unassigned" },
+  { id: "deleted", label: "Deleted" },
+  { id: "duplicate", label: "Duplicate" },
+  { id: "re-enquired", label: "Re-Enquired" },
+];
+
+/** @deprecated Use LEADS_QUICK_FILTER_TABS */
+export const LEADS_SCOPES = LEADS_QUICK_FILTER_TABS;
+
+const VALID_SCOPES = new Set<LeadsScope>([
+  "all",
+  "my",
+  "teams",
+  "unassigned",
+  "deleted",
+  "duplicate",
+  "re-enquired",
+]);
+
+export function scopeFromSearchParams(
+  params: URLSearchParams,
+  filters: LeadsUrlFilters,
+): LeadsScope {
+  const explicit = params.get("scope");
+  if (explicit && VALID_SCOPES.has(explicit as LeadsScope)) {
+    return explicit as LeadsScope;
+  }
+  if (filters.unassigned) return "unassigned";
+  if (filters.myLeadsOnly) return "my";
+  return "all";
+}
+
+export function scopeFromUrlFilters(
+  filters: LeadsUrlFilters,
+  params?: URLSearchParams,
+): LeadsScope {
+  if (params) return scopeFromSearchParams(params, filters);
+  if (filters.unassigned) return "unassigned";
+  if (filters.myLeadsOnly) return "my";
+  return "all";
+}
+
+/** Map UI scope to API query flags (works alongside search/status/temperature filters). */
+export function scopeToQueryParams(
+  scope: LeadsScope,
+  userId?: string,
+): {
+  assignedTo?: string;
+  unassigned?: string;
+  deletedOnly?: string;
+} {
+  switch (scope) {
+    case "my":
+      return userId ? { assignedTo: userId } : {};
+    case "unassigned":
+      return { unassigned: "true" };
+    case "deleted":
+      return { deletedOnly: "true" };
+    default:
+      return {};
+  }
+}

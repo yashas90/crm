@@ -1,6 +1,8 @@
 import { useCurrentUser } from "@/hooks/use-auth";
+import { API_URL } from "@/lib/apiClient";
 import { clearAuth } from "@/lib/auth";
 import { colors, radii, spacing } from "@/theme";
+import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import Constants from "expo-constants";
 import { useState } from "react";
 import {
@@ -12,6 +14,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ProfileScreenProps = {
   onLogout: () => void;
@@ -21,6 +24,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
   const [callReminders, setCallReminders] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const { data: user, isLoading, refetch, isRefetching } = useCurrentUser();
+  const insets = useSafeAreaInsets();
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -33,7 +37,13 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom },
+      ]}
+    >
       <Text style={styles.sectionTitle}>Account</Text>
       <View style={styles.card}>
         {isLoading && !user ? (
@@ -66,10 +76,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
             trackColor={{ false: "#334155", true: "#2563eb" }}
           />
         </View>
-        <InfoRow
-          label="API URL"
-          value={process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001"}
-        />
+        <InfoRow label="API URL" value={API_URL} />
         <InfoRow label="App version" value={Constants.expoConfig?.version ?? "1.0.0"} />
       </View>
 
@@ -104,7 +111,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.md,
-    paddingBottom: spacing.xl,
   },
   sectionTitle: {
     color: colors.textDark,

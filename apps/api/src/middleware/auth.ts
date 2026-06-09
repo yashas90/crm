@@ -24,9 +24,9 @@ function bearerToken(c: Context) {
 }
 
 export const authMiddleware = async (c: Context, next: Next) => {
-  // Login is public; all other /api/* routes require a valid JWT.
+  // Public routes: login and Meta Lead Ads webhook (verified via META_VERIFY_TOKEN).
   const path = new URL(c.req.url).pathname;
-  if (path === "/api/auth/login") {
+  if (path === "/api/auth/login" || path.startsWith("/api/integrations/meta/")) {
     c.set("db", getDb());
     await next();
     return;

@@ -1,11 +1,13 @@
 "use client";
 
+import { useSession } from "@/hooks/use-session";
 import { apiGet } from "@/lib/apiClient";
-import { getSession } from "@/lib/auth";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { useQuery } from "@tanstack/react-query";
+import { Plug } from "lucide-react";
+import Link from "next/link";
 
 type OrgRecord = {
   id: string;
@@ -17,7 +19,7 @@ type OrgRecord = {
 };
 
 export default function SettingsPage() {
-  const session = typeof window !== "undefined" ? getSession() : null;
+  const { session, ready } = useSession();
   const org = useQuery({
     queryKey: ["org"],
     queryFn: () => apiGet<OrgRecord>("/api/org"),
@@ -37,13 +39,16 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
-            <span className="text-muted-foreground">Name:</span> {session?.name ?? "—"}
+            <span className="text-muted-foreground">Name:</span>{" "}
+            {ready ? (session?.name ?? "—") : "—"}
           </p>
           <p>
-            <span className="text-muted-foreground">Email:</span> {session?.email ?? "—"}
+            <span className="text-muted-foreground">Email:</span>{" "}
+            {ready ? (session?.email ?? "—") : "—"}
           </p>
           <p>
-            <span className="text-muted-foreground">Role:</span> {session?.role ?? "—"}
+            <span className="text-muted-foreground">Role:</span>{" "}
+            {ready ? (session?.role ?? "—") : "—"}
           </p>
         </CardContent>
       </Card>
@@ -82,6 +87,24 @@ export default function SettingsPage() {
               )}
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Integrations</CardTitle>
+          <CardDescription>Ad platform lead ingestion status.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            View whether Facebook Lead Ads and Google Ads are configured on the API server.
+          </p>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/settings/integrations">
+              <Plug className="mr-2 h-4 w-4" />
+              Manage integrations
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 

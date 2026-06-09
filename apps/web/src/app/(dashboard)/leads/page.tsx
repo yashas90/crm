@@ -1,7 +1,15 @@
 "use client";
 
+import { EmptyState } from "@/components/common/empty-state";
 import { LeadEditModal } from "@/components/leads/lead-edit-modal";
 import { LeadForm } from "@/components/leads/lead-form";
+import { LeadsAdvancedFiltersSheet } from "@/components/leads/leads-advanced-filters-sheet";
+import {
+  type BulkActionIntent,
+  LeadsBulkActionsBar,
+} from "@/components/leads/leads-bulk-actions-bar";
+import { LeadsListFilters } from "@/components/leads/leads-list-filters";
+import { LeadsPageHeaderActions } from "@/components/leads/leads-page-header-actions";
 import { LeadsTable } from "@/components/leads/leads-table";
 import {
   Dialog,
@@ -11,61 +19,173 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   type LeadRow,
-  filterUpcomingLeads,
-  followUpQueryParams,
+  leadsListQueryKey,
+  useLeadScopeCounts,
+  useLeadStageCounts,
   useLeads,
 } from "@/hooks/use-leads";
-import { getSession } from "@/lib/auth";
+import { useSession } from "@/hooks/use-session";
+import { formatLeadSourceDisplay } from "@/lib/lead-sources";
+import { type LeadsDatePreset, resolveLeadsDatePreset } from "@/lib/leads-date-filters";
+import type { LeadsScope } from "@/lib/leads-scope";
+import type { LeadsStage } from "@/lib/leads-stage";
+import {
+  type LeadsColumnVisibility,
+  defaultLeadsColumnVisibility,
+} from "@/lib/leads-table-columns";
+import {
+  LEADS_PAGE_SIZE,
+  type LeadsUrlFilters,
+  buildLeadsSearchParams,
+  countAdvancedLeadsFilters,
+  leadsBaseFiltersToQuery,
+  leadsFiltersToQuery,
+  leadsSharedFiltersToQuery,
+  parseLeadsPageUrl,
+} from "@/lib/leads-url-filters";
+import { getQueryClient } from "@/lib/queryClient";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
-import { Input } from "@propninja/ui/input";
-import { cn } from "@propninja/ui/lib/utils";
-import { Search, Upload } from "lucide-react";
-import { useEffect, useState } from "react";
-
-const STATUSES = ["", "new", "contacted", "qualified", "negotiation", "won", "lost"] as const;
-const TEMPERATURES = ["", "cold", "warm", "hot"] as const;
-const TEMP_CHIP: Record<string, string> = {
-  "": "bg-muted text-muted-foreground",
-  cold: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  warm: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  hot: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
-};
+import { AlertCircle, Upload } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export default function LeadsPage() {
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
-  const [temperature, setTemperature] = useState("");
-  const [myLeadsOnly, setMyLeadsOnly] = useState(false);
-  const [followUpFilter, setFollowUpFilter] = useState<"" | "due_today" | "overdue" | "upcoming">(
-    "",
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const skipUrlWriteRef = useRef(false);
+
+  const [filters, setFilters] = useState<LeadsUrlFilters>(
+    () => parseLeadsPageUrl(searchParams).filters,
   );
+  const [searchDraft, setSearchDraft] = useState(
+    () => parseLeadsPageUrl(searchParams).filters.search,
+  );
+  const [scope, setScope] = useState<LeadsScope>(() => parseLeadsPageUrl(searchParams).scope);
+  const [stage, setStage] = useState<LeadsStage>(() => parseLeadsPageUrl(searchParams).stage);
+  const [columns, setColumns] = useState<LeadsColumnVisibility>(defaultLeadsColumnVisibility);
+  const [page, setPage] = useState(1);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingLead, setEditingLead] = useState<LeadRow | null>(null);
+  const [bulkHint, setBulkHint] = useState(false);
+  const [pendingBulkAction, setPendingBulkAction] = useState<BulkActionIntent | null>(null);
+  const bulkBarRef = useRef<HTMLDivElement>(null);
 
-  const session = typeof window !== "undefined" ? getSession() : null;
+  const { session, ready } = useSession();
 
-  const followUpParams = followUpQueryParams(followUpFilter);
+  useEffect(() => {
+    skipUrlWriteRef.current = true;
+    const parsed = parseLeadsPageUrl(searchParams);
+    setFilters(parsed.filters);
+    setSearchDraft(parsed.filters.search);
+    setScope(parsed.scope);
+    setStage(parsed.stage);
+  }, [searchParams]);
 
-  const { data, isLoading, isError } = useLeads({
-    search: search || undefined,
-    status: status || undefined,
-    temperature: temperature || undefined,
-    assignedTo: myLeadsOnly && session ? session.id : undefined,
-    ...followUpParams,
-    page: "1",
-    pageSize: "50",
+  useEffect(() => {
+    if (skipUrlWriteRef.current) {
+      skipUrlWriteRef.current = false;
+      return;
+    }
+
+    const nextQuery = buildLeadsSearchParams(filters, { scope, stage });
+    const currentQuery = searchParams.toString();
+    if (nextQuery === currentQuery) return;
+
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  }, [filters, scope, stage, pathname, router, searchParams]);
+
+  const listEnabled = ready && (scope !== "my" || Boolean(session?.id));
+
+  const sharedFiltersQuery = useMemo(() => leadsSharedFiltersToQuery(filters), [filters]);
+
+  const baseQuery = useMemo(
+    () =>
+      leadsBaseFiltersToQuery(filters, {
+        scope,
+        userId: ready && session ? session.id : undefined,
+      }),
+    [filters, scope, ready, session],
+  );
+
+  const leadsQuery = useMemo(
+    () =>
+      leadsFiltersToQuery(filters, {
+        scope,
+        stage,
+        page,
+        userId: ready && session ? session.id : undefined,
+      }),
+    [filters, scope, stage, page, ready, session],
+  );
+
+  useEffect(() => {
+    setPage(1);
+    setSelectedLeadIds([]);
+    setBulkHint(false);
+  }, [filters, scope, stage]);
+
+  useEffect(() => {
+    if (selectedLeadIds.length > 0) {
+      setBulkHint(false);
+    }
+  }, [selectedLeadIds.length]);
+
+  function handlePageUpdateClick() {
+    bulkBarRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (selectedLeadIds.length > 0) {
+      setPendingBulkAction("status");
+    } else {
+      setBulkHint(true);
+    }
+  }
+
+  const { data, isLoading, isError, isFetching } = useLeads(leadsQuery, {
+    enabled: listEnabled,
+    suppressErrorToast: true,
   });
 
-  const displayLeads =
-    followUpFilter === "upcoming" && data ? filterUpcomingLeads(data.items) : (data?.items ?? []);
+  const scopeCounts = useLeadScopeCounts(sharedFiltersQuery, { enabled: listEnabled });
+  const stageCounts = useLeadStageCounts(baseQuery, { enabled: listEnabled });
 
-  const selectClass =
-    "flex h-10 rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const scopeCountsLoading = scopeCounts.isLoading && !scopeCounts.data;
+  const stageCountsLoading = stageCounts.isLoading && !stageCounts.data;
+  const tableLoading = !data && (isLoading || isFetching);
+
+  const handleRetryLeads = useCallback(() => {
+    void getQueryClient().invalidateQueries({ queryKey: leadsListQueryKey(leadsQuery) });
+  }, [leadsQuery]);
+
+  const displayLeads = data?.items ?? [];
+  const advancedFilterCount = countAdvancedLeadsFilters(filters);
+
+  const handleSearchSubmit = () => {
+    setFilters((current) => ({ ...current, search: searchDraft.trim() }));
+  };
+
+  const handleDatePresetChange = (
+    preset: LeadsDatePreset,
+    range?: { from?: string; to?: string },
+  ) => {
+    const resolved = resolveLeadsDatePreset(
+      preset,
+      range?.from ?? filters.dateFrom,
+      range?.to ?? filters.dateTo,
+    );
+
+    setFilters((current) => ({
+      ...current,
+      datePreset: preset,
+      dateFrom: resolved.dateFrom,
+      dateTo: resolved.dateTo,
+    }));
+  };
 
   useEffect(() => {
     function openNewLead() {
@@ -77,10 +197,13 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Leads</h2>
-          <p className="text-muted-foreground">Search, filter, and manage your pipeline.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Leads</h2>
+            <p className="text-muted-foreground">Search, filter, and manage your pipeline.</p>
+          </div>
+          <LeadsPageHeaderActions onUpdateClick={handlePageUpdateClick} />
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowImportModal(true)}>
@@ -90,6 +213,33 @@ export default function LeadsPage() {
           <Button onClick={() => setShowForm(true)}>Add Lead</Button>
         </div>
       </div>
+
+      <LeadsListFilters
+        scope={scope}
+        onScopeChange={setScope}
+        scopeCounts={scopeCounts.data}
+        scopeCountsLoading={scopeCountsLoading}
+        stage={stage}
+        onStageChange={setStage}
+        stageCounts={stageCounts.data}
+        stageCountsLoading={stageCountsLoading}
+        searchDraft={searchDraft}
+        onSearchDraftChange={setSearchDraft}
+        onSearchSubmit={handleSearchSubmit}
+        filters={filters}
+        onDatePresetChange={handleDatePresetChange}
+        columns={columns}
+        onColumnsChange={setColumns}
+        onOpenAdvancedFilters={() => setAdvancedOpen(true)}
+        advancedFilterCount={advancedFilterCount}
+        onAdLeadsOnlyChange={(adLeadsOnly) =>
+          setFilters((current) => ({
+            ...current,
+            adLeadsOnly,
+            source: adLeadsOnly ? "" : current.source,
+          }))
+        }
+      />
 
       {showForm ? (
         <Card className="border-border/60 shadow-sm">
@@ -106,99 +256,85 @@ export default function LeadsPage() {
         </Card>
       ) : null}
 
-      <div className="space-y-4 rounded-2xl border border-border/60 bg-muted/10 p-4">
-        <div className="relative max-w-xl">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="global-search"
-            className="rounded-xl pl-10"
-            placeholder="Search by name, phone, or email"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+      {filters.adLeadsOnly ||
+      filters.source ||
+      (filters.datePreset !== "all" && filters.dateFrom) ? (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {filters.adLeadsOnly ? (
+            <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-800 dark:text-emerald-300">
+              Ad Leads
+            </span>
+          ) : null}
+          {filters.source ? (
+            <span className="rounded-full bg-sky-500/10 px-2.5 py-1 font-medium text-sky-800 dark:text-sky-300">
+              Source: {formatLeadSourceDisplay(filters.source)}
+            </span>
+          ) : null}
+          {filters.datePreset !== "all" && filters.dateFrom ? (
+            <span className="rounded-full bg-violet-500/10 px-2.5 py-1 font-medium text-violet-800 dark:text-violet-300">
+              Created {filters.dateFrom}
+              {filters.dateTo && filters.dateTo !== filters.dateFrom ? ` → ${filters.dateTo}` : ""}
+            </span>
+          ) : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Press <kbd className="rounded border px-1">/</kbd> to search ·{" "}
-          <kbd className="rounded border px-1">N</kbd> to add a lead
-        </p>
+      ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            className={selectClass}
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-          >
-            {STATUSES.map((value) => (
-              <option key={value || "all"} value={value}>
-                {value ? value.charAt(0).toUpperCase() + value.slice(1) : "All statuses"}
-              </option>
-            ))}
-          </select>
+      <LeadsBulkActionsBar
+        ref={bulkBarRef}
+        selectedIds={selectedLeadIds}
+        onClearSelection={() => setSelectedLeadIds([])}
+        showHint={bulkHint}
+        onDismissHint={() => setBulkHint(false)}
+        pendingAction={pendingBulkAction}
+        onPendingActionHandled={() => setPendingBulkAction(null)}
+      />
 
-          <div className="flex flex-wrap gap-2">
-            {TEMPERATURES.map((value) => (
-              <button
-                key={value || "all"}
-                type="button"
-                onClick={() => setTemperature(value)}
-                className={cn(
-                  "rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
-                  temperature === value
-                    ? "bg-primary text-primary-foreground"
-                    : (TEMP_CHIP[value] ?? "bg-muted text-muted-foreground"),
-                )}
-              >
-                {value || "All temps"}
-              </button>
-            ))}
-          </div>
-
-          <Button
-            variant={myLeadsOnly ? "default" : "outline"}
-            size="sm"
-            onClick={() => setMyLeadsOnly((v) => !v)}
-          >
-            My Leads
-          </Button>
-
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["", "All follow-ups"],
-                ["due_today", "Due today"],
-                ["overdue", "Overdue"],
-                ["upcoming", "Upcoming"],
-              ] as const
-            ).map(([value, label]) => (
-              <Button
-                key={value || "all"}
-                variant={followUpFilter === value ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFollowUpFilter(value)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <TableSkeleton rows={7} />
-      ) : isError || !data ? (
-        <p className="text-muted-foreground">Unable to load leads.</p>
+      {isError && !data ? (
+        <EmptyState
+          title="Could not load leads."
+          description="Check your connection and try again."
+          actionLabel="Retry"
+          onActionClick={handleRetryLeads}
+          icon={<AlertCircle className="h-7 w-7" />}
+          className="py-10"
+        />
       ) : (
-        <>
+        <section aria-label="Leads results">
           <p className="text-sm text-muted-foreground">
-            {followUpFilter === "upcoming" ? displayLeads.length : data.total} leads
+            {data ? (
+              <>
+                {data.total} leads
+                {isFetching && !tableLoading ? (
+                  <span className="ml-2 text-xs text-muted-foreground">Updating…</span>
+                ) : null}
+              </>
+            ) : (
+              "Loading leads…"
+            )}
           </p>
           <LeadsTable
             leads={displayLeads}
+            isLoading={tableLoading}
+            columnsToShow={columns}
+            page={page}
+            pageSize={LEADS_PAGE_SIZE}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+            selectedIds={selectedLeadIds}
+            onSelectionChange={setSelectedLeadIds}
             onEdit={setEditingLead}
             onAddLead={() => setShowForm(true)}
           />
-        </>
+        </section>
       )}
+
+      <LeadsAdvancedFiltersSheet
+        open={advancedOpen}
+        onOpenChange={setAdvancedOpen}
+        filters={filters}
+        onApply={setFilters}
+        onStageChange={setStage}
+      />
 
       <LeadEditModal
         lead={editingLead}

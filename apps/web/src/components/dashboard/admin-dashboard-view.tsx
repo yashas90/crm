@@ -1,0 +1,305 @@
+"use client";
+
+import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-state";
+import { EmptyState } from "@/components/common/empty-state";
+import { DashboardFilterBar } from "@/components/dashboard/dashboard-filter-bar";
+import { DashboardSection } from "@/components/dashboard/dashboard-section";
+import {
+  CallsSectionSkeleton,
+  ChartCardSkeleton,
+  KpiStripSkeleton,
+  SourcesPanelSkeleton,
+} from "@/components/dashboard/dashboard-skeletons";
+import { HotLeadsTable } from "@/components/dashboard/hot-leads-table";
+import { OverviewKpiStrip } from "@/components/dashboard/overview-kpi-strip";
+import { PipelineHealth } from "@/components/dashboard/pipeline-health";
+import { PipelineValueCards } from "@/components/dashboard/pipeline-value-cards";
+import { RecentActivityFeed } from "@/components/dashboard/recent-activity-feed";
+import { RemindersPanel } from "@/components/dashboard/reminders-panel";
+import { RevenueKpiRow } from "@/components/dashboard/revenue-kpi-row";
+import { TeamPerformanceTable } from "@/components/dashboard/team-performance-table";
+import { TodayKpiRow } from "@/components/dashboard/today-kpi-row";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDashboardReports } from "@/hooks/use-dashboard-reports";
+import { isForbiddenError, useRecentActivities } from "@/hooks/use-reports";
+import {
+  type DashboardFilterValue,
+  defaultDashboardFilters,
+  toDashboardApiParams,
+} from "@/lib/dashboard-filters";
+import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
+import { BarChart3 } from "lucide-react";
+import Link from "next/link";
+import { Suspense, lazy, useMemo, useState } from "react";
+
+const LeadsFromSource = lazy(() =>
+  import("@/components/dashboard/leads-from-source").then((module) => ({
+    default: module.LeadsFromSource,
+  })),
+);
+
+const LeadsReceivedChart = lazy(() =>
+  import("@/components/dashboard/leads-received-chart").then((module) => ({
+    default: module.LeadsReceivedChart,
+  })),
+);
+
+const CallsSection = lazy(() =>
+  import("@/components/dashboard/calls-section").then((module) => ({
+    default: module.CallsSection,
+  })),
+);
+
+function BottomOverviewSkeleton() {
+  return (
+    <div className="space-y-10">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }, (_, index) => (
+          <Skeleton key={`today-kpi-${index}`} className="h-24 w-full rounded-xl" />
+        ))}
+      </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <Skeleton key={`pipeline-${index}`} className="h-32 w-full rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-64 w-full rounded-xl lg:h-72" />
+    </div>
+  );
+}
+
+type AdminDashboardViewProps = {
+  enabled: boolean;
+};
+
+export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
+  const [dashboardFilters, setDashboardFilters] = useState<DashboardFilterValue>(() =>
+    defaultDashboardFilters(),
+  );
+
+  const reportParams = useMemo(() => toDashboardApiParams(dashboardFilters), [dashboardFilters]);
+
+  const { overview, sources, leads, calls } = useDashboardReports(reportParams, { enabled });
+  const recentActivities = useRecentActivities();
+
+  if (overview.isError && isForbiddenError(overview.error)) {
+    return <AccessDeniedEmptyState />;
+  }
+
+  const overviewData = overview.data;
+  const rangeLabelLower = reportParams.rangeLabel.toLowerCase();
+
+  return (
+    <div className="space-y-6">
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="min-w-0 space-y-10">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
+            <p className="text-muted-foreground">
+              Funnel performance for {rangeLabelLower}.
+              {overview.isFetching && overviewData ? (
+                <span className="ml-2 text-xs text-muted-foreground">Updating…</span>
+              ) : null}
+            </p>
+          </div>
+
+          <DashboardFilterBar value={dashboardFilters} onChange={setDashboardFilters} />
+
+          <DashboardSection
+            title="Lead pipeline"
+            description="Live counts across your book — scroll on smaller screens."
+            isLoading={overview.isLoading}
+            isError={overview.isError}
+            hasData={Boolean(overviewData?.lead_strip)}
+            onRetry={() => void overview.refetch()}
+            skeleton={<KpiStripSkeleton />}
+          >
+            {overviewData?.lead_strip ? <OverviewKpiStrip strip={overviewData.lead_strip} /> : null}
+          </DashboardSection>
+
+          <DashboardSection
+            title="Leads from source"
+            description="Where your leads are coming from across social, portals, and other channels."
+            isLoading={sources.isLoading}
+            isError={sources.isError}
+            hasData={Boolean(sources.data?.leads_from_source?.length)}
+            onRetry={() => void sources.refetch()}
+            skeleton={<SourcesPanelSkeleton />}
+          >
+            {sources.data?.leads_from_source ? (
+              <Suspense fallback={<SourcesPanelSkeleton />}>
+                <LeadsFromSource groups={sources.data.leads_from_source} />
+              </Suspense>
+            ) : null}
+          </DashboardSection>
+
+          <DashboardSection
+            isLoading={leads.isLoading}
+            isError={leads.isError}
+            hasData={Boolean(leads.data?.leads_over_time)}
+            onRetry={() => void leads.refetch()}
+            skeleton={<ChartCardSkeleton tall />}
+            className="space-y-0"
+          >
+            {leads.data?.leads_over_time ? (
+              <Suspense fallback={<ChartCardSkeleton tall />}>
+                <LeadsReceivedChart
+                  rows={leads.data.leads_over_time}
+                  rangeLabel={reportParams.rangeLabel}
+                  dateFrom={reportParams.labelFrom}
+                  dateTo={reportParams.labelTo}
+                />
+              </Suspense>
+            ) : null}
+          </DashboardSection>
+
+          <section className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold">Calls &amp; activity</h3>
+              <p className="text-sm text-muted-foreground">
+                Call outcomes and touchpoints on leads for {rangeLabelLower}.
+              </p>
+            </div>
+            <DashboardSection
+              isLoading={calls.isLoading}
+              isError={calls.isError}
+              hasData={Boolean(
+                calls.data?.calls_over_time && calls.data.activity_on_leads_over_time,
+              )}
+              onRetry={() => void calls.refetch()}
+              skeleton={<CallsSectionSkeleton />}
+              className="space-y-0"
+            >
+              {calls.data?.calls_over_time && calls.data.activity_on_leads_over_time ? (
+                <Suspense fallback={<CallsSectionSkeleton />}>
+                  <CallsSection
+                    callsOverTime={calls.data.calls_over_time}
+                    activityOnLeads={calls.data.activity_on_leads_over_time}
+                    rangeLabel={reportParams.rangeLabel}
+                    dateFrom={reportParams.labelFrom}
+                    dateTo={reportParams.labelTo}
+                  />
+                </Suspense>
+              ) : null}
+            </DashboardSection>
+          </section>
+
+          {overview.isLoading && !overviewData ? (
+            <BottomOverviewSkeleton />
+          ) : overview.isError ? (
+            <EmptyState
+              title="Couldn't load overview details"
+              description="Pipeline, revenue, and team sections failed to load."
+              actionLabel="Retry"
+              onActionClick={() => void overview.refetch()}
+              icon={<BarChart3 className="h-7 w-7" />}
+            />
+          ) : overviewData ? (
+            <>
+              <section className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Today at a glance</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Key metrics for {rangeLabelLower}.
+                  </p>
+                </div>
+                <TodayKpiRow kpis={overviewData.kpis} />
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Pipeline by status</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Key stages with estimated value and activity trend.
+                  </p>
+                </div>
+                <PipelineValueCards pipeline={overviewData.pipeline ?? []} />
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Revenue</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Won deal value for the selected period.
+                  </p>
+                </div>
+                <RevenueKpiRow revenue={overviewData.revenue} />
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Pipeline health</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Stage mix and activity for {rangeLabelLower}.
+                  </p>
+                </div>
+                <PipelineHealth
+                  leadsByStatus={overviewData.leads_by_status}
+                  activityLast7Days={overviewData.activity_last_7_days ?? []}
+                />
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Hot leads</h3>
+                  <p className="text-sm text-muted-foreground">Leads that need attention soon.</p>
+                </div>
+                <HotLeadsTable leads={overviewData.hot_leads_list ?? []} />
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Team snapshot</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Leads owned, calls, and deals won in the selected period. See{" "}
+                    <Link href="/reports/team" className="font-medium text-primary hover:underline">
+                      Team performance
+                    </Link>{" "}
+                    for stand-up metrics.
+                  </p>
+                </div>
+                <Card className="border-border/60 shadow-sm">
+                  <CardHeader className="pb-0">
+                    <CardTitle className="text-base">By agent</CardTitle>
+                  </CardHeader>
+                  <CardContent className="overflow-x-auto pt-4">
+                    <TeamPerformanceTable team={overviewData.team_performance ?? []} />
+                  </CardContent>
+                </Card>
+              </section>
+            </>
+          ) : null}
+
+          <section className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold">Recent activity</h3>
+              <p className="text-sm text-muted-foreground">
+                Latest notes, calls, and status changes.
+              </p>
+            </div>
+            {recentActivities.isLoading ? (
+              <Skeleton className="h-40 w-full rounded-xl" />
+            ) : recentActivities.isError ? (
+              <EmptyState
+                title="Couldn't load activity"
+                description="Recent activity failed to load."
+                actionLabel="Retry"
+                onActionClick={() => void recentActivities.refetch()}
+              />
+            ) : (
+              <RecentActivityFeed activities={recentActivities.data ?? []} />
+            )}
+          </section>
+        </div>
+
+        <aside className="hidden lg:block">
+          <RemindersPanel className="sticky top-24" />
+        </aside>
+      </div>
+
+      <div className="lg:hidden">
+        <RemindersPanel collapsible />
+      </div>
+    </div>
+  );
+}

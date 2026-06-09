@@ -2,6 +2,7 @@
 
 import { InlineEstimatedValue } from "@/components/leads/inline-estimated-value";
 import { LeadActivityTimeline } from "@/components/leads/lead-activity-timeline";
+import { LeadAdInfoPanel } from "@/components/leads/lead-ad-info-panel";
 import { LeadCallsPanel } from "@/components/leads/lead-calls-panel";
 import { ProjectChip, StatusChip, TemperatureChip } from "@/components/leads/lead-chips";
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
@@ -10,11 +11,12 @@ import { LeadTagsEditor } from "@/components/leads/lead-tags-editor";
 import { ComplianceChip, TcfConsentPanel } from "@/components/leads/tcf-consent-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAddLeadNote, useCalls, useLead } from "@/hooks/use-leads";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useTcfConsent } from "@/hooks/use-tcf";
 import { useUsers } from "@/hooks/use-users";
 import { apiPost } from "@/lib/apiClient";
-import { getSession } from "@/lib/auth";
 import { getErrorMessage } from "@/lib/errors";
+import { formatLeadSourceDisplay } from "@/lib/lead-sources";
 import { formatDaysAgo, formatRelativeTime, isOverdue } from "@/lib/relative-time";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
@@ -54,8 +56,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
 
-  const session = typeof window !== "undefined" ? getSession() : null;
-  const isAdmin = session?.role === "admin";
+  const { ready, canDeleteLead } = usePermissions();
   const callConsent = tcfData?.consents.call?.consented ?? null;
 
   if (isLoading) {
@@ -97,7 +98,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
           <Button variant="outline" size="sm" onClick={() => setShowEdit((v) => !v)}>
             Edit
           </Button>
-          {isAdmin ? (
+          {ready && canDeleteLead ? (
             <div className="relative">
               <Button
                 variant="outline"
@@ -297,6 +298,12 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
             </CardContent>
           </Card>
 
+          <LeadAdInfoPanel
+            leadSource={lead.leadSource}
+            tags={lead.tags}
+            customFields={lead.customFields}
+          />
+
           <Card className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
             <CardHeader>
               <CardTitle className="text-base">Lead info</CardTitle>
@@ -304,7 +311,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
             <CardContent className="space-y-4 text-sm">
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">Source</span>
-                <span className="font-medium capitalize">{lead.leadSource ?? "—"}</span>
+                <span className="font-medium">{formatLeadSourceDisplay(lead.leadSource)}</span>
               </div>
               <div>
                 <span className="text-muted-foreground">Estimated value</span>
@@ -321,7 +328,10 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
+          <Card
+            id="notes"
+            className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md scroll-mt-24"
+          >
             <CardHeader>
               <CardTitle className="text-base">Notes</CardTitle>
             </CardHeader>
@@ -381,7 +391,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
-      {isAdmin ? (
+      {ready && canDeleteLead ? (
         <LeadDeleteDialog
           leadId={lead.id}
           leadName={`${lead.firstName} ${lead.lastName}`}

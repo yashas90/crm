@@ -14,7 +14,7 @@ export const tcfRoutes = new Hono();
 
 tcfRoutes.post("/consent", validate("json", upsertTcfConsentBodySchema), async (c) => {
   const body = c.req.valid("json");
-  const authUser = c.get("authUser");
+  const _authUser = c.get("authUser");
   const service = createTcfService(c.get("db"));
   const consent = await service.upsert(body);
 
@@ -23,7 +23,7 @@ tcfRoutes.post("/consent", validate("json", upsertTcfConsentBodySchema), async (
 
 tcfRoutes.get("/consent/:lead_id", validate("param", leadIdSnakeParamSchema), async (c) => {
   const { lead_id } = c.req.valid("param");
-  const authUser = c.get("authUser");
+  const _authUser = c.get("authUser");
   const service = createTcfService(c.get("db"));
   const consents = await service.getByChannel(lead_id);
 
@@ -32,7 +32,7 @@ tcfRoutes.get("/consent/:lead_id", validate("param", leadIdSnakeParamSchema), as
 
 tcfRoutes.get("/leads/:leadId", validate("param", leadIdParamSchema), async (c) => {
   const { leadId } = c.req.valid("param");
-  const authUser = c.get("authUser");
+  const _authUser = c.get("authUser");
   const service = createTcfService(c.get("db"));
   const consents = await service.listByLead(leadId);
 
@@ -41,7 +41,7 @@ tcfRoutes.get("/leads/:leadId", validate("param", leadIdParamSchema), async (c) 
 
 tcfRoutes.post("/", validate("json", createTcfConsentBodySchema), async (c) => {
   const body = c.req.valid("json");
-  const authUser = c.get("authUser");
+  const _authUser = c.get("authUser");
   const service = createTcfService(c.get("db"));
   const consent = await service.create(body);
 
@@ -55,7 +55,7 @@ tcfRoutes.post(
   async (c) => {
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
-    const authUser = c.get("authUser");
+    const _authUser = c.get("authUser");
     const service = createTcfService(c.get("db"));
     const consent = await service.revoke(id, body);
 

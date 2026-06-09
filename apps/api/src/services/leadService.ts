@@ -1,7 +1,26 @@
-import { callRecords, leadActivities, leads, users } from "@propninja/db";
-import { and, asc, desc, eq, gte, ilike, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { callRecords, leadActivities, leads, projects, users } from "@propninja/db";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
+import { adLeadsOnlyFilter } from "../lib/adLeadFilters.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import { notFound } from "../lib/errors.js";
+import { inferFollowupType } from "../lib/followupType.js";
+import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import type { CreateLeadBody } from "../lib/validators/leads.js";
 
 type LeadStatus = "new" | "contacted" | "qualified" | "negotiation" | "won" | "lost";
@@ -13,12 +32,18 @@ export interface ListLeadsParams {
   page?: number;
   pageSize?: number;
   assignedTo?: string;
+  projectId?: string;
   temperature?: Temperature;
   source?: string;
   dateFrom?: string;
   dateTo?: string;
   followUpDueBefore?: string;
+  followUpDueAfter?: string;
   orderByFollowUp?: boolean;
+  unassigned?: boolean;
+  activeOnly?: boolean;
+  deletedOnly?: boolean;
+  adLeadsOnly?: boolean;
 }
 
 export type CreateLeadInput = CreateLeadBody;
@@ -42,6 +67,7 @@ export interface UpdateLeadInput {
     nextFollowupAt: string;
     estimatedValue: number | null;
     projectName: string;
+    projectId: string | null;
   }>;
 }
 
@@ -60,23 +86,77 @@ export class LeadDuplicatePhoneError extends Error {
   }
 }
 
+async function resolveProjectFields(input: {
+  projectId?: string | null;
+  projectName?: string;
+}) {
+  if (input.projectId) {
+    const [project] = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.id, input.projectId),
+          eq(projects.orgId, SINGLE_TENANT_ORG_ID),
+          isNull(projects.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!project) {
+      throw notFound("Project not found");
+    }
+
+    return { projectId: project.id, projectName: project.name };
+  }
+
+  if (input.projectId === null) {
+    return { projectId: null, projectName: input.projectName ?? null };
+  }
+
+  return { projectId: null, projectName: input.projectName ?? null };
+}
+
 function buildListWhere(params: ListLeadsParams) {
-  const whereClauses = [eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt)];
+  const whereClauses = [eq(leads.orgId, SINGLE_TENANT_ORG_ID)];
+
+  if (params.deletedOnly) {
+    whereClauses.push(isNotNull(leads.deletedAt));
+  } else {
+    whereClauses.push(isNull(leads.deletedAt));
+  }
 
   if (params.status) {
     whereClauses.push(eq(leads.leadStatus, params.status));
   }
 
-  if (params.assignedTo) {
+  if (params.unassigned) {
+    whereClauses.push(isNull(leads.assignedTo));
+  } else if (params.assignedTo) {
     whereClauses.push(eq(leads.assignedTo, params.assignedTo));
+  }
+
+  if (params.activeOnly) {
+    whereClauses.push(sql`${leads.leadStatus} not in ('lost', 'won')`);
+  }
+
+  if (params.projectId) {
+    whereClauses.push(eq(leads.projectId, params.projectId));
   }
 
   if (params.temperature) {
     whereClauses.push(eq(leads.temperature, params.temperature));
   }
 
-  if (params.source) {
-    whereClauses.push(eq(leads.leadSource, params.source));
+  if (params.adLeadsOnly) {
+    whereClauses.push(adLeadsOnlyFilter());
+  } else if (params.source) {
+    const sourceVariants = expandLeadSourceFilter(params.source);
+    whereClauses.push(
+      sourceVariants.length === 1
+        ? eq(leads.leadSource, sourceVariants[0]!)
+        : inArray(leads.leadSource, sourceVariants),
+    );
   }
 
   if (params.dateFrom) {
@@ -88,8 +168,13 @@ function buildListWhere(params: ListLeadsParams) {
   }
 
   if (params.followUpDueBefore) {
-    whereClauses.push(sql`${leads.nextFollowupAt} is not null`);
+    whereClauses.push(isNotNull(leads.nextFollowupAt));
     whereClauses.push(lte(leads.nextFollowupAt, new Date(params.followUpDueBefore)));
+  }
+
+  if (params.followUpDueAfter) {
+    whereClauses.push(isNotNull(leads.nextFollowupAt));
+    whereClauses.push(gt(leads.nextFollowupAt, new Date(params.followUpDueAfter)));
   }
 
   if (params.search?.trim()) {
@@ -107,7 +192,79 @@ function buildListWhere(params: ListLeadsParams) {
   return and(...whereClauses);
 }
 
+async function countLeadsWhere(params: ListLeadsParams) {
+  const whereClause = buildListWhere(params);
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(leads)
+    .where(whereClause);
+  return count ?? 0;
+}
+
 export const leadService = {
+  async getStageCounts(baseParams: ListLeadsParams) {
+    const now = new Date().toISOString();
+
+    const [active, newLeads, pending, scheduled, overdue, eoi] = await Promise.all([
+      countLeadsWhere({ ...baseParams, activeOnly: true }),
+      countLeadsWhere({ ...baseParams, status: "new" }),
+      countLeadsWhere({ ...baseParams, status: "contacted" }),
+      countLeadsWhere({
+        ...baseParams,
+        followUpDueAfter: now,
+        activeOnly: true,
+      }),
+      countLeadsWhere({
+        ...baseParams,
+        followUpDueBefore: now,
+        activeOnly: true,
+      }),
+      countLeadsWhere({ ...baseParams, status: "qualified" }),
+    ]);
+
+    return {
+      active,
+      new: newLeads,
+      pending,
+      scheduled,
+      overdue,
+      eoi,
+    };
+  },
+
+  async getScopeCounts(
+    baseParams: ListLeadsParams,
+    options?: { userId?: string; isAgent?: boolean },
+  ) {
+    const isAgent = options?.isAgent ?? false;
+    const userId = options?.userId;
+    const agentBook = isAgent && userId ? { assignedTo: userId } : {};
+
+    const [all, my, teams, unassigned, deleted, duplicate, reEnquired] = await Promise.all([
+      countLeadsWhere({ ...baseParams, ...agentBook }),
+      userId ? countLeadsWhere({ ...baseParams, assignedTo: userId }) : Promise.resolve(0),
+      countLeadsWhere({ ...baseParams, ...agentBook }),
+      isAgent ? Promise.resolve(0) : countLeadsWhere({ ...baseParams, unassigned: true }),
+      countLeadsWhere({
+        ...baseParams,
+        deletedOnly: true,
+        ...(isAgent && userId ? { assignedTo: userId } : {}),
+      }),
+      countLeadsWhere({ ...baseParams, ...agentBook }),
+      countLeadsWhere({ ...baseParams, ...agentBook }),
+    ]);
+
+    return {
+      all,
+      my,
+      teams,
+      unassigned,
+      deleted,
+      duplicate,
+      "re-enquired": reEnquired,
+    };
+  },
+
   async listLeads(params: ListLeadsParams) {
     const { page = 1, pageSize = 20 } = params;
 
@@ -156,7 +313,10 @@ export const leadService = {
       nextFollowupAt,
       estimatedValue,
       projectName,
+      projectId,
     } = input;
+
+    const resolvedProject = await resolveProjectFields({ projectId, projectName });
 
     const existing = await db
       .select({ id: leads.id })
@@ -188,7 +348,8 @@ export const leadService = {
         tags: tags ?? null,
         nextFollowupAt: nextFollowupAt ? new Date(nextFollowupAt) : null,
         estimatedValue: estimatedValue != null ? String(estimatedValue) : null,
-        projectName: projectName ?? null,
+        projectName: resolvedProject.projectName,
+        projectId: resolvedProject.projectId,
       })
       .returning();
 
@@ -319,8 +480,16 @@ export const leadService = {
       update.estimatedValue =
         payload.estimatedValue == null ? null : String(payload.estimatedValue);
     }
-    if (payload.projectName !== undefined) {
+    if (payload.projectId !== undefined) {
+      const resolvedProject = await resolveProjectFields({
+        projectId: payload.projectId,
+        projectName: payload.projectName,
+      });
+      update.projectName = resolvedProject.projectName;
+      update.projectId = resolvedProject.projectId;
+    } else if (payload.projectName !== undefined) {
       update.projectName = payload.projectName;
+      update.projectId = null;
     }
 
     const [updated] = await db
@@ -424,6 +593,49 @@ export const leadService = {
       .returning();
 
     return deleted ?? null;
+  },
+
+  async getUpcomingFollowups(days: number, assignedTo?: string) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const rangeEnd = new Date(todayStart);
+    rangeEnd.setDate(rangeEnd.getDate() + days);
+    rangeEnd.setHours(23, 59, 59, 999);
+
+    const filters = [
+      eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+      isNull(leads.deletedAt),
+      isNotNull(leads.nextFollowupAt),
+      gte(leads.nextFollowupAt, todayStart),
+      lte(leads.nextFollowupAt, rangeEnd),
+    ];
+
+    if (assignedTo) {
+      filters.push(eq(leads.assignedTo, assignedTo));
+    }
+
+    const rows = await db
+      .select({
+        id: leads.id,
+        firstName: leads.firstName,
+        lastName: leads.lastName,
+        leadStatus: leads.leadStatus,
+        nextFollowupAt: leads.nextFollowupAt,
+        tags: leads.tags,
+        customFields: leads.customFields,
+      })
+      .from(leads)
+      .where(and(...filters))
+      .orderBy(asc(leads.nextFollowupAt));
+
+    return rows.map((row) => ({
+      id: row.id,
+      leadName: `${row.firstName} ${row.lastName}`.trim(),
+      nextFollowupAt: row.nextFollowupAt!.toISOString(),
+      type: inferFollowupType({ tags: row.tags, customFields: row.customFields }),
+      status: row.leadStatus,
+    }));
   },
 
   async getRecentActivities(limit = 10) {

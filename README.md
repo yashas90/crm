@@ -31,10 +31,11 @@ packages/
 
 ### Web (`apps/web`)
 - **Leads** — list, search/filter, create, edit, delete (admin), notes, tags, assignment
+- **Ad leads** — “Ad Leads” quick filter, Facebook/Google source presets, ad-lead detail panel (campaign, form, external ID)
 - **Lead detail** — contact info, timeline, calls, TCF consent panel, estimated value
-- **Reports** — dashboard, leads analytics, calls, team performance (manager/admin)
+- **Reports** — dashboard (including **Leads from Source** via `/api/reports/sources`), leads analytics, **Leads – Call Report** (per-user tabular calls with filters, export, pagination), team performance (manager/admin)
 - **Users** — team list; role/active edits (admin)
-- **Settings** — org display
+- **Settings** — org display; **Integrations** status (Meta + Google Ads)
 - **TCF** — view and update call/SMS/email consent per lead
 - Role-aware nav and graceful 403 handling for agents
 
@@ -49,7 +50,9 @@ packages/
 - **Auth** — DB login, JWT issue/verify, `/api/auth/me`
 - **Permissions** — admin / manager / agent scoping on leads, reports, users
 - **Leads & calls** — CRUD, notes, assign; mobile-only `POST /api/calls/log`
-- **Reports** — overview, dashboard, leads/calls analytics, team-today
+- **Ad lead ingest** — Meta Lead Ads webhook (`/api/integrations/meta/webhook`), Google Ads polling job, dedup + tagging
+- **Reports** — overview, sources, dashboard, leads/calls analytics (`ad_leads` filter), team-today
+- **Integrations** — `GET /api/integrations/status` (sync health, webhook signature, scoping)
 - **TCF** — consent read/write per channel
 - **Users** — list and admin patch
 
@@ -114,10 +117,10 @@ Or in separate terminals:
 ```bash
 pnpm --filter @propninja/api dev      # http://localhost:3001
 pnpm --filter @propninja/web dev      # http://localhost:3000
-pnpm --filter @propninja/mobile dev   # Expo dev server
+pnpm --filter @propninja/mobile dev   # Expo dev server — see apps/mobile/MOBILE.md
 ```
 
-Web and mobile default to `http://localhost:3001` for the API (`NEXT_PUBLIC_API_URL` / `EXPO_PUBLIC_API_URL`). On a physical device, use your machine’s LAN IP instead of `localhost`.
+Web and mobile API URLs are configured via env vars (`NEXT_PUBLIC_API_URL` / `EXPO_PUBLIC_API_URL`). See [apps/mobile/MOBILE.md](apps/mobile/MOBILE.md) for iOS vs Android dev URLs and EAS builds.
 
 ## Testing & CI
 
@@ -156,3 +159,7 @@ Same password (`admin`) for role testing:
 | `agent3@demo.propninja` | agent |
 
 Use different roles to verify permissions (e.g. agents see only assigned leads; managers see reports; admins manage users).
+
+## Ad lead integrations
+
+Facebook / Instagram Lead Ads (webhook) and Google Ads lead forms (polling) can push leads into the CRM. Setup steps and env vars are documented in [INTEGRATIONS.md](INTEGRATIONS.md).

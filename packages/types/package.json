@@ -27,6 +27,10 @@
     "./brands": {
       "types": "./src/brands.ts",
       "default": "./src/brands.ts"
+    },
+    "./permissions": {
+      "types": "./src/permissions.ts",
+      "default": "./src/permissions.ts"
     }
   },
   "scripts": {

@@ -1,6 +1,7 @@
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import { getToken } from "@/lib/auth";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001";
+export const API_URL = getApiBaseUrl();
 
 export type ApiSuccess<T> = { ok: true; data: T };
 export type ApiError = {

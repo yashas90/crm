@@ -1,7 +1,9 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -21,6 +23,12 @@ export const organizations = pgTable("organizations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const userRoles = pgTable("user_roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  permissions: jsonb("permissions").$type<string[]>().notNull().default([]),
+});
+
 export const users = pgTable(
   "users",
   {
@@ -28,15 +36,36 @@ export const users = pgTable(
     orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id),
+    username: text("username").notNull().unique(),
     email: text("email").notNull().unique(),
     name: text("name").notNull(),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    workEmail: text("work_email"),
+    workPhone: text("work_phone"),
+    personalPhone: text("personal_phone"),
+    homeLocation: text("home_location"),
+    department: text("department"),
+    designation: text("designation"),
+    timeZone: text("time_zone"),
+    brokerNumber: text("broker_number"),
+    description: text("description"),
+    roleLabel: text("role_label"),
+    generalManagerId: uuid("general_manager_id").references((): AnyPgColumn => users.id),
+    reportingToId: uuid("reporting_to_id").references((): AnyPgColumn => users.id),
     role: text("role").notNull(),
     phone: text("phone"),
     passwordHash: text("password_hash"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [check("users_role_check", sql`${table.role} in ('admin', 'manager', 'agent')`)],
+  (table) => [
+    check("users_role_check", sql`${table.role} in ('admin', 'manager', 'agent')`),
+    index("users_username_idx").on(table.username),
+    index("users_org_id_idx").on(table.orgId),
+    index("users_general_manager_id_idx").on(table.generalManagerId),
+    index("users_reporting_to_id_idx").on(table.reportingToId),
+  ],
 );
 
 export const leads = pgTable(
@@ -67,6 +96,7 @@ export const leads = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    projectId: uuid("project_id").references(() => projects.id),
   },
   (table) => [
     check(
@@ -78,6 +108,81 @@ export const leads = pgTable(
     index("leads_org_id_assigned_to_idx").on(table.orgId, table.assignedTo),
     index("leads_org_id_lead_status_idx").on(table.orgId, table.leadStatus),
     index("leads_org_id_phone_idx").on(table.orgId, table.phone),
+    index("leads_project_id_idx").on(table.projectId),
+  ],
+);
+
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    status: text("status").notNull().default("new"),
+    projectType: text("project_type").notNull(),
+    subType: text("sub_type"),
+    availability: boolean("availability").notNull().default(true),
+    facing: text("facing").array(),
+    landArea: text("land_area"),
+    certificate: text("certificate"),
+    description: text("description"),
+    notes: text("notes"),
+    builderName: text("builder_name"),
+    builderPhone: text("builder_phone"),
+    builderContactName: text("builder_contact_name"),
+    builderContactPhone: text("builder_contact_phone"),
+    reraNumbers: text("rera_numbers").array(),
+    minPrice: numeric("min_price", { precision: 14, scale: 2 }),
+    maxPrice: numeric("max_price", { precision: 14, scale: 2 }),
+    brokeragePercent: numeric("brokerage_percent", { precision: 5, scale: 2 }),
+    startDate: date("start_date"),
+    endDate: date("end_date"),
+    possessionDate: date("possession_date"),
+    assignedTo: uuid("assigned_to").references(() => users.id),
+    projectCategory: text("project_category").notNull().default("residential"),
+    unitsInfo: jsonb("units_info").$type<{
+      units: Array<{
+        type: string;
+        count: number;
+        carpetArea?: string;
+        minPrice?: number;
+        maxPrice?: number;
+      }>;
+    }>(),
+    blocksInfo: jsonb("blocks_info").$type<{
+      numberOfBlocks?: number;
+      floorsPerBlock?: number;
+      unitsPerFloor?: number;
+      notes?: string;
+    }>(),
+    amenities: text("amenities").array(),
+    gallery: jsonb("gallery").$type<{
+      items: Array<{ id: string; name: string; placeholder?: boolean }>;
+    }>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "projects_status_check",
+      sql`${table.status} in ('new', 'pre_launch', 'launch', 'ongoing', 'completed')`,
+    ),
+    check(
+      "projects_project_type_check",
+      sql`${table.projectType} in ('residential', 'commercial', 'agricultural', 'plot', 'mixed')`,
+    ),
+    check(
+      "projects_project_category_check",
+      sql`${table.projectCategory} in ('residential', 'commercial', 'agricultural')`,
+    ),
+    index("projects_name_idx").on(table.name),
+    index("projects_status_idx").on(table.status),
+    index("projects_project_category_idx").on(table.projectCategory),
+    index("projects_assigned_to_idx").on(table.assignedTo),
+    index("projects_org_id_idx").on(table.orgId),
   ],
 );
 
@@ -140,6 +245,16 @@ export const leadActivities = pgTable(
   ],
 );
 
+export const integrationSyncState = pgTable("integration_sync_state", {
+  integration: text("integration").primaryKey(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id),
+  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const tcfConsents = pgTable(
   "tcf_consents",
   {
@@ -159,11 +274,22 @@ export const tcfConsents = pgTable(
   ],
 );
 
+export const userRolesRelations = relations(userRoles, () => ({}));
+
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   leads: many(leads),
+  projects: many(projects),
   callRecords: many(callRecords),
   leadActivities: many(leadActivities),
+  integrationSyncState: many(integrationSyncState),
+}));
+
+export const integrationSyncStateRelations = relations(integrationSyncState, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [integrationSyncState.orgId],
+    references: [organizations.id],
+  }),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -172,6 +298,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [organizations.id],
   }),
   assignedLeads: many(leads),
+  assignedProjects: many(projects),
   callRecords: many(callRecords),
   leadActivities: many(leadActivities),
 }));
@@ -185,9 +312,25 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
     fields: [leads.assignedTo],
     references: [users.id],
   }),
+  project: one(projects, {
+    fields: [leads.projectId],
+    references: [projects.id],
+  }),
   callRecords: many(callRecords),
   activities: many(leadActivities),
   consents: many(tcfConsents),
+}));
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [projects.orgId],
+    references: [organizations.id],
+  }),
+  assignee: one(users, {
+    fields: [projects.assignedTo],
+    references: [users.id],
+  }),
+  leads: many(leads),
 }));
 
 export const callRecordsRelations = relations(callRecords, ({ one }) => ({

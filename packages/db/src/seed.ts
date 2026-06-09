@@ -5,6 +5,7 @@ import {
   leadActivities,
   leads,
   organizations,
+  projects,
   tcfConsents,
   users,
 } from "@propninja/db";
@@ -26,14 +27,84 @@ async function hashDevPassword() {
 const STATUSES = ["new", "contacted", "qualified", "negotiation", "won", "lost"] as const;
 const TEMPERATURES = ["cold", "warm", "hot"] as const;
 const SOURCES = ["website", "referral", "walk-in", "facebook", "google-ads", "cold-call"];
-const PROJECTS = [
-  "Skyline Residency",
-  "Green Park Towers",
-  "Lakeview Enclave",
-  "Urban Nest",
-  "Palm Grove",
-  "Horizon Heights",
-];
+const DEMO_PROJECT_SPECS = [
+  {
+    name: "Skyline Residency",
+    status: "launch" as const,
+    projectType: "residential" as const,
+    projectCategory: "residential" as const,
+    subType: "apartment",
+    facing: ["east", "north"],
+    description: "Premium 2–4 BHK towers near the metro corridor.",
+    builderName: "Skyline Developers",
+    builderContactName: "Ravi Mehta",
+    builderContactPhone: "+919811100001",
+    reraNumbers: ["PRM/KA/RERA/1251/308/PR/171215/000123"],
+    minPrice: "4500000",
+    maxPrice: "12500000",
+    brokeragePercent: "2.5",
+  },
+  {
+    name: "Green Park Towers",
+    status: "ongoing" as const,
+    projectType: "residential" as const,
+    projectCategory: "residential" as const,
+    subType: "villa",
+    facing: ["south"],
+    description: "Gated villa community with clubhouse and landscaped parks.",
+    builderName: "Green Park Infra",
+    minPrice: "8500000",
+    maxPrice: "22000000",
+    brokeragePercent: "3",
+  },
+  {
+    name: "Lakeview Enclave",
+    status: "pre_launch" as const,
+    projectType: "plot" as const,
+    projectCategory: "residential" as const,
+    subType: "plotted development",
+    facing: ["west", "north"],
+    description: "Lake-facing plotted development with wide internal roads.",
+    minPrice: "2500000",
+    maxPrice: "6000000",
+  },
+  {
+    name: "Urban Nest Commercial",
+    status: "ongoing" as const,
+    projectType: "commercial" as const,
+    projectCategory: "commercial" as const,
+    subType: "retail",
+    description: "High-street retail and office spaces in the CBD.",
+    builderName: "Urban Nest Realty",
+    minPrice: "15000000",
+    maxPrice: "45000000",
+    brokeragePercent: "1.5",
+  },
+  {
+    name: "Palm Grove Farms",
+    status: "new" as const,
+    projectType: "agricultural" as const,
+    projectCategory: "agricultural" as const,
+    subType: "farmland",
+    description: "Managed farmland parcels with drip irrigation setup.",
+    minPrice: "1200000",
+    maxPrice: "3500000",
+  },
+  {
+    name: "Horizon Heights",
+    status: "completed" as const,
+    projectType: "mixed" as const,
+    projectCategory: "residential" as const,
+    subType: "mixed-use",
+    availability: false,
+    description: "Completed mixed-use campus — resale inventory only.",
+    builderName: "Horizon Group",
+    minPrice: "5500000",
+    maxPrice: "18000000",
+  },
+] as const;
+
+const PROJECT_NAMES = DEMO_PROJECT_SPECS.map((project) => project.name);
 const CITIES = [
   { city: "Mumbai", state: "MH" },
   { city: "Pune", state: "MH" },
@@ -88,6 +159,7 @@ async function clearDemoOrg(db: ReturnType<typeof createDb>) {
 
   await db.delete(callRecords).where(eq(callRecords.orgId, org.id));
   await db.delete(leads).where(eq(leads.orgId, org.id));
+  await db.delete(projects).where(eq(projects.orgId, org.id));
   await db.delete(users).where(eq(users.orgId, org.id));
   await db.delete(organizations).where(eq(organizations.id, org.id));
 }
@@ -113,11 +185,62 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
   const passwordHash = await hashDevPassword();
 
   const userSpecs = [
-    { id: ADMIN_USER_ID, email: "admin@propninja.local", name: "PropNinja Admin", role: "admin" },
-    { email: "manager@demo.propninja", name: "Demo Manager", role: "manager" },
-    { email: "agent1@demo.propninja", name: "Agent One", role: "agent" },
-    { email: "agent2@demo.propninja", name: "Agent Two", role: "agent" },
-    { email: "agent3@demo.propninja", name: "Agent Three", role: "agent" },
+    {
+      id: ADMIN_USER_ID,
+      username: "admin",
+      email: "admin@propninja.local",
+      name: "PropNinja Admin",
+      firstName: "PropNinja",
+      lastName: "Admin",
+      role: "admin",
+      roleLabel: "Admin",
+      department: "Operations",
+      designation: "System Administrator",
+    },
+    {
+      username: "demo.manager",
+      email: "manager@demo.propninja",
+      name: "Demo Manager",
+      firstName: "Demo",
+      lastName: "Manager",
+      role: "manager",
+      roleLabel: "Manager",
+      department: "Sales",
+      designation: "Sales Manager",
+    },
+    {
+      username: "agent.one",
+      email: "agent1@demo.propninja",
+      name: "Agent One",
+      firstName: "Agent",
+      lastName: "One",
+      role: "agent",
+      roleLabel: "Basic",
+      department: "Sales",
+      designation: "Sales Agent",
+    },
+    {
+      username: "agent.two",
+      email: "agent2@demo.propninja",
+      name: "Agent Two",
+      firstName: "Agent",
+      lastName: "Two",
+      role: "agent",
+      roleLabel: "Basic",
+      department: "Sales",
+      designation: "Sales Agent",
+    },
+    {
+      username: "agent.three",
+      email: "agent3@demo.propninja",
+      name: "Agent Three",
+      firstName: "Agent",
+      lastName: "Three",
+      role: "agent",
+      roleLabel: "Basic",
+      department: "Sales",
+      designation: "Sales Agent",
+    },
   ] as const;
 
   const seededUsers = await db
@@ -126,19 +249,60 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
       userSpecs.map((spec) => ({
         ...spec,
         orgId: org!.id,
+        workEmail: spec.email,
+        workPhone: "+919000000000",
         phone: "+919000000000",
+        timeZone: "Asia/Kolkata",
         passwordHash,
       })),
     )
     .returning();
 
   const agents = seededUsers.filter((user) => user.role === "agent");
+
+  const seededProjects = await db
+    .insert(projects)
+    .values(
+      DEMO_PROJECT_SPECS.map((spec, index) => {
+        const startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - randomBetween(3, 18, index));
+        const possessionDate = new Date(startDate);
+        possessionDate.setMonth(possessionDate.getMonth() + randomBetween(12, 30, index + 5));
+
+        return {
+          orgId: org!.id,
+          name: spec.name,
+          status: spec.status,
+          projectType: spec.projectType,
+          projectCategory: spec.projectCategory,
+          subType: spec.subType ?? null,
+          availability: "availability" in spec ? spec.availability : true,
+          facing: "facing" in spec ? [...spec.facing] : null,
+          description: spec.description ?? null,
+          builderName: "builderName" in spec ? spec.builderName : null,
+          builderContactName: "builderContactName" in spec ? spec.builderContactName : null,
+          builderContactPhone: "builderContactPhone" in spec ? spec.builderContactPhone : null,
+          reraNumbers: "reraNumbers" in spec ? [...spec.reraNumbers] : null,
+          minPrice: spec.minPrice ?? null,
+          maxPrice: spec.maxPrice ?? null,
+          brokeragePercent: "brokeragePercent" in spec ? spec.brokeragePercent : null,
+          startDate: startDate.toISOString().slice(0, 10),
+          possessionDate: possessionDate.toISOString().slice(0, 10),
+          assignedTo: pick(agents, index).id,
+        };
+      }),
+    )
+    .returning();
+
+  const projectIdByName = new Map(seededProjects.map((project) => [project.name, project.id]));
+
   const leadCount = 100;
   const leadRows = Array.from({ length: leadCount }, (_, index) => {
     const location = pick(CITIES, index);
     const createdDaysAgo = randomBetween(0, 45, index + 1);
     const createdAt = new Date();
     createdAt.setDate(createdAt.getDate() - createdDaysAgo);
+    const projectName = pick(PROJECT_NAMES, index);
 
     return {
       orgId: org!.id,
@@ -152,7 +316,8 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
       leadSource: pick(SOURCES, index),
       leadStatus: pick(STATUSES, index + 2),
       temperature: pick(TEMPERATURES, index + 5),
-      projectName: pick(PROJECTS, index),
+      projectName,
+      projectId: projectIdByName.get(projectName) ?? null,
       estimatedValue: String(randomBetween(35, 180, index + 3) * 100_000),
       notes: index % 7 === 0 ? "Interested in 2BHK near metro." : null,
       createdAt,

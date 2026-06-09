@@ -12,7 +12,7 @@ High-level snapshot of what v1.0 delivers, what is explicitly out of scope, and 
 - Agent scoping on lead lists and call queries (server-enforced)
 - Leads: CRUD, notes, assign, soft-delete (admin), duplicate-phone guard
 - Calls: list/summary (web); `POST /api/calls/log` (mobile only)
-- Reports: overview, dashboard, leads/calls analytics, team-today
+- Reports: overview, dashboard, leads/calls analytics, per-user calls report (`group_by=user`), CSV export (`/calls/export`), team-today
 - TCF: per-channel consent (call, SMS, email)
 - Users & org endpoints; write rate limiting on sensitive routes
 - Hono + Zod validation; Vitest integration tests (DB-dependent)
@@ -21,7 +21,7 @@ High-level snapshot of what v1.0 delivers, what is explicitly out of scope, and 
 - Auth: login, disabled registration, session refresh, role-aware sidebar
 - Dashboard: manager/admin overview; agent-specific home
 - Leads: list, filters, create, edit-from-list, detail, delete (admin)
-- Reports hub + leads/calls/team pages; 403 access-denied UX
+- Reports hub + leads/calls/team pages; **Leads – Call Report** (`/reports/calls`) — per-user metrics table, advanced filters, CSV export, server pagination; 403 access-denied UX
 - Users (admin edits); settings (org)
 - TCF consent panel on lead detail
 - TanStack Query + shared API client; minimal Vitest component tests

@@ -3,17 +3,18 @@ import { ComplianceChip } from "@/components/ComplianceChip";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { useCalls, useLogCall } from "@/hooks/use-calls";
 import { useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
+import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import { getCallConsent, useTcfForLead } from "@/hooks/useTcf";
+import { dialPhoneNumber } from "@/lib/dialPhone";
+import { feedbackCallSaved } from "@/lib/feedback";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,11 +22,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<LeadsStackParamList, "LeadDetailScreen">;
-
-const MIN_AUTO_LOG_MS = 3_000;
-const MAX_AUTO_LOG_MS = 5 * 60 * 1000;
 
 function formatRelative(value: string | null) {
   if (!value) return "Never";
@@ -49,8 +48,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const [tab, setTab] = useState<"calls" | "notes">("calls");
   const [noteText, setNoteText] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
-  const callStartTsRef = useRef<number | undefined>(undefined);
-  const autoOpenedRef = useRef(false);
+  const insets = useSafeAreaInsets();
+
+  const { beginCall } = useReturnFromDialerLog(() => setLogModalVisible(true));
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -67,34 +67,13 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     });
   }, [navigation]);
 
-  useFocusEffect(
-    useCallback(() => {
-      const started = callStartTsRef.current;
-      if (!started || autoOpenedRef.current) return;
-
-      const elapsed = Date.now() - started;
-      if (elapsed >= MIN_AUTO_LOG_MS && elapsed <= MAX_AUTO_LOG_MS) {
-        setLogModalVisible(true);
-        autoOpenedRef.current = true;
-        callStartTsRef.current = undefined;
-      }
-    }, []),
-  );
-
-  function startDial(phone: string) {
-    autoOpenedRef.current = false;
-    callStartTsRef.current = Date.now();
-    void Linking.openURL(`tel:${phone}`);
+  async function startDial(phone: string) {
+    // Native SIM dialer (tel:) — same API on iOS and Android.
+    const opened = await dialPhoneNumber(phone);
+    if (opened) beginCall();
   }
 
   async function dialWithConsentCheck(phone: string) {
-    const url = `tel:${phone}`;
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
-      Alert.alert("Unavailable", "Phone dialer is not available on this device.");
-      return;
-    }
-
     if (callConsent === false) {
       Alert.alert("Do not call", "This lead is marked as Do Not Call. Continue anyway?", [
         { text: "Cancel", style: "cancel" },
@@ -144,6 +123,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               payload: { nextFollowupAt: nextFollowupAt.toISOString() },
             });
           }
+          void feedbackCallSaved();
           setLogModalVisible(false);
         },
         onError: (err) => {
@@ -173,7 +153,10 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
+      >
         <View style={styles.profileCard}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>
@@ -369,7 +352,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.backgroundDark },
-  content: { padding: spacing.md, paddingBottom: spacing.xl },
+  content: { padding: spacing.md },
   center: {
     flex: 1,
     backgroundColor: colors.backgroundDark,

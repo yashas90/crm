@@ -5,6 +5,8 @@ import {
   callsReportQuerySchema,
   dashboardReportQuerySchema,
   leadsReportQuerySchema,
+  overviewReportQuerySchema,
+  sourcesReportQuerySchema,
 } from "../lib/validators/reports.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { reportService } from "../services/reportService.js";
@@ -50,7 +52,28 @@ reportsRoutes.get("/overview", async (c) => {
   const denied = requireReportsAccess(c);
   if (denied) return denied;
 
-  const data = await reportService.getOverviewStats();
+  const authUser = c.get("authUser") as AuthUser;
+  const parsed = overviewReportQuerySchema.safeParse(c.req.query());
+
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const data = await reportService.getOverviewStats({
+    ...parsed.data,
+    userId: resolveReportUserId(authUser, parsed.data.userId),
+  });
+
   return c.json({ ok: true, data });
 });
 
@@ -90,11 +113,132 @@ reportsRoutes.get("/dashboard", async (c) => {
   return c.json({ ok: true, data });
 });
 
+function parseCallsReportRequest(
+  authUser: AuthUser,
+  query: Record<string, string | string[] | undefined>,
+) {
+  const parsed = callsReportQuerySchema.safeParse(query);
+  if (!parsed.success) {
+    return { error: parsed.error.flatten() as unknown };
+  }
+
+  const resolvedUserIds =
+    authUser.role === "agent"
+      ? [authUser.id]
+      : parsed.data.userIds?.length
+        ? parsed.data.userIds
+        : undefined;
+
+  const scopedQuery = {
+    ...parsed.data,
+    userId: resolvedUserIds ? undefined : resolveReportUserId(authUser, parsed.data.userId),
+    userIds: resolvedUserIds,
+    status: parsed.data.status,
+  };
+
+  return { scopedQuery, parsed: parsed.data };
+}
+
+/**
+ * GET /api/reports/calls
+ *
+ * Default (no `group_by`): time-series analytics — calls over time, disposition/direction
+ * breakdowns, and activity on leads.
+ *
+ * Per-user tabular report (`group_by=user`): paginated rows of call metrics per agent.
+ * Response: `{ items, total, page, pageSize, totals }` where `totals` is the footer
+ * aggregate across all matching users.
+ *
+ * Supported query params (per-user mode):
+ * - `date_from`, `date_to` — ISO datetimes (call `started_at` range)
+ * - `user_id`, `user_ids` — comma-separated UUIDs
+ * - `user_status` — `all` | `active` | `inactive` (filters `users.is_active`)
+ * - `user_name` — partial match on `users.name` (ilike)
+ * - `source`, `sub_source`, `project_name`, `project_status`, `campaign_name` — lead-linked filters
+ * - `page`, `page_size` — pagination (default page 1, size 50)
+ *
+ * CSV export: GET /api/reports/calls/export?group_by=user&… (same filters, no pagination).
+ */
+reportsRoutes.get("/calls/export", async (c) => {
+  const denied = requireReportsAccess(c);
+  if (denied) return denied;
+  const authUser = c.get("authUser") as AuthUser;
+  const result = parseCallsReportRequest(authUser, c.req.query());
+
+  if ("error" in result) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: result.error,
+        },
+      },
+      400,
+    );
+  }
+
+  if (result.parsed.groupBy !== "user") {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Export requires group_by=user",
+        },
+      },
+      400,
+    );
+  }
+
+  const csv = await reportService.exportCallsReportPerUserCsv(result.scopedQuery);
+  const date = new Date().toISOString().slice(0, 10);
+
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="calls-report-${date}.csv"`,
+    },
+  });
+});
+
 reportsRoutes.get("/calls", async (c) => {
   const denied = requireReportsAccess(c);
   if (denied) return denied;
   const authUser = c.get("authUser") as AuthUser;
-  const parsed = callsReportQuerySchema.safeParse(c.req.query());
+  const result = parseCallsReportRequest(authUser, c.req.query());
+
+  if ("error" in result) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: result.error,
+        },
+      },
+      400,
+    );
+  }
+
+  if (result.parsed.groupBy === "user") {
+    const data = await reportService.getCallsReportPerUser(result.scopedQuery);
+    return c.json({ ok: true, data });
+  }
+
+  const data = await reportService.getCallsReport(result.scopedQuery);
+
+  return c.json({ ok: true, data });
+});
+
+reportsRoutes.get("/sources", async (c) => {
+  const denied = requireReportsAccess(c);
+  if (denied) return denied;
+
+  const authUser = c.get("authUser") as AuthUser;
+  const parsed = sourcesReportQuerySchema.safeParse(c.req.query());
 
   if (!parsed.success) {
     return c.json(
@@ -110,7 +254,7 @@ reportsRoutes.get("/calls", async (c) => {
     );
   }
 
-  const data = await reportService.getCallsReport({
+  const data = await reportService.getSourcesReport({
     ...parsed.data,
     userId: resolveReportUserId(authUser, parsed.data.userId),
   });
@@ -138,7 +282,10 @@ reportsRoutes.get("/leads", async (c) => {
     );
   }
 
-  const data = await reportService.getLeadsReport(parsed.data);
+  const data = await reportService.getLeadsReport({
+    ...parsed.data,
+    userId: resolveReportUserId(authUser, parsed.data.userId),
+  });
 
   return c.json({ ok: true, data });
 });
@@ -147,7 +294,7 @@ reportsRoutes.get("/team-today", async (c) => {
   const denied = requireReportsAccess(c);
   if (denied) return denied;
 
-  const authUser = c.get("authUser") as AuthUser;
+  const _authUser = c.get("authUser") as AuthUser;
   const parsed = teamTodayQuerySchema.safeParse(c.req.query());
 
   if (!parsed.success) {

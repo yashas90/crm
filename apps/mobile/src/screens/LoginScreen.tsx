@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type LoginScreenProps = {
   onLoggedIn: () => void;
@@ -38,42 +39,45 @@ export function LoginScreen({ onLoggedIn }: LoginScreenProps) {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>PropNinja</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <View style={styles.container}>
+        <Text style={styles.title}>PropNinja</Text>
+        <Text style={styles.subtitle}>Sign in to continue</Text>
 
-      <TextInput
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        placeholder="Email"
-        placeholderTextColor={colors.textMutedDark}
-      />
-      <TextInput
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        placeholder="Password"
-        placeholderTextColor={colors.textMutedDark}
-      />
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          placeholder="Email"
+          placeholderTextColor={colors.textMutedDark}
+        />
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          placeholder="Password"
+          placeholderTextColor={colors.textMutedDark}
+        />
 
-      <Pressable style={styles.button} onPress={() => void handleLogin()} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Sign in</Text>
-        )}
-      </Pressable>
+        <Pressable style={styles.button} onPress={() => void handleLogin()} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Sign in</Text>
+          )}
+        </Pressable>
 
-      <Text style={styles.hint}>Demo: admin@propninja.local / admin</Text>
-    </View>
+        <Text style={styles.hint}>Demo: admin@propninja.local / admin</Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.backgroundDark },
   container: {
     flex: 1,
     backgroundColor: colors.backgroundDark,

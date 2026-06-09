@@ -1,10 +1,18 @@
-import { users } from "@propninja/db";
-import { and, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
+import { userRoles, users } from "@propninja/db";
+import { and, asc, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
+import { toCsv } from "../lib/csv.js";
 import type { Database } from "../lib/db.js";
 import { conflict, forbidden, notFound } from "../lib/errors.js";
 import { hashPassword } from "../lib/password.js";
-import type { CreateUserInput, ListUsersQuery, UpdateUserInput } from "../lib/validators/users.js";
+import { defaultRoleLabel } from "../lib/role-mapping.js";
+import type {
+  CreateUserInput,
+  ListUsersQuery,
+  UpdateUserInput,
+  UserExportQuery,
+  UserScopeCountsQuery,
+} from "../lib/validators/users.js";
 
 type UserRow = typeof users.$inferSelect;
 
@@ -13,26 +21,92 @@ function toPublicUser(row: UserRow) {
   return publicUser;
 }
 
+function resolveDisplayName(input: {
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  username: string;
+}) {
+  if (input.name?.trim()) return input.name.trim();
+  const fromParts = [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
+  return fromParts || input.username;
+}
+
+function trimOptional(value: string | null | undefined) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function buildUserSearchFilters(search?: string) {
+  const filters = [eq(users.orgId, SINGLE_TENANT_ORG_ID)];
+
+  if (search) {
+    const term = `%${search}%`;
+    filters.push(
+      or(
+        ilike(users.name, term),
+        ilike(users.email, term),
+        ilike(users.username, term),
+        ilike(users.firstName, term),
+        ilike(users.lastName, term),
+        ilike(users.workEmail, term),
+      )!,
+    );
+  }
+
+  return filters;
+}
+
+function applyUserStatusFilter(
+  filters: ReturnType<typeof buildUserSearchFilters>,
+  status: "active" | "inactive" | "all",
+  legacyIsActive?: boolean,
+) {
+  if (status === "active") {
+    filters.push(eq(users.isActive, true));
+  } else if (status === "inactive") {
+    filters.push(eq(users.isActive, false));
+  } else if (legacyIsActive !== undefined) {
+    filters.push(eq(users.isActive, legacyIsActive));
+  }
+}
+
+function buildUserListFilters(
+  query: Pick<ListUsersQuery, "search" | "role" | "status" | "isActive">,
+) {
+  const filters = buildUserSearchFilters(query.search);
+
+  if (query.role) {
+    filters.push(eq(users.role, query.role));
+  }
+
+  applyUserStatusFilter(filters, query.status ?? "all", query.isActive);
+
+  return and(...filters);
+}
+
+const USER_EXPORT_HEADERS = [
+  "Username",
+  "Full Name",
+  "First Name",
+  "Last Name",
+  "Email",
+  "Work Email",
+  "Role Label",
+  "Role",
+  "Department",
+  "Designation",
+  "Work Phone",
+  "Status",
+  "Created At",
+] as const;
+
 export function createUserService(db: Database) {
   return {
     async list(query: ListUsersQuery) {
-      const filters = [eq(users.orgId, SINGLE_TENANT_ORG_ID)];
-
-      if (query.search) {
-        filters.push(
-          or(ilike(users.name, `%${query.search}%`), ilike(users.email, `%${query.search}%`))!,
-        );
-      }
-
-      if (query.role) {
-        filters.push(eq(users.role, query.role));
-      }
-
-      if (query.isActive !== undefined) {
-        filters.push(eq(users.isActive, query.isActive));
-      }
-
-      const whereClause = and(...filters);
+      const whereClause = buildUserListFilters(query);
       const offset = (query.page - 1) * query.pageSize;
 
       const rows = await db
@@ -49,10 +123,65 @@ export function createUserService(db: Database) {
         .where(whereClause);
 
       return {
-        rows: rows.map(toPublicUser),
+        items: rows.map(toPublicUser),
         page: query.page,
         pageSize: query.pageSize,
-        total: count,
+        total: Number(count),
+      };
+    },
+
+    async exportCsv(query: UserExportQuery) {
+      const whereClause = buildUserListFilters(query);
+
+      const rows = await db
+        .select()
+        .from(users)
+        .where(whereClause)
+        .orderBy(desc(users.createdAt))
+        .limit(10_000);
+
+      return toCsv(
+        [...USER_EXPORT_HEADERS],
+        rows.map((row) => [
+          row.username,
+          row.name,
+          row.firstName,
+          row.lastName,
+          row.email,
+          row.workEmail,
+          row.roleLabel ?? defaultRoleLabel(row.role),
+          row.role,
+          row.department,
+          row.designation,
+          row.workPhone ?? row.phone,
+          row.isActive ? "Active" : "Inactive",
+          row.createdAt.toISOString(),
+        ]),
+      );
+    },
+
+    async getScopeCounts(query: UserScopeCountsQuery) {
+      const shared = buildUserSearchFilters(query.search);
+
+      const [allRow, activeRow, inactiveRow] = await Promise.all([
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(users)
+          .where(and(...shared)),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(users)
+          .where(and(...shared, eq(users.isActive, true))),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(users)
+          .where(and(...shared, eq(users.isActive, false))),
+      ]);
+
+      return {
+        all: Number(allRow[0]?.count ?? 0),
+        active: Number(activeRow[0]?.count ?? 0),
+        inactive: Number(inactiveRow[0]?.count ?? 0),
       };
     },
 
@@ -70,25 +199,65 @@ export function createUserService(db: Database) {
       return toPublicUser(row);
     },
 
+    async listRoles() {
+      return db.select().from(userRoles).orderBy(asc(userRoles.name));
+    },
+
     async create(payload: CreateUserInput) {
       const email = payload.email.toLowerCase();
+      const username = payload.username.toLowerCase();
 
-      const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+      const [existingEmail] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
 
-      if (existing) {
+      if (existingEmail) {
         throw conflict("A user with this email already exists", "EMAIL_IN_USE");
       }
 
+      const [existingUsername] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1);
+
+      if (existingUsername) {
+        throw conflict("This username is already taken", "USERNAME_IN_USE");
+      }
+
       const passwordHash = await hashPassword(payload.password);
+      const name = resolveDisplayName({
+        name: payload.name,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        username,
+      });
 
       const [row] = await db
         .insert(users)
         .values({
           orgId: SINGLE_TENANT_ORG_ID,
+          username,
           email,
-          name: payload.name.trim(),
+          name,
+          firstName: trimOptional(payload.firstName) ?? null,
+          lastName: trimOptional(payload.lastName) ?? null,
+          workEmail: trimOptional(payload.workEmail) ?? email,
+          workPhone: trimOptional(payload.workPhone) ?? trimOptional(payload.phone) ?? null,
+          personalPhone: trimOptional(payload.personalPhone) ?? null,
+          homeLocation: trimOptional(payload.homeLocation) ?? null,
+          department: trimOptional(payload.department) ?? null,
+          designation: trimOptional(payload.designation) ?? null,
+          timeZone: trimOptional(payload.timeZone) ?? null,
+          brokerNumber: trimOptional(payload.brokerNumber) ?? null,
+          description: trimOptional(payload.description) ?? null,
+          roleLabel: trimOptional(payload.roleLabel) ?? defaultRoleLabel(payload.role),
+          generalManagerId: payload.generalManagerId ?? null,
+          reportingToId: payload.reportingToId ?? null,
           role: payload.role,
-          phone: payload.phone?.trim() || null,
+          phone: trimOptional(payload.phone) ?? trimOptional(payload.workPhone) ?? null,
           passwordHash,
           isActive: true,
         })
@@ -130,21 +299,66 @@ export function createUserService(db: Database) {
         }
       }
 
-      const update: Partial<{
-        name: string;
-        email: string;
-        phone: string | null;
-        role: string;
-        isActive: boolean;
-        passwordHash: string;
-      }> = {};
+      if (payload.username) {
+        const username = payload.username.toLowerCase();
+        const [duplicate] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.username, username), ne(users.id, id)))
+          .limit(1);
 
+        if (duplicate) {
+          throw conflict("This username is already taken", "USERNAME_IN_USE");
+        }
+      }
+
+      const update: Partial<typeof users.$inferInsert> = {};
+
+      if (payload.username !== undefined) update.username = payload.username.toLowerCase();
       if (payload.name !== undefined) update.name = payload.name.trim();
       if (payload.email !== undefined) update.email = payload.email.toLowerCase();
-      if (payload.phone !== undefined) update.phone = payload.phone?.trim() || null;
+      if (payload.phone !== undefined) update.phone = trimOptional(payload.phone);
       if (payload.role !== undefined) update.role = payload.role;
       if (payload.isActive !== undefined) update.isActive = payload.isActive;
       if (payload.password) update.passwordHash = await hashPassword(payload.password);
+      if (payload.firstName !== undefined) update.firstName = trimOptional(payload.firstName);
+      if (payload.lastName !== undefined) update.lastName = trimOptional(payload.lastName);
+      if (payload.workEmail !== undefined) update.workEmail = trimOptional(payload.workEmail);
+      if (payload.workPhone !== undefined) update.workPhone = trimOptional(payload.workPhone);
+      if (payload.personalPhone !== undefined) {
+        update.personalPhone = trimOptional(payload.personalPhone);
+      }
+      if (payload.homeLocation !== undefined)
+        update.homeLocation = trimOptional(payload.homeLocation);
+      if (payload.department !== undefined) update.department = trimOptional(payload.department);
+      if (payload.designation !== undefined) update.designation = trimOptional(payload.designation);
+      if (payload.timeZone !== undefined) update.timeZone = trimOptional(payload.timeZone);
+      if (payload.brokerNumber !== undefined)
+        update.brokerNumber = trimOptional(payload.brokerNumber);
+      if (payload.description !== undefined) update.description = trimOptional(payload.description);
+      if (payload.roleLabel !== undefined) update.roleLabel = trimOptional(payload.roleLabel);
+      if (payload.generalManagerId !== undefined) {
+        update.generalManagerId = payload.generalManagerId;
+      }
+      if (payload.reportingToId !== undefined) update.reportingToId = payload.reportingToId;
+
+      // Routes normalize roleLabel -> role; keep labels in sync when only role is sent.
+      if (payload.role !== undefined && payload.roleLabel === undefined) {
+        update.roleLabel = defaultRoleLabel(payload.role);
+      }
+
+      if (
+        payload.firstName !== undefined ||
+        payload.lastName !== undefined ||
+        payload.username !== undefined
+      ) {
+        update.name = resolveDisplayName({
+          name: payload.name ?? existing.name,
+          firstName: payload.firstName ?? existing.firstName ?? undefined,
+          lastName: payload.lastName ?? existing.lastName ?? undefined,
+          username: payload.username ?? existing.username,
+        });
+      }
 
       const [row] = await db.update(users).set(update).where(eq(users.id, id)).returning();
 

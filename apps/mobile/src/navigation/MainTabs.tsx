@@ -4,9 +4,11 @@ import { HomeScreen } from "@/screens/HomeScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { TodayScreen } from "@/screens/TodayScreen";
 import { colors } from "@/theme";
+import { TAB_BAR_HEIGHT } from "@/theme/layout";
 import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { ComponentProps } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -27,6 +29,9 @@ type MainTabsProps = {
 };
 
 export function MainTabs({ onLogout }: MainTabsProps) {
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = TAB_BAR_HEIGHT + insets.bottom;
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -41,8 +46,8 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           shadowOpacity: 0.2,
           shadowRadius: 12,
           shadowOffset: { width: 0, height: -4 },
-          height: 64,
-          paddingBottom: 8,
+          height: tabBarHeight,
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
         },
         tabBarActiveTintColor: colors.primaryLight,

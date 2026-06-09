@@ -16,12 +16,18 @@ const PAGE_TITLES: Record<string, string> = {
   "/reports": "Reports",
   "/reports/calls": "Calls",
   "/reports/team": "Team Performance",
+  "/projects": "Projects",
   "/users": "Users",
   "/settings": "Settings",
+  "/settings/integrations": "Integrations",
 };
 
 function resolveTitle(pathname: string) {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  if (pathname === "/projects/new") return "Add Project";
+  if (pathname.startsWith("/projects/")) return "Edit Project";
+  if (pathname === "/users/new") return "Add User";
+  if (pathname.startsWith("/users/")) return "Edit User";
   if (pathname.startsWith("/leads/")) return "Lead Detail";
   return "PropNinja";
 }

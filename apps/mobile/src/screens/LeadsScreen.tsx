@@ -2,6 +2,7 @@ import { type LeadRow, type LeadsQuery, useLeads } from "@/hooks/use-leads";
 import { getCurrentUserId } from "@/lib/auth";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
+import { TAB_BAR_HEIGHT, TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMemo, useState } from "react";
 import {
@@ -14,6 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<LeadsStackParamList, "LeadsScreen">;
 
@@ -62,6 +64,9 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
 export function LeadsScreen({ navigation }: Props) {
   const [search, setSearch] = useState("");
   const [chip, setChip] = useState<FilterChip>("all");
+  const insets = useSafeAreaInsets();
+  const fabBottom = TAB_BAR_HEIGHT + insets.bottom + spacing.md;
+  const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
 
   const queryParams = useMemo(() => {
     const params: LeadsQuery = { page: "1", pageSize: "50" };
@@ -138,7 +143,7 @@ export function LeadsScreen({ navigation }: Props) {
 
       <FlatList
         style={styles.list}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
         data={leads}
         keyExtractor={(item) => item.id}
         refreshControl={
@@ -158,7 +163,7 @@ export function LeadsScreen({ navigation }: Props) {
       />
 
       <Pressable
-        style={styles.fab}
+        style={[styles.fab, { bottom: fabBottom }]}
         onPress={() => navigation.navigate("LeadCreateScreen")}
         accessibilityLabel="Create new lead"
       >
@@ -271,7 +276,6 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: spacing.md,
-    bottom: spacing.lg,
     width: 56,
     height: 56,
     borderRadius: 28,

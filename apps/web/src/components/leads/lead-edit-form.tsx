@@ -1,9 +1,10 @@
 "use client";
 
-import { LEAD_SOURCES } from "@/components/leads/lead-sources";
+import { ProjectSelect } from "@/components/projects/project-select";
 import type { LeadRow } from "@/hooks/use-leads";
 import { apiPatch } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
+import { LEAD_SOURCE_OPTIONS, normalizeLeadSourceValue } from "@/lib/lead-sources";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
@@ -31,6 +32,7 @@ type LeadEditFormProps = {
     nextFollowupAt?: string | null;
     estimatedValue?: string | null;
     projectName?: string | null;
+    projectId?: string | null;
   };
   onSuccess?: () => void;
 };
@@ -44,14 +46,16 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
   const [email, setEmail] = useState(lead.email ?? "");
   const [city, setCity] = useState(lead.city ?? "");
   const [state, setState] = useState(lead.state ?? "");
-  const [leadSource, setLeadSource] = useState(lead.leadSource ?? "");
+  const [leadSource, setLeadSource] = useState(
+    () => normalizeLeadSourceValue(lead.leadSource ?? "") || lead.leadSource || "",
+  );
   const [leadStatus, setLeadStatus] = useState(lead.leadStatus);
   const [temperature, setTemperature] = useState(lead.temperature ?? "");
   const [notes, setNotes] = useState(lead.notes ?? "");
   const [tags, setTags] = useState((lead.tags ?? []).join(", "));
   const [nextFollowupAt, setNextFollowupAt] = useState(toDatetimeLocal(lead.nextFollowupAt));
   const [estimatedValue, setEstimatedValue] = useState(lead.estimatedValue ?? "");
-  const [projectName, setProjectName] = useState(lead.projectName ?? "");
+  const [projectId, setProjectId] = useState(lead.projectId ?? "");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,14 +66,14 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
     setEmail(lead.email ?? "");
     setCity(lead.city ?? "");
     setState(lead.state ?? "");
-    setLeadSource(lead.leadSource ?? "");
+    setLeadSource(normalizeLeadSourceValue(lead.leadSource ?? "") || lead.leadSource || "");
     setLeadStatus(lead.leadStatus);
     setTemperature(lead.temperature ?? "");
     setNotes(lead.notes ?? "");
     setTags((lead.tags ?? []).join(", "));
     setNextFollowupAt(toDatetimeLocal(lead.nextFollowupAt));
     setEstimatedValue(lead.estimatedValue ?? "");
-    setProjectName(lead.projectName ?? "");
+    setProjectId(lead.projectId ?? "");
   }, [lead]);
 
   const mutation = useMutation({
@@ -82,7 +86,7 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
         email: email || undefined,
         city: city || undefined,
         state: state || undefined,
-        leadSource: leadSource || undefined,
+        leadSource: leadSource ? normalizeLeadSourceValue(leadSource) : undefined,
         leadStatus,
         temperature: temperature || undefined,
         notes: notes || undefined,
@@ -94,7 +98,7 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
           : [],
         nextFollowupAt: nextFollowupAt ? new Date(nextFollowupAt).toISOString() : undefined,
         estimatedValue: estimatedValue ? Number(estimatedValue) : undefined,
-        projectName: projectName || undefined,
+        projectId: projectId || null,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["leads", lead.id] });
@@ -165,9 +169,9 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
           onChange={(e) => setLeadSource(e.target.value)}
         >
           <option value="">—</option>
-          {LEAD_SOURCES.map((source) => (
-            <option key={source} value={source}>
-              {source}
+          {LEAD_SOURCE_OPTIONS.map((source) => (
+            <option key={source.value} value={source.value}>
+              {source.label}
             </option>
           ))}
         </select>
@@ -223,12 +227,8 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="projectName">Project</Label>
-        <Input
-          id="projectName"
-          value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
-        />
+        <Label htmlFor="projectId">Project</Label>
+        <ProjectSelect id="projectId" value={projectId} onChange={setProjectId} />
       </div>
       <div className="space-y-2 md:col-span-2">
         <Label htmlFor="tags">Tags (comma-separated)</Label>

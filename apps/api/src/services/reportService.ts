@@ -1,11 +1,22 @@
-import { callRecords, leadActivities, leads, users } from "@propninja/db";
-import { and, eq, gte, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { callRecords, leadActivities, leads, projects, users } from "@propninja/db";
+import { and, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
+import { buildLeadsOverTimeReport, buildSourceGroupReport } from "../lib/leadSourceGroups.js";
+import {
+  type ReportScope,
+  priorPeriod,
+  scopedLeadBook,
+  scopedLeadCreated,
+  trendWindow,
+} from "../lib/reportScope.js";
 import type {
   CallsReportQuery,
   DashboardReportQuery,
   LeadsReportQuery,
+  OverviewReportQuery,
+  SourcesReportQuery,
 } from "../lib/validators/reports.js";
 
 type DateRange = { dateFrom: Date; dateTo: Date };
@@ -16,8 +27,9 @@ function leadBaseFilter() {
   return and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt));
 }
 
-async function pipelineStageStats(status: string, thirtyDaysAgo: Date, sixtyDaysAgo: Date) {
-  const stageFilter = and(leadBaseFilter(), eq(leads.leadStatus, status));
+async function pipelineStageStats(stageStatus: string, scope: ReportScope) {
+  const { recentFrom, recentTo, priorFrom, priorTo } = trendWindow(scope);
+  const stageFilter = and(scopedLeadBook(scope), eq(leads.leadStatus, stageStatus));
 
   const [[current], [recent], [prior]] = await Promise.all([
     db
@@ -30,13 +42,11 @@ async function pipelineStageStats(status: string, thirtyDaysAgo: Date, sixtyDays
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(leads)
-      .where(and(stageFilter, gte(leads.updatedAt, thirtyDaysAgo))),
+      .where(and(stageFilter, gte(leads.updatedAt, recentFrom), lte(leads.updatedAt, recentTo))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(leads)
-      .where(
-        and(stageFilter, gte(leads.updatedAt, sixtyDaysAgo), lt(leads.updatedAt, thirtyDaysAgo)),
-      ),
+      .where(and(stageFilter, gte(leads.updatedAt, priorFrom), lte(leads.updatedAt, priorTo))),
   ]);
 
   const recentCount = recent?.count ?? 0;
@@ -49,45 +59,454 @@ async function pipelineStageStats(status: string, thirtyDaysAgo: Date, sixtyDays
         : 0;
 
   return {
-    status,
+    status: stageStatus,
     count: current?.count ?? 0,
     total_value: Number(current?.totalValue ?? 0),
     trend_percent: trendPercent,
   };
 }
 
-function leadCreatedFilter(range: DateRange, userId?: string) {
-  const filters = [
-    eq(leads.orgId, SINGLE_TENANT_ORG_ID),
-    isNull(leads.deletedAt),
-    gte(leads.createdAt, range.dateFrom),
-    lte(leads.createdAt, range.dateTo),
-  ];
+function leadCreatedFilter(query: LeadsReportQuery) {
+  const filters = [scopedLeadCreated(leadScopeFromQuery(query))];
 
-  if (userId) {
-    filters.push(eq(leads.assignedTo, userId));
+  if (!query.adLeadsOnly && query.source) {
+    const sourceVariants = expandLeadSourceFilter(query.source);
+    filters.push(
+      sourceVariants.length === 1
+        ? eq(leads.leadSource, sourceVariants[0]!)
+        : inArray(leads.leadSource, sourceVariants),
+    );
   }
 
   return and(...filters);
 }
 
-function callStartedFilter(range: DateRange, userId?: string) {
+async function queryLeadsBySource(scope: ReportScope) {
+  const rows = await db
+    .select({
+      source: leads.leadSource,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(leads)
+    .where(scopedLeadCreated(scope))
+    .groupBy(leads.leadSource);
+
+  return buildSourceGroupReport(rows.map((row) => ({ source: row.source, count: row.count })));
+}
+
+function leadScopeFromQuery(query: {
+  dateFrom: Date;
+  dateTo: Date;
+  userId?: string;
+  status?: string;
+  adLeadsOnly?: boolean;
+}): ReportScope {
+  return {
+    dateFrom: query.dateFrom,
+    dateTo: query.dateTo,
+    userId: query.userId,
+    status: query.status,
+    adLeadsOnly: query.adLeadsOnly,
+  };
+}
+
+function callScopeFilter(scope: ReportScope) {
+  const base = callStartedFilter(scope, scope.userId);
+  if (!scope.status) return base;
+
+  return and(
+    base,
+    sql`exists (
+      select 1 from ${leads}
+      where ${leads.id} = ${callRecords.leadId}
+      and ${scopedLeadBook(scope)}
+    )`,
+  );
+}
+
+function activityScopeFilter(scope: ReportScope) {
+  const base = leadActivityFilter(scope, scope.userId);
+  if (!scope.status) return base;
+
+  return and(
+    base,
+    sql`exists (
+      select 1 from ${leads}
+      where ${leads.id} = ${leadActivities.leadId}
+      and ${scopedLeadBook(scope)}
+    )`,
+  );
+}
+
+function callStartedFilter(range: DateRange, userId?: string, userIds?: string[]) {
   const filters = [
     eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
     gte(callRecords.startedAt, range.dateFrom),
     lte(callRecords.startedAt, range.dateTo),
   ];
 
-  if (userId) {
+  if (userIds?.length) {
+    filters.push(inArray(callRecords.userId, userIds));
+  } else if (userId) {
     filters.push(eq(callRecords.userId, userId));
   }
 
   return and(...filters);
 }
 
+function callReportLeadExistsFilter(query: CallsReportQuery) {
+  const hasLeadFilter = Boolean(
+    query.source ||
+      query.subSource ||
+      query.projectName ||
+      query.campaignName ||
+      query.projectStatus,
+  );
+
+  if (!hasLeadFilter) return undefined;
+
+  const leadFilters = [eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt)];
+
+  if (query.source) {
+    const sourceVariants = expandLeadSourceFilter(query.source);
+    leadFilters.push(
+      sourceVariants.length === 1
+        ? eq(leads.leadSource, sourceVariants[0]!)
+        : inArray(leads.leadSource, sourceVariants),
+    );
+  }
+  if (query.projectName) {
+    leadFilters.push(eq(leads.projectName, query.projectName));
+  }
+  if (query.subSource) {
+    leadFilters.push(ilike(sql`${leads.customFields}->>'sub_source'`, `%${query.subSource}%`));
+  }
+  if (query.campaignName) {
+    const pattern = `%${query.campaignName}%`;
+    leadFilters.push(
+      or(
+        ilike(sql`${leads.customFields}->>'campaignName'`, pattern),
+        ilike(sql`${leads.customFields}->>'campaign'`, pattern),
+        ilike(sql`${leads.customFields}->'adLead'->>'campaignName'`, pattern),
+        ilike(sql`${leads.customFields}->'lastAdLead'->>'campaignName'`, pattern),
+      )!,
+    );
+  }
+  if (query.projectStatus === "active") {
+    leadFilters.push(eq(projects.availability, true));
+  } else if (query.projectStatus === "inactive") {
+    leadFilters.push(eq(projects.availability, false));
+  }
+
+  const leadMatch = and(...leadFilters);
+
+  return sql`exists (
+    select 1 from ${leads}
+    left join ${projects} on ${projects.id} = ${leads.projectId}
+    where ${leads.id} = ${callRecords.leadId}
+    and ${leadMatch}
+  )`;
+}
+
+function callPerUserScopeFilter(query: CallsReportQuery) {
+  const scope = leadScopeFromQuery(query);
+  const filters = [
+    callStartedFilter(scope, query.userIds?.length ? undefined : scope.userId, query.userIds),
+    callReportLeadExistsFilter(query),
+  ].filter(Boolean);
+
+  return and(...filters);
+}
+
+function leadActivityFilter(range: DateRange, userId?: string) {
+  const filters = [
+    eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
+    gte(leadActivities.createdAt, range.dateFrom),
+    lte(leadActivities.createdAt, range.dateTo),
+  ];
+
+  if (userId) {
+    filters.push(eq(leadActivities.userId, userId));
+  }
+
+  return and(...filters);
+}
+
+function buildActivityOnLeadsOverTime(
+  callsRows: { date: string; count: number }[],
+  meetingRows: { date: string; count: number }[],
+  noteRows: { date: string; count: number }[],
+) {
+  const map = new Map<string, { date: string; calls: number; meetings: number; notes: number }>();
+
+  const ensure = (date: string) => {
+    const existing = map.get(date);
+    if (existing) return existing;
+    const row = { date, calls: 0, meetings: 0, notes: 0 };
+    map.set(date, row);
+    return row;
+  };
+
+  for (const row of callsRows) {
+    ensure(row.date).calls += row.count;
+  }
+  for (const row of meetingRows) {
+    ensure(row.date).meetings += row.count;
+  }
+  for (const row of noteRows) {
+    ensure(row.date).notes += row.count;
+  }
+
+  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+type CallsPerUserMetricsRow = {
+  userId: string;
+  userName: string;
+  incomingAnswered: number;
+  incomingMissed: number;
+  incomingTotal: number;
+  outgoingAnswered: number;
+  outgoingNotConnected: number;
+  outgoingTotal: number;
+  totalTalkTimeSeconds: number;
+  avgTalkTimeSeconds: number;
+  minTalkTimeSeconds: number;
+  maxTalkTimeSeconds: number;
+  totalCalls: number;
+};
+
+type CallsPerUserTotalsRow = Omit<CallsPerUserMetricsRow, "userId" | "userName">;
+
+const callsPerUserMetricsSelect = {
+  userId: callRecords.userId,
+  userName: users.name,
+  incomingAnswered: sql<number>`count(*) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'completed')::int`,
+  incomingMissed: sql<number>`count(*) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'missed')::int`,
+  incomingTotal: sql<number>`count(*) filter (where ${callRecords.direction} = 'incoming')::int`,
+  outgoingAnswered: sql<number>`count(*) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} = 'completed')::int`,
+  outgoingNotConnected: sql<number>`count(*) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} != 'completed')::int`,
+  outgoingTotal: sql<number>`count(*) filter (where ${callRecords.direction} = 'outgoing')::int`,
+  totalTalkTimeSeconds: sql<number>`coalesce(sum(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed'), 0)::int`,
+  avgTalkTimeSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed' and ${callRecords.durationSeconds} > 0)), 0)::int`,
+  minTalkTimeSeconds: sql<number>`coalesce(min(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed' and ${callRecords.durationSeconds} > 0), 0)::int`,
+  maxTalkTimeSeconds: sql<number>`coalesce(max(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed'), 0)::int`,
+  totalCalls: sql<number>`count(*)::int`,
+};
+
+function buildCallsPerUserWhere(query: CallsReportQuery) {
+  // Per-user report inner-joins users; filter by users.is_active when user_status is set.
+  const userStatusFilters = [];
+  if (query.userStatus === "active") {
+    userStatusFilters.push(eq(users.isActive, true));
+  } else if (query.userStatus === "inactive") {
+    userStatusFilters.push(eq(users.isActive, false));
+  }
+  if (query.userName) {
+    userStatusFilters.push(ilike(users.name, `%${query.userName}%`));
+  }
+  return and(callPerUserScopeFilter(query), ...userStatusFilters);
+}
+
+function mapCallsPerUserMetricsRow(row: CallsPerUserMetricsRow) {
+  return {
+    userId: row.userId,
+    userName: row.userName,
+    incomingAnswered: row.incomingAnswered,
+    incomingMissed: row.incomingMissed,
+    incomingTotal: row.incomingTotal,
+    outgoingAnswered: row.outgoingAnswered,
+    outgoingNotConnected: row.outgoingNotConnected,
+    outgoingTotal: row.outgoingTotal,
+    totalTalkTimeSeconds: row.totalTalkTimeSeconds,
+    avgTalkTimeSeconds: row.avgTalkTimeSeconds,
+    minTalkTimeSeconds: row.minTalkTimeSeconds,
+    maxTalkTimeSeconds: row.maxTalkTimeSeconds,
+    totalCalls: row.totalCalls,
+  };
+}
+
+function mapCallsPerUserTotalsRow(row: CallsPerUserTotalsRow) {
+  return {
+    incomingAnswered: row.incomingAnswered,
+    incomingMissed: row.incomingMissed,
+    incomingTotal: row.incomingTotal,
+    outgoingAnswered: row.outgoingAnswered,
+    outgoingNotConnected: row.outgoingNotConnected,
+    outgoingTotal: row.outgoingTotal,
+    totalTalkTimeSeconds: row.totalTalkTimeSeconds,
+    avgTalkTimeSeconds: row.avgTalkTimeSeconds,
+    minTalkTimeSeconds: row.minTalkTimeSeconds,
+    maxTalkTimeSeconds: row.maxTalkTimeSeconds,
+    totalCalls: row.totalCalls,
+  };
+}
+
+function formatTalkTimeCsv(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const secs = safe % 60;
+  return [hours, minutes, secs].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
+function escapeCsvCell(value: string | number) {
+  const text = String(value);
+  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function buildCallsUserReportCsv(items: CallsPerUserMetricsRow[], totals: CallsPerUserTotalsRow) {
+  const headers = [
+    "User Name",
+    "Incoming Answered",
+    "Incoming Missed",
+    "Incoming Total",
+    "Outgoing Answered",
+    "Outgoing Not Connected",
+    "Outgoing Total",
+    "Total TalkTime",
+    "Avg TalkTime",
+    "Min TalkTime",
+    "Max TalkTime",
+    "Total Calls",
+  ];
+
+  const lines = [headers.join(",")];
+
+  for (const row of items) {
+    lines.push(
+      [
+        escapeCsvCell(row.userName),
+        row.incomingAnswered,
+        row.incomingMissed,
+        row.incomingTotal,
+        row.outgoingAnswered,
+        row.outgoingNotConnected,
+        row.outgoingTotal,
+        formatTalkTimeCsv(row.totalTalkTimeSeconds),
+        formatTalkTimeCsv(row.avgTalkTimeSeconds),
+        formatTalkTimeCsv(row.minTalkTimeSeconds),
+        formatTalkTimeCsv(row.maxTalkTimeSeconds),
+        row.totalCalls,
+      ].join(","),
+    );
+  }
+
+  lines.push(
+    [
+      "Total",
+      totals.incomingAnswered,
+      totals.incomingMissed,
+      totals.incomingTotal,
+      totals.outgoingAnswered,
+      totals.outgoingNotConnected,
+      totals.outgoingTotal,
+      formatTalkTimeCsv(totals.totalTalkTimeSeconds),
+      formatTalkTimeCsv(totals.avgTalkTimeSeconds),
+      formatTalkTimeCsv(totals.minTalkTimeSeconds),
+      formatTalkTimeCsv(totals.maxTalkTimeSeconds),
+      totals.totalCalls,
+    ].join(","),
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
+async function fetchCallsPerUserRows(
+  query: CallsReportQuery,
+  pagination?: { limit: number; offset: number },
+) {
+  const callWhere = buildCallsPerUserWhere(query);
+  const baseQuery = db
+    .select(callsPerUserMetricsSelect)
+    .from(callRecords)
+    .innerJoin(users, eq(callRecords.userId, users.id))
+    .where(callWhere)
+    .groupBy(callRecords.userId, users.name)
+    .orderBy(users.name);
+
+  const rows = pagination
+    ? await baseQuery.limit(pagination.limit).offset(pagination.offset)
+    : await baseQuery;
+
+  return rows.map(mapCallsPerUserMetricsRow);
+}
+
+async function countCallsPerUserGroups(query: CallsReportQuery) {
+  const callWhere = buildCallsPerUserWhere(query);
+  const groupedUsers = db
+    .select({ userId: callRecords.userId })
+    .from(callRecords)
+    .innerJoin(users, eq(callRecords.userId, users.id))
+    .where(callWhere)
+    .groupBy(callRecords.userId, users.name)
+    .as("grouped_users");
+
+  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(groupedUsers);
+  return row?.count ?? 0;
+}
+
+async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
+  const callWhere = buildCallsPerUserWhere(query);
+  const [row] = await db
+    .select({
+      incomingAnswered: callsPerUserMetricsSelect.incomingAnswered,
+      incomingMissed: callsPerUserMetricsSelect.incomingMissed,
+      incomingTotal: callsPerUserMetricsSelect.incomingTotal,
+      outgoingAnswered: callsPerUserMetricsSelect.outgoingAnswered,
+      outgoingNotConnected: callsPerUserMetricsSelect.outgoingNotConnected,
+      outgoingTotal: callsPerUserMetricsSelect.outgoingTotal,
+      totalTalkTimeSeconds: callsPerUserMetricsSelect.totalTalkTimeSeconds,
+      avgTalkTimeSeconds: callsPerUserMetricsSelect.avgTalkTimeSeconds,
+      minTalkTimeSeconds: callsPerUserMetricsSelect.minTalkTimeSeconds,
+      maxTalkTimeSeconds: callsPerUserMetricsSelect.maxTalkTimeSeconds,
+      totalCalls: callsPerUserMetricsSelect.totalCalls,
+    })
+    .from(callRecords)
+    .innerJoin(users, eq(callRecords.userId, users.id))
+    .where(callWhere);
+
+  return mapCallsPerUserTotalsRow(
+    row ?? {
+      incomingAnswered: 0,
+      incomingMissed: 0,
+      incomingTotal: 0,
+      outgoingAnswered: 0,
+      outgoingNotConnected: 0,
+      outgoingTotal: 0,
+      totalTalkTimeSeconds: 0,
+      avgTalkTimeSeconds: 0,
+      minTalkTimeSeconds: 0,
+      maxTalkTimeSeconds: 0,
+      totalCalls: 0,
+    },
+  );
+}
+
+async function fetchCallsReportPerUserPaginated(query: CallsReportQuery) {
+  const page = query.page ?? 1;
+  const pageSize = query.pageSize ?? 50;
+  const offset = (page - 1) * pageSize;
+
+  const [total, items, totals] = await Promise.all([
+    countCallsPerUserGroups(query),
+    fetchCallsPerUserRows(query, { limit: pageSize, offset }),
+    fetchCallsPerUserGrandTotals(query),
+  ]);
+
+  return { items, total, page, pageSize, totals };
+}
+
 export const reportService = {
   async getDashboard(query: DashboardReportQuery) {
-    const leadWhere = leadCreatedFilter(query, query.userId);
+    const leadWhere = scopedLeadCreated({
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      userId: query.userId,
+    });
     const callWhere = callStartedFilter(query, query.userId);
 
     const [leadsByStatus, [newLeadsRow], [hotLeadsRow], [callTotals], callsByAgent] =
@@ -156,10 +575,31 @@ export const reportService = {
     };
   },
 
-  async getCallsReport(query: CallsReportQuery) {
-    const callWhere = callStartedFilter(query, query.userId);
+  async getCallsReportPerUser(query: CallsReportQuery) {
+    return fetchCallsReportPerUserPaginated(query);
+  },
 
-    const [callsOverTime, dispositionBreakdown, directionBreakdown] = await Promise.all([
+  async exportCallsReportPerUserCsv(query: CallsReportQuery) {
+    const [items, totals] = await Promise.all([
+      fetchCallsPerUserRows(query),
+      fetchCallsPerUserGrandTotals(query),
+    ]);
+    return buildCallsUserReportCsv(items, totals);
+  },
+
+  async getCallsReport(query: CallsReportQuery) {
+    const scope = leadScopeFromQuery(query);
+    const callWhere = callScopeFilter(scope);
+    const activityWhere = activityScopeFilter(scope);
+
+    const [
+      callsOverTime,
+      dispositionBreakdown,
+      directionBreakdown,
+      callsOnLeadsOverTime,
+      meetingsOverTime,
+      notesOverTime,
+    ] = await Promise.all([
       db
         .select({
           date: sql<string>`to_char(date_trunc('day', ${callRecords.startedAt}), 'YYYY-MM-DD')`,
@@ -189,6 +629,33 @@ export const reportService = {
         .where(callWhere)
         .groupBy(callRecords.direction)
         .orderBy(callRecords.direction),
+      db
+        .select({
+          date: sql<string>`to_char(date_trunc('day', ${callRecords.startedAt}), 'YYYY-MM-DD')`,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(callRecords)
+        .where(and(callWhere, isNotNull(callRecords.leadId)))
+        .groupBy(sql`date_trunc('day', ${callRecords.startedAt})`)
+        .orderBy(sql`date_trunc('day', ${callRecords.startedAt})`),
+      db
+        .select({
+          date: sql<string>`to_char(date_trunc('day', ${leadActivities.createdAt}), 'YYYY-MM-DD')`,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(leadActivities)
+        .where(and(activityWhere, eq(leadActivities.type, "meeting")))
+        .groupBy(sql`date_trunc('day', ${leadActivities.createdAt})`)
+        .orderBy(sql`date_trunc('day', ${leadActivities.createdAt})`),
+      db
+        .select({
+          date: sql<string>`to_char(date_trunc('day', ${leadActivities.createdAt}), 'YYYY-MM-DD')`,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(leadActivities)
+        .where(and(activityWhere, eq(leadActivities.type, "note")))
+        .groupBy(sql`date_trunc('day', ${leadActivities.createdAt})`)
+        .orderBy(sql`date_trunc('day', ${leadActivities.createdAt})`),
     ]);
 
     return {
@@ -206,6 +673,11 @@ export const reportService = {
         direction: row.direction,
         count: row.count,
       })),
+      activity_on_leads_over_time: buildActivityOnLeadsOverTime(
+        callsOnLeadsOverTime.map((row) => ({ date: row.date, count: row.count })),
+        meetingsOverTime.map((row) => ({ date: row.date, count: row.count })),
+        notesOverTime.map((row) => ({ date: row.date, count: row.count })),
+      ),
     };
   },
 
@@ -224,51 +696,71 @@ export const reportService = {
       .groupBy(callRecords.leadId)
       .as("first_calls");
 
-    const [newLeadsOverTime, statusConversion, [avgFirstCall]] = await Promise.all([
-      db
-        .select({
-          date: sql<string>`to_char(date_trunc('day', ${leads.createdAt}), 'YYYY-MM-DD')`,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(leads)
-        .where(leadWhere)
-        .groupBy(sql`date_trunc('day', ${leads.createdAt})`)
-        .orderBy(sql`date_trunc('day', ${leads.createdAt})`),
-      db
-        .select({
-          fromStatus: sql<string>`${leadActivities.metadata}->>'from'`,
-          toStatus: sql<string>`${leadActivities.metadata}->>'to'`,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(leadActivities)
-        .where(
-          and(
-            eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
-            eq(leadActivities.type, "status_change"),
-            gte(leadActivities.createdAt, query.dateFrom),
-            lte(leadActivities.createdAt, query.dateTo),
-            sql`${leadActivities.metadata}->>'from' is not null`,
-            sql`${leadActivities.metadata}->>'to' is not null`,
-          ),
-        )
-        .groupBy(sql`${leadActivities.metadata}->>'from'`, sql`${leadActivities.metadata}->>'to'`)
-        .orderBy(sql`count(*) desc`),
-      db
-        .select({
-          avgSeconds: sql<number>`coalesce(avg(extract(epoch from (${firstCalls.firstCallAt} - ${leads.createdAt}))), 0)`,
-        })
-        .from(leads)
-        .innerJoin(firstCalls, eq(firstCalls.leadId, leads.id))
-        .where(leadWhere),
-    ]);
+    const [newLeadsOverTime, leadsByDateAndSource, statusConversion, [avgFirstCall]] =
+      await Promise.all([
+        db
+          .select({
+            date: sql<string>`to_char(date_trunc('day', ${leads.createdAt}), 'YYYY-MM-DD')`,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(leads)
+          .where(leadWhere)
+          .groupBy(sql`date_trunc('day', ${leads.createdAt})`)
+          .orderBy(sql`date_trunc('day', ${leads.createdAt})`),
+        db
+          .select({
+            date: sql<string>`to_char(date_trunc('day', ${leads.createdAt}), 'YYYY-MM-DD')`,
+            source: leads.leadSource,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(leads)
+          .where(leadWhere)
+          .groupBy(sql`date_trunc('day', ${leads.createdAt})`, leads.leadSource)
+          .orderBy(sql`date_trunc('day', ${leads.createdAt})`),
+        db
+          .select({
+            fromStatus: sql<string>`${leadActivities.metadata}->>'from'`,
+            toStatus: sql<string>`${leadActivities.metadata}->>'to'`,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(leadActivities)
+          .where(
+            and(
+              eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
+              eq(leadActivities.type, "status_change"),
+              gte(leadActivities.createdAt, query.dateFrom),
+              lte(leadActivities.createdAt, query.dateTo),
+              sql`${leadActivities.metadata}->>'from' is not null`,
+              sql`${leadActivities.metadata}->>'to' is not null`,
+            ),
+          )
+          .groupBy(sql`${leadActivities.metadata}->>'from'`, sql`${leadActivities.metadata}->>'to'`)
+          .orderBy(sql`count(*) desc`),
+        db
+          .select({
+            avgSeconds: sql<number>`coalesce(avg(extract(epoch from (${firstCalls.firstCallAt} - ${leads.createdAt}))), 0)`,
+          })
+          .from(leads)
+          .innerJoin(firstCalls, eq(firstCalls.leadId, leads.id))
+          .where(leadWhere),
+      ]);
 
     const avgSeconds = avgFirstCall?.avgSeconds ?? 0;
+
+    const leadsOverTime = buildLeadsOverTimeReport(
+      leadsByDateAndSource.map((row) => ({
+        date: row.date,
+        source: row.source,
+        count: row.count,
+      })),
+    );
 
     return {
       new_leads_over_time: newLeadsOverTime.map((row) => ({
         date: row.date,
         count: row.count,
       })),
+      leads_over_time: leadsOverTime,
       status_conversion: statusConversion.map((row) => ({
         from_status: row.fromStatus,
         to_status: row.toStatus,
@@ -353,27 +845,19 @@ export const reportService = {
     };
   },
 
-  async getOverviewStats() {
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(now);
-    todayEnd.setHours(23, 59, 59, 999);
+  async getOverviewStats(query: OverviewReportQuery) {
+    const scope = leadScopeFromQuery(query);
+    const { priorFrom, priorTo } = priorPeriod(scope);
+    const periodStart = scope.dateFrom;
+    const periodEnd = scope.dateTo;
 
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const yesterdayStart = new Date(todayStart);
-    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-    const yesterdayEnd = new Date(todayEnd);
-    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
-
-    const weekAgo = new Date(todayStart);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-
-    const thirtyDaysAgo = new Date(todayStart);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const sixtyDaysAgo = new Date(todayStart);
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    const deletedLeadFilter = scope.userId
+      ? and(
+          eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+          isNotNull(leads.deletedAt),
+          eq(leads.assignedTo, scope.userId),
+        )
+      : and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNotNull(leads.deletedAt));
 
     const [
       [newLeadsToday],
@@ -394,69 +878,61 @@ export const reportService = {
       leadsOwnedRows,
       callStatsToday,
       dealsWonMonthByUser,
+      [totalLeadsAgg],
+      [activeLeadsAgg],
+      [unassignedLeadsAgg],
+      [deletedLeadsAgg],
+      [notInterestedAgg],
+      [droppedLeadsAgg],
+      [pendingCallbacksAgg],
+      [todayMeetingsAgg],
+      leadsBySource,
     ] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(leads).where(scopedLeadCreated(scope)),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(leads)
         .where(
           and(
-            eq(leads.orgId, SINGLE_TENANT_ORG_ID),
-            isNull(leads.deletedAt),
-            gte(leads.createdAt, todayStart),
-            lte(leads.createdAt, todayEnd),
+            scopedLeadBook(scope),
+            gte(leads.createdAt, priorFrom),
+            lte(leads.createdAt, priorTo),
           ),
         ),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(leads)
-        .where(
-          and(
-            eq(leads.orgId, SINGLE_TENANT_ORG_ID),
-            isNull(leads.deletedAt),
-            gte(leads.createdAt, yesterdayStart),
-            lte(leads.createdAt, yesterdayEnd),
-          ),
-        ),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(leads)
-        .where(
-          and(
-            eq(leads.orgId, SINGLE_TENANT_ORG_ID),
-            isNull(leads.deletedAt),
-            eq(leads.temperature, "hot"),
-          ),
-        ),
+        .where(and(scopedLeadBook(scope), eq(leads.temperature, "hot"))),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(leadActivities)
         .where(
           and(
-            eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
+            activityScopeFilter(scope),
             eq(leadActivities.type, "status_change"),
-            gte(leadActivities.createdAt, monthStart),
-            lte(leadActivities.createdAt, todayEnd),
             sql`${leadActivities.metadata}->>'to' = 'won'`,
           ),
         ),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(callRecords)
-        .where(
-          and(
-            eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
-            gte(callRecords.startedAt, todayStart),
-            lte(callRecords.startedAt, todayEnd),
-          ),
-        ),
+        .where(callScopeFilter(scope)),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(callRecords)
         .where(
           and(
             eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
-            gte(callRecords.startedAt, yesterdayStart),
-            lte(callRecords.startedAt, yesterdayEnd),
+            gte(callRecords.startedAt, priorFrom),
+            lte(callRecords.startedAt, priorTo),
+            scope.userId ? eq(callRecords.userId, scope.userId) : sql`true`,
+            scope.status
+              ? sql`exists (
+                  select 1 from ${leads}
+                  where ${leads.id} = ${callRecords.leadId}
+                  and ${scopedLeadBook(scope)}
+                )`
+              : sql`true`,
           ),
         ),
       db
@@ -464,9 +940,10 @@ export const reportService = {
         .from(leads)
         .where(
           and(
-            leadBaseFilter(),
+            scopedLeadBook(scope),
             isNotNull(leads.nextFollowupAt),
-            lte(leads.nextFollowupAt, todayEnd),
+            gte(leads.nextFollowupAt, periodStart),
+            lte(leads.nextFollowupAt, periodEnd),
           ),
         ),
       db
@@ -475,7 +952,7 @@ export const reportService = {
           count: sql<number>`count(*)::int`,
         })
         .from(leads)
-        .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt)))
+        .where(scopedLeadBook(scope))
         .groupBy(leads.leadStatus),
       db
         .select({
@@ -483,13 +960,7 @@ export const reportService = {
           total: sql<number>`count(*)::int`,
         })
         .from(callRecords)
-        .where(
-          and(
-            eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
-            gte(callRecords.startedAt, weekAgo),
-            lte(callRecords.startedAt, todayEnd),
-          ),
-        )
+        .where(callScopeFilter(scope))
         .groupBy(sql`date_trunc('day', ${callRecords.startedAt})`)
         .orderBy(sql`date_trunc('day', ${callRecords.startedAt})`),
       db
@@ -498,12 +969,10 @@ export const reportService = {
           total: sql<number>`count(*)::int`,
         })
         .from(leads)
-        .where(and(leadBaseFilter(), gte(leads.createdAt, weekAgo), lte(leads.createdAt, todayEnd)))
+        .where(scopedLeadCreated(scope))
         .groupBy(sql`date_trunc('day', ${leads.createdAt})`)
         .orderBy(sql`date_trunc('day', ${leads.createdAt})`),
-      Promise.all(
-        PIPELINE_STAGES.map((stage) => pipelineStageStats(stage, thirtyDaysAgo, sixtyDaysAgo)),
-      ),
+      Promise.all(PIPELINE_STAGES.map((stage) => pipelineStageStats(stage, scope))),
       db
         .select({
           total: sql<string>`coalesce(sum(${leads.estimatedValue}::numeric), 0)`,
@@ -511,10 +980,10 @@ export const reportService = {
         .from(leads)
         .where(
           and(
-            leadBaseFilter(),
+            scopedLeadBook(scope),
             eq(leads.leadStatus, "won"),
-            gte(leads.updatedAt, monthStart),
-            lte(leads.updatedAt, todayEnd),
+            gte(leads.updatedAt, periodStart),
+            lte(leads.updatedAt, periodEnd),
           ),
         ),
       db
@@ -522,7 +991,9 @@ export const reportService = {
           avg: sql<string | null>`avg(${leads.estimatedValue}::numeric)`,
         })
         .from(leads)
-        .where(and(leadBaseFilter(), eq(leads.leadStatus, "won"), isNotNull(leads.estimatedValue))),
+        .where(
+          and(scopedLeadBook(scope), eq(leads.leadStatus, "won"), isNotNull(leads.estimatedValue)),
+        ),
       db
         .select({
           id: leads.id,
@@ -535,7 +1006,7 @@ export const reportService = {
           nextFollowupAt: leads.nextFollowupAt,
         })
         .from(leads)
-        .where(and(leadBaseFilter(), eq(leads.temperature, "hot")))
+        .where(and(scopedLeadBook(scope), eq(leads.temperature, "hot")))
         .orderBy(sql`${leads.nextFollowupAt} asc nulls last`)
         .limit(5),
       db
@@ -549,7 +1020,7 @@ export const reportService = {
           count: sql<number>`count(*)::int`,
         })
         .from(leads)
-        .where(and(leadBaseFilter(), isNotNull(leads.assignedTo)))
+        .where(and(scopedLeadBook(scope), isNotNull(leads.assignedTo)))
         .groupBy(leads.assignedTo),
       db
         .select({
@@ -558,13 +1029,7 @@ export const reportService = {
           avgDurationToday: sql<number | null>`avg(${callRecords.durationSeconds})`,
         })
         .from(callRecords)
-        .where(
-          and(
-            eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
-            gte(callRecords.startedAt, todayStart),
-            lte(callRecords.startedAt, todayEnd),
-          ),
-        )
+        .where(callScopeFilter(scope))
         .groupBy(callRecords.userId),
       db
         .select({
@@ -574,14 +1039,66 @@ export const reportService = {
         .from(leadActivities)
         .where(
           and(
-            eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
+            activityScopeFilter(scope),
             eq(leadActivities.type, "status_change"),
-            gte(leadActivities.createdAt, monthStart),
-            lte(leadActivities.createdAt, todayEnd),
             sql`${leadActivities.metadata}->>'to' = 'won'`,
           ),
         )
         .groupBy(leadActivities.userId),
+      db.select({ count: sql<number>`count(*)::int` }).from(leads).where(scopedLeadBook(scope)),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(and(scopedLeadBook(scope), sql`${leads.leadStatus} not in ('lost', 'won')`)),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+            isNull(leads.deletedAt),
+            isNull(leads.assignedTo),
+            scope.status ? eq(leads.leadStatus, scope.status) : sql`true`,
+            scope.userId ? sql`false` : sql`true`,
+          ),
+        ),
+      db.select({ count: sql<number>`count(*)::int` }).from(leads).where(deletedLeadFilter),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(and(scopedLeadBook(scope), eq(leads.leadStatus, "lost"))),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            deletedLeadFilter,
+            gte(leads.deletedAt, periodStart),
+            lte(leads.deletedAt, periodEnd),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(distinct ${callRecords.leadId})::int` })
+        .from(callRecords)
+        .where(
+          and(
+            callScopeFilter(scope),
+            eq(callRecords.disposition, "callback"),
+            isNotNull(callRecords.leadId),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leadActivities)
+        .where(and(activityScopeFilter(scope), eq(leadActivities.type, "meeting"))),
+      db
+        .select({
+          source: leads.leadSource,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(leads)
+        .where(scopedLeadCreated(scope))
+        .groupBy(leads.leadSource),
     ]);
 
     const newLeadsTodayCount = newLeadsToday?.count ?? 0;
@@ -638,6 +1155,18 @@ export const reportService = {
         hot_leads: hotLeads?.count ?? 0,
         follow_ups_due_today: followUpsDueToday?.count ?? 0,
       },
+      lead_strip: {
+        total_leads: totalLeadsAgg?.count ?? 0,
+        active_leads: activeLeadsAgg?.count ?? 0,
+        unassigned_leads: unassignedLeadsAgg?.count ?? 0,
+        deleted_leads: deletedLeadsAgg?.count ?? 0,
+        not_interested_count: notInterestedAgg?.count ?? 0,
+        dropped_count: droppedLeadsAgg?.count ?? 0,
+        today_new_leads: newLeadsTodayCount,
+        today_calls: callsTodayCount,
+        pending_callbacks_count: pendingCallbacksAgg?.count ?? 0,
+        today_meetings_count: todayMeetingsAgg?.count ?? 0,
+      },
       pipeline: pipelineStages,
       revenue: {
         won_value_month: wonValueMonthNum,
@@ -662,7 +1191,16 @@ export const reportService = {
       })),
       activity_last_7_days: activityLast7Days,
       team_performance: teamPerformance,
+      leads_from_source: buildSourceGroupReport(
+        leadsBySource.map((row) => ({ source: row.source, count: row.count })),
+      ),
     };
+  },
+
+  async getSourcesReport(query: SourcesReportQuery) {
+    const scope = leadScopeFromQuery(query);
+    const leads_from_source = await queryLeadsBySource(scope);
+    return { leads_from_source };
   },
 
   async getProjects() {

@@ -2,22 +2,26 @@ import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/compon
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
 import { type LeadRow, useTodayQueue, useUpdateLead } from "@/hooks/use-leads";
+import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import { formatDuration } from "@/lib/dates";
+import { dialPhoneNumber } from "@/lib/dialPhone";
+import { feedbackCallSaved } from "@/lib/feedback";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
+import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Linking,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function greeting() {
   const hour = new Date().getHours();
@@ -78,6 +82,18 @@ export function TodayScreen({ route, navigation }: Props) {
   const queueItems = queue.data?.items ?? [];
   const recentCalls = (calls.data?.items ?? []).slice(0, 3);
   const [logTarget, setLogTarget] = useState<LeadRow | null>(null);
+  const pendingLogLeadRef = useRef<LeadRow | null>(null);
+  const insets = useSafeAreaInsets();
+  const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
+
+  const openLogForReturn = useCallback(() => {
+    if (pendingLogLeadRef.current) {
+      setLogTarget(pendingLogLeadRef.current);
+      pendingLogLeadRef.current = null;
+    }
+  }, []);
+
+  const { beginCall } = useReturnFromDialerLog(openLogForReturn);
 
   const logTargetIndex = logTarget ? queueItems.findIndex((item) => item.id === logTarget.id) : -1;
   const hasNextInQueue = logTargetIndex >= 0 && logTargetIndex < queueItems.length - 1;
@@ -99,13 +115,18 @@ export function TodayScreen({ route, navigation }: Props) {
     });
   }
 
-  function handleCall(lead: LeadRow) {
+  async function handleCall(lead: LeadRow) {
     if (!lead.phone) {
       Alert.alert("No phone", "This lead has no phone number.");
       return;
     }
-    Linking.openURL(`tel:${lead.phone}`);
-    setLogTarget(lead);
+    pendingLogLeadRef.current = lead;
+    const opened = await dialPhoneNumber(lead.phone);
+    if (opened) {
+      beginCall();
+    } else {
+      pendingLogLeadRef.current = null;
+    }
   }
 
   function handleLogSubmit(payload: QuickLogPayload, options?: SubmitOptions) {
@@ -141,6 +162,7 @@ export function TodayScreen({ route, navigation }: Props) {
           }
 
           await queue.refetch();
+          void feedbackCallSaved();
           if (options?.goNext && nextLead) {
             setLogTarget(nextLead);
           } else {
@@ -180,7 +202,7 @@ export function TodayScreen({ route, navigation }: Props) {
             tintColor={colors.primaryLight}
           />
         }
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
         ListHeaderComponent={
           <>
             <View style={styles.hero}>
@@ -290,7 +312,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  listContent: { paddingHorizontal: spacing.md, paddingBottom: 100 },
+  listContent: { paddingHorizontal: spacing.md },
   hero: {
     marginTop: spacing.md,
     marginBottom: spacing.lg,

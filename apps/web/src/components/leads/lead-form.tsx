@@ -1,8 +1,9 @@
 "use client";
 
-import { LEAD_SOURCES } from "@/components/leads/lead-sources";
+import { ProjectSelect } from "@/components/projects/project-select";
 import { apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
+import { LEAD_SOURCE_OPTIONS, normalizeLeadSourceValue } from "@/lib/lead-sources";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
@@ -26,7 +27,7 @@ export function LeadForm({ onSuccess }: LeadFormProps) {
   const [tags, setTags] = useState("");
   const [nextFollowupAt, setNextFollowupAt] = useState("");
   const [estimatedValue, setEstimatedValue] = useState("");
-  const [projectName, setProjectName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const selectClass =
@@ -41,7 +42,7 @@ export function LeadForm({ onSuccess }: LeadFormProps) {
         secondaryPhone: secondaryPhone || undefined,
         email: email || undefined,
         city: city || undefined,
-        leadSource: leadSource || undefined,
+        leadSource: leadSource ? normalizeLeadSourceValue(leadSource) : undefined,
         tags: tags
           ? tags
               .split(",")
@@ -50,7 +51,7 @@ export function LeadForm({ onSuccess }: LeadFormProps) {
           : undefined,
         nextFollowupAt: nextFollowupAt ? new Date(nextFollowupAt).toISOString() : undefined,
         estimatedValue: estimatedValue ? Number(estimatedValue) : undefined,
-        projectName: projectName || undefined,
+        projectId: projectId || undefined,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -64,7 +65,7 @@ export function LeadForm({ onSuccess }: LeadFormProps) {
       setTags("");
       setNextFollowupAt("");
       setEstimatedValue("");
-      setProjectName("");
+      setProjectId("");
       setError(null);
       toast.success("Lead created");
       onSuccess?.();
@@ -124,9 +125,9 @@ export function LeadForm({ onSuccess }: LeadFormProps) {
           onChange={(e) => setLeadSource(e.target.value)}
         >
           <option value="">—</option>
-          {LEAD_SOURCES.map((source) => (
-            <option key={source} value={source}>
-              {source}
+          {LEAD_SOURCE_OPTIONS.map((source) => (
+            <option key={source.value} value={source.value}>
+              {source.label}
             </option>
           ))}
         </select>
@@ -161,13 +162,8 @@ export function LeadForm({ onSuccess }: LeadFormProps) {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="projectName">Project</Label>
-        <Input
-          id="projectName"
-          placeholder="e.g. Skyline Residency"
-          value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
-        />
+        <Label htmlFor="projectId">Project</Label>
+        <ProjectSelect id="projectId" value={projectId} onChange={setProjectId} />
       </div>
       {error ? <p className="text-sm text-destructive md:col-span-2">{error}</p> : null}
       <div className="md:col-span-2">

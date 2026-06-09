@@ -1,9 +1,6 @@
-export const LEAD_SOURCES = [
-  "website",
-  "referral",
-  "walk-in",
-  "facebook",
-  "google-ads",
-  "cold-call",
-  "other",
-] as const;
+export {
+  AD_LEAD_SOURCE_LABELS,
+  AD_LEAD_TAG,
+  LEAD_SOURCE_OPTIONS,
+  LEAD_SOURCE_VALUES as LEAD_SOURCES,
+} from "@/lib/lead-sources";

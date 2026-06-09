@@ -1,0 +1,106 @@
+import { Hono } from "hono";
+import { env } from "../lib/env.js";
+import {
+  type MetaLeadgenWebhookBody,
+  enrichFacebookAdLeadMetadata,
+  extractLeadgenChanges,
+  getLeadDetails,
+  mapFacebookLeadToNormalizedAdLead,
+  verifyMetaWebhookSignature,
+} from "../lib/facebook.js";
+import { logger } from "../lib/logger.js";
+import { isMetaLeadgenAllowed } from "../lib/metaWebhookScope.js";
+import { metaWebhookRateLimit } from "../middleware/rateLimit.js";
+import { adLeadService } from "../services/adLeadService.js";
+
+export const metaIntegrationsRoute = new Hono();
+
+metaIntegrationsRoute.get("/webhook", (c) => {
+  const mode = c.req.query("hub.mode");
+  const verifyToken = c.req.query("hub.verify_token");
+  const challenge = c.req.query("hub.challenge");
+
+  if (mode === "subscribe" && verifyToken === env.META_VERIFY_TOKEN && challenge) {
+    return c.text(challenge, 200);
+  }
+
+  return c.text("Forbidden", 403);
+});
+
+async function processMetaLeadWebhook(body: MetaLeadgenWebhookBody) {
+  const leadgenChanges = extractLeadgenChanges(body);
+
+  if (leadgenChanges.length === 0) {
+    logger.debug("Meta webhook received with no leadgen changes");
+    return;
+  }
+
+  for (const change of leadgenChanges) {
+    const scopeCheck = isMetaLeadgenAllowed(change);
+    if (!scopeCheck.allowed) {
+      logger.info("Meta lead skipped by webhook scope", {
+        leadgenId: change.leadgen_id,
+        pageId: change.page_id,
+        formId: change.form_id,
+        reason: scopeCheck.reason,
+      });
+      continue;
+    }
+
+    try {
+      const leadDetails = await getLeadDetails(change.leadgen_id);
+      const mapped = mapFacebookLeadToNormalizedAdLead(change.leadgen_id, leadDetails, change);
+      const normalized = await enrichFacebookAdLeadMetadata(mapped);
+      const lead = await adLeadService.ingestAdLead(normalized);
+
+      logger.info("Meta lead ingested", {
+        leadgenId: change.leadgen_id,
+        leadId: lead.id,
+        pageId: change.page_id,
+      });
+    } catch (error) {
+      logger.error("Failed to ingest Meta lead", {
+        leadgenId: change.leadgen_id,
+        pageId: change.page_id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+}
+
+metaIntegrationsRoute.post("/webhook", metaWebhookRateLimit, async (c) => {
+  const rawBody = await c.req.text();
+  const appSecret = env.META_APP_SECRET?.trim();
+
+  if (appSecret) {
+    const signature = c.req.header("x-hub-signature-256");
+    if (!verifyMetaWebhookSignature(rawBody, signature, appSecret)) {
+      logger.warn("Meta webhook rejected: invalid or missing X-Hub-Signature-256");
+      return c.text("Forbidden", 403);
+    }
+  } else {
+    logger.warn(
+      "Meta webhook accepted without signature verification — set META_APP_SECRET in production",
+    );
+  }
+
+  let body: MetaLeadgenWebhookBody;
+
+  try {
+    body = JSON.parse(rawBody) as MetaLeadgenWebhookBody;
+  } catch (error) {
+    logger.warn("Meta webhook received invalid JSON", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return c.text("EVENT_RECEIVED", 200);
+  }
+
+  // Acknowledge immediately; Graph API + CRM ingest runs in the background.
+  void processMetaLeadWebhook(body).catch((error) => {
+    logger.error("Meta webhook processing failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+
+  return c.text("EVENT_RECEIVED", 200);
+});

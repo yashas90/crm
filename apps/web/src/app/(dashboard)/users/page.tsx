@@ -1,233 +1,204 @@
 "use client";
 
 import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-state";
-import { UserCreateForm } from "@/components/users/user-create-form";
-import { UserEditDialog } from "@/components/users/user-edit-dialog";
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/common/empty-state";
+import { QuickFilterTabs } from "@/components/common/quick-filter-tabs";
+import { UsersBulkActionsBar } from "@/components/users/users-bulk-actions-bar";
+import { UsersListToolbar } from "@/components/users/users-list-toolbar";
+import { UsersTable } from "@/components/users/users-table";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { isForbiddenError, useUpdateUser, useUsers, type UserRow } from "@/hooks/use-users";
-import { getSession } from "@/lib/auth";
+  USERS_PAGE_SIZES,
+  type UserStatusFilter,
+  type UsersPageSize,
+  downloadUsersExport,
+  isForbiddenError,
+  useUserScopeCounts,
+  useUsersList,
+} from "@/hooks/use-users";
+import { getErrorMessage } from "@/lib/errors";
+import { getQueryClient } from "@/lib/queryClient";
+import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
-import { Pencil, UserPlus } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, Download, UserPlus } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
-const ROLE_FILTERS = [
-  { value: "", label: "All" },
-  { value: "admin", label: "Admins" },
-  { value: "manager", label: "Managers" },
-  { value: "agent", label: "Agents" },
-] as const;
+const STATUS_TABS: { id: UserStatusFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "active", label: "Active" },
+  { id: "inactive", label: "Inactive" },
+];
 
-const ROLES = ["admin", "manager", "agent"] as const;
+const SEARCH_DEBOUNCE_MS = 300;
 
 export default function UsersPage() {
-  const session = getSession();
-  const isAdmin = session?.role === "admin";
-  const [roleFilter, setRoleFilter] = useState("");
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const router = useRouter();
+  const { session, ready, canCreateUser, canUpdateUser, canViewUsers } = usePermissions();
+  const listEnabled = ready && canViewUsers;
 
-  const { data, isLoading, isError, error } = useUsers(roleFilter || undefined);
-  const updateUser = useUpdateUser();
-  const [drafts, setDrafts] = useState<Record<string, { role: string; isActive: boolean }>>({});
+  const [status, setStatus] = useState<UserStatusFilter>("all");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<UsersPageSize>(10);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchDraft.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchDraft]);
 
-  function getDraft(user: { id: string; role: string; isActive: boolean }) {
-    return drafts[user.id] ?? { role: user.role, isActive: user.isActive };
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds([]);
+  }, [status, search, pageSize]);
+
+  const listParams = useMemo(
+    () => ({
+      search: search || undefined,
+      status,
+      page,
+      pageSize,
+    }),
+    [search, status, page, pageSize],
+  );
+
+  const listQuery = useUsersList(listParams, { enabled: listEnabled });
+  const scopeCounts = useUserScopeCounts(search || undefined, { enabled: listEnabled });
+
+  const tableLoading = !listQuery.data && (listQuery.isLoading || listQuery.isFetching);
+  const users = listQuery.data?.items ?? [];
+  const total = listQuery.data?.total ?? 0;
+
+  const scopeTabCounts = useMemo(
+    () => ({
+      all: scopeCounts.data?.all ?? 0,
+      active: scopeCounts.data?.active ?? 0,
+      inactive: scopeCounts.data?.inactive ?? 0,
+    }),
+    [scopeCounts.data],
+  );
+
+  function handleSearchSubmit() {
+    setSearch(searchDraft.trim());
   }
 
-  function setDraft(
-    user: { id: string; role: string; isActive: boolean },
-    patch: Partial<{ role: string; isActive: boolean }>,
-  ) {
-    const current = getDraft(user);
-    setDrafts((prev) => ({
-      ...prev,
-      [user.id]: { ...current, ...patch },
-    }));
+  function handleRetry() {
+    void getQueryClient().invalidateQueries({ queryKey: ["users"] });
+  }
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      await downloadUsersExport({ search: search || undefined, status });
+      toast.success("Users exported");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Export failed"));
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  if (ready && !canViewUsers) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Manage Users</h1>
+          <p className="text-sm text-muted-foreground">
+            Team members and roles for your organization.
+          </p>
+        </div>
+        <AccessDeniedEmptyState />
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight">Manage Users</h1>
+          <p className="text-sm text-muted-foreground">
             Team members and roles for your organization.
-            {isAdmin
-              ? " Admins can add managers and agents, edit profiles, and reset passwords."
-              : null}
           </p>
         </div>
-        {isAdmin ? (
-          <Button onClick={() => setShowCreateForm((v) => !v)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add user
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {listEnabled ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isExporting}
+              onClick={() => void handleExport()}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {isExporting ? "Exporting..." : "Export"}
+            </Button>
+          ) : null}
+          {ready && canCreateUser ? (
+            <Button asChild>
+              <Link href="/users/new">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add user
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      {isAdmin && showCreateForm ? (
-        <Card className="border-border/60 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Create user</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <UserCreateForm onSuccess={() => setShowCreateForm(false)} />
-          </CardContent>
-        </Card>
-      ) : null}
+      <QuickFilterTabs
+        tabs={STATUS_TABS}
+        value={status}
+        onChange={setStatus}
+        counts={scopeTabCounts}
+        isLoadingCounts={scopeCounts.isLoading && !scopeCounts.data}
+        variant="pill"
+        ariaLabel="User status"
+      />
 
-      <div className="flex flex-wrap gap-2">
-        {ROLE_FILTERS.map((filter) => (
-          <Button
-            key={filter.value || "all"}
-            size="sm"
-            variant={roleFilter === filter.value ? "default" : "outline"}
-            onClick={() => setRoleFilter(filter.value)}
-          >
-            {filter.label}
-          </Button>
-        ))}
-      </div>
+      <UsersListToolbar
+        searchDraft={searchDraft}
+        onSearchDraftChange={setSearchDraft}
+        onSearchSubmit={handleSearchSubmit}
+        pageSize={pageSize}
+        onPageSizeChange={(size) => setPageSize(size as UsersPageSize)}
+        pageSizeOptions={USERS_PAGE_SIZES}
+      />
 
-      {isLoading ? (
-        <p className="text-muted-foreground">Loading users...</p>
-      ) : isError ? (
-        isForbiddenError(error) ? (
+      <UsersBulkActionsBar
+        selectedIds={selectedIds}
+        onClearSelection={() => setSelectedIds([])}
+        canUpdate={canUpdateUser}
+      />
+
+      {listQuery.isError ? (
+        isForbiddenError(listQuery.error) ? (
           <AccessDeniedEmptyState />
         ) : (
-          <p className="text-muted-foreground">Unable to load users.</p>
+          <EmptyState
+            title="Unable to load users"
+            description="The user list could not be loaded. Check your connection and try again."
+            actionLabel="Retry"
+            onActionClick={handleRetry}
+            icon={<AlertCircle className="h-7 w-7 text-destructive" />}
+          />
         )
-      ) : !data ? (
-        <p className="text-muted-foreground">Unable to load users.</p>
-      ) : data.length === 0 ? (
-        <p className="text-muted-foreground">No users found.</p>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Active</TableHead>
-              {isAdmin ? <TableHead className="text-right">Actions</TableHead> : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((user) => {
-              const draft = getDraft(user);
-              const changed = draft.role !== user.role || draft.isActive !== user.isActive;
-              const selectClass =
-                "flex h-9 rounded-md border border-input bg-background px-2 text-sm capitalize";
-              const isSelf = user.id === session?.id;
-
-              return (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.phone ?? "—"}</TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <select
-                        className={selectClass}
-                        value={draft.role}
-                        disabled={isSelf}
-                        onChange={(event) => setDraft(user, { role: event.target.value })}
-                      >
-                        {ROLES.map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Badge variant="outline" className="capitalize">
-                        {user.role}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={draft.isActive}
-                          disabled={isSelf}
-                          onChange={(event) => setDraft(user, { isActive: event.target.checked })}
-                        />
-                        {draft.isActive ? "Active" : "Inactive"}
-                      </label>
-                    ) : user.isActive ? (
-                      "Active"
-                    ) : (
-                      "Inactive"
-                    )}
-                  </TableCell>
-                  {isAdmin ? (
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingUser(user)}
-                          aria-label={`Edit ${user.name}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!changed || updateUser.isPending || isSelf}
-                          onClick={() =>
-                            updateUser.mutate(
-                              {
-                                userId: user.id,
-                                payload: {
-                                  role: draft.role,
-                                  isActive: draft.isActive,
-                                },
-                              },
-                              {
-                                onSuccess: () => {
-                                  setDrafts((prev) => {
-                                    const next = { ...prev };
-                                    delete next[user.id];
-                                    return next;
-                                  });
-                                },
-                              },
-                            )
-                          }
-                        >
-                          Save
-                        </Button>
-                      </div>
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <UsersTable
+          users={users}
+          isLoading={tableLoading}
+          canUpdate={canUpdateUser}
+          currentUserId={session?.id}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+          onAddUser={canCreateUser ? () => router.push("/users/new") : undefined}
+        />
       )}
-
-      <UserEditDialog
-        user={editingUser}
-        open={Boolean(editingUser)}
-        onOpenChange={(open) => {
-          if (!open) setEditingUser(null);
-        }}
-        currentUserId={session?.id}
-      />
     </div>
   );
 }

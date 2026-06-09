@@ -1,13 +1,20 @@
 "use client";
 
 import { AppLogo } from "@/components/layout/app-logo";
-import { type SessionUser, fetchCurrentUser, getSession } from "@/lib/auth";
+import { useSession } from "@/hooks/use-session";
 import { cn } from "@propninja/ui/lib/utils";
-import { BarChart3, LayoutDashboard, Phone, Settings, UserCircle, Users } from "lucide-react";
+import {
+  BarChart3,
+  Building2,
+  LayoutDashboard,
+  Phone,
+  Settings,
+  UserCircle,
+  Users,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 
 type UserRole = "admin" | "manager" | "agent";
 
@@ -21,31 +28,30 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager", "agent"] },
   { href: "/leads", label: "Leads", icon: Users, roles: ["admin", "manager", "agent"] },
+  { href: "/projects", label: "Projects", icon: Building2, roles: ["admin", "manager", "agent"] },
   { href: "/reports/calls", label: "Calls", icon: Phone, roles: ["admin", "manager", "agent"] },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["admin", "manager"] },
-  { href: "/users", label: "Users", icon: UserCircle, roles: ["admin"] },
-  { href: "/settings", label: "Settings", icon: Settings, roles: ["admin", "manager"] },
+  { href: "/users", label: "Users", icon: UserCircle, roles: ["admin", "manager"] },
+  { href: "/settings", label: "Settings", icon: Settings, roles: ["admin", "manager", "agent"] },
 ];
 
-function roleFromSession(user: SessionUser | null): UserRole | null {
-  if (user?.role === "admin" || user?.role === "manager" || user?.role === "agent") {
-    return user.role;
+/** Nav visibility uses JWT `users.role` (admin/manager/agent), not display roleLabel. */
+function roleFromSession(role: string | undefined): UserRole | null {
+  if (role === "admin" || role === "manager" || role === "agent") {
+    return role;
   }
   return null;
 }
 
+const DEFAULT_NAV = navItems.filter((item) => item.roles.includes("agent"));
+
 export function Sidebar() {
   const pathname = usePathname();
-  const [role, setRole] = useState<UserRole | null>(() => roleFromSession(getSession()));
+  const { session, ready } = useSession();
+  const role = roleFromSession(session?.role);
 
-  useEffect(() => {
-    setRole(roleFromSession(getSession()));
-    void fetchCurrentUser().then((user) => {
-      if (user) setRole(roleFromSession(user));
-    });
-  }, []);
-
-  const visibleItems = role ? navItems.filter((item) => item.roles.includes(role)) : navItems;
+  const visibleItems =
+    ready && role ? navItems.filter((item) => item.roles.includes(role)) : DEFAULT_NAV;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-border/60 bg-gradient-to-b from-card/95 via-card/90 to-emerald-500/5 backdrop-blur-xl dark:to-emerald-500/10">

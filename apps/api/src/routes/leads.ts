@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import {
   canAssignLead,
+  canDeleteLead,
   canEditLead,
-  canManageUsers,
   canViewLead,
   forbiddenResponse,
 } from "../lib/permissions.js";
@@ -11,7 +11,10 @@ import {
   addNoteBodySchema,
   assignLeadBodySchema,
   createLeadBodySchema,
+  leadScopeCountsQuerySchema,
+  leadStageCountsQuerySchema,
   listLeadsQuerySchema,
+  upcomingFollowupsQuerySchema,
   updateLeadBodySchema,
 } from "../lib/validators/leads.js";
 import type { AuthUser } from "../middleware/auth.js";
@@ -50,6 +53,106 @@ leadsRoute.get("/activities/recent", async (c) => {
   return c.json({ ok: true, data });
 });
 
+leadsRoute.get("/followups/upcoming", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const parsed = upcomingFollowupsQuerySchema.safeParse(c.req.query());
+
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const assignedTo = authUser.role === "agent" ? authUser.id : undefined;
+  const data = await leadService.getUpcomingFollowups(parsed.data.days, assignedTo);
+
+  return c.json({ ok: true, data });
+});
+
+leadsRoute.get("/scope-counts", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const parsed = leadScopeCountsQuerySchema.safeParse(c.req.query());
+
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const query = parsed.data;
+
+  const data = await leadService.getScopeCounts(
+    {
+      search: query.search,
+      projectId: query.projectId,
+      temperature: query.temperature,
+      source: query.source,
+      adLeadsOnly: query.adLeads,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+    },
+    {
+      userId: authUser.id,
+      isAgent: authUser.role === "agent",
+    },
+  );
+
+  return c.json({ ok: true, data });
+});
+
+leadsRoute.get("/stage-counts", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const parsed = leadStageCountsQuerySchema.safeParse(c.req.query());
+
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const query = parsed.data;
+  const assignedTo = authUser.role === "agent" ? authUser.id : query.assignedTo;
+
+  const data = await leadService.getStageCounts({
+    search: query.search,
+    assignedTo,
+    projectId: query.projectId,
+    temperature: query.temperature,
+    source: query.source,
+    adLeadsOnly: query.adLeads,
+    dateFrom: query.dateFrom,
+    dateTo: query.dateTo,
+    unassigned: query.unassigned,
+    deletedOnly: query.deletedOnly,
+  });
+
+  return c.json({ ok: true, data });
+});
+
 // List leads: agents always scoped to own assignments (assignedTo query ignored);
 // managers/admins may filter by assignedTo.
 leadsRoute.get("/", async (c) => {
@@ -79,12 +182,18 @@ leadsRoute.get("/", async (c) => {
     page: query.page,
     pageSize: query.pageSize,
     assignedTo,
+    projectId: query.projectId,
     temperature: query.temperature,
     source: query.source,
+    adLeadsOnly: query.adLeads,
     dateFrom: query.dateFrom,
     dateTo: query.dateTo,
     followUpDueBefore: query.followUpDueBefore,
+    followUpDueAfter: query.followUpDueAfter,
     orderByFollowUp: query.orderByFollowUp,
+    unassigned: query.unassigned,
+    activeOnly: query.activeOnly,
+    deletedOnly: query.deletedOnly,
   });
 
   return c.json({ ok: true, data });
@@ -177,14 +286,14 @@ leadsRoute.patch("/:id", writeRateLimit, async (c) => {
   }
 });
 
-// canManageUsers (admin only): soft-delete lead.
+// canDeleteLead: admin only; agents cannot delete leads.
 leadsRoute.delete("/:id", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id");
   const { response } = await loadLeadOr404(c, id);
   if (response) return response;
 
-  if (!canManageUsers(authUser)) {
+  if (!canDeleteLead(authUser)) {
     return c.json(forbiddenResponse(), 403);
   }
 
@@ -192,14 +301,18 @@ leadsRoute.delete("/:id", async (c) => {
   return c.json({ ok: true, data: deleted });
 });
 
-// canAssignLead: admin/manager only; agents cannot reassign leads.
+// canAssignLead: admin, manager, and agent (with edit access to the lead).
 leadsRoute.post("/:id/assign", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id");
-  const { response } = await loadLeadOr404(c, id);
+  const { lead, response } = await loadLeadOr404(c, id);
   if (response) return response;
 
   if (!canAssignLead(authUser)) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  if (!canEditLead(authUser, { assignedTo: lead!.assignedTo })) {
     return c.json(forbiddenResponse(), 403);
   }
 

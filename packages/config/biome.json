@@ -31,7 +31,11 @@
     "rules": {
       "recommended": true,
       "correctness": {
-        "noUnusedVariables": "warn"
+        "noUnusedVariables": "warn",
+        "useExhaustiveDependencies": "warn"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "warn"
       },
       "style": {
         "noNonNullAssertion": "off"
