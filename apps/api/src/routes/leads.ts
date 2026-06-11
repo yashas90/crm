@@ -215,11 +215,9 @@ leadsRoute.post(
     }
 
     const body = c.req.valid("json");
-    let assignedTo: string | undefined;
+    let assignedTo = authUser.id;
 
-    if (authUser.role === "agent") {
-      assignedTo = authUser.id;
-    } else if (body.assignToUserId) {
+    if (body.assignToUserId && body.assignToUserId !== authUser.id) {
       if (!canAssignLead(authUser)) {
         return c.json(forbiddenResponse(), 403);
       }

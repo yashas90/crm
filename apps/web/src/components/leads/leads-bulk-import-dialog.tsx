@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { useBulkImportLeads } from "@/hooks/use-bulk-leads";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useSession } from "@/hooks/use-session";
 import { useUsers } from "@/hooks/use-users";
 import {
   type BulkLeadImportRow,
@@ -27,7 +28,7 @@ import {
 import { Button } from "@propninja/ui/button";
 import { Label } from "@propninja/ui/label";
 import { AlertCircle, Download, FileUp, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const selectClass =
   "flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -57,16 +58,23 @@ export function LeadsBulkImportDialog({
   } | null>(null);
 
   const { hasPermission, canAssignLead } = usePermissions();
+  const { session } = useSession();
   const canImport = hasPermission("leads:bulk_upload");
   const bulkImport = useBulkImportLeads();
   const { data: users } = useUsers();
+
+  useEffect(() => {
+    if (open && session?.id) {
+      setAssignToUserId(session.id);
+    }
+  }, [open, session?.id]);
 
   function resetState() {
     setFileName(null);
     setRows([]);
     setParseErrors([]);
     setSkipDuplicates(true);
-    setAssignToUserId("");
+    setAssignToUserId(session?.id ?? "");
     setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -93,12 +101,13 @@ export function LeadsBulkImportDialog({
     const result = await bulkImport.mutateAsync({
       leads: rows,
       skipDuplicates,
-      assignToUserId: assignToUserId || undefined,
+      assignToUserId: assignToUserId || session?.id,
     });
 
     setImportResult(result);
     if (result.createdCount > 0) {
       onImported?.();
+      handleOpenChange(false);
     }
   }
 
@@ -154,20 +163,23 @@ export function LeadsBulkImportDialog({
 
             {canAssignLead ? (
               <div className="space-y-2">
-                <Label htmlFor="assign-to">Assign imported leads to (optional)</Label>
+                <Label htmlFor="assign-to">Assign imported leads to</Label>
                 <select
                   id="assign-to"
                   className={selectClass}
                   value={assignToUserId}
                   onChange={(event) => setAssignToUserId(event.target.value)}
                 >
-                  <option value="">Unassigned</option>
                   {(users ?? []).map((user) => (
                     <option key={user.id} value={user.id}>
                       {user.name}
+                      {user.id === session?.id ? " (you)" : ""}
                     </option>
                   ))}
                 </select>
+                <p className="text-xs text-muted-foreground">
+                  Leads are assigned on import so they appear under My Leads and in the mobile app.
+                </p>
               </div>
             ) : null}
 

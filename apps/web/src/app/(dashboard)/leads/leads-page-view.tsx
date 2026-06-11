@@ -32,6 +32,7 @@ import {
 import {
   LEADS_PAGE_SIZE,
   type LeadsUrlFilters,
+  defaultLeadsUrlFilters,
   buildLeadsSearchParams,
   countAdvancedLeadsFilters,
   leadsBaseFiltersToQuery,
@@ -347,9 +348,13 @@ export function LeadsPageView() {
         open={showImportModal}
         onOpenChange={setShowImportModal}
         onImported={() => {
-          void getQueryClient().invalidateQueries({ queryKey: leadsListQueryKey(leadsQuery) });
-          void scopeCounts.refetch();
-          void stageCounts.refetch();
+          setPage(1);
+          setScope("all");
+          setStage("active");
+          setSearchDraft("");
+          setFilters(defaultLeadsUrlFilters());
+          setSelectedLeadIds([]);
+          void getQueryClient().invalidateQueries({ queryKey: ["leads"] });
         }}
       />
     </div>
