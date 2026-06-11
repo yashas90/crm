@@ -58,7 +58,8 @@ export const StatusKpiRow = memo(function StatusKpiRow({ items }: StatusKpiRowPr
             key={item.status}
             className={cn(
               "border-border/60 shadow-sm transition-all duration-200",
-              href && "cursor-pointer hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md",
+              href &&
+                "cursor-pointer hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md",
             )}
             role={href ? "link" : undefined}
             tabIndex={href ? 0 : undefined}

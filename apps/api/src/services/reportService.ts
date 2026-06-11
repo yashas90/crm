@@ -23,14 +23,7 @@ type DateRange = { dateFrom: Date; dateTo: Date };
 
 const PIPELINE_STAGES = ["new", "contacted", "negotiation", "won"] as const;
 
-const LEAD_STATUS_ORDER = [
-  "new",
-  "contacted",
-  "qualified",
-  "negotiation",
-  "won",
-  "lost",
-] as const;
+const LEAD_STATUS_ORDER = ["new", "contacted", "qualified", "negotiation", "won", "lost"] as const;
 
 function calendarDayRange(offsetDays = 0) {
   const start = new Date();
@@ -50,10 +43,7 @@ function calendarMonthRange() {
   return { start, end };
 }
 
-function buildStatusBreakdown(
-  rows: { status: string; count: number }[],
-  overdueCount: number,
-) {
+function buildStatusBreakdown(rows: { status: string; count: number }[], overdueCount: number) {
   const byStatus = new Map(rows.map((row) => [row.status, row.count]));
   const breakdown = LEAD_STATUS_ORDER.map((status) => ({
     status,
@@ -887,7 +877,6 @@ export const reportService = {
 
   async getOverviewStats(query: OverviewReportQuery) {
     const scope = leadScopeFromQuery(query);
-    const { priorFrom, priorTo } = priorPeriod(scope);
     const periodStart = scope.dateFrom;
     const periodEnd = scope.dateTo;
     const { start: todayStart, end: todayEnd } = calendarDayRange();
