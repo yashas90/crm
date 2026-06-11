@@ -50,12 +50,6 @@ export function LeadsBulkImportDialog({
   const [parseErrors, setParseErrors] = useState<{ row: number; message: string }[]>([]);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [assignToUserId, setAssignToUserId] = useState<string>("");
-  const [importResult, setImportResult] = useState<{
-    createdCount: number;
-    skippedCount: number;
-    failedCount: number;
-    failed: { row: number; message: string }[];
-  } | null>(null);
 
   const { hasPermission, canAssignLead } = usePermissions();
   const { session } = useSession();
@@ -75,7 +69,6 @@ export function LeadsBulkImportDialog({
     setParseErrors([]);
     setSkipDuplicates(true);
     setAssignToUserId(session?.id ?? "");
-    setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -85,7 +78,6 @@ export function LeadsBulkImportDialog({
   }
 
   async function handleFileChange(file: File | null) {
-    setImportResult(null);
     if (!file) return;
 
     const text = await file.text();
@@ -104,11 +96,10 @@ export function LeadsBulkImportDialog({
       assignToUserId: assignToUserId || session?.id,
     });
 
-    setImportResult(result);
     if (result.createdCount > 0) {
       onImported?.();
-      handleOpenChange(false);
     }
+    handleOpenChange(false);
   }
 
   const previewRows = rows.slice(0, 5);
@@ -245,25 +236,6 @@ export function LeadsBulkImportDialog({
               </div>
             ) : null}
 
-            {importResult ? (
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm">
-                <p className="font-medium">Import complete</p>
-                <ul className="mt-2 space-y-1 text-muted-foreground">
-                  <li>{importResult.createdCount} created</li>
-                  <li>{importResult.skippedCount} skipped (duplicate phone)</li>
-                  <li>{importResult.failedCount} failed</li>
-                </ul>
-                {importResult.failed.length > 0 ? (
-                  <ul className="mt-2 space-y-1 text-destructive">
-                    {importResult.failed.slice(0, 5).map((item) => (
-                      <li key={`${item.row}-${item.message}`}>
-                        Row {item.row}: {item.message}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         )}
 

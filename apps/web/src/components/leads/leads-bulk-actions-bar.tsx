@@ -77,6 +77,7 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
       if (result.succeeded.length > 0) {
         onClearSelection();
       }
+      onDismissHint?.();
     }
 
     async function handleAssignSubmit() {
@@ -90,6 +91,7 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
       if (result.succeeded.length > 0) {
         onClearSelection();
       }
+      onDismissHint?.();
     }
 
     async function handleDeleteSubmit() {
@@ -98,6 +100,7 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
       if (result.succeeded.length > 0) {
         onClearSelection();
       }
+      onDismissHint?.();
     }
 
     if (!hasSelection && !showHint) {
