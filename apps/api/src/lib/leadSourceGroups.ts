@@ -28,6 +28,35 @@ const SOCIAL_MATCHERS = [
   "google",
 ];
 
+/** Always shown in dashboard source panels (count 0 when no leads). */
+export const CANONICAL_SOCIAL_SOURCES = [
+  "Facebook Ads",
+  "Google Ads",
+  "LinkedIn",
+  "Gmail",
+  "WhatsApp",
+  "YouTube",
+] as const;
+
+export const CANONICAL_PORTAL_SOURCES = [
+  "IVR",
+  "Magicbricks",
+  "99 Acres",
+  "Housing.com",
+  "Quikr Homes",
+  "Just Dial",
+] as const;
+
+export const CANONICAL_OTHER_SOURCES = [
+  "Direct",
+  "Referral",
+  "Walk In",
+  "Website",
+  "Microsite",
+  "Phonebook",
+  "Other",
+] as const;
+
 const PORTAL_MATCHERS = [
   "99acres",
   "magicbricks",
@@ -132,24 +161,28 @@ export function buildSourceGroupReport(
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 
-    if (sourceGroup !== "Social") {
-      return { sourceGroup, sources };
-    }
+    const canonical =
+      sourceGroup === "Social"
+        ? CANONICAL_SOCIAL_SOURCES
+        : sourceGroup === "Portals"
+          ? CANONICAL_PORTAL_SOURCES
+          : CANONICAL_OTHER_SOURCES;
 
-    return { sourceGroup, sources: pinAdLeadSourceBars(sources) };
+    return { sourceGroup, sources: pinCanonicalSourceBars(sources, canonical) };
   });
 }
 
-/** Keep Facebook / Google ad sources visible as dedicated bars in the Social group. */
-function pinAdLeadSourceBars(sources: SourceCount[]) {
+function pinCanonicalSourceBars(
+  sources: SourceCount[],
+  canonical: readonly string[],
+): SourceCount[] {
   const byName = new Map(sources.map((row) => [row.name, row.count]));
-  const pinned = AD_LEAD_SOURCE_LABELS.map((name) => ({
+  const canonicalSet = new Set<string>(canonical);
+  const pinned = canonical.map((name) => ({
     name,
     count: byName.get(name) ?? 0,
   }));
-  const rest = sources.filter(
-    (row) => !(AD_LEAD_SOURCE_LABELS as readonly string[]).includes(row.name),
-  );
+  const rest = sources.filter((row) => !canonicalSet.has(row.name));
 
   return [...pinned, ...rest];
 }

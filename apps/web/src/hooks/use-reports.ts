@@ -110,6 +110,12 @@ export type OverviewLeadStrip = {
   today_calls: number;
   pending_callbacks_count: number;
   today_meetings_count: number;
+  booked_count: number;
+};
+
+export type StatusBreakdownItem = {
+  status: string;
+  count: number;
 };
 
 export type SourceCount = {
@@ -133,6 +139,7 @@ export type OverviewReport = {
     follow_ups_due_today: number;
   };
   lead_strip: OverviewLeadStrip;
+  status_breakdown: StatusBreakdownItem[];
   pipeline: {
     status: string;
     count: number;

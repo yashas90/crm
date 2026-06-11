@@ -44,7 +44,14 @@ describe("leadSourceGroups", () => {
     expect(report[0]?.sourceGroup).toBe("Social");
     expect(report[0]?.sources[0]).toEqual({ name: "Facebook Ads", count: 0 });
     expect(report[0]?.sources[1]).toEqual({ name: "Google Ads", count: 0 });
-    expect(report[0]?.sources[2]).toEqual({ name: "Instagram", count: 5 });
+    expect(report[0]?.sources.find((s) => s.name === "Instagram")).toEqual({
+      name: "Instagram",
+      count: 5,
+    });
+    expect(report[2]?.sources.find((s) => s.name === "Website")).toEqual({
+      name: "Website",
+      count: 2,
+    });
     expect(report[2]?.sources.find((s) => s.name === "Unknown")).toEqual({
       name: "Unknown",
       count: 4,
@@ -59,10 +66,11 @@ describe("leadSourceGroups", () => {
     ]);
 
     const social = report.find((group) => group.sourceGroup === "Social");
-    expect(social?.sources.slice(0, 3)).toEqual([
-      { name: "Facebook Ads", count: 7 },
-      { name: "Google Ads", count: 2 },
-      { name: "Instagram", count: 5 },
-    ]);
+    expect(social?.sources[0]).toEqual({ name: "Facebook Ads", count: 7 });
+    expect(social?.sources[1]).toEqual({ name: "Google Ads", count: 2 });
+    expect(social?.sources.find((s) => s.name === "Instagram")).toEqual({
+      name: "Instagram",
+      count: 5,
+    });
   });
 });

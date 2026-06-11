@@ -23,6 +23,46 @@ type DateRange = { dateFrom: Date; dateTo: Date };
 
 const PIPELINE_STAGES = ["new", "contacted", "negotiation", "won"] as const;
 
+const LEAD_STATUS_ORDER = [
+  "new",
+  "contacted",
+  "qualified",
+  "negotiation",
+  "won",
+  "lost",
+] as const;
+
+function calendarDayRange(offsetDays = 0) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() + offsetDays);
+  const end = new Date(start);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function calendarMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function buildStatusBreakdown(
+  rows: { status: string; count: number }[],
+  overdueCount: number,
+) {
+  const byStatus = new Map(rows.map((row) => [row.status, row.count]));
+  const breakdown = LEAD_STATUS_ORDER.map((status) => ({
+    status,
+    count: byStatus.get(status) ?? 0,
+  }));
+
+  return [...breakdown, { status: "overdue", count: overdueCount }];
+}
+
 function leadBaseFilter() {
   return and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt));
 }
@@ -88,7 +128,7 @@ async function queryLeadsBySource(scope: ReportScope) {
       count: sql<number>`count(*)::int`,
     })
     .from(leads)
-    .where(scopedLeadCreated(scope))
+    .where(scopedLeadBook(scope))
     .groupBy(leads.leadSource);
 
   return buildSourceGroupReport(rows.map((row) => ({ source: row.source, count: row.count })));
@@ -850,6 +890,9 @@ export const reportService = {
     const { priorFrom, priorTo } = priorPeriod(scope);
     const periodStart = scope.dateFrom;
     const periodEnd = scope.dateTo;
+    const { start: todayStart, end: todayEnd } = calendarDayRange();
+    const { start: yesterdayStart, end: yesterdayEnd } = calendarDayRange(-1);
+    const { start: monthStart, end: monthEnd } = calendarMonthRange();
 
     const deletedLeadFilter = scope.userId
       ? and(
@@ -886,17 +929,28 @@ export const reportService = {
       [droppedLeadsAgg],
       [pendingCallbacksAgg],
       [todayMeetingsAgg],
+      [bookedLeadsAgg],
+      [overdueFollowupsAgg],
       leadsBySource,
     ] = await Promise.all([
-      db.select({ count: sql<number>`count(*)::int` }).from(leads).where(scopedLeadCreated(scope)),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(leads)
         .where(
           and(
             scopedLeadBook(scope),
-            gte(leads.createdAt, priorFrom),
-            lte(leads.createdAt, priorTo),
+            gte(leads.createdAt, todayStart),
+            lte(leads.createdAt, todayEnd),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            scopedLeadBook(scope),
+            gte(leads.createdAt, yesterdayStart),
+            lte(leads.createdAt, yesterdayEnd),
           ),
         ),
       db
@@ -908,31 +962,34 @@ export const reportService = {
         .from(leadActivities)
         .where(
           and(
-            activityScopeFilter(scope),
+            eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
             eq(leadActivities.type, "status_change"),
             sql`${leadActivities.metadata}->>'to' = 'won'`,
+            gte(leadActivities.createdAt, monthStart),
+            lte(leadActivities.createdAt, monthEnd),
+            scope.userId ? eq(leadActivities.userId, scope.userId) : sql`true`,
           ),
         ),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(callRecords)
-        .where(callScopeFilter(scope)),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(callRecords)
         .where(
           and(
             eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
-            gte(callRecords.startedAt, priorFrom),
-            lte(callRecords.startedAt, priorTo),
+            gte(callRecords.startedAt, todayStart),
+            lte(callRecords.startedAt, todayEnd),
             scope.userId ? eq(callRecords.userId, scope.userId) : sql`true`,
-            scope.status
-              ? sql`exists (
-                  select 1 from ${leads}
-                  where ${leads.id} = ${callRecords.leadId}
-                  and ${scopedLeadBook(scope)}
-                )`
-              : sql`true`,
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(callRecords)
+        .where(
+          and(
+            eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
+            gte(callRecords.startedAt, yesterdayStart),
+            lte(callRecords.startedAt, yesterdayEnd),
+            scope.userId ? eq(callRecords.userId, scope.userId) : sql`true`,
           ),
         ),
       db
@@ -942,8 +999,8 @@ export const reportService = {
           and(
             scopedLeadBook(scope),
             isNotNull(leads.nextFollowupAt),
-            gte(leads.nextFollowupAt, periodStart),
-            lte(leads.nextFollowupAt, periodEnd),
+            lte(leads.nextFollowupAt, todayEnd),
+            sql`${leads.leadStatus} not in ('won', 'lost')`,
           ),
         ),
       db
@@ -1029,7 +1086,14 @@ export const reportService = {
           avgDurationToday: sql<number | null>`avg(${callRecords.durationSeconds})`,
         })
         .from(callRecords)
-        .where(callScopeFilter(scope))
+        .where(
+          and(
+            eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
+            gte(callRecords.startedAt, todayStart),
+            lte(callRecords.startedAt, todayEnd),
+            scope.userId ? eq(callRecords.userId, scope.userId) : sql`true`,
+          ),
+        )
         .groupBy(callRecords.userId),
       db
         .select({
@@ -1039,9 +1103,12 @@ export const reportService = {
         .from(leadActivities)
         .where(
           and(
-            activityScopeFilter(scope),
+            eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
             eq(leadActivities.type, "status_change"),
             sql`${leadActivities.metadata}->>'to' = 'won'`,
+            gte(leadActivities.createdAt, monthStart),
+            lte(leadActivities.createdAt, monthEnd),
+            scope.userId ? eq(leadActivities.userId, scope.userId) : sql`true`,
           ),
         )
         .groupBy(leadActivities.userId),
@@ -1090,14 +1157,37 @@ export const reportService = {
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(leadActivities)
-        .where(and(activityScopeFilter(scope), eq(leadActivities.type, "meeting"))),
+        .where(
+          and(
+            eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
+            eq(leadActivities.type, "meeting"),
+            gte(leadActivities.createdAt, todayStart),
+            lte(leadActivities.createdAt, todayEnd),
+            scope.userId ? eq(leadActivities.userId, scope.userId) : sql`true`,
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(and(scopedLeadBook(scope), eq(leads.leadStatus, "won"))),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            scopedLeadBook(scope),
+            isNotNull(leads.nextFollowupAt),
+            lt(leads.nextFollowupAt, todayStart),
+            sql`${leads.leadStatus} not in ('won', 'lost')`,
+          ),
+        ),
       db
         .select({
           source: leads.leadSource,
           count: sql<number>`count(*)::int`,
         })
         .from(leads)
-        .where(scopedLeadCreated(scope))
+        .where(scopedLeadBook(scope))
         .groupBy(leads.leadSource),
     ]);
 
@@ -1166,7 +1256,9 @@ export const reportService = {
         today_calls: callsTodayCount,
         pending_callbacks_count: pendingCallbacksAgg?.count ?? 0,
         today_meetings_count: todayMeetingsAgg?.count ?? 0,
+        booked_count: bookedLeadsAgg?.count ?? 0,
       },
+      status_breakdown: buildStatusBreakdown(leadsByStatus, overdueFollowupsAgg?.count ?? 0),
       pipeline: pipelineStages,
       revenue: {
         won_value_month: wonValueMonthNum,

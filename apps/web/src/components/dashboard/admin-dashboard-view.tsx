@@ -17,6 +17,7 @@ import { PipelineValueCards } from "@/components/dashboard/pipeline-value-cards"
 import { RecentActivityFeed } from "@/components/dashboard/recent-activity-feed";
 import { RemindersPanel } from "@/components/dashboard/reminders-panel";
 import { RevenueKpiRow } from "@/components/dashboard/revenue-kpi-row";
+import { StatusKpiRow } from "@/components/dashboard/status-kpi-row";
 import { TeamPerformanceTable } from "@/components/dashboard/team-performance-table";
 import { TodayKpiRow } from "@/components/dashboard/today-kpi-row";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -118,8 +119,22 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
           </DashboardSection>
 
           <DashboardSection
+            title="Pipeline by status"
+            description="Current lead counts by stage (all active leads)."
+            isLoading={overview.isLoading}
+            isError={overview.isError}
+            hasData={Boolean(overviewData?.status_breakdown?.length)}
+            onRetry={() => void overview.refetch()}
+            skeleton={<KpiStripSkeleton />}
+          >
+            {overviewData?.status_breakdown ? (
+              <StatusKpiRow items={overviewData.status_breakdown} />
+            ) : null}
+          </DashboardSection>
+
+          <DashboardSection
             title="Leads from source"
-            description="Where your leads are coming from across social, portals, and other channels."
+            description="All active leads by channel (includes zero-count sources)."
             isLoading={sources.isLoading}
             isError={sources.isError}
             hasData={Boolean(sources.data?.leads_from_source?.length)}

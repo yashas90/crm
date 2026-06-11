@@ -45,6 +45,13 @@ function buildItems(strip: OverviewLeadStrip): KpiItem[] {
       pill: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300",
     },
     {
+      label: "Booked",
+      value: strip.booked_count,
+      accent: "border-l-emerald-400",
+      pill: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+      href: drillDownRoutes.leadsByStatus("won"),
+    },
+    {
       label: "Not Interested",
       value: strip.not_interested_count,
       accent: "border-l-rose-400",

@@ -19,6 +19,8 @@ export const drillDownRoutes = {
   leadsBySource: (displayName: string) =>
     `/leads?source=${encodeURIComponent(sourceFilterValue(displayName))}`,
   adLeads: () => "/leads?ad_leads=true",
+  leadsByStatus: (status: string) => `/leads?status=${encodeURIComponent(status)}`,
+  overdueFollowups: () => "/leads?follow_up=overdue",
   leadsByDate: (date: string) => `/leads?from=${date}&to=${date}`,
   callsByDate: (date: string) => `/reports/calls?date_preset=custom&from=${date}&to=${date}`,
 };
