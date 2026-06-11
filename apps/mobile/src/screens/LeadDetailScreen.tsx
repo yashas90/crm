@@ -4,7 +4,7 @@ import { LeadContactActions } from "@/components/LeadContactActions";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCalls, useLogCall } from "@/hooks/use-calls";
-import { useAddLeadNote, useLead, useUpdateLead, type LeadActivity } from "@/hooks/use-leads";
+import { type LeadActivity, useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import { getCallConsent, useTcfForLead } from "@/hooks/useTcf";

@@ -78,9 +78,7 @@ export function LoginScreen() {
             <Button label="Sign in" onPress={() => void handleLogin()} loading={loading} />
           </View>
 
-          {__DEV__ ? (
-            <Text style={styles.hint}>Dev: agent1@demo.propninja / admin</Text>
-          ) : null}
+          {__DEV__ ? <Text style={styles.hint}>Dev: agent1@demo.propninja / admin</Text> : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
