@@ -139,11 +139,15 @@ leadsRoute.get("/stage-counts", async (c) => {
   }
 
   const query = parsed.data;
-  const assignedTo = authUser.role === "agent" ? authUser.id : query.assignedTo;
+  const assignedTo =
+    authUser.role === "agent" ? authUser.id : query.teamLeads ? undefined : query.assignedTo;
+  const teamLeadsExcludingUser =
+    query.teamLeads && authUser.role !== "agent" ? authUser.id : undefined;
 
   const data = await leadService.getStageCounts({
     search: query.search,
     assignedTo,
+    teamLeadsExcludingUser,
     projectId: query.projectId,
     temperature: query.temperature,
     source: query.source,
@@ -178,7 +182,10 @@ leadsRoute.get("/", async (c) => {
   }
 
   const query = parsed.data;
-  const assignedTo = authUser.role === "agent" ? authUser.id : query.assignedTo;
+  const assignedTo =
+    authUser.role === "agent" ? authUser.id : query.teamLeads ? undefined : query.assignedTo;
+  const teamLeadsExcludingUser =
+    query.teamLeads && authUser.role !== "agent" ? authUser.id : undefined;
 
   const data = await leadService.listLeads({
     status: query.status,
@@ -186,6 +193,7 @@ leadsRoute.get("/", async (c) => {
     page: query.page,
     pageSize: query.pageSize,
     assignedTo,
+    teamLeadsExcludingUser,
     projectId: query.projectId,
     temperature: query.temperature,
     source: query.source,
@@ -228,6 +236,7 @@ leadsRoute.post(
       rows: body.leads,
       skipDuplicates: body.skipDuplicates,
       assignedTo,
+      actingUserId: authUser.id,
     });
 
     return c.json({ ok: true, data: result }, 201);

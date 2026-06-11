@@ -53,9 +53,11 @@ export function bulkDeleteLeads(leadIds: string[]) {
 
 export type BulkImportLeadsResult = {
   createdCount: number;
+  updatedCount: number;
   skippedCount: number;
   failedCount: number;
   created: { row: number; id: string; phone: string }[];
+  updated: { row: number; id: string; phone: string }[];
   skipped: { row: number; phone: string; reason: string }[];
   failed: { row: number; message: string }[];
 };

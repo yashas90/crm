@@ -129,6 +129,7 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
       assignedTo: scopeParams.assignedTo,
       unassigned: scopeParams.unassigned,
       deletedOnly: scopeParams.deletedOnly,
+      teamLeads: scopeParams.teamLeads,
     };
   }
 
@@ -136,6 +137,7 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
     assignedTo: filters.unassigned ? undefined : filters.myLeadsOnly ? userId : undefined,
     unassigned: filters.unassigned ? ("true" as const) : undefined,
     deletedOnly: scopeParams.deletedOnly,
+    teamLeads: undefined,
   };
 }
 
@@ -185,6 +187,7 @@ export function leadsBaseFiltersToQuery(
     assignedTo: assignment.assignedTo,
     unassigned: assignment.unassigned,
     deletedOnly: assignment.deletedOnly,
+    teamLeads: assignment.teamLeads,
     dateFrom: dateRange.dateFrom,
     dateTo: dateRange.dateTo,
   };

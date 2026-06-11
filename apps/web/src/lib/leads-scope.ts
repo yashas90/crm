@@ -65,10 +65,13 @@ export function scopeToQueryParams(
   assignedTo?: string;
   unassigned?: string;
   deletedOnly?: string;
+  teamLeads?: string;
 } {
   switch (scope) {
     case "my":
       return userId ? { assignedTo: userId } : {};
+    case "teams":
+      return userId ? { teamLeads: "true" } : {};
     case "unassigned":
       return { unassigned: "true" };
     case "deleted":

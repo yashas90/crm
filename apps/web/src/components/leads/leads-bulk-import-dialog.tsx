@@ -96,7 +96,7 @@ export function LeadsBulkImportDialog({
       assignToUserId: assignToUserId || session?.id,
     });
 
-    if (result.createdCount > 0) {
+    if (result.createdCount > 0 || (result.updatedCount ?? 0) > 0) {
       onImported?.();
     }
     handleOpenChange(false);
@@ -111,7 +111,8 @@ export function LeadsBulkImportDialog({
           <DialogTitle>Import leads from CSV</DialogTitle>
           <DialogDescription>
             Upload a spreadsheet with at least <strong>firstName</strong> and <strong>phone</strong>{" "}
-            columns. Up to 500 leads per file. Duplicate phone numbers can be skipped automatically.
+            columns. Up to 500 leads per file. Matching phone numbers update the existing lead and
+            assign it to you.
           </DialogDescription>
         </DialogHeader>
 

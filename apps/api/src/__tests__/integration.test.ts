@@ -106,10 +106,16 @@ describe("API integration", () => {
 
     expect(res.status).toBe(201);
     const json = (await res.json()) as {
-      data: { createdCount: number; skippedCount: number; failedCount: number };
+      data: {
+        createdCount: number;
+        updatedCount: number;
+        skippedCount: number;
+        failedCount: number;
+      };
     };
     expect(json.data.createdCount).toBe(2);
-    expect(json.data.skippedCount).toBe(1);
+    expect(json.data.updatedCount).toBe(1);
+    expect(json.data.skippedCount).toBe(0);
     expect(json.data.failedCount).toBe(1);
   });
 

@@ -34,6 +34,10 @@ export const listLeadsQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),
+  teamLeads: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
   adLeads: z
     .enum(["true", "false"])
     .optional()

@@ -21,6 +21,7 @@ import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
 import { inferFollowupType } from "../lib/followupType.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
+import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 
 type LeadStatus = "new" | "contacted" | "qualified" | "negotiation" | "won" | "lost";
@@ -41,6 +42,7 @@ export interface ListLeadsParams {
   followUpDueAfter?: string;
   orderByFollowUp?: boolean;
   unassigned?: boolean;
+  teamLeadsExcludingUser?: string;
   activeOnly?: boolean;
   deletedOnly?: boolean;
   adLeadsOnly?: boolean;
@@ -117,6 +119,27 @@ async function resolveProjectFields(input: {
   return { projectId: null, projectName: input.projectName ?? null };
 }
 
+async function findLeadByPhone(phone: string) {
+  const variants = phoneMatchVariants(phone);
+  if (variants.length === 0) {
+    return null;
+  }
+
+  const [row] = await db
+    .select()
+    .from(leads)
+    .where(
+      and(
+        eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+        isNull(leads.deletedAt),
+        or(...variants.map((variant) => eq(leads.phone, variant)))!,
+      ),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
 function buildListWhere(params: ListLeadsParams) {
   const whereClauses = [eq(leads.orgId, SINGLE_TENANT_ORG_ID)];
 
@@ -132,6 +155,9 @@ function buildListWhere(params: ListLeadsParams) {
 
   if (params.unassigned) {
     whereClauses.push(isNull(leads.assignedTo));
+  } else if (params.teamLeadsExcludingUser) {
+    whereClauses.push(isNotNull(leads.assignedTo));
+    whereClauses.push(ne(leads.assignedTo, params.teamLeadsExcludingUser));
   } else if (params.assignedTo) {
     whereClauses.push(eq(leads.assignedTo, params.assignedTo));
   }
@@ -243,7 +269,9 @@ export const leadService = {
     const [all, my, teams, unassigned, deleted, duplicate, reEnquired] = await Promise.all([
       countLeadsWhere({ ...baseParams, ...agentBook }),
       userId ? countLeadsWhere({ ...baseParams, assignedTo: userId }) : Promise.resolve(0),
-      countLeadsWhere({ ...baseParams, ...agentBook }),
+      userId && !isAgent
+        ? countLeadsWhere({ ...baseParams, teamLeadsExcludingUser: userId })
+        : Promise.resolve(0),
       isAgent ? Promise.resolve(0) : countLeadsWhere({ ...baseParams, unassigned: true }),
       countLeadsWhere({
         ...baseParams,
@@ -317,16 +345,10 @@ export const leadService = {
     } = input;
 
     const resolvedProject = await resolveProjectFields({ projectId, projectName });
+    const storedPhone = normalizeStoredPhone(phone);
 
-    const existing = await db
-      .select({ id: leads.id })
-      .from(leads)
-      .where(
-        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.phone, phone), isNull(leads.deletedAt)),
-      )
-      .limit(1);
-
-    if (existing.length > 0) {
+    const existing = await findLeadByPhone(storedPhone);
+    if (existing) {
       throw new LeadDuplicatePhoneError();
     }
 
@@ -338,7 +360,7 @@ export const leadService = {
         firstName,
         lastName: lastName ?? "",
         email: email ?? null,
-        phone,
+        phone: storedPhone,
         secondaryPhone: secondaryPhone ?? null,
         city: city ?? null,
         state: state ?? null,
@@ -361,8 +383,10 @@ export const leadService = {
     rows: Record<string, unknown>[];
     skipDuplicates: boolean;
     assignedTo?: string;
+    actingUserId: string;
   }) {
     const created: { row: number; id: string; phone: string }[] = [];
+    const updated: { row: number; id: string; phone: string }[] = [];
     const skipped: { row: number; phone: string; reason: string }[] = [];
     const failed: { row: number; message: string }[] = [];
 
@@ -379,23 +403,38 @@ export const leadService = {
         continue;
       }
 
-      try {
-        const lead = await this.createLead(parsed.data, { assignedTo: input.assignedTo });
-        created.push({ row: rowNumber, id: lead.id, phone: lead.phone ?? "" });
-      } catch (err) {
-        if (err instanceof LeadDuplicatePhoneError) {
-          if (input.skipDuplicates) {
+      const storedPhone = normalizeStoredPhone(parsed.data.phone);
+      const existing = await findLeadByPhone(storedPhone);
+
+      if (existing) {
+        if (input.skipDuplicates) {
+          const merged = await this.mergeImportRow({
+            leadId: existing.id,
+            data: parsed.data,
+            storedPhone,
+            assignedTo: input.assignedTo,
+            actingUserId: input.actingUserId,
+          });
+
+          if (merged) {
+            updated.push({ row: rowNumber, id: merged.id, phone: merged.phone ?? storedPhone });
+          } else {
             skipped.push({
               row: rowNumber,
               phone: parsed.data.phone,
               reason: "duplicate_phone",
             });
-          } else {
-            failed.push({ row: rowNumber, message: err.message });
           }
-          continue;
+        } else {
+          failed.push({ row: rowNumber, message: "Phone number already exists for this org" });
         }
+        continue;
+      }
 
+      try {
+        const lead = await this.createLead(parsed.data, { assignedTo: input.assignedTo });
+        created.push({ row: rowNumber, id: lead.id, phone: lead.phone ?? "" });
+      } catch (err) {
         failed.push({
           row: rowNumber,
           message: err instanceof Error ? err.message : "Import failed",
@@ -405,12 +444,97 @@ export const leadService = {
 
     return {
       createdCount: created.length,
+      updatedCount: updated.length,
       skippedCount: skipped.length,
       failedCount: failed.length,
       created,
+      updated,
       skipped,
       failed,
     };
+  },
+
+  async mergeImportRow(input: {
+    leadId: string;
+    data: CreateLeadInput;
+    storedPhone: string;
+    assignedTo?: string;
+    actingUserId: string;
+  }) {
+    const [existing] = await db
+      .select()
+      .from(leads)
+      .where(
+        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, input.leadId), isNull(leads.deletedAt)),
+      )
+      .limit(1);
+
+    if (!existing) {
+      return null;
+    }
+
+    const resolvedProject = await resolveProjectFields({
+      projectId: input.data.projectId,
+      projectName: input.data.projectName,
+    });
+
+    const update: Record<string, unknown> = {
+      updatedAt: new Date(),
+      firstName: input.data.firstName,
+      lastName: input.data.lastName ?? "",
+      phone: input.storedPhone,
+    };
+
+    if (input.data.email !== undefined) update.email = input.data.email ?? null;
+    if (input.data.city !== undefined) update.city = input.data.city ?? null;
+    if (input.data.state !== undefined) update.state = input.data.state ?? null;
+    if (input.data.leadSource !== undefined) update.leadSource = input.data.leadSource ?? null;
+    if (input.data.temperature !== undefined) update.temperature = input.data.temperature ?? null;
+    if (input.data.notes !== undefined) update.notes = input.data.notes ?? null;
+    if (input.data.tags !== undefined) update.tags = input.data.tags ?? null;
+    if (input.data.leadStatus !== undefined) {
+      update.leadStatus = input.data.leadStatus;
+    } else if (existing.leadStatus === "lost" || existing.leadStatus === "won") {
+      update.leadStatus = "new";
+    }
+
+    if (input.data.projectId !== undefined || input.data.projectName !== undefined) {
+      update.projectName = resolvedProject.projectName;
+      update.projectId = resolvedProject.projectId;
+    }
+
+    const previousAssignee = existing.assignedTo;
+    if (input.assignedTo) {
+      update.assignedTo = input.assignedTo;
+    }
+
+    const [merged] = await db
+      .update(leads)
+      .set(update)
+      .where(
+        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, input.leadId), isNull(leads.deletedAt)),
+      )
+      .returning();
+
+    if (!merged) {
+      return null;
+    }
+
+    if (input.assignedTo && input.assignedTo !== previousAssignee) {
+      await db.insert(leadActivities).values({
+        orgId: SINGLE_TENANT_ORG_ID,
+        leadId: input.leadId,
+        userId: input.actingUserId,
+        type: "status_change",
+        metadata: {
+          kind: "assignment",
+          assignedTo: input.assignedTo,
+          source: "bulk_import",
+        },
+      });
+    }
+
+    return merged;
   },
 
   async getLeadById(leadId: string) {

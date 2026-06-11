@@ -349,7 +349,7 @@ export function LeadsPageView() {
         onOpenChange={setShowImportModal}
         onImported={() => {
           setPage(1);
-          setScope("all");
+          setScope("my");
           setStage("active");
           setSearchDraft("");
           setFilters(defaultLeadsUrlFilters());
