@@ -3,9 +3,13 @@
 import {
   bulkAssignLeads,
   bulkDeleteLeads,
+  bulkImportLeads,
   bulkUpdateLeadStatus,
   summarizeBulkResult,
 } from "@/lib/bulk-leads";
+import { getErrorMessage } from "@/lib/errors";
+import type { BulkLeadImportRow } from "@/lib/parse-leads-csv";
+import { toast } from "@/lib/toast";
 import type { LeadStatus } from "@propninja/types/enums";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -50,4 +54,29 @@ export function useBulkLeadActions() {
     archive,
     isBusy: updateStatus.isPending || assign.isPending || archive.isPending,
   };
+}
+
+export function useBulkImportLeads() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      leads: BulkLeadImportRow[];
+      skipDuplicates?: boolean;
+      assignToUserId?: string;
+    }) => bulkImportLeads(input),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      if (result.createdCount > 0) {
+        toast.success(`Imported ${result.createdCount} lead(s)`);
+      } else if (result.failedCount === 0 && result.skippedCount > 0) {
+        toast.info("All rows were skipped (duplicate phone numbers)");
+      } else if (result.createdCount === 0) {
+        toast.error("No leads were imported");
+      }
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Bulk import failed"));
+    },
+  });
 }

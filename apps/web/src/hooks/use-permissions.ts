@@ -30,6 +30,7 @@ export function usePermissions() {
     canUpdateProject: hasPermission("projects:update"),
     canDeleteProject: hasPermission("projects:delete"),
     canAssignLead: hasPermission("leads:assign"),
+    canBulkUploadLeads: hasPermission("leads:bulk_upload") && hasPermission("leads:create"),
     canDeleteLead: hasPermission("leads:delete"),
     canViewUserProfile: hasPermission("user_profile:view"),
     canViewReports:

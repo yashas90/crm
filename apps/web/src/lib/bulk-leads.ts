@@ -1,5 +1,6 @@
 import { apiDelete, apiPatch, apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
+import type { BulkLeadImportRow } from "@/lib/parse-leads-csv";
 import { toast } from "@/lib/toast";
 import type { LeadStatus } from "@propninja/types/enums";
 
@@ -48,6 +49,23 @@ export function bulkAssignLeads(leadIds: string[], userId: string) {
 
 export function bulkDeleteLeads(leadIds: string[]) {
   return runBulk(leadIds, (id) => apiDelete(`/api/leads/${id}`), "Archive failed");
+}
+
+export type BulkImportLeadsResult = {
+  createdCount: number;
+  skippedCount: number;
+  failedCount: number;
+  created: { row: number; id: string; phone: string }[];
+  skipped: { row: number; phone: string; reason: string }[];
+  failed: { row: number; message: string }[];
+};
+
+export function bulkImportLeads(input: {
+  leads: BulkLeadImportRow[];
+  skipDuplicates?: boolean;
+  assignToUserId?: string;
+}) {
+  return apiPost<BulkImportLeadsResult>("/api/leads/bulk-import", input);
 }
 
 export function summarizeBulkResult(

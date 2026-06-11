@@ -78,6 +78,41 @@ describe("API integration", () => {
     expect(json.error.code).toBe("LEAD_DUPLICATE_PHONE");
   });
 
+  it("POST /api/leads/bulk-import creates multiple leads and skips duplicates", async ({
+    skip,
+  }) => {
+    if (!hasDb) skip();
+
+    const phoneA = `+9196${Date.now().toString().slice(-8)}`;
+    const phoneB = `+9195${Date.now().toString().slice(-8)}`;
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const res = await app.request("/api/leads/bulk-import", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        skipDuplicates: true,
+        leads: [
+          { firstName: "Bulk", lastName: "One", phone: phoneA, city: "Mumbai" },
+          { firstName: "Bulk", lastName: "Two", phone: phoneB },
+          { firstName: "Bulk", lastName: "Dup", phone: phoneA },
+          { firstName: "", phone: "123" },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as {
+      data: { createdCount: number; skippedCount: number; failedCount: number };
+    };
+    expect(json.data.createdCount).toBe(2);
+    expect(json.data.skippedCount).toBe(1);
+    expect(json.data.failedCount).toBe(1);
+  });
+
   it("POST /api/calls/log creates call and updates lastContactedAt", async ({ skip }) => {
     if (!hasDb) skip();
 

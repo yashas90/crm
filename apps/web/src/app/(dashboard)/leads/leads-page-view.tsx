@@ -8,17 +8,10 @@ import {
   type BulkActionIntent,
   LeadsBulkActionsBar,
 } from "@/components/leads/leads-bulk-actions-bar";
+import { LeadsBulkImportDialog } from "@/components/leads/leads-bulk-import-dialog";
 import { LeadsListFilters } from "@/components/leads/leads-list-filters";
 import { LeadsPageHeaderActions } from "@/components/leads/leads-page-header-actions";
 import { LeadsTable } from "@/components/leads/leads-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   type LeadRow,
   leadsListQueryKey,
@@ -26,6 +19,7 @@ import {
   useLeadStageCounts,
   useLeads,
 } from "@/hooks/use-leads";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
 import { formatLeadSourceDisplay } from "@/lib/lead-sources";
 import { type LeadsDatePreset, resolveLeadsDatePreset } from "@/lib/leads-date-filters";
@@ -72,6 +66,7 @@ export function LeadsPageView() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const { canBulkUploadLeads } = usePermissions();
   const [editingLead, setEditingLead] = useState<LeadRow | null>(null);
   const [bulkHint, setBulkHint] = useState(false);
   const [pendingBulkAction, setPendingBulkAction] = useState<BulkActionIntent | null>(null);
@@ -206,10 +201,12 @@ export function LeadsPageView() {
           <LeadsPageHeaderActions onUpdateClick={handlePageUpdateClick} />
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowImportModal(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            Import leads
-          </Button>
+          {canBulkUploadLeads ? (
+            <Button variant="outline" onClick={() => setShowImportModal(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import leads
+            </Button>
+          ) : null}
           <Button onClick={() => setShowForm(true)}>Add Lead</Button>
         </div>
       </div>
@@ -346,30 +343,15 @@ export function LeadsPageView() {
         }}
       />
 
-      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Import leads</DialogTitle>
-            <DialogDescription>
-              Bulk import is not yet available in this version. Please create leads manually using
-              the Add Lead button.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowImportModal(false)}>
-              Close
-            </Button>
-            <Button
-              onClick={() => {
-                setShowImportModal(false);
-                setShowForm(true);
-              }}
-            >
-              Add lead manually
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LeadsBulkImportDialog
+        open={showImportModal}
+        onOpenChange={setShowImportModal}
+        onImported={() => {
+          void getQueryClient().invalidateQueries({ queryKey: leadsListQueryKey(leadsQuery) });
+          void scopeCounts.refetch();
+          void stageCounts.refetch();
+        }}
+      />
     </div>
   );
 }

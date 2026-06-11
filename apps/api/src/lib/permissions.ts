@@ -109,6 +109,10 @@ export function canDeleteLead(user: AuthUser): boolean {
   return hasPermission(user, "leads:delete");
 }
 
+export function canBulkUploadLeads(user: AuthUser): boolean {
+  return hasPermission(user, "leads:bulk_upload") && hasPermission(user, "leads:create");
+}
+
 export function canViewUserProfile(user: AuthUser): boolean {
   return hasPermission(user, "user_profile:view");
 }

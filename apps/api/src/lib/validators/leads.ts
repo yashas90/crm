@@ -98,5 +98,12 @@ export const leadScopeCountsQuerySchema = leadStageCountsQuerySchema;
 
 export type LeadScopeCountsQuery = z.infer<typeof leadScopeCountsQuerySchema>;
 export type UpcomingFollowupsQuery = z.infer<typeof upcomingFollowupsQuerySchema>;
+export const bulkImportLeadsBodySchema = z.object({
+  leads: z.array(z.record(z.string(), z.unknown())).min(1).max(500),
+  skipDuplicates: z.boolean().optional().default(true),
+  assignToUserId: z.string().uuid().optional(),
+});
+
 export type CreateLeadBody = z.infer<typeof createLeadBodySchema>;
 export type UpdateLeadBody = z.infer<typeof updateLeadBodySchema>;
+export type BulkImportLeadsBody = z.infer<typeof bulkImportLeadsBodySchema>;

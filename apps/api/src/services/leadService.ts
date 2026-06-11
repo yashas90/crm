@@ -21,7 +21,7 @@ import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
 import { inferFollowupType } from "../lib/followupType.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
-import type { CreateLeadBody } from "../lib/validators/leads.js";
+import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 
 type LeadStatus = "new" | "contacted" | "qualified" | "negotiation" | "won" | "lost";
 type Temperature = "cold" | "warm" | "hot";
@@ -355,6 +355,62 @@ export const leadService = {
       .returning();
 
     return created!;
+  },
+
+  async bulkCreateLeads(input: {
+    rows: Record<string, unknown>[];
+    skipDuplicates: boolean;
+    assignedTo?: string;
+  }) {
+    const created: { row: number; id: string; phone: string }[] = [];
+    const skipped: { row: number; phone: string; reason: string }[] = [];
+    const failed: { row: number; message: string }[] = [];
+
+    for (let index = 0; index < input.rows.length; index++) {
+      const rowNumber = index + 1;
+      const parsed = createLeadBodySchema.safeParse(input.rows[index]);
+
+      if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        failed.push({
+          row: rowNumber,
+          message: firstIssue?.message ?? "Invalid row",
+        });
+        continue;
+      }
+
+      try {
+        const lead = await this.createLead(parsed.data, { assignedTo: input.assignedTo });
+        created.push({ row: rowNumber, id: lead.id, phone: lead.phone ?? "" });
+      } catch (err) {
+        if (err instanceof LeadDuplicatePhoneError) {
+          if (input.skipDuplicates) {
+            skipped.push({
+              row: rowNumber,
+              phone: parsed.data.phone,
+              reason: "duplicate_phone",
+            });
+          } else {
+            failed.push({ row: rowNumber, message: err.message });
+          }
+          continue;
+        }
+
+        failed.push({
+          row: rowNumber,
+          message: err instanceof Error ? err.message : "Import failed",
+        });
+      }
+    }
+
+    return {
+      createdCount: created.length,
+      skippedCount: skipped.length,
+      failedCount: failed.length,
+      created,
+      skipped,
+      failed,
+    };
   },
 
   async getLeadById(leadId: string) {

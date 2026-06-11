@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import {
   canAssignLead,
+  canBulkUploadLeads,
   canDeleteLead,
   canEditLead,
   canViewLead,
@@ -10,6 +11,7 @@ import { validate } from "../lib/validate.js";
 import {
   addNoteBodySchema,
   assignLeadBodySchema,
+  bulkImportLeadsBodySchema,
   createLeadBodySchema,
   leadScopeCountsQuerySchema,
   leadStageCountsQuerySchema,
@@ -200,6 +202,39 @@ leadsRoute.get("/", async (c) => {
 
   return c.json({ ok: true, data });
 });
+
+leadsRoute.post(
+  "/bulk-import",
+  leadsCreateRateLimit,
+  validate("json", bulkImportLeadsBodySchema),
+  async (c) => {
+    const authUser = c.get("authUser") as AuthUser;
+
+    if (!canBulkUploadLeads(authUser)) {
+      return c.json(forbiddenResponse(), 403);
+    }
+
+    const body = c.req.valid("json");
+    let assignedTo: string | undefined;
+
+    if (authUser.role === "agent") {
+      assignedTo = authUser.id;
+    } else if (body.assignToUserId) {
+      if (!canAssignLead(authUser)) {
+        return c.json(forbiddenResponse(), 403);
+      }
+      assignedTo = body.assignToUserId;
+    }
+
+    const result = await leadService.bulkCreateLeads({
+      rows: body.leads,
+      skipDuplicates: body.skipDuplicates,
+      assignedTo,
+    });
+
+    return c.json({ ok: true, data: result }, 201);
+  },
+);
 
 leadsRoute.post("/", leadsCreateRateLimit, validate("json", createLeadBodySchema), async (c) => {
   const authUser = c.get("authUser") as AuthUser;
