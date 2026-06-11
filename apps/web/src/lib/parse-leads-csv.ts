@@ -176,7 +176,7 @@ function mapRecord(headers: string[], values: string[]) {
 
 function recordToLeadRow(record: Record<string, string>): BulkLeadImportRow | null {
   let firstName = record.firstName;
-  let lastName = record.lastName;
+  let lastName: string | undefined = record.lastName;
 
   if (!firstName && record.name) {
     const parts = record.name.trim().split(/\s+/);
