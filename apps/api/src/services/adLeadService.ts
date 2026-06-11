@@ -1,7 +1,8 @@
-import { leadActivities, leads } from "@propninja/db";
+import { adLeads, leadActivities, leads } from "@propninja/db";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import { logger } from "../lib/logger.js";
 
 export interface NormalizedAdLead {
   source: "facebook_ads" | "google_ads";
@@ -27,6 +28,15 @@ const LEAD_SOURCE_BY_PLATFORM: Record<NormalizedAdLead["source"], string> = {
   facebook_ads: "Facebook Ads",
   google_ads: "Google Ads",
 };
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: string }).code === "23505"
+  );
+}
 
 function normalizePhone(phone?: string) {
   const trimmed = phone?.trim();
@@ -95,29 +105,27 @@ function resolveCreatePhone(input: NormalizedAdLead) {
   return `ad:${input.externalLeadId}`.padEnd(5, "0");
 }
 
-async function findExistingActiveLead(phone?: string, email?: string) {
-  const matchFilters = [];
-
-  if (phone) {
-    matchFilters.push(eq(leads.phone, phone));
-  }
-  if (email) {
-    matchFilters.push(eq(leads.email, email));
-  }
-
-  if (matchFilters.length === 0) {
-    return null;
-  }
-
+async function findLeadByAdLeadRecord(
+  source: NormalizedAdLead["source"],
+  externalLeadId: string,
+): Promise<LeadRow | null> {
   const [row] = await db
-    .select()
-    .from(leads)
-    .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt), or(...matchFilters)))
+    .select({ lead: leads })
+    .from(adLeads)
+    .innerJoin(leads, eq(adLeads.leadId, leads.id))
+    .where(
+      and(
+        eq(adLeads.source, source),
+        eq(adLeads.externalLeadId, externalLeadId),
+        isNull(leads.deletedAt),
+      ),
+    )
     .limit(1);
 
-  return row ?? null;
+  return row?.lead ?? null;
 }
 
+/** Legacy lookup for leads ingested before the ad_leads table existed. */
 async function findLeadByExternalAdId(externalLeadId: string) {
   const [byCustomFields] = await db
     .select()
@@ -153,6 +161,29 @@ async function findLeadByExternalAdId(externalLeadId: string) {
     .limit(1);
 
   return row?.lead ?? null;
+}
+
+async function findExistingActiveLead(phone?: string, email?: string) {
+  const matchFilters = [];
+
+  if (phone) {
+    matchFilters.push(eq(leads.phone, phone));
+  }
+  if (email) {
+    matchFilters.push(eq(leads.email, email));
+  }
+
+  if (matchFilters.length === 0) {
+    return null;
+  }
+
+  const [row] = await db
+    .select()
+    .from(leads)
+    .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt), or(...matchFilters)))
+    .limit(1);
+
+  return row ?? null;
 }
 
 async function insertAdLeadActivity(leadId: string, metadata: Record<string, unknown>) {
@@ -200,6 +231,63 @@ function buildAdLeadCustomFields(
   };
 }
 
+async function recordAdLeadLink(
+  input: NormalizedAdLead,
+  leadId: string,
+): Promise<"inserted" | "duplicate"> {
+  try {
+    await db.insert(adLeads).values({
+      source: input.source,
+      externalLeadId: input.externalLeadId,
+      leadId,
+      rawPayload:
+        typeof input.rawPayload === "object" && input.rawPayload !== null
+          ? (input.rawPayload as Record<string, unknown>)
+          : { value: input.rawPayload },
+    });
+    return "inserted";
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      logger.warn("Duplicate ad lead ingest attempt", {
+        source: input.source,
+        externalLeadId: input.externalLeadId,
+        leadId,
+      });
+      return "duplicate";
+    }
+    throw error;
+  }
+}
+
+async function resolveExistingAdLead(input: NormalizedAdLead): Promise<LeadRow | null> {
+  const fromTable = await findLeadByAdLeadRecord(input.source, input.externalLeadId);
+  if (fromTable) {
+    logger.info("Ad lead ingest skipped — already recorded", {
+      source: input.source,
+      externalLeadId: input.externalLeadId,
+      leadId: fromTable.id,
+    });
+    return fromTable;
+  }
+
+  const legacy = await findLeadByExternalAdId(input.externalLeadId);
+  if (!legacy) {
+    return null;
+  }
+
+  const linkResult = await recordAdLeadLink(input, legacy.id);
+  if (linkResult === "duplicate") {
+    return findLeadByAdLeadRecord(input.source, input.externalLeadId);
+  }
+
+  logger.info("Ad lead ingest skipped — backfilled legacy record", {
+    source: input.source,
+    externalLeadId: input.externalLeadId,
+    leadId: legacy.id,
+  });
+  return legacy;
+}
+
 export const adLeadService = {
   async ingestAdLead(input: NormalizedAdLead): Promise<LeadRow> {
     const leadSource = LEAD_SOURCE_BY_PLATFORM[input.source];
@@ -209,12 +297,14 @@ export const adLeadService = {
     const tags = buildAdLeadTags(input);
     const activityMetadata = buildActivityMetadata(input, leadSource);
 
-    const existingByExternalId = await findLeadByExternalAdId(input.externalLeadId);
-    if (existingByExternalId) {
-      return existingByExternalId;
+    const existingAdLead = await resolveExistingAdLead(input);
+    if (existingAdLead) {
+      return existingAdLead;
     }
 
     const existing = await findExistingActiveLead(phone, email);
+
+    let leadRow: LeadRow;
 
     if (existing) {
       const [updated] = await db
@@ -232,66 +322,71 @@ export const adLeadService = {
         .where(eq(leads.id, existing.id))
         .returning();
 
-      await insertAdLeadActivity(existing.id, activityMetadata);
+      leadRow = updated ?? existing;
+    } else {
+      const createPhone = resolveCreatePhone(input);
 
-      return updated ?? existing;
-    }
-
-    const createPhone = resolveCreatePhone(input);
-
-    const duplicatePhone = await db
-      .select({ id: leads.id })
-      .from(leads)
-      .where(
-        and(
-          eq(leads.orgId, SINGLE_TENANT_ORG_ID),
-          eq(leads.phone, createPhone),
-          isNull(leads.deletedAt),
-        ),
-      )
-      .limit(1);
-
-    if (duplicatePhone.length > 0) {
-      const matched = await db
-        .select()
+      const duplicatePhone = await db
+        .select({ id: leads.id })
         .from(leads)
-        .where(eq(leads.id, duplicatePhone[0]!.id))
+        .where(
+          and(
+            eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+            eq(leads.phone, createPhone),
+            isNull(leads.deletedAt),
+          ),
+        )
         .limit(1);
 
-      const lead = matched[0]!;
-      const [updated] = await db
-        .update(leads)
-        .set({
-          leadSource,
-          tags: mergeTags(lead.tags, tags),
-          customFields: buildAdLeadCustomFields(input, lead.customFields),
-          updatedAt: new Date(),
-        })
-        .where(eq(leads.id, lead.id))
-        .returning();
+      if (duplicatePhone.length > 0) {
+        const matched = await db
+          .select()
+          .from(leads)
+          .where(eq(leads.id, duplicatePhone[0]!.id))
+          .limit(1);
 
-      await insertAdLeadActivity(lead.id, activityMetadata);
-      return updated ?? lead;
+        const lead = matched[0]!;
+        const [updated] = await db
+          .update(leads)
+          .set({
+            leadSource,
+            tags: mergeTags(lead.tags, tags),
+            customFields: buildAdLeadCustomFields(input, lead.customFields),
+            updatedAt: new Date(),
+          })
+          .where(eq(leads.id, lead.id))
+          .returning();
+
+        leadRow = updated ?? lead;
+      } else {
+        const [created] = await db
+          .insert(leads)
+          .values({
+            orgId: SINGLE_TENANT_ORG_ID,
+            firstName,
+            lastName,
+            email: email ?? null,
+            phone: createPhone,
+            city: input.city?.trim() || null,
+            leadSource,
+            leadStatus: "new",
+            tags,
+            customFields: buildAdLeadCustomFields(input),
+          })
+          .returning();
+
+        leadRow = created!;
+      }
     }
 
-    const [created] = await db
-      .insert(leads)
-      .values({
-        orgId: SINGLE_TENANT_ORG_ID,
-        firstName,
-        lastName,
-        email: email ?? null,
-        phone: createPhone,
-        city: input.city?.trim() || null,
-        leadSource,
-        leadStatus: "new",
-        tags,
-        customFields: buildAdLeadCustomFields(input),
-      })
-      .returning();
+    const linkResult = await recordAdLeadLink(input, leadRow.id);
+    if (linkResult === "duplicate") {
+      const duplicateLead = await findLeadByAdLeadRecord(input.source, input.externalLeadId);
+      return duplicateLead ?? leadRow;
+    }
 
-    await insertAdLeadActivity(created!.id, activityMetadata);
+    await insertAdLeadActivity(leadRow.id, activityMetadata);
 
-    return created!;
+    return leadRow;
   },
 };

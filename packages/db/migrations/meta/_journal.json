@@ -36,6 +36,69 @@
       "when": 1780632546693,
       "tag": "0004_projects_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780632546694,
+      "tag": "0005_project_basic_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780632546695,
+      "tag": "0006_project_wizard_steps",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780632546696,
+      "tag": "0007_users_extended",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780632546697,
+      "tag": "0008_user_org_hierarchy",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780632546698,
+      "tag": "0009_integration_sync_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780632546699,
+      "tag": "0010_ad_lead_dedup_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780632546700,
+      "tag": "0011_audit_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780632546701,
+      "tag": "0012_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780632546702,
+      "tag": "0013_ad_leads",
+      "breakpoints": true
     }
   ]
 }

@@ -30,16 +30,33 @@ function resolveDevApiBaseUrl(): string {
   return `http://localhost:${DEV_API_PORT}`;
 }
 
+let releaseFallbackWarned = false;
+
+function resolveReleaseApiBaseUrl(): string {
+  const configured = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+
+  if (!releaseFallbackWarned) {
+    releaseFallbackWarned = true;
+    console.warn(
+      `[PropNinja] EXPO_PUBLIC_API_URL is not set; falling back to ${DEFAULT_PRODUCTION_API_URL}. Set EXPO_PUBLIC_API_URL in eas.json (preview/production) before the next EAS build if the API domain changes.`,
+    );
+  }
+
+  return DEFAULT_PRODUCTION_API_URL;
+}
+
 /**
  * Resolved API origin for the current build.
  * - __DEV__: platform-aware localhost / emulator host (see above)
- * - Release: EXPO_PUBLIC_API_URL or DEFAULT_PRODUCTION_API_URL
+ * - Release: EXPO_PUBLIC_API_URL when set, otherwise DEFAULT_PRODUCTION_API_URL
  */
 export function getApiBaseUrl(): string {
   if (__DEV__) {
     return resolveDevApiBaseUrl();
   }
 
-  const production = process.env.EXPO_PUBLIC_API_URL?.trim();
-  return (production || DEFAULT_PRODUCTION_API_URL).replace(/\/$/, "");
+  return resolveReleaseApiBaseUrl();
 }

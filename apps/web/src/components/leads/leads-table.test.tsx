@@ -52,8 +52,8 @@ describe("LeadsTable", () => {
 
     expect(screen.getByText("Aarav Sharma")).toBeInTheDocument();
     expect(screen.getByText("Priya Patel")).toBeInTheDocument();
-    expect(screen.getByText("website")).toBeInTheDocument();
-    expect(screen.getByText("referral")).toBeInTheDocument();
+    expect(screen.getByText("Website")).toBeInTheDocument();
+    expect(screen.getByText("Referral")).toBeInTheDocument();
     expect(screen.getByLabelText("Select Aarav Sharma")).toBeInTheDocument();
     expect(screen.getAllByText("New").length).toBeGreaterThan(0);
   });

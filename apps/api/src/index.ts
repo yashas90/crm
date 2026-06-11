@@ -2,19 +2,24 @@ import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { startFollowupNotificationJob } from "./jobs/followupNotificationJob.js";
 import { startGoogleAdsLeadSync } from "./jobs/googleAdsLeadJob.js";
 import { env } from "./lib/env.js";
 import { logger } from "./lib/logger.js";
 import { jsonError } from "./lib/response.js";
+import { initSentry } from "./lib/sentry.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { requestContextMiddleware } from "./middleware/requestContext.js";
+import { sentryRequestMiddleware, sentryUserMiddleware } from "./middleware/sentry.js";
+import { auditLogsRoutes } from "./routes/auditLogs.js";
 import { authRoutes } from "./routes/auth.js";
 import { callsRoute } from "./routes/calls.js";
 import { healthRoutes } from "./routes/health.js";
 import { integrationsRoutes } from "./routes/integrations.js";
 import { metaIntegrationsRoute } from "./routes/integrationsMeta.js";
 import { leadsRoute } from "./routes/leads.js";
+import { notificationsRoutes } from "./routes/notifications.js";
 import { orgRoutes } from "./routes/org.js";
 import { projectsRoutes } from "./routes/projects.js";
 import { reportsRoutes } from "./routes/reports.js";
@@ -22,9 +27,12 @@ import { tcfRoutes } from "./routes/tcf.js";
 import { userRolesRoutes } from "./routes/userRoles.js";
 import { usersRoutes } from "./routes/users.js";
 
+initSentry();
+
 const app = new Hono();
 
 app.use("*", requestContextMiddleware);
+app.use("*", sentryRequestMiddleware);
 
 const defaultOrigins = ["http://localhost:3000", "http://localhost:8081"];
 
@@ -32,6 +40,13 @@ function parseCorsOrigins(): string[] {
   const fromEnv = process.env.CORS_ORIGINS?.split(",")
     .map((o) => o.trim())
     .filter(Boolean);
+
+  if (env.NODE_ENV === "production" && !fromEnv?.length) {
+    logger.error(
+      "CORS_ORIGINS is not configured; only localhost origins are allowed. Production web will fail.",
+    );
+  }
+
   return fromEnv?.length ? [...defaultOrigins, ...fromEnv] : defaultOrigins;
 }
 
@@ -47,6 +62,7 @@ app.route("/health", healthRoutes);
 app.route("/api/integrations/meta", metaIntegrationsRoute);
 
 app.use("/api/*", authMiddleware);
+app.use("/api/*", sentryUserMiddleware);
 
 app.route("/api/auth", authRoutes);
 app.route("/api/leads", leadsRoute);
@@ -58,6 +74,8 @@ app.route("/api/projects", projectsRoutes);
 app.route("/api/org", orgRoutes);
 app.route("/api/integrations", integrationsRoutes);
 app.route("/api/tcf", tcfRoutes);
+app.route("/api/audit-logs", auditLogsRoutes);
+app.route("/api/notifications", notificationsRoutes);
 
 app.notFound((c) => jsonError(c, "NOT_FOUND", "Route not found", 404));
 
@@ -68,6 +86,7 @@ if (process.env.VITEST !== "true") {
   serve({ fetch: app.fetch, port: env.PORT }, (info) => {
     logger.info(`PropNinja API listening on http://localhost:${info.port}`);
     startGoogleAdsLeadSync();
+    startFollowupNotificationJob();
   });
 }
 

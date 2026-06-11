@@ -1,3 +1,8 @@
+/**
+ * Meta Lead Ads webhook ingress.
+ * In production, META_APP_SECRET must be set and X-Hub-Signature-256 must validate;
+ * otherwise POST webhooks are rejected.
+ */
 import { Hono } from "hono";
 import { env } from "../lib/env.js";
 import {
@@ -71,17 +76,21 @@ async function processMetaLeadWebhook(body: MetaLeadgenWebhookBody) {
 metaIntegrationsRoute.post("/webhook", metaWebhookRateLimit, async (c) => {
   const rawBody = await c.req.text();
   const appSecret = env.META_APP_SECRET?.trim();
+  const signature = c.req.header("x-hub-signature-256");
+  const requireSignature = env.NODE_ENV === "production";
 
-  if (appSecret) {
-    const signature = c.req.header("x-hub-signature-256");
+  if (requireSignature) {
+    if (!appSecret || !verifyMetaWebhookSignature(rawBody, signature, appSecret)) {
+      logger.warn("Meta webhook rejected: invalid or missing X-Hub-Signature-256");
+      return c.text("Forbidden", 403);
+    }
+  } else if (appSecret) {
     if (!verifyMetaWebhookSignature(rawBody, signature, appSecret)) {
       logger.warn("Meta webhook rejected: invalid or missing X-Hub-Signature-256");
       return c.text("Forbidden", 403);
     }
   } else {
-    logger.warn(
-      "Meta webhook accepted without signature verification — set META_APP_SECRET in production",
-    );
+    logger.warn("Meta webhook accepted without signature verification (development only)");
   }
 
   let body: MetaLeadgenWebhookBody;

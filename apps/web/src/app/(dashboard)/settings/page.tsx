@@ -6,7 +6,7 @@ import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { Plug } from "lucide-react";
+import { ClipboardList, Plug } from "lucide-react";
 import Link from "next/link";
 
 type OrgRecord = {
@@ -19,7 +19,7 @@ type OrgRecord = {
 };
 
 export default function SettingsPage() {
-  const { session, ready } = useSession();
+  const { session, ready, isAdmin } = useSession();
   const org = useQuery({
     queryKey: ["org"],
     queryFn: () => apiGet<OrgRecord>("/api/org"),
@@ -89,6 +89,23 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {ready && isAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Audit log</CardTitle>
+            <CardDescription>Who changed users, leads, projects, and TCF consent.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/audit-log">
+                <ClipboardList className="mr-2 h-4 w-4" />
+                View audit log
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

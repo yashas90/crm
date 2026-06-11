@@ -1,6 +1,7 @@
 "use client";
 
 import { AppLogo } from "@/components/layout/app-logo";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { useTheme } from "@/components/providers/theme-provider";
 import { Badge } from "@/components/ui/badge";
 import { type SessionUser, clearSession, fetchCurrentUser, getSession } from "@/lib/auth";
@@ -76,6 +77,8 @@ export function Topbar() {
         <Badge variant="secondary" className="hidden sm:inline-flex">
           PropNinja
         </Badge>
+
+        <NotificationBell />
 
         <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

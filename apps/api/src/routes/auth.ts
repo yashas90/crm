@@ -8,6 +8,7 @@ import { getDb } from "../lib/db.js";
 import { getJwtSecret } from "../lib/jwt.js";
 import { verifyPassword } from "../lib/password.js";
 import type { AuthUser } from "../middleware/auth.js";
+import { loginRateLimit } from "../middleware/rateLimit.js";
 
 export const authRoutes = new Hono();
 
@@ -16,7 +17,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-authRoutes.post("/login", async (c) => {
+authRoutes.post("/login", loginRateLimit, async (c) => {
   const body = await c.req.json();
   const parsed = loginSchema.safeParse(body);
 

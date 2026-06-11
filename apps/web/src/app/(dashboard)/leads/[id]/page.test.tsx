@@ -54,8 +54,12 @@ vi.mock("@/hooks/use-tcf", () => ({
   useUpsertTcfConsent: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-vi.mock("@/lib/auth", () => ({
-  getSession: () => ({ id: "u1", role: "admin", email: "admin@test", name: "Admin" }),
+vi.mock("@/hooks/use-session", () => ({
+  useSession: () => ({
+    ready: true,
+    isAdmin: true,
+    session: { id: "u1", role: "admin", email: "admin@test", name: "Admin" },
+  }),
 }));
 
 vi.mock("@/lib/apiClient", () => ({

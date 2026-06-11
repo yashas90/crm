@@ -1,5 +1,7 @@
 "use client";
 
+import { getSession } from "@/lib/auth";
+import { captureClientException } from "@/lib/sentry";
 import { Button } from "@propninja/ui/button";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
@@ -15,7 +17,10 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("AppErrorBoundary caught:", error, info.componentStack);
-    // TODO: Send to Sentry when configured.
+    captureClientException(error, {
+      user: getSession(),
+      componentStack: info.componentStack,
+    });
   }
 
   render() {

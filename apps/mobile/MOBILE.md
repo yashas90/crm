@@ -34,9 +34,13 @@ Resolved in `src/lib/apiBaseUrl.ts` and used by `src/lib/apiClient.ts`.
 | **Dev — Physical device** | Set `EXPO_PUBLIC_API_URL=http://<LAN_IP>:3001` | Same |
 | **Production (EAS)** | `EXPO_PUBLIC_API_URL` from `eas.json` (same for both platforms) | Same |
 
-Default production URL: `https://crm-production-6cfe.up.railway.app`
+`eas.json` sets `EXPO_PUBLIC_API_URL` explicitly for **preview** and **production** builds:
 
-To point at staging or a custom domain, set `EXPO_PUBLIC_API_URL` in `eas.json` → `build.production.env` or in a local `.env` file.
+`https://crm-production-6cfe.up.railway.app`
+
+**If the API domain changes**, update `EXPO_PUBLIC_API_URL` in `eas.json` → `build.preview.env` and `build.production.env` (and `DEFAULT_PRODUCTION_API_URL` in `apiBaseUrl.ts` as a last-resort fallback) **before** the next EAS build.
+
+To point at staging, override `EXPO_PUBLIC_API_URL` in the relevant `eas.json` profile or in a local `.env` file for dev.
 
 ## Run locally
 

@@ -14,6 +14,8 @@
     "@propninja/config": "workspace:*",
     "@propninja/types": "workspace:*",
     "@propninja/ui": "workspace:*",
+    "@sentry/node": "^10.57.0",
+    "@sentry/react": "^10.57.0",
     "@tanstack/react-query": "^5.80.7",
     "@types/node": "^22.15.30",
     "@types/react": "^18.3.23",

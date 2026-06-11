@@ -1,6 +1,21 @@
 import { getToken } from "@/lib/auth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+function resolveApiUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+
+  if (process.env.NODE_ENV === "production") {
+    if (!configured || configured.includes("localhost")) {
+      throw new Error(
+        "NEXT_PUBLIC_API_URL must be set to a non-localhost URL in production. Configure it in Vercel before building.",
+      );
+    }
+    return configured.replace(/\/$/, "");
+  }
+
+  return configured?.replace(/\/$/, "") ?? "http://localhost:3001";
+}
+
+const API_URL = resolveApiUrl();
 
 export type ApiSuccess<T> = { ok: true; data: T };
 export type ApiError = {

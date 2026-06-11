@@ -13,6 +13,7 @@ import {
   userScopeCountsQuerySchema,
 } from "../lib/validators/users.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
+import { logAudit } from "../services/auditService.js";
 import { createUserService } from "../services/userService.js";
 
 export const usersRoutes = new Hono();
@@ -138,8 +139,30 @@ usersRoutes.patch(
       return jsonError(c, "FORBIDDEN", "Only admins can assign the Admin role", 403);
     }
 
-    const service = createUserService(c.get("db"));
+    const db = c.get("db");
+    const service = createUserService(db);
+    const existing = await service.getById(id);
     const user = await service.update(id, payload, authUser.id);
+
+    if (payload.role !== undefined && payload.role !== existing.role) {
+      await logAudit(db, {
+        userId: authUser.id,
+        action: "USER_ROLE_CHANGED",
+        entityType: "user",
+        entityId: id,
+        metadata: { from: existing.role, to: payload.role },
+      });
+    }
+
+    if (payload.isActive !== undefined && payload.isActive !== existing.isActive) {
+      await logAudit(db, {
+        userId: authUser.id,
+        action: "USER_ACTIVE_CHANGED",
+        entityType: "user",
+        entityId: id,
+        metadata: { from: existing.isActive, to: payload.isActive },
+      });
+    }
 
     return jsonOk(c, user);
   },

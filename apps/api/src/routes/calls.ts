@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AuthUser } from "../middleware/auth.js";
-import { writeRateLimit } from "../middleware/rateLimit.js";
+import { callsLogRateLimit } from "../middleware/rateLimit.js";
 import { callService } from "../services/callService.js";
 
 export const callsRoute = new Hono();
@@ -37,7 +37,7 @@ const summaryQuerySchema = z.object({
 });
 
 // Call logging is mobile-only (SIM dialer). Web clients read via GET / and GET /summary.
-callsRoute.post("/log", writeRateLimit, async (c) => {
+callsRoute.post("/log", callsLogRateLimit, async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const body = await c.req.json();
   const parsed = logCallSchema.safeParse(body);

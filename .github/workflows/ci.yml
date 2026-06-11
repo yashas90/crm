@@ -24,6 +24,7 @@ jobs:
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/propninja
       AUTH_JWT_SECRET: super-secret-for-ci
+      NEXT_PUBLIC_API_URL: https://api.ci.propninja.test
     steps:
       - name: Checkout
         uses: actions/checkout@v4

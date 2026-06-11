@@ -122,6 +122,19 @@ pnpm --filter @propninja/mobile dev   # Expo dev server — see apps/mobile/MOBI
 
 Web and mobile API URLs are configured via env vars (`NEXT_PUBLIC_API_URL` / `EXPO_PUBLIC_API_URL`). See [apps/mobile/MOBILE.md](apps/mobile/MOBILE.md) for iOS vs Android dev URLs and EAS builds.
 
+### Error tracking (optional)
+
+Sentry is disabled by default. When a DSN is set, unhandled API errors and client React errors are reported with `userId` and `role` tags when a user is authenticated.
+
+| App | Env var | Where to set |
+|-----|---------|--------------|
+| API (`apps/api`) | `SENTRY_DSN` | Railway / `apps/api/.env` |
+| Web (`apps/web`) | `SENTRY_DSN_WEB` | Vercel / `apps/web/.env.local` |
+
+For production web deploys, set `SENTRY_DSN_WEB` in Vercel before build — it is inlined as `NEXT_PUBLIC_SENTRY_DSN_WEB` for the browser SDK.
+
+Leave both unset locally; the app runs normally without Sentry.
+
 ## Testing & CI
 
 Run lint, tests, and production builds for all workspaces:
@@ -147,6 +160,10 @@ pnpm check         # Biome format + lint with auto-fix (root)
 
 **GitHub Actions** — `.github/workflows/ci.yml` runs on every push and PR: Postgres service → `pnpm install` → migrate → seed → `pnpm check:ci`.
 
+## Production deploy
+
+API on **Railway** (or **Render** via `render.yaml`), web on **Vercel**. Full setup, env vars, and redeploy steps: [DEPLOY.md](DEPLOY.md).
+
 ## Other seeded users
 
 Same password (`admin`) for role testing:
@@ -163,3 +180,7 @@ Use different roles to verify permissions (e.g. agents see only assigned leads; 
 ## Ad lead integrations
 
 Facebook / Instagram Lead Ads (webhook) and Google Ads lead forms (polling) can push leads into the CRM. Setup steps and env vars are documented in [INTEGRATIONS.md](INTEGRATIONS.md).
+
+## User playbook
+
+Day-to-day guides for admins, agents, and managers: [PLAYBOOK.md](PLAYBOOK.md).

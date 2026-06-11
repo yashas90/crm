@@ -19,9 +19,22 @@ const envSchema = z.object({
     .default("true")
     .transform((v) => v === "true"),
   AUTH_JWT_SECRET: z.string().min(16, "AUTH_JWT_SECRET is required (min 16 characters)"),
-  META_VERIFY_TOKEN: z.string().min(1).default("dev-meta-verify-token"),
-  /** Optional — enable X-Hub-Signature-256 verification when set. */
-  META_APP_SECRET: z.string().optional(),
+  /** Optional — enables Sentry error tracking when set. */
+  SENTRY_DSN: z.string().url().optional(),
+  /** Optional — Redis URL for distributed rate limiting (falls back to in-memory when unset). */
+  REDIS_URL: z.string().min(1).optional(),
+  /** When true, META_VERIFY_TOKEN and META_APP_SECRET are required at startup. */
+  META_WEBHOOK_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /**
+   * Shared secret for Meta webhook subscription handshake.
+   * Required when META_WEBHOOK_ENABLED=true (no dev default in that case).
+   */
+  META_VERIFY_TOKEN: z.string().min(1).optional(),
+  /** App secret for X-Hub-Signature-256 verification. Required when META_WEBHOOK_ENABLED=true. */
+  META_APP_SECRET: z.string().min(1).optional(),
   /** Page access token for Facebook Graph API lead detail fetches. */
   PAGE_ACCESS_TOKEN: z.string().optional(),
   /** Expected Facebook Page ID (display / ops reference). */
@@ -43,7 +56,30 @@ const envSchema = z.object({
   GOOGLE_ADS_LOOKBACK_MINUTES: z.coerce.number().int().positive().default(70),
   /** Overlap window when resuming from DB watermark (avoids missing edge submissions). */
   GOOGLE_ADS_SYNC_OVERLAP_MINUTES: z.coerce.number().int().nonnegative().default(5),
-});
+})
+  .superRefine((data, ctx) => {
+    if (!data.META_WEBHOOK_ENABLED) return;
+
+    if (!data.META_VERIFY_TOKEN?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["META_VERIFY_TOKEN"],
+        message: "META_VERIFY_TOKEN is required when META_WEBHOOK_ENABLED=true",
+      });
+    }
+
+    if (!data.META_APP_SECRET?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["META_APP_SECRET"],
+        message: "META_APP_SECRET is required when META_WEBHOOK_ENABLED=true",
+      });
+    }
+  })
+  .transform((data) => ({
+    ...data,
+    META_VERIFY_TOKEN: data.META_VERIFY_TOKEN ?? "dev-meta-verify-token",
+  }));
 
 export type Env = z.infer<typeof envSchema>;
 

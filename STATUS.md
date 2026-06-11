@@ -16,6 +16,7 @@ High-level snapshot of what v1.0 delivers, what is explicitly out of scope, and 
 - TCF: per-channel consent (call, SMS, email)
 - Users & org endpoints; write rate limiting on sensitive routes
 - Hono + Zod validation; Vitest integration tests (DB-dependent)
+- Optional Sentry error tracking (API + web) when `SENTRY_DSN` / `SENTRY_DSN_WEB` are configured
 
 ### Web
 - Auth: login, disabled registration, session refresh, role-aware sidebar
@@ -54,7 +55,7 @@ These are **not** planned for v1.0 and should not be assumed available:
 | In-app calling (VoIP) | SIM dialer + manual log only; no WebRTC/telephony SDK |
 | Advanced analytics / ML | Operational reports only; no forecasting, scoring, or ML pipelines |
 
-Also deferred: public self-registration, mobile TCF editing, native Android call-log auto-sync, production hardening (observability, backup runbooks) beyond basic CI.
+Also deferred: public self-registration, mobile TCF editing, native Android call-log auto-sync, backup runbooks beyond basic CI and optional Sentry.
 
 ---
 

@@ -12,6 +12,7 @@ import {
   updateProjectSchema,
 } from "../lib/validators/projects.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
+import { logAudit } from "../services/auditService.js";
 import { createProjectService } from "../services/projectService.js";
 
 export const projectsRoutes = new Hono();
@@ -62,9 +63,19 @@ projectsRoutes.post("/", writeRateLimit, validate("json", createProjectSchema), 
   const denied = requireManage(c);
   if (denied) return denied;
 
+  const authUser = c.get("authUser");
   const body = c.req.valid("json");
-  const service = createProjectService(c.get("db"));
+  const db = c.get("db");
+  const service = createProjectService(db);
   const project = await service.createProject(body);
+
+  await logAudit(db, {
+    userId: authUser.id,
+    action: "PROJECT_CREATED",
+    entityType: "project",
+    entityId: project.id,
+    metadata: { name: project.name },
+  });
 
   return jsonOk(c, project, undefined, 201);
 });
@@ -89,10 +100,20 @@ projectsRoutes.patch(
     const denied = requireManage(c);
     if (denied) return denied;
 
+    const authUser = c.get("authUser");
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
-    const service = createProjectService(c.get("db"));
+    const db = c.get("db");
+    const service = createProjectService(db);
     const project = await service.updateProject(id, body);
+
+    await logAudit(db, {
+      userId: authUser.id,
+      action: "PROJECT_UPDATED",
+      entityType: "project",
+      entityId: id,
+      metadata: { name: project.name, fields: Object.keys(body) },
+    });
 
     return jsonOk(c, project);
   },
@@ -102,9 +123,19 @@ projectsRoutes.delete("/:id", writeRateLimit, validate("param", uuidParamSchema)
   const denied = requireManage(c);
   if (denied) return denied;
 
+  const authUser = c.get("authUser");
   const { id } = c.req.valid("param");
-  const service = createProjectService(c.get("db"));
+  const db = c.get("db");
+  const service = createProjectService(db);
   const project = await service.softDeleteProject(id);
+
+  await logAudit(db, {
+    userId: authUser.id,
+    action: "PROJECT_DELETED",
+    entityType: "project",
+    entityId: id,
+    metadata: { name: project.name },
+  });
 
   return jsonOk(c, project);
 });

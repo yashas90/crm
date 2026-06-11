@@ -11,6 +11,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -245,6 +246,62 @@ export const leadActivities = pgTable(
   ],
 );
 
+export const adLeads = pgTable(
+  "ad_leads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    source: text("source").notNull(),
+    externalLeadId: text("external_lead_id").notNull(),
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id),
+    rawPayload: jsonb("raw_payload").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ad_leads_source_external_lead_id_unique").on(table.source, table.externalLeadId),
+    index("ad_leads_lead_id_idx").on(table.leadId),
+  ],
+);
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    type: text("type").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    isRead: boolean("is_read").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("notifications_user_id_created_at_idx").on(table.userId, table.createdAt.desc()),
+    index("notifications_user_id_unread_idx").on(table.userId, table.isRead),
+  ],
+);
+
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("audit_logs_created_at_idx").on(table.createdAt.desc()),
+    index("audit_logs_user_id_idx").on(table.userId),
+    index("audit_logs_entity_idx").on(table.entityType, table.entityId),
+  ],
+);
+
 export const integrationSyncState = pgTable("integration_sync_state", {
   integration: text("integration").primaryKey(),
   orgId: uuid("org_id")
@@ -301,6 +358,22 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   assignedProjects: many(projects),
   callRecords: many(callRecords),
   leadActivities: many(leadActivities),
+  auditLogs: many(auditLogs),
+  notifications: many(notifications),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [auditLogs.userId],
+    references: [users.id],
+  }),
 }));
 
 export const leadsRelations = relations(leads, ({ one, many }) => ({
@@ -319,6 +392,14 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
   callRecords: many(callRecords),
   activities: many(leadActivities),
   consents: many(tcfConsents),
+  adLeads: many(adLeads),
+}));
+
+export const adLeadsRelations = relations(adLeads, ({ one }) => ({
+  lead: one(leads, {
+    fields: [adLeads.leadId],
+    references: [leads.id],
+  }),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({

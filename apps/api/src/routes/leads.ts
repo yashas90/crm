@@ -18,8 +18,10 @@ import {
   updateLeadBodySchema,
 } from "../lib/validators/leads.js";
 import type { AuthUser } from "../middleware/auth.js";
-import { writeRateLimit } from "../middleware/rateLimit.js";
+import { leadsCreateRateLimit, leadsPatchRateLimit } from "../middleware/rateLimit.js";
+import { logAudit } from "../services/auditService.js";
 import { LeadDuplicatePhoneError, leadService } from "../services/leadService.js";
+import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 
 export const leadsRoute = new Hono();
 
@@ -199,7 +201,7 @@ leadsRoute.get("/", async (c) => {
   return c.json({ ok: true, data });
 });
 
-leadsRoute.post("/", writeRateLimit, validate("json", createLeadBodySchema), async (c) => {
+leadsRoute.post("/", leadsCreateRateLimit, validate("json", createLeadBodySchema), async (c) => {
   try {
     const lead = await leadService.createLead(c.req.valid("json"));
     return c.json({ ok: true, data: lead }, 201);
@@ -236,7 +238,7 @@ leadsRoute.get("/:id", async (c) => {
 });
 
 // canEditLead: admin/manager — any lead; agent — own assigned leads only.
-leadsRoute.patch("/:id", writeRateLimit, async (c) => {
+leadsRoute.patch("/:id", leadsPatchRateLimit, async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id");
   const { lead, response } = await loadLeadOr404(c, id);
@@ -298,6 +300,21 @@ leadsRoute.delete("/:id", async (c) => {
   }
 
   const deleted = await leadService.softDeleteLead(id);
+  if (!deleted) {
+    return c.json({ ok: false, error: { code: "NOT_FOUND", message: "Lead not found" } }, 404);
+  }
+
+  await logAudit(c.get("db"), {
+    userId: authUser.id,
+    action: "LEAD_DELETED",
+    entityType: "lead",
+    entityId: id,
+    metadata: {
+      name: `${deleted.firstName} ${deleted.lastName}`.trim(),
+      phone: deleted.phone,
+    },
+  });
+
   return c.json({ ok: true, data: deleted });
 });
 
@@ -333,11 +350,28 @@ leadsRoute.post("/:id/assign", async (c) => {
     );
   }
 
+  const assigneeId = parsed.data.user_id;
   const updated = await leadService.assignLead({
     leadId: id,
-    userId: parsed.data.user_id,
+    userId: assigneeId,
     actingUserId: authUser.id,
   });
+
+  if (!updated) {
+    return c.json(
+      { ok: false, error: { code: "NOT_FOUND", message: "Lead or assignee not found" } },
+      404,
+    );
+  }
+
+  if (assigneeId !== authUser.id) {
+    const notifications = createNotificationService(c.get("db"));
+    await notifications.createNotification(assigneeId, NOTIFICATION_TYPES.LEAD_ASSIGNED, {
+      leadId: id,
+      leadName: `${updated.firstName} ${updated.lastName}`.trim(),
+      assignedBy: authUser.name,
+    });
+  }
 
   return c.json({ ok: true, data: updated });
 });
