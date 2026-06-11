@@ -19,12 +19,22 @@ export type LeadRow = {
   lastContactedAt?: string | null;
 };
 
+export type LeadActivity = {
+  id: string;
+  type: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  userName: string | null;
+};
+
 export type LeadDetail = LeadRow & {
   state: string | null;
   leadSource: string | null;
   secondaryPhone?: string | null;
   tags?: string[] | null;
   lastContactedAt: string | null;
+  assignedUser?: { id: string; name: string; email: string } | null;
+  activities?: LeadActivity[];
   leadSummary?: {
     totalCalls: number;
     completedCalls: number;

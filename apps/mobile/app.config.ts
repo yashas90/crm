@@ -28,7 +28,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       usesNonExemptEncryption: false,
     },
     infoPlist: {
-      LSApplicationQueriesSchemes: ["tel"],
+      LSApplicationQueriesSchemes: ["tel", "whatsapp", "https"],
       ITSAppUsesNonExemptEncryption: false,
     },
   },
@@ -40,7 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     permissions: ["INTERNET"],
   },
-  plugins: ["expo-secure-store"],
+  plugins: ["expo-secure-store", "./plugins/withAndroidDialerQueries.js"],
   extra: {
     eas: {
       projectId: process.env.EAS_PROJECT_ID ?? EAS_PROJECT_ID,

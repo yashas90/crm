@@ -76,7 +76,7 @@ export function HomeScreen({ navigation }: Props) {
           <View style={styles.statsGrid}>
             <StatCard
               icon="calendar-outline"
-              value={String(queue.data?.items.length ?? 0)}
+              value={String(queue.data?.total ?? queue.data?.items.length ?? 0)}
               label="Follow-ups due"
               accent={colors.primaryLight}
               onPress={() => navigation.navigate("TodayTab", { focusQueue: true })}

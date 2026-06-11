@@ -10,8 +10,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export function LoginScreen() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("agent1@demo.propninja");
-  const [password, setPassword] = useState("admin");
+  const [email, setEmail] = useState(__DEV__ ? "agent1@demo.propninja" : "");
+  const [password, setPassword] = useState(__DEV__ ? "admin" : "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +78,9 @@ export function LoginScreen() {
             <Button label="Sign in" onPress={() => void handleLogin()} loading={loading} />
           </View>
 
-          <Text style={styles.hint}>Demo: agent1@demo.propninja / admin</Text>
+          {__DEV__ ? (
+            <Text style={styles.hint}>Dev: agent1@demo.propninja / admin</Text>
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

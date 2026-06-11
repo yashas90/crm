@@ -202,8 +202,12 @@ leadsRoute.get("/", async (c) => {
 });
 
 leadsRoute.post("/", leadsCreateRateLimit, validate("json", createLeadBodySchema), async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
   try {
-    const lead = await leadService.createLead(c.req.valid("json"));
+    const body = c.req.valid("json");
+    const lead = await leadService.createLead(body, {
+      assignedTo: authUser.role === "agent" ? authUser.id : undefined,
+    });
     return c.json({ ok: true, data: lead }, 201);
   } catch (err) {
     if (err instanceof LeadDuplicatePhoneError) {

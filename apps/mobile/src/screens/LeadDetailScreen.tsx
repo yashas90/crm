@@ -1,11 +1,14 @@
 import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/components/CallLogModal";
 import { ComplianceChip } from "@/components/ComplianceChip";
+import { LeadContactActions } from "@/components/LeadContactActions";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCalls, useLogCall } from "@/hooks/use-calls";
-import { useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
+import { useAddLeadNote, useLead, useUpdateLead, type LeadActivity } from "@/hooks/use-leads";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import { getCallConsent, useTcfForLead } from "@/hooks/useTcf";
+import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
 import type { LeadsStackParamList } from "@/navigation/types";
@@ -27,19 +30,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<LeadsStackParamList, "LeadDetailScreen">;
 
-function formatRelative(value: string | null) {
-  if (!value) return "Never";
-  const days = Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000);
-  if (days === 0) return "Today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+function activityBody(activity: LeadActivity): string {
+  const meta = activity.metadata;
+  if (meta && typeof meta.text === "string" && meta.text.trim()) return meta.text;
+  if (meta && typeof meta.message === "string" && meta.message.trim()) return meta.message;
+  return activity.type.replace(/_/g, " ");
 }
 
 export function LeadDetailScreen({ route, navigation }: Props) {
   const { leadId } = route.params;
   const { data: lead, isLoading, isError, refetch } = useLead(leadId);
   const { data: tcfData } = useTcfForLead(leadId);
-  const { data: callsData } = useCalls({ lead_id: leadId, page: "1", pageSize: "20" });
+  const { data: callsData, refetch: refetchCalls } = useCalls({
+    lead_id: leadId,
+    page: "1",
+    pageSize: "20",
+  });
   const callConsent = getCallConsent(tcfData);
   const logCall = useLogCall();
   const updateLead = useUpdateLead();
@@ -52,6 +58,11 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
 
   const { beginCall } = useReturnFromDialerLog(() => setLogModalVisible(true));
+
+  useRefreshOnFocus(() => {
+    void refetch();
+    void refetchCalls();
+  });
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -84,15 +95,6 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     }
 
     startDial(phone);
-  }
-
-  async function handleCallViaSim() {
-    if (!lead?.phone) {
-      Alert.alert("No phone number", "This lead does not have a phone number.");
-      return;
-    }
-
-    await dialWithConsentCheck(lead.phone);
   }
 
   function submitLog(payload: QuickLogPayload, _options?: SubmitOptions) {
@@ -195,6 +197,12 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               <Text style={styles.infoValue}>{lead.email}</Text>
             </View>
           ) : null}
+          {lead.assignedUser ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Assigned to</Text>
+              <Text style={styles.infoValue}>{lead.assignedUser.name}</Text>
+            </View>
+          ) : null}
           {(lead.tags ?? []).length > 0 ? (
             <View style={styles.badgesRow}>
               {lead.tags!.map((tag) => (
@@ -210,20 +218,29 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        <Pressable style={styles.primaryButton} onPress={handleCallViaSim}>
-          <Text style={styles.primaryButtonText}>Call via SIM</Text>
-        </Pressable>
-
-        <Pressable style={styles.secondaryButton} onPress={() => setLogModalVisible(true)}>
-          <Text style={styles.secondaryButtonText}>Log Last Call</Text>
-        </Pressable>
+        <LeadContactActions
+          phone={lead.phone}
+          leadName={`${lead.firstName} ${lead.lastName}`}
+          onCallPress={async () => {
+            if (!lead.phone) {
+              Alert.alert("No phone number", "This lead does not have a phone number.");
+              return;
+            }
+            await dialWithConsentCheck(lead.phone);
+          }}
+          onLogPress={() => setLogModalVisible(true)}
+        />
+        <Text style={styles.callHint}>
+          Call opens your SIM dialer. When you return to the app, the call log sheet opens
+          automatically.
+        </Text>
 
         <View style={styles.summaryRow}>
           <SummaryCard label="Total calls" value={String(summary?.totalCalls ?? 0)} />
-          <SummaryCard label="Last contacted" value={formatRelative(lead.lastContactedAt)} />
+          <SummaryCard label="Last contacted" value={formatRelativeTime(lead.lastContactedAt)} />
           <SummaryCard
             label="Next follow-up"
-            value={lead.nextFollowupAt ? formatRelative(lead.nextFollowupAt) : "—"}
+            value={lead.nextFollowupAt ? formatDateTime(lead.nextFollowupAt) : "—"}
           />
         </View>
 
@@ -258,7 +275,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
                       {call.userName ?? "Agent"}
                     </Text>
                   </View>
-                  <Text style={styles.callTime}>{formatRelative(call.startedAt)}</Text>
+                  <Text style={styles.callTime}>{formatRelativeTime(call.startedAt)}</Text>
                 </View>
               ))
             )}
@@ -299,7 +316,29 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               </Text>
             </Pressable>
             {noteSaved ? <Text style={styles.noteToast}>Note saved</Text> : null}
-            {lead.notes ? <Text style={styles.existingNote}>{lead.notes}</Text> : null}
+
+            {lead.notes ? (
+              <View style={styles.noteBlock}>
+                <Text style={styles.noteBlockTitle}>Lead notes</Text>
+                <Text style={styles.existingNote}>{lead.notes}</Text>
+              </View>
+            ) : null}
+
+            {(lead.activities ?? []).length > 0 ? (
+              <View style={styles.noteBlock}>
+                <Text style={styles.noteBlockTitle}>Activity</Text>
+                {lead.activities!.map((activity) => (
+                  <View key={activity.id} style={styles.activityRow}>
+                    <Text style={styles.activityMeta}>
+                      {activity.userName ?? "Agent"} · {formatRelativeTime(activity.createdAt)}
+                    </Text>
+                    <Text style={styles.activityText}>{activityBody(activity)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : !lead.notes ? (
+              <Text style={styles.empty}>No notes yet.</Text>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -417,23 +456,13 @@ const styles = StyleSheet.create({
     borderColor: colors.borderDark,
   },
   badgeText: { color: colors.textMutedDark, fontSize: 12 },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  primaryButtonText: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  secondaryButton: {
-    borderColor: colors.borderDark,
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingVertical: 14,
-    alignItems: "center",
+  callHint: {
+    color: colors.textMutedDark,
+    fontSize: 12,
+    lineHeight: 18,
     marginBottom: spacing.md,
+    marginTop: -4,
   },
-  secondaryButtonText: { color: colors.textDark, fontSize: 16, fontWeight: "600" },
   summaryRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   summaryCard: {
     flex: 1,
@@ -499,6 +528,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  existingNote: { color: colors.textMutedDark, marginTop: spacing.sm, fontSize: 14 },
+  noteBlock: { marginTop: spacing.md },
+  noteBlockTitle: {
+    color: colors.textMutedDark,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
+  existingNote: { color: colors.textDark, fontSize: 14, lineHeight: 20 },
+  activityRow: {
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  activityMeta: { color: colors.textMutedDark, fontSize: 12, marginBottom: 4 },
+  activityText: { color: colors.textDark, fontSize: 14, lineHeight: 20 },
   errorText: { color: colors.danger },
 });

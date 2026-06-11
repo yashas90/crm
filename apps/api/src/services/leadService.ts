@@ -296,7 +296,7 @@ export const leadService = {
     };
   },
 
-  async createLead(input: CreateLeadInput) {
+  async createLead(input: CreateLeadInput, options?: { assignedTo?: string }) {
     const {
       firstName,
       lastName,
@@ -334,6 +334,7 @@ export const leadService = {
       .insert(leads)
       .values({
         orgId: SINGLE_TENANT_ORG_ID,
+        assignedTo: options?.assignedTo ?? null,
         firstName,
         lastName: lastName ?? "",
         email: email ?? null,

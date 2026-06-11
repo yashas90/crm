@@ -1,4 +1,5 @@
 import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/components/CallLogModal";
+import { LeadContactActions } from "@/components/LeadContactActions";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
 import { type LeadRow, useTodayQueue, useUpdateLead } from "@/hooks/use-leads";
@@ -230,7 +231,7 @@ export function TodayScreen({ route, navigation }: Props) {
             </View>
 
             <Text style={[styles.sectionTitle, focusQueue && styles.sectionTitleFocused]}>
-              Call queue
+              Call queue ({queue.data?.total ?? queueItems.length})
             </Text>
           </>
         }
@@ -259,14 +260,13 @@ export function TodayScreen({ route, navigation }: Props) {
                 </Text>
               </View>
             </Pressable>
-            <View style={styles.actionCol}>
-              <Pressable style={styles.callBtn} onPress={() => handleCall(item)}>
-                <Text style={styles.callBtnText}>Call</Text>
-              </Pressable>
-              <Pressable style={styles.logBtn} onPress={() => setLogTarget(item)}>
-                <Text style={styles.logBtnText}>Log</Text>
-              </Pressable>
-            </View>
+            <LeadContactActions
+              variant="stack"
+              phone={item.phone}
+              leadName={`${item.firstName} ${item.lastName}`}
+              onCallPress={async () => handleCall(item)}
+              onLogPress={() => setLogTarget(item)}
+            />
           </View>
         )}
         ListFooterComponent={
@@ -373,7 +373,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     minWidth: 0,
   },
-  actionCol: { gap: 6 },
   avatar: {
     width: 44,
     height: 44,
@@ -388,23 +387,6 @@ const styles = StyleSheet.create({
   subline: { color: colors.textMutedDark, fontSize: 13, marginTop: 2 },
   followUp: { color: colors.textMutedDark, fontSize: 12, marginTop: 4 },
   followUpOverdue: { color: colors.danger, fontWeight: "600" },
-  callBtn: {
-    borderWidth: 1.5,
-    borderColor: colors.primaryLight,
-    borderRadius: radii.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  callBtnText: { color: colors.primaryLight, fontWeight: "700", fontSize: 13 },
-  logBtn: {
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    borderRadius: radii.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: colors.backgroundDark,
-  },
-  logBtnText: { color: colors.textDark, fontWeight: "700", fontSize: 13 },
   empty: { color: colors.textMutedDark, textAlign: "center", marginTop: 24 },
   recentSection: { marginTop: spacing.lg },
   recentCard: {
