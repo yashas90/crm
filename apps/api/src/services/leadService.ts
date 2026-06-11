@@ -20,8 +20,8 @@ import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
 import { inferFollowupType } from "../lib/followupType.js";
-import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
+import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 
 type LeadStatus = "new" | "contacted" | "qualified" | "negotiation" | "won" | "lost";
@@ -465,7 +465,11 @@ export const leadService = {
       .select()
       .from(leads)
       .where(
-        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, input.leadId), isNull(leads.deletedAt)),
+        and(
+          eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+          eq(leads.id, input.leadId),
+          isNull(leads.deletedAt),
+        ),
       )
       .limit(1);
 
@@ -512,7 +516,11 @@ export const leadService = {
       .update(leads)
       .set(update)
       .where(
-        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, input.leadId), isNull(leads.deletedAt)),
+        and(
+          eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+          eq(leads.id, input.leadId),
+          isNull(leads.deletedAt),
+        ),
       )
       .returning();
 
