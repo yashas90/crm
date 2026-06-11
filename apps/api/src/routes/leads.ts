@@ -9,6 +9,7 @@ import {
 } from "../lib/permissions.js";
 import { validate } from "../lib/validate.js";
 import {
+  type ListLeadsQuery,
   addNoteBodySchema,
   assignLeadBodySchema,
   bulkImportLeadsBodySchema,
@@ -18,7 +19,6 @@ import {
   listLeadsQuerySchema,
   upcomingFollowupsQuerySchema,
   updateLeadBodySchema,
-  type ListLeadsQuery,
 } from "../lib/validators/leads.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { leadsCreateRateLimit, leadsPatchRateLimit } from "../middleware/rateLimit.js";
@@ -28,9 +28,7 @@ import { NOTIFICATION_TYPES, createNotificationService } from "../services/notif
 
 export const leadsRoute = new Hono();
 
-function leadDuplicateFilters(
-  query: Pick<ListLeadsQuery, "duplicatesOnly" | "excludeDuplicates">,
-) {
+function leadDuplicateFilters(query: Pick<ListLeadsQuery, "duplicatesOnly" | "excludeDuplicates">) {
   if (query.duplicatesOnly) {
     return { duplicatesOnly: true as const };
   }

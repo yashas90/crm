@@ -71,7 +71,9 @@ export function scopeToQueryParams(
 } {
   switch (scope) {
     case "my":
-      return userId ? { assignedTo: userId, excludeDuplicates: "true" } : { excludeDuplicates: "true" };
+      return userId
+        ? { assignedTo: userId, excludeDuplicates: "true" }
+        : { excludeDuplicates: "true" };
     case "teams":
       return userId
         ? { teamLeads: "true", excludeDuplicates: "true" }
