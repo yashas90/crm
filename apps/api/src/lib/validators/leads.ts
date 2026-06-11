@@ -9,7 +9,7 @@ export const listLeadsQuerySchema = z.object({
   status: leadStatusSchema.optional(),
   search: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
-  pageSize: z.coerce.number().min(1).max(100).default(20),
+  pageSize: z.coerce.number().min(1).max(500).default(20),
   assignedTo: z.string().uuid().optional(),
   projectId: z.string().uuid().optional(),
   temperature: temperatureSchema.optional(),
@@ -35,6 +35,14 @@ export const listLeadsQuerySchema = z.object({
     .optional()
     .transform((v) => v === "true"),
   teamLeads: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+  duplicatesOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+  excludeDuplicates: z
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),

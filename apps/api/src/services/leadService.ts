@@ -43,9 +43,54 @@ export interface ListLeadsParams {
   orderByFollowUp?: boolean;
   unassigned?: boolean;
   teamLeadsExcludingUser?: string;
+  duplicatesOnly?: boolean;
+  excludeDuplicates?: boolean;
   activeOnly?: boolean;
   deletedOnly?: boolean;
   adLeadsOnly?: boolean;
+}
+
+/** Last 10 digits — treats +91… and local 10-digit numbers as the same phone. */
+const leadPhoneKeySql = sql`RIGHT(regexp_replace(COALESCE(${leads.phone}, ''), '[^0-9]', '', 'g'), 10)`;
+
+function leadHasValidPhoneKey() {
+  return sql`LENGTH(${leadPhoneKeySql}) >= 10`;
+}
+
+/** Another lead in the org shares this phone key (same deleted/active bucket). */
+function duplicatePhoneExistsSql(deletedOnly: boolean) {
+  const peerDeletedClause = deletedOnly
+    ? sql`l2.deleted_at IS NOT NULL`
+    : sql`l2.deleted_at IS NULL`;
+
+  return sql`EXISTS (
+    SELECT 1 FROM leads l2
+    WHERE l2.org_id = ${leads.orgId}
+      AND l2.id <> ${leads.id}
+      AND ${peerDeletedClause}
+      AND LENGTH(RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10)) >= 10
+      AND RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10) = ${leadPhoneKeySql}
+  )`;
+}
+
+/** Keep the oldest lead per phone key; hide newer copies from default lists. */
+function canonicalLeadOnlySql(deletedOnly: boolean) {
+  const peerDeletedClause = deletedOnly
+    ? sql`l2.deleted_at IS NOT NULL`
+    : sql`l2.deleted_at IS NULL`;
+
+  return sql`NOT EXISTS (
+    SELECT 1 FROM leads l2
+    WHERE l2.org_id = ${leads.orgId}
+      AND l2.id <> ${leads.id}
+      AND ${peerDeletedClause}
+      AND LENGTH(RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10)) >= 10
+      AND RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10) = ${leadPhoneKeySql}
+      AND (
+        l2.created_at < ${leads.createdAt}
+        OR (l2.created_at = ${leads.createdAt} AND l2.id::text < ${leads.id}::text)
+      )
+  )`;
 }
 
 export type CreateLeadInput = CreateLeadBody;
@@ -135,6 +180,7 @@ async function findLeadByPhone(phone: string) {
         or(...variants.map((variant) => eq(leads.phone, variant)))!,
       ),
     )
+    .orderBy(asc(leads.createdAt), asc(leads.id))
     .limit(1);
 
   return row ?? null;
@@ -215,6 +261,16 @@ function buildListWhere(params: ListLeadsParams) {
     );
   }
 
+  const deletedBucket = Boolean(params.deletedOnly);
+  if (params.duplicatesOnly) {
+    whereClauses.push(leadHasValidPhoneKey());
+    whereClauses.push(duplicatePhoneExistsSql(deletedBucket));
+  } else if (params.excludeDuplicates) {
+    whereClauses.push(
+      or(sql`NOT (${leadHasValidPhoneKey()})`, canonicalLeadOnlySql(deletedBucket))!,
+    );
+  }
+
   return and(...whereClauses);
 }
 
@@ -230,22 +286,26 @@ async function countLeadsWhere(params: ListLeadsParams) {
 export const leadService = {
   async getStageCounts(baseParams: ListLeadsParams) {
     const now = new Date().toISOString();
+    const deduped = {
+      ...baseParams,
+      excludeDuplicates: baseParams.duplicatesOnly ? false : (baseParams.excludeDuplicates ?? true),
+    };
 
     const [active, newLeads, pending, scheduled, overdue, eoi] = await Promise.all([
-      countLeadsWhere({ ...baseParams, activeOnly: true }),
-      countLeadsWhere({ ...baseParams, status: "new" }),
-      countLeadsWhere({ ...baseParams, status: "contacted" }),
+      countLeadsWhere({ ...deduped, activeOnly: true }),
+      countLeadsWhere({ ...deduped, status: "new" }),
+      countLeadsWhere({ ...deduped, status: "contacted" }),
       countLeadsWhere({
-        ...baseParams,
+        ...deduped,
         followUpDueAfter: now,
         activeOnly: true,
       }),
       countLeadsWhere({
-        ...baseParams,
+        ...deduped,
         followUpDueBefore: now,
         activeOnly: true,
       }),
-      countLeadsWhere({ ...baseParams, status: "qualified" }),
+      countLeadsWhere({ ...deduped, status: "qualified" }),
     ]);
 
     return {
@@ -266,20 +326,27 @@ export const leadService = {
     const userId = options?.userId;
     const agentBook = isAgent && userId ? { assignedTo: userId } : {};
 
+    const deduped = { excludeDuplicates: true as const };
+
     const [all, my, teams, unassigned, deleted, duplicate, reEnquired] = await Promise.all([
-      countLeadsWhere({ ...baseParams, ...agentBook }),
-      userId ? countLeadsWhere({ ...baseParams, assignedTo: userId }) : Promise.resolve(0),
-      userId && !isAgent
-        ? countLeadsWhere({ ...baseParams, teamLeadsExcludingUser: userId })
+      countLeadsWhere({ ...baseParams, ...agentBook, ...deduped }),
+      userId
+        ? countLeadsWhere({ ...baseParams, assignedTo: userId, ...deduped })
         : Promise.resolve(0),
-      isAgent ? Promise.resolve(0) : countLeadsWhere({ ...baseParams, unassigned: true }),
+      userId && !isAgent
+        ? countLeadsWhere({ ...baseParams, teamLeadsExcludingUser: userId, ...deduped })
+        : Promise.resolve(0),
+      isAgent
+        ? Promise.resolve(0)
+        : countLeadsWhere({ ...baseParams, unassigned: true, ...deduped }),
       countLeadsWhere({
         ...baseParams,
         deletedOnly: true,
+        excludeDuplicates: true,
         ...(isAgent && userId ? { assignedTo: userId } : {}),
       }),
-      countLeadsWhere({ ...baseParams, ...agentBook }),
-      countLeadsWhere({ ...baseParams, ...agentBook }),
+      countLeadsWhere({ ...baseParams, ...agentBook, duplicatesOnly: true }),
+      countLeadsWhere({ ...baseParams, ...agentBook, ...deduped }),
     ]);
 
     return {

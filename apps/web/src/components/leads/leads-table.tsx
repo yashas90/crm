@@ -44,6 +44,8 @@ type LeadsTableProps = {
   pageSize?: number;
   total?: number;
   onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  pageSizeOptions?: readonly number[];
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
 };
@@ -290,6 +292,8 @@ export const LeadsTable = memo(function LeadsTable({
   pageSize = 10,
   total,
   onPageChange,
+  onPageSizeChange,
+  pageSizeOptions,
   selectedIds,
   onSelectionChange,
 }: LeadsTableProps) {
@@ -383,6 +387,8 @@ export const LeadsTable = memo(function LeadsTable({
               pageSize={pageSize}
               total={totalCount}
               onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
+              pageSizeOptions={pageSizeOptions}
             />
           </div>
         ) : null}

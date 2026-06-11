@@ -66,17 +66,23 @@ export function scopeToQueryParams(
   unassigned?: string;
   deletedOnly?: string;
   teamLeads?: string;
+  duplicatesOnly?: string;
+  excludeDuplicates?: string;
 } {
   switch (scope) {
     case "my":
-      return userId ? { assignedTo: userId } : {};
+      return userId ? { assignedTo: userId, excludeDuplicates: "true" } : { excludeDuplicates: "true" };
     case "teams":
-      return userId ? { teamLeads: "true" } : {};
+      return userId
+        ? { teamLeads: "true", excludeDuplicates: "true" }
+        : { excludeDuplicates: "true" };
     case "unassigned":
-      return { unassigned: "true" };
+      return { unassigned: "true", excludeDuplicates: "true" };
     case "deleted":
-      return { deletedOnly: "true" };
+      return { deletedOnly: "true", excludeDuplicates: "true" };
+    case "duplicate":
+      return { duplicatesOnly: "true" };
     default:
-      return {};
+      return { excludeDuplicates: "true" };
   }
 }

@@ -130,6 +130,8 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
       unassigned: scopeParams.unassigned,
       deletedOnly: scopeParams.deletedOnly,
       teamLeads: scopeParams.teamLeads,
+      duplicatesOnly: scopeParams.duplicatesOnly,
+      excludeDuplicates: scopeParams.excludeDuplicates,
     };
   }
 
@@ -138,6 +140,8 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
     unassigned: filters.unassigned ? ("true" as const) : undefined,
     deletedOnly: scopeParams.deletedOnly,
     teamLeads: undefined,
+    duplicatesOnly: scopeParams.duplicatesOnly,
+    excludeDuplicates: scopeParams.excludeDuplicates ?? "true",
   };
 }
 
@@ -188,16 +192,26 @@ export function leadsBaseFiltersToQuery(
     unassigned: assignment.unassigned,
     deletedOnly: assignment.deletedOnly,
     teamLeads: assignment.teamLeads,
+    duplicatesOnly: assignment.duplicatesOnly,
+    excludeDuplicates: assignment.excludeDuplicates,
     dateFrom: dateRange.dateFrom,
     dateTo: dateRange.dateTo,
   };
 }
 
-export const LEADS_PAGE_SIZE = 10;
+export const LEADS_PAGE_SIZES = [10, 25, 50, 500] as const;
+export type LeadsPageSize = (typeof LEADS_PAGE_SIZES)[number];
+export const DEFAULT_LEADS_PAGE_SIZE: LeadsPageSize = 10;
 
 export function leadsFiltersToQuery(
   filters: LeadsUrlFilters,
-  options?: { userId?: string; scope?: LeadsScope; stage?: LeadsStage; page?: number },
+  options?: {
+    userId?: string;
+    scope?: LeadsScope;
+    stage?: LeadsStage;
+    page?: number;
+    pageSize?: LeadsPageSize;
+  },
 ) {
   const stage = options?.stage ?? defaultLeadsStage();
   const stageParams = stageToQueryParams(stage);
@@ -210,6 +224,6 @@ export function leadsFiltersToQuery(
     followUpDueAfter: stageParams.followUpDueAfter,
     orderByFollowUp: stageParams.orderByFollowUp,
     page: String(options?.page ?? 1),
-    pageSize: String(LEADS_PAGE_SIZE),
+    pageSize: String(options?.pageSize ?? DEFAULT_LEADS_PAGE_SIZE),
   };
 }

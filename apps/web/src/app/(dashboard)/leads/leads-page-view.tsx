@@ -30,7 +30,9 @@ import {
   defaultLeadsColumnVisibility,
 } from "@/lib/leads-table-columns";
 import {
-  LEADS_PAGE_SIZE,
+  DEFAULT_LEADS_PAGE_SIZE,
+  LEADS_PAGE_SIZES,
+  type LeadsPageSize,
   type LeadsUrlFilters,
   buildLeadsSearchParams,
   countAdvancedLeadsFilters,
@@ -63,6 +65,7 @@ export function LeadsPageView() {
   const [stage, setStage] = useState<LeadsStage>(() => parseLeadsPageUrl(searchParams).stage);
   const [columns, setColumns] = useState<LeadsColumnVisibility>(defaultLeadsColumnVisibility);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<LeadsPageSize>(DEFAULT_LEADS_PAGE_SIZE);
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -116,16 +119,17 @@ export function LeadsPageView() {
         scope,
         stage,
         page,
+        pageSize,
         userId: ready && session ? session.id : undefined,
       }),
-    [filters, scope, stage, page, ready, session],
+    [filters, scope, stage, page, pageSize, ready, session],
   );
 
   useEffect(() => {
     setPage(1);
     setSelectedLeadIds([]);
     setBulkHint(false);
-  }, [filters, scope, stage]);
+  }, [filters, scope, stage, pageSize]);
 
   useEffect(() => {
     if (selectedLeadIds.length > 0) {
@@ -317,9 +321,15 @@ export function LeadsPageView() {
             isLoading={tableLoading}
             columnsToShow={columns}
             page={page}
-            pageSize={LEADS_PAGE_SIZE}
+            pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              if ((LEADS_PAGE_SIZES as readonly number[]).includes(size)) {
+                setPageSize(size as LeadsPageSize);
+              }
+            }}
+            pageSizeOptions={LEADS_PAGE_SIZES}
             selectedIds={selectedLeadIds}
             onSelectionChange={setSelectedLeadIds}
             onEdit={setEditingLead}

@@ -18,6 +18,7 @@ import {
   listLeadsQuerySchema,
   upcomingFollowupsQuerySchema,
   updateLeadBodySchema,
+  type ListLeadsQuery,
 } from "../lib/validators/leads.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { leadsCreateRateLimit, leadsPatchRateLimit } from "../middleware/rateLimit.js";
@@ -26,6 +27,18 @@ import { LeadDuplicatePhoneError, leadService } from "../services/leadService.js
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 
 export const leadsRoute = new Hono();
+
+function leadDuplicateFilters(
+  query: Pick<ListLeadsQuery, "duplicatesOnly" | "excludeDuplicates">,
+) {
+  if (query.duplicatesOnly) {
+    return { duplicatesOnly: true as const };
+  }
+  if (query.excludeDuplicates === false) {
+    return {};
+  }
+  return { excludeDuplicates: true as const };
+}
 
 type JsonContext = {
   json: (body: unknown, status?: number) => Response;
@@ -156,6 +169,7 @@ leadsRoute.get("/stage-counts", async (c) => {
     dateTo: query.dateTo,
     unassigned: query.unassigned,
     deletedOnly: query.deletedOnly,
+    ...leadDuplicateFilters(query),
   });
 
   return c.json({ ok: true, data });
@@ -206,6 +220,7 @@ leadsRoute.get("/", async (c) => {
     unassigned: query.unassigned,
     activeOnly: query.activeOnly,
     deletedOnly: query.deletedOnly,
+    ...leadDuplicateFilters(query),
   });
 
   return c.json({ ok: true, data });
