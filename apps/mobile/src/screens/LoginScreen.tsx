@@ -1,38 +1,31 @@
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
 import { apiPost } from "@/lib/apiClient";
-import { setAuth } from "@/lib/auth";
+import { useAuth } from "@/providers/auth-provider";
 import { colors, radii, spacing, typography } from "@/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type LoginScreenProps = {
-  onLoggedIn: () => void;
-};
-
-export function LoginScreen({ onLoggedIn }: LoginScreenProps) {
-  const [email, setEmail] = useState("admin@propninja.local");
+export function LoginScreen() {
+  const { login } = useAuth();
+  const [email, setEmail] = useState("agent1@demo.propninja");
   const [password, setPassword] = useState("admin");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleLogin() {
+    setError(null);
     setLoading(true);
     try {
       const data = await apiPost<{
         token: string;
         user: { id: string; email: string; name: string; role: string };
-      }>("/api/auth/login", { email, password });
-      await setAuth(data.token, data.user);
-      onLoggedIn();
+      }>("/api/auth/login", { email: email.trim(), password });
+      await login(data.token, data.user);
     } catch (err) {
-      Alert.alert("Login failed", err instanceof Error ? err.message : "Unable to sign in");
+      setError(err instanceof Error ? err.message : "Unable to sign in");
     } finally {
       setLoading(false);
     }
@@ -40,68 +33,100 @@ export function LoginScreen({ onLoggedIn }: LoginScreenProps) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <View style={styles.container}>
-        <Text style={styles.title}>PropNinja</Text>
-        <Text style={styles.subtitle}>Sign in to continue</Text>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          <View style={styles.brandBlock}>
+            <View style={styles.logo}>
+              <Ionicons name="flash" size={32} color="#fff" />
+            </View>
+            <Text style={styles.title}>PropNinja</Text>
+            <Text style={styles.subtitle}>Real estate CRM for field agents</Text>
+          </View>
 
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="Email"
-          placeholderTextColor={colors.textMutedDark}
-        />
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholder="Password"
-          placeholderTextColor={colors.textMutedDark}
-        />
+          <View style={styles.formCard}>
+            <Text style={styles.formTitle}>Sign in</Text>
+            <TextField
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              placeholder="you@company.com"
+            />
+            <TextField
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="password"
+              placeholder="••••••••"
+            />
+            {error ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={18} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+            <Button label="Sign in" onPress={() => void handleLogin()} loading={loading} />
+          </View>
 
-        <Pressable style={styles.button} onPress={() => void handleLogin()} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Sign in</Text>
-          )}
-        </Pressable>
-
-        <Text style={styles.hint}>Demo: admin@propninja.local / admin</Text>
-      </View>
+          <Text style={styles.hint}>Demo: agent1@demo.propninja / admin</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.backgroundDark },
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundDark,
+  flex: { flex: 1 },
+  scroll: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: spacing.lg,
   },
-  title: { ...typography.heading, color: colors.textDark, fontSize: 28 },
-  subtitle: { color: colors.textMutedDark, marginBottom: spacing.lg, marginTop: 4 },
-  input: {
+  brandBlock: { alignItems: "center", marginBottom: spacing.xl },
+  logo: {
+    width: 72,
+    height: 72,
+    borderRadius: radii.lg,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  title: { ...typography.heading, color: colors.textDark, fontSize: 32 },
+  subtitle: { color: colors.textMutedDark, marginTop: 6, fontSize: 15 },
+  formCard: {
     backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.borderDark,
-    color: colors.textDark,
-    padding: spacing.md,
+  },
+  formTitle: { ...typography.subheading, color: colors.textDark, marginBottom: spacing.md },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderRadius: radii.sm,
+    padding: spacing.sm,
     marginBottom: spacing.sm,
   },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: spacing.sm,
-  },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  hint: { color: colors.textMutedDark, textAlign: "center", marginTop: spacing.md, fontSize: 12 },
+  errorText: { color: "#fca5a5", flex: 1, fontSize: 14 },
+  hint: { color: colors.textMutedDark, textAlign: "center", marginTop: spacing.lg, fontSize: 13 },
 });

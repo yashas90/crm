@@ -1,3 +1,6 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Expo SDK 53 + pnpm: hoisted installs avoid Metro / native module resolution issues.
+nodeLinker: hoisted

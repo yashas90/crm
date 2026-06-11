@@ -1,6 +1,7 @@
 import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
+import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type LeadRow = {
@@ -46,7 +47,13 @@ type LeadsQuery = {
 
 export type { LeadsQuery };
 
+function useAuthReady() {
+  const { status } = useAuth();
+  return status === "authenticated" && Boolean(getCurrentUserId());
+}
+
 export function useLeads(query: LeadsQuery = {}) {
+  const ready = useAuthReady();
   const params = new URLSearchParams({
     page: query.page ?? "1",
     pageSize: query.pageSize ?? "100",
@@ -62,33 +69,40 @@ export function useLeads(query: LeadsQuery = {}) {
       apiGet<{ items: LeadRow[]; page: number; pageSize: number; total: number }>(
         `/api/leads?${params.toString()}`,
       ),
+    enabled: ready,
   });
 }
 
 export function useTodayQueue() {
+  const ready = useAuthReady();
+  const userId = getCurrentUserId();
   const { dateTo } = todayRange();
   const params = new URLSearchParams({
-    assignedTo: getCurrentUserId(),
     followUpDueBefore: dateTo,
     orderByFollowUp: "true",
     page: "1",
     pageSize: "100",
   });
+  if (userId) params.set("assignedTo", userId);
 
   return useQuery({
-    queryKey: ["leads", "queue", getCurrentUserId(), dateTo],
+    queryKey: ["leads", "queue", userId, dateTo],
     queryFn: () =>
       apiGet<{ items: LeadRow[]; page: number; pageSize: number; total: number }>(
         `/api/leads?${params.toString()}`,
       ),
+    enabled: ready,
+    refetchInterval: 60_000,
   });
 }
 
 export function useLead(leadId: string) {
+  const ready = useAuthReady();
+
   return useQuery({
     queryKey: ["leads", leadId],
     queryFn: () => apiGet<LeadDetail>(`/api/leads/${leadId}`),
-    enabled: Boolean(leadId),
+    enabled: ready && Boolean(leadId),
   });
 }
 
@@ -113,5 +127,22 @@ export function useUpdateLead() {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
       await queryClient.invalidateQueries({ queryKey: ["leads", variables.leadId] });
     },
+  });
+}
+
+export function useLeadScopeCounts() {
+  const ready = useAuthReady();
+
+  return useQuery({
+    queryKey: ["leads", "scope-counts"],
+    queryFn: () =>
+      apiGet<{
+        all: number;
+        my: number;
+        teams: number;
+        unassigned: number;
+      }>("/api/leads/scope-counts"),
+    enabled: ready,
+    staleTime: 30_000,
   });
 }

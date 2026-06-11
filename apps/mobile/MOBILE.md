@@ -73,31 +73,24 @@ pnpm start
 - **Auto log modal:** After returning from the native dialer, `useReturnFromDialerLog` (React Navigation `useFocusEffect`) opens the log sheet when the away time is between ~2–3s and 5 minutes. Used on **Lead detail** and **Today** queue.
 - **Manual log:** “Log Last Call” on lead detail, or “Log” on Today queue.
 
-## EAS builds
+## EAS builds & store submission
 
-One-time setup (from `apps/mobile`):
+**Full walkthrough:** [EAS_SETUP.md](./EAS_SETUP.md)
 
-```bash
-npm install -g eas-cli
-eas login
-eas init   # links EAS project; set EAS_PROJECT_ID in .env if needed
-```
-
-Build release binaries:
+Quick start (from `apps/mobile`):
 
 ```bash
-# Android APK/AAB
-npx eas build --platform android --profile production
-
-# iOS (requires Apple Developer account for device/App Store)
-npx eas build --platform ios --profile production
+pnpm eas:login
+pnpm eas:init
+pnpm eas:build:preview:android   # APK for QA
+pnpm eas:build:android           # AAB for Play Store
+pnpm eas:build:ios               # IPA for App Store / TestFlight
 ```
 
-Preview/internal builds use the same production API URL via `eas.json` → `preview.env`.
-
-Both platforms use bundle id **`com.propninja.crm`**.
-
-Replace placeholder icons in `apps/mobile/assets/` before App Store / Play Store submission.
+- Bundle ID: **`com.propninja.crm`**
+- Production API URL is in `eas.json` (preview + production profiles)
+- Store listing draft: `store/listing.md`
+- Replace placeholder icons in `assets/` before public release
 
 ## Auth & storage
 

@@ -14,6 +14,9 @@
     "check:ci": "turbo lint test build",
     "railway:build": "pnpm --filter @propninja/db build && pnpm --filter @propninja/api build",
     "railway:start": "pnpm db:migrate && pnpm --filter @propninja/api start",
+    "mobile:eas:init": "pnpm --filter @propninja/mobile eas:init",
+    "mobile:eas:android": "pnpm --filter @propninja/mobile eas:build:android",
+    "mobile:eas:ios": "pnpm --filter @propninja/mobile eas:build:ios",
     "prepare": "node -e \"if (!process.env.CI && !process.env.VERCEL && !process.env.RAILWAY) require('child_process').execSync('husky', {stdio:'inherit'})\""
   },
   "devDependencies": {

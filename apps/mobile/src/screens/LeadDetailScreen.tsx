@@ -1,6 +1,7 @@
 import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/components/CallLogModal";
 import { ComplianceChip } from "@/components/ComplianceChip";
 import { LeadEditModal } from "@/components/LeadEditModal";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { useCalls, useLogCall } from "@/hooks/use-calls";
 import { useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
@@ -143,9 +144,11 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   if (isError || !lead) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>Lead not found.</Text>
-      </View>
+      <ErrorState
+        title="Lead not found"
+        message="This lead may have been removed or you do not have access."
+        onRetry={() => refetch()}
+      />
     );
   }
 

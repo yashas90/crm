@@ -1,14 +1,13 @@
-import { isAuthenticated } from "@/lib/auth";
 import { MainTabs } from "@/navigation/MainTabs";
+import { useAuth } from "@/providers/auth-provider";
 import { LoginScreen } from "@/screens/LoginScreen";
-import { useState } from "react";
 
 export function RootNavigator() {
-  const [authed, setAuthed] = useState(isAuthenticated());
+  const { status, logout } = useAuth();
 
-  if (!authed) {
-    return <LoginScreen onLoggedIn={() => setAuthed(true)} />;
+  if (status !== "authenticated") {
+    return <LoginScreen />;
   }
 
-  return <MainTabs onLogout={() => setAuthed(false)} />;
+  return <MainTabs onLogout={() => void logout()} />;
 }

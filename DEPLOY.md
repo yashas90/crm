@@ -126,12 +126,17 @@ Push to `main` (auto) or Vercel dashboard → **Redeploy**.
 
 ## Mobile (Expo)
 
-Production API URL is in `apps/mobile/eas.json` and `apps/mobile/src/lib/apiBaseUrl.ts`. After changing the API host, update both and run a new EAS build:
+Full EAS walkthrough: [apps/mobile/EAS_SETUP.md](apps/mobile/EAS_SETUP.md)
+
+Production API URL is in `apps/mobile/eas.json`. After changing the API host, update `eas.json` and rebuild:
 
 ```bash
 cd apps/mobile
-eas build --platform android
-eas build --platform ios
+pnpm eas:login
+pnpm eas:init
+pnpm eas:build:preview:android   # APK for QA
+pnpm eas:build:android           # AAB for Play Store
+pnpm eas:build:ios               # IPA for App Store
 ```
 
 ---

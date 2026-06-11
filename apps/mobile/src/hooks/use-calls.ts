@@ -1,6 +1,7 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
+import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type CallRecord = {
@@ -35,7 +36,13 @@ export type LogCallInput = {
   source: "mobile-manual";
 };
 
+function useAuthReady() {
+  const { status } = useAuth();
+  return status === "authenticated" && Boolean(getCurrentUserId());
+}
+
 export function useCalls(params: Record<string, string>) {
+  const ready = useAuthReady();
   const search = new URLSearchParams(params);
 
   return useQuery({
@@ -44,40 +51,48 @@ export function useCalls(params: Record<string, string>) {
       apiGet<{ items: CallRecord[]; page: number; pageSize: number; total: number }>(
         `/api/calls?${search.toString()}`,
       ),
-    enabled: Boolean(params.lead_id || params.user_id || params.date_from),
+    enabled: ready && Boolean(params.lead_id || params.user_id || params.date_from),
   });
 }
 
 export function useTodayCalls() {
+  const ready = useAuthReady();
+  const userId = getCurrentUserId();
   const { dateFrom, dateTo } = todayRange();
   const params = new URLSearchParams({
-    user_id: getCurrentUserId(),
     date_from: dateFrom,
     date_to: dateTo,
     page: "1",
     pageSize: "100",
   });
+  if (userId) params.set("user_id", userId);
 
   return useQuery({
-    queryKey: ["calls", "today", getCurrentUserId()],
+    queryKey: ["calls", "today", userId],
     queryFn: () =>
       apiGet<{ items: CallRecord[]; page: number; pageSize: number; total: number }>(
         `/api/calls?${params.toString()}`,
       ),
+    enabled: ready,
+    refetchInterval: 60_000,
   });
 }
 
 export function useTodayCallSummary() {
+  const ready = useAuthReady();
+  const userId = getCurrentUserId();
   const { dateFrom, dateTo } = todayRange();
   const params = new URLSearchParams({
-    user_id: getCurrentUserId(),
     date_from: dateFrom,
     date_to: dateTo,
   });
+  if (userId) params.set("user_id", userId);
 
   return useQuery({
-    queryKey: ["calls", "summary", "today", getCurrentUserId()],
+    queryKey: ["calls", "summary", "today", userId],
     queryFn: () => apiGet<CallSummary>(`/api/calls/summary?${params.toString()}`),
+    enabled: ready,
+    refetchInterval: 60_000,
   });
 }
 

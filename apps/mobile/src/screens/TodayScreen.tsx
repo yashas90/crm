@@ -2,6 +2,7 @@ import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/compon
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
 import { type LeadRow, useTodayQueue, useUpdateLead } from "@/hooks/use-leads";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import { formatDuration } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
@@ -176,6 +177,14 @@ export function TodayScreen({ route, navigation }: Props) {
     );
   }
 
+  const refreshAll = useCallback(() => {
+    void queue.refetch();
+    void calls.refetch();
+    void summary.refetch();
+  }, [queue, calls, summary]);
+
+  useRefreshOnFocus(refreshAll);
+
   const isLoading = queue.isLoading || calls.isLoading || summary.isLoading;
 
   if (isLoading) {
@@ -194,11 +203,7 @@ export function TodayScreen({ route, navigation }: Props) {
         refreshControl={
           <RefreshControl
             refreshing={queue.isRefetching}
-            onRefresh={() => {
-              void queue.refetch();
-              void calls.refetch();
-              void summary.refetch();
-            }}
+            onRefresh={refreshAll}
             tintColor={colors.primaryLight}
           />
         }

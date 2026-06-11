@@ -15,7 +15,7 @@ export function LeadsStack() {
         contentStyle: { backgroundColor: "#0f172a" },
       }}
     >
-      <Stack.Screen name="LeadsScreen" component={LeadsScreen} options={{ title: "Leads" }} />
+      <Stack.Screen name="LeadsScreen" component={LeadsScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="LeadCreateScreen"
         component={LeadCreateScreen}

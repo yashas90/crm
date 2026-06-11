@@ -15,16 +15,29 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://crm-production-6cfe.up.railway.app"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {
       "autoIncrement": true,
+      "distribution": "store",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://crm-production-6cfe.up.railway.app"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      },
+      "ios": {}
+    }
   }
 }

@@ -1,8 +1,6 @@
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import { getToken } from "@/lib/auth";
 
-export const API_URL = getApiBaseUrl();
-
 export type ApiSuccess<T> = { ok: true; data: T };
 export type ApiError = {
   ok: false;
@@ -20,20 +18,43 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** Resolved at request time (not module load) for correct release/dev URLs. */
+export function getApiUrl() {
+  return getApiBaseUrl();
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    Accept: "application/json",
     ...(init?.headers as Record<string, string> | undefined),
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers,
-  });
+  const url = `${getApiUrl()}${path}`;
+  let response: Response;
+
+  try {
+    response = await fetch(url, { ...init, headers });
+  } catch {
+    throw new ApiRequestError(
+      "NETWORK_ERROR",
+      "Cannot reach the server. Check your internet connection and try again.",
+    );
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new ApiRequestError(
+      "INVALID_RESPONSE",
+      response.ok
+        ? "Unexpected server response."
+        : `Server error (${response.status}). Try again later.`,
+    );
+  }
 
   const json = (await response.json()) as ApiSuccess<T> | ApiError;
 

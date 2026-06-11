@@ -11,3 +11,9 @@ coverage
 .DS_Store
 Thumbs.db
 .vercel
+
+# EAS / store credentials (never commit)
+apps/mobile/store/google-service-account.json
+apps/mobile/store/*.p8
+apps/mobile/store/submit.env
+apps/mobile/credentials.json

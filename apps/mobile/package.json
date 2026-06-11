@@ -2,17 +2,25 @@
   "name": "@propninja/mobile",
   "version": "0.0.0",
   "private": true,
-  "main": "expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "dev": "expo start",
-    "build": "echo \"Use EAS Build for production builds\"",
     "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
     "lint": "biome check .",
     "test": "echo \"No tests yet\"",
-    "android": "expo start --android",
-    "ios": "expo start --ios"
+    "eas:login": "eas login",
+    "eas:init": "eas init",
+    "eas:build:android": "eas build --platform android --profile production",
+    "eas:build:ios": "eas build --platform ios --profile production",
+    "eas:build:preview:android": "eas build --platform android --profile preview",
+    "eas:submit:android": "eas submit --platform android --profile production --latest",
+    "eas:submit:ios": "eas submit --platform ios --profile production --latest",
+    "eas-build-pre-install": "corepack enable"
   },
   "dependencies": {
+    "@expo/vector-icons": "^14.1.0",
     "@propninja/types": "workspace:*",
     "@react-navigation/bottom-tabs": "^7.3.14",
     "@react-navigation/native": "^7.1.10",
@@ -33,6 +41,7 @@
     "@babel/core": "^7.27.4",
     "@propninja/config": "workspace:*",
     "@types/react": "~19.0.14",
+    "eas-cli": "^16.28.0",
     "typescript": "^5.8.3"
   }
 }

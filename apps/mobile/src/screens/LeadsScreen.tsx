@@ -1,8 +1,14 @@
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { type LeadRow, type LeadsQuery, useLeads } from "@/hooks/use-leads";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT, TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { formatStatusLabel, statusStyle, temperatureStyle } from "@/theme/status";
+import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMemo, useState } from "react";
 import {
@@ -28,12 +34,15 @@ function initials(lead: LeadRow) {
 function daysSinceContact(value: string | null | undefined) {
   if (!value) return "Never contacted";
   const days = Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000);
-  if (days === 0) return "Last contact: today";
-  if (days === 1) return "Last contact: 1 day ago";
-  return `Last contact: ${days} days ago`;
+  if (days === 0) return "Contacted today";
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
 }
 
 function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
+  const status = statusStyle(lead.leadStatus);
+  const temp = temperatureStyle(lead.temperature);
+
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -44,19 +53,27 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
       </View>
       <View style={styles.cardBody}>
         <View style={styles.titleRow}>
-          <Text style={styles.name}>
+          <Text style={styles.name} numberOfLines={1}>
             {lead.firstName} {lead.lastName}
           </Text>
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>{lead.leadStatus}</Text>
-          </View>
+          <Badge
+            label={formatStatusLabel(lead.leadStatus)}
+            backgroundColor={status.bg}
+            color={status.text}
+          />
         </View>
-        <Text style={styles.subline}>
-          {lead.phone ?? "No phone"} · {lead.city ?? "No city"}
+        <Text style={styles.subline} numberOfLines={1}>
+          {lead.phone ?? "No phone"}
+          {lead.city ? ` · ${lead.city}` : ""}
         </Text>
-        <Text style={styles.contactLine}>{daysSinceContact(lead.lastContactedAt)}</Text>
+        <View style={styles.metaRow}>
+          <Text style={styles.contactLine}>{daysSinceContact(lead.lastContactedAt)}</Text>
+          {temp && lead.temperature ? (
+            <Badge label={lead.temperature} backgroundColor={temp.bg} color={temp.text} />
+          ) : null}
+        </View>
       </View>
-      <Text style={styles.chevron}>›</Text>
+      <Ionicons name="chevron-forward" size={20} color={colors.textMutedDark} />
     </Pressable>
   );
 }
@@ -66,61 +83,63 @@ export function LeadsScreen({ navigation }: Props) {
   const [chip, setChip] = useState<FilterChip>("all");
   const insets = useSafeAreaInsets();
   const fabBottom = TAB_BAR_HEIGHT + insets.bottom + spacing.md;
-  const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
+  const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom + 72;
 
   const queryParams = useMemo(() => {
     const params: LeadsQuery = { page: "1", pageSize: "50" };
     if (search.trim()) params.search = search.trim();
     if (chip === "hot") params.temperature = "hot";
     if (chip === "new") params.status = "new";
-    if (chip === "mine") params.assignedTo = getCurrentUserId();
+    if (chip === "mine") {
+      const userId = getCurrentUserId();
+      if (userId) params.assignedTo = userId;
+    }
     return params;
   }, [search, chip]);
 
-  const { data, isLoading, isError, refetch, isRefetching } = useLeads(queryParams);
+  const { data, isLoading, isError, refetch, isRefetching, error } = useLeads(queryParams);
+  useRefreshOnFocus(refetch);
 
-  const leads = useMemo(() => {
-    const items = data?.items ?? [];
-    if (chip !== "mine") return items;
-    return items;
-  }, [data, chip]);
-
-  if (isLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primaryLight} />
-      </View>
-    );
-  }
-
-  if (isError) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>Unable to load leads.</Text>
-        <Pressable style={styles.retryButton} onPress={() => refetch()}>
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  const leads = data?.items ?? [];
 
   const chips: { id: FilterChip; label: string }[] = [
     { id: "all", label: "All" },
-    { id: "mine", label: "My Leads" },
+    { id: "mine", label: "Mine" },
     { id: "hot", label: "Hot" },
     { id: "new", label: "New" },
   ];
 
+  if (isLoading && !data) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primaryLight} />
+      </View>
+    );
+  }
+
+  if (isError && !data) {
+    return (
+      <ErrorState
+        message={error instanceof Error ? error.message : undefined}
+        onRetry={() => refetch()}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Leads</Text>
+        <View>
+          <Text style={styles.headerTitle}>Leads</Text>
+          <Text style={styles.headerSub}>{data?.total ?? leads.length} total</Text>
+        </View>
       </View>
 
       <View style={styles.searchWrap}>
+        <Ionicons name="search" size={18} color={colors.textMutedDark} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name or phone"
+          placeholder="Search name or phone"
           placeholderTextColor={colors.textMutedDark}
           value={search}
           onChangeText={setSearch}
@@ -153,7 +172,15 @@ export function LeadsScreen({ navigation }: Props) {
             tintColor={colors.primaryLight}
           />
         }
-        ListEmptyComponent={<Text style={styles.empty}>No leads found.</Text>}
+        ListEmptyComponent={
+          <EmptyState
+            icon="people-outline"
+            title="No leads found"
+            message="Try a different filter or create a new lead."
+            actionLabel="Create lead"
+            onAction={() => navigation.navigate("LeadCreateScreen")}
+          />
+        }
         renderItem={({ item }) => (
           <LeadItem
             lead={item}
@@ -167,7 +194,7 @@ export function LeadsScreen({ navigation }: Props) {
         onPress={() => navigation.navigate("LeadCreateScreen")}
         accessibilityLabel="Create new lead"
       >
-        <Text style={styles.fabText}>+</Text>
+        <Ionicons name="add" size={28} color="#fff" />
       </Pressable>
     </View>
   );
@@ -181,16 +208,24 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   headerTitle: { ...typography.heading, color: colors.textDark },
-  searchWrap: { paddingHorizontal: spacing.md, marginBottom: spacing.sm },
-  searchInput: {
+  headerSub: { color: colors.textMutedDark, fontSize: 13, marginTop: 2 },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
     backgroundColor: colors.cardDark,
     borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
     paddingHorizontal: spacing.md,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
     paddingVertical: 12,
     color: colors.textDark,
     fontSize: 15,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
   },
   chipsRow: {
     flexDirection: "row",
@@ -211,68 +246,40 @@ const styles = StyleSheet.create({
   chipText: { color: colors.textMutedDark, fontSize: 13, fontWeight: "600" },
   chipTextActive: { color: "#fff" },
   list: { flex: 1 },
-  listContent: { padding: spacing.md, paddingTop: 0 },
+  listContent: { paddingHorizontal: spacing.md, paddingTop: 0 },
   card: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.borderDark,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    gap: spacing.sm,
   },
-  cardPressed: { opacity: 0.85 },
+  cardPressed: { opacity: 0.88 },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: spacing.sm,
   },
-  avatarText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  cardBody: { flex: 1 },
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  cardBody: { flex: 1, minWidth: 0 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  name: { color: colors.textDark, fontSize: 16, fontWeight: "700", flexShrink: 1 },
-  statusBadge: {
-    backgroundColor: "rgba(20,184,166,0.15)",
-    borderRadius: radii.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  statusText: {
-    color: colors.primaryLight,
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "capitalize",
-  },
-  subline: { color: colors.textMutedDark, fontSize: 13, marginBottom: 4 },
+  name: { color: colors.textDark, fontSize: 16, fontWeight: "700", flex: 1 },
+  subline: { color: colors.textMutedDark, fontSize: 13, marginBottom: 6 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   contactLine: { color: colors.textMutedDark, fontSize: 12 },
-  chevron: { color: colors.textMutedDark, fontSize: 24, marginLeft: 4 },
   center: {
     flex: 1,
     backgroundColor: colors.backgroundDark,
     alignItems: "center",
     justifyContent: "center",
-    padding: spacing.lg,
   },
-  empty: { color: colors.textMutedDark, textAlign: "center", marginTop: 40 },
-  errorText: { color: colors.danger, marginBottom: 12 },
-  retryButton: {
-    borderColor: colors.borderDark,
-    borderWidth: 1,
-    borderRadius: radii.md,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  retryText: { color: colors.textDark, fontWeight: "600" },
   fab: {
     position: "absolute",
     right: spacing.md,
@@ -283,10 +290,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    elevation: 8,
   },
-  fabText: { color: "#fff", fontSize: 28, fontWeight: "300", lineHeight: 30 },
 });
