@@ -1,5 +1,6 @@
 import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/components/CallLogModal";
 import { LeadContactActions } from "@/components/LeadContactActions";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
 import { type LeadRow, useTodayQueue, useUpdateLead } from "@/hooks/use-leads";
@@ -178,21 +179,29 @@ export function TodayScreen({ route, navigation }: Props) {
     );
   }
 
-  const refreshAll = useCallback(() => {
-    void queue.refetch();
-    void calls.refetch();
-    void summary.refetch();
-  }, [queue, calls, summary]);
+  const refreshAll = useCallback(
+    () => Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]),
+    [queue, calls, summary],
+  );
 
   useRefreshOnFocus(refreshAll);
 
-  const isLoading = queue.isLoading || calls.isLoading || summary.isLoading;
+  const isLoading = (queue.isLoading || calls.isLoading || summary.isLoading) && !queue.data;
 
   if (isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.primaryLight} />
       </View>
+    );
+  }
+
+  if (queue.isError && !queue.data) {
+    return (
+      <ErrorState
+        message={queue.error instanceof Error ? queue.error.message : undefined}
+        onRetry={refreshAll}
+      />
     );
   }
 

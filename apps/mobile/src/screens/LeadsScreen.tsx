@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { type LeadRow, type LeadsQuery, useLeads } from "@/hooks/use-leads";
+import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-leads";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
 import type { LeadsStackParamList } from "@/navigation/types";
@@ -86,7 +86,7 @@ export function LeadsScreen({ navigation }: Props) {
   const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom + 72;
 
   const queryParams = useMemo(() => {
-    const params: LeadsQuery = { page: "1", pageSize: "50" };
+    const params: Omit<LeadsQuery, "page"> = {};
     if (search.trim()) params.search = search.trim();
     if (chip === "hot") params.temperature = "hot";
     if (chip === "new") params.status = "new";
@@ -97,10 +97,21 @@ export function LeadsScreen({ navigation }: Props) {
     return params;
   }, [search, chip]);
 
-  const { data, isLoading, isError, refetch, isRefetching, error } = useLeads(queryParams);
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    isRefetching,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteLeads(queryParams);
   useRefreshOnFocus(refetch);
 
-  const leads = data?.items ?? [];
+  const leads = data?.pages.flatMap((page) => page.items) ?? [];
+  const total = data?.pages[0]?.total ?? leads.length;
 
   const chips: { id: FilterChip; label: string }[] = [
     { id: "all", label: "All" },
@@ -131,7 +142,7 @@ export function LeadsScreen({ navigation }: Props) {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Leads</Text>
-          <Text style={styles.headerSub}>{data?.total ?? leads.length} total</Text>
+          <Text style={styles.headerSub}>{total} total</Text>
         </View>
       </View>
 
@@ -187,6 +198,17 @@ export function LeadsScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("LeadDetailScreen", { leadId: item.id })}
           />
         )}
+        onEndReached={() => {
+          if (hasNextPage && !isFetchingNextPage) {
+            void fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <ActivityIndicator color={colors.primaryLight} style={{ marginVertical: spacing.md }} />
+          ) : null
+        }
       />
 
       <Pressable

@@ -7,6 +7,7 @@ import {
   setAuth as persistAuth,
 } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
+import { setUnauthorizedHandler } from "@/lib/apiClient";
 import {
   type ReactNode,
   createContext,
@@ -54,6 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus("unauthenticated");
     queryClient.clear();
   }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      void logout();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [logout]);
 
   const value = useMemo(() => ({ status, user, login, logout }), [status, user, login, logout]);
 

@@ -9,6 +9,7 @@ import Constants from "expo-constants";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -79,12 +80,25 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
 
       <Text style={styles.sectionTitle}>App</Text>
       <Card>
-        <InfoRow icon="globe-outline" label="API" value={getApiUrl()} mono />
+        {__DEV__ ? (
+          <InfoRow icon="globe-outline" label="API" value={getApiUrl()} mono />
+        ) : null}
         <InfoRow
           icon="information-circle-outline"
           label="Version"
           value={Constants.expoConfig?.version ?? "1.0.0"}
         />
+        {Constants.expoConfig?.extra?.privacyPolicyUrl ? (
+          <Button
+            label="Privacy policy"
+            variant="secondary"
+            onPress={() => {
+              const url = Constants.expoConfig?.extra?.privacyPolicyUrl as string;
+              void Linking.openURL(url);
+            }}
+            style={styles.linkBtn}
+          />
+        ) : null}
       </Card>
 
       <Button
@@ -163,6 +177,7 @@ const styles = StyleSheet.create({
   value: { color: colors.textDark, fontSize: 15 },
   mono: { fontSize: 12, lineHeight: 18 },
   logoutBtn: { marginTop: spacing.lg },
+  linkBtn: { marginTop: spacing.sm },
   footer: {
     color: colors.textMutedDark,
     fontSize: 13,

@@ -2,7 +2,10 @@ import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
 import { useAuth } from "@/providers/auth-provider";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+const LIVE_REFETCH_MS = 30_000;
+const LEADS_PAGE_SIZE = "50";
 
 export type LeadRow = {
   id: string;
@@ -53,9 +56,23 @@ type LeadsQuery = {
   assignedTo?: string;
   page?: string;
   pageSize?: string;
+  excludeDuplicates?: string;
 };
 
 export type { LeadsQuery };
+
+function buildLeadsParams(query: LeadsQuery, page: number | string) {
+  const params = new URLSearchParams({
+    page: String(page),
+    pageSize: query.pageSize ?? LEADS_PAGE_SIZE,
+    excludeDuplicates: query.excludeDuplicates ?? "true",
+  });
+  if (query.assignedTo) params.set("assignedTo", query.assignedTo);
+  if (query.search) params.set("search", query.search);
+  if (query.status) params.set("status", query.status);
+  if (query.temperature) params.set("temperature", query.temperature);
+  return params;
+}
 
 function useAuthReady() {
   const { status } = useAuth();
@@ -64,14 +81,7 @@ function useAuthReady() {
 
 export function useLeads(query: LeadsQuery = {}) {
   const ready = useAuthReady();
-  const params = new URLSearchParams({
-    page: query.page ?? "1",
-    pageSize: query.pageSize ?? "100",
-  });
-  if (query.assignedTo) params.set("assignedTo", query.assignedTo);
-  if (query.search) params.set("search", query.search);
-  if (query.status) params.set("status", query.status);
-  if (query.temperature) params.set("temperature", query.temperature);
+  const params = buildLeadsParams(query, query.page ?? "1");
 
   return useQuery({
     queryKey: ["leads", params.toString()],
@@ -80,6 +90,30 @@ export function useLeads(query: LeadsQuery = {}) {
         `/api/leads?${params.toString()}`,
       ),
     enabled: ready,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useInfiniteLeads(query: Omit<LeadsQuery, "page"> = {}) {
+  const ready = useAuthReady();
+  const baseParams = buildLeadsParams(query, 1);
+  baseParams.delete("page");
+
+  return useInfiniteQuery({
+    queryKey: ["leads", "infinite", baseParams.toString()],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => {
+      const params = buildLeadsParams(query, pageParam);
+      return apiGet<{ items: LeadRow[]; page: number; pageSize: number; total: number }>(
+        `/api/leads?${params.toString()}`,
+      );
+    },
+    getNextPageParam: (lastPage) => {
+      const totalPages = Math.max(1, Math.ceil(lastPage.total / lastPage.pageSize));
+      return lastPage.page < totalPages ? lastPage.page + 1 : undefined;
+    },
+    enabled: ready,
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 
@@ -92,6 +126,7 @@ export function useTodayQueue() {
     orderByFollowUp: "true",
     page: "1",
     pageSize: "100",
+    excludeDuplicates: "true",
   });
   if (userId) params.set("assignedTo", userId);
 
@@ -102,7 +137,7 @@ export function useTodayQueue() {
         `/api/leads?${params.toString()}`,
       ),
     enabled: ready,
-    refetchInterval: 60_000,
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 
@@ -113,6 +148,7 @@ export function useLead(leadId: string) {
     queryKey: ["leads", leadId],
     queryFn: () => apiGet<LeadDetail>(`/api/leads/${leadId}`),
     enabled: ready && Boolean(leadId),
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 
@@ -153,6 +189,6 @@ export function useLeadScopeCounts() {
         unassigned: number;
       }>("/api/leads/scope-counts"),
     enabled: ready,
-    staleTime: 30_000,
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }

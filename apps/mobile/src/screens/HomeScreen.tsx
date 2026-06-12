@@ -36,11 +36,8 @@ export function HomeScreen({ navigation }: Props) {
   const scope = useLeadScopeCounts();
   const firstName = user?.name?.split(" ")[0] ?? "Agent";
 
-  const refreshAll = () => {
-    void queue.refetch();
-    void summary.refetch();
-    void scope.refetch();
-  };
+  const refreshAll = () =>
+    Promise.all([queue.refetch(), summary.refetch(), scope.refetch()]);
 
   useRefreshOnFocus(refreshAll);
 

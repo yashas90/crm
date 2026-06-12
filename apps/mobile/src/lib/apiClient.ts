@@ -12,10 +12,18 @@ export class ApiRequestError extends Error {
     public code: string,
     message: string,
     public details?: unknown,
+    public status?: number,
   ) {
     super(message);
     this.name = "ApiRequestError";
   }
+}
+
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler;
 }
 
 /** Resolved at request time (not module load) for correct release/dev URLs. */
@@ -60,11 +68,22 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   if (!response.ok || !json.ok) {
     const error = json.ok ? { code: "HTTP_ERROR", message: response.statusText } : json.error;
-    throw new ApiRequestError(
+    const apiError = new ApiRequestError(
       error.code,
       error.message,
       "details" in error ? error.details : undefined,
+      response.status,
     );
+
+    if (
+      response.status === 401 ||
+      error.code === "UNAUTHORIZED" ||
+      error.code === "INVALID_TOKEN"
+    ) {
+      unauthorizedHandler?.();
+    }
+
+    throw apiError;
   }
 
   return json.data;

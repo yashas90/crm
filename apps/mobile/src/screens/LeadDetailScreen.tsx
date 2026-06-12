@@ -59,10 +59,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   const { beginCall } = useReturnFromDialerLog(() => setLogModalVisible(true));
 
-  useRefreshOnFocus(() => {
-    void refetch();
-    void refetchCalls();
-  });
+  useRefreshOnFocus(() => Promise.all([refetch(), refetchCalls()]));
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -186,10 +183,13 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             <Text style={styles.infoValue}>{lead.phone ?? "—"}</Text>
           </Pressable>
           {lead.secondaryPhone ? (
-            <View style={styles.infoRow}>
+            <Pressable
+              onPress={() => lead.secondaryPhone && void dialWithConsentCheck(lead.secondaryPhone)}
+              style={styles.infoRow}
+            >
               <Text style={styles.infoLabel}>Secondary phone</Text>
               <Text style={styles.infoValue}>{lead.secondaryPhone}</Text>
-            </View>
+            </Pressable>
           ) : null}
           {lead.email ? (
             <View style={styles.infoRow}>

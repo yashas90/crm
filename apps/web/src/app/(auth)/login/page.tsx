@@ -14,8 +14,9 @@ import { useState } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@propninja.local");
-  const [password, setPassword] = useState("admin");
+  const isDev = process.env.NODE_ENV === "development";
+  const [email, setEmail] = useState(isDev ? "admin@propninja.local" : "");
+  const [password, setPassword] = useState(isDev ? "admin" : "");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(event: React.FormEvent) {
@@ -69,9 +70,11 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          Demo: admin@propninja.local / admin
-        </p>
+        {isDev ? (
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Demo: admin@propninja.local / admin
+          </p>
+        ) : null}
         <p className="mt-2 text-center text-sm text-muted-foreground">
           No account?{" "}
           <Link href="/register" className="font-medium text-primary hover:underline">

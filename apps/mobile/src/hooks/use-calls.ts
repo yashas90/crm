@@ -74,7 +74,7 @@ export function useTodayCalls() {
         `/api/calls?${params.toString()}`,
       ),
     enabled: ready,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -92,7 +92,7 @@ export function useTodayCallSummary() {
     queryKey: ["calls", "summary", "today", userId],
     queryFn: () => apiGet<CallSummary>(`/api/calls/summary?${params.toString()}`),
     enabled: ready,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   });
 }
 
