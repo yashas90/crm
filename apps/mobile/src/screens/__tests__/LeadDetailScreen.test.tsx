@@ -40,7 +40,10 @@ const leadId = "11111111-1111-4111-8111-111111111111";
 
 describe("LeadDetailScreen consent section", () => {
   beforeEach(() => {
-    mockUseReturnFromDialerLog.mockReturnValue({ beginCall: jest.fn() });
+    mockUseReturnFromDialerLog.mockReturnValue({
+      beginCall: jest.fn(),
+      resetCallTracking: jest.fn(),
+    });
     mockUseLogCall.mockReturnValue({ mutate: jest.fn(), isPending: false } as never);
     mockUseUpdateLead.mockReturnValue({ mutate: jest.fn(), isPending: false } as never);
     mockUseAddLeadNote.mockReturnValue({ mutate: jest.fn(), isPending: false } as never);

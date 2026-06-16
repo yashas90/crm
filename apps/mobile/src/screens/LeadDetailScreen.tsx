@@ -2,6 +2,7 @@ import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/compon
 import { ComplianceChip } from "@/components/ComplianceChip";
 import { LeadContactActions } from "@/components/LeadContactActions";
 import { LeadEditModal } from "@/components/LeadEditModal";
+import { TasksSection } from "@/components/TasksSection";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCalls, useLogCall } from "@/hooks/use-calls";
 import { type LeadActivity, useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
@@ -58,7 +59,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const addNote = useAddLeadNote(leadId);
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
-  const [tab, setTab] = useState<"calls" | "notes">("calls");
+  const [tab, setTab] = useState<"calls" | "notes" | "tasks">("calls");
   const [noteText, setNoteText] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
   const insets = useSafeAreaInsets();
@@ -277,6 +278,12 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             <Text style={[styles.tabText, tab === "calls" && styles.tabTextActive]}>Calls</Text>
           </Pressable>
           <Pressable
+            style={[styles.tab, tab === "tasks" && styles.tabActive]}
+            onPress={() => setTab("tasks")}
+          >
+            <Text style={[styles.tabText, tab === "tasks" && styles.tabTextActive]}>Tasks</Text>
+          </Pressable>
+          <Pressable
             style={[styles.tab, tab === "notes" && styles.tabActive]}
             onPress={() => setTab("notes")}
           >
@@ -284,7 +291,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           </Pressable>
         </View>
 
-        {tab === "calls" ? (
+        {tab === "tasks" ? (
+          <TasksSection leadId={leadId} />
+        ) : tab === "calls" ? (
           <View style={styles.panel}>
             {(callsData?.items ?? []).length === 0 ? (
               <Text style={styles.empty}>No calls logged yet.</Text>

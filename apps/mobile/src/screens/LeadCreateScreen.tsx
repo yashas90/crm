@@ -23,6 +23,9 @@ const LEAD_SOURCE_OPTIONS = [
   { label: "Walk-in", value: "walk-in" },
   { label: "Referral", value: "referral" },
   { label: "Campaign", value: "campaign" },
+  { label: "Facebook", value: "facebook" },
+  { label: "Google", value: "google" },
+  { label: "IVR", value: "ivr" },
   { label: "Other", value: "other" },
 ] as const;
 
@@ -33,6 +36,7 @@ export function LeadCreateScreen({ navigation }: Props) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
+  const [state, setState] = useState("");
   const [leadSource, setLeadSource] = useState<string>(LEAD_SOURCE_OPTIONS[0].value);
   const [tags, setTags] = useState("");
   const [nextFollowupAt, setNextFollowupAt] = useState<string | null>(null);
@@ -50,6 +54,7 @@ export function LeadCreateScreen({ navigation }: Props) {
         phone,
         email: email || undefined,
         city: city || undefined,
+        state: state || undefined,
         leadSource: leadSource || undefined,
         tags: tagList.length > 0 ? tagList : undefined,
         nextFollowupAt: nextFollowupAt ?? undefined,
@@ -74,6 +79,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           ["Phone *", phone, setPhone],
           ["Email", email, setEmail],
           ["City", city, setCity],
+          ["State", state, setState],
         ] as const
       ).map(([label, value, setter]) => (
         <View key={label} style={styles.field}>

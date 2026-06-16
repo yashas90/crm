@@ -15,6 +15,16 @@ import {
 
 const STATUSES = ["new", "contacted", "qualified", "negotiation", "won", "lost"] as const;
 const TEMPERATURES = ["cold", "warm", "hot"] as const;
+const LEAD_SOURCES = [
+  "portal",
+  "walk-in",
+  "referral",
+  "campaign",
+  "facebook",
+  "google",
+  "ivr",
+  "other",
+] as const;
 
 type LeadEditModalProps = {
   visible: boolean;
@@ -25,15 +35,27 @@ type LeadEditModalProps = {
 };
 
 export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: LeadEditModalProps) {
+  const [firstName, setFirstName] = useState(lead.firstName);
+  const [lastName, setLastName] = useState(lead.lastName ?? "");
+  const [email, setEmail] = useState(lead.email ?? "");
+  const [city, setCity] = useState(lead.city ?? "");
+  const [state, setState] = useState(lead.state ?? "");
   const [leadStatus, setLeadStatus] = useState(lead.leadStatus);
   const [temperature, setTemperature] = useState(lead.temperature ?? "");
+  const [leadSource, setLeadSource] = useState(lead.leadSource ?? "");
   const [secondaryPhone, setSecondaryPhone] = useState(lead.secondaryPhone ?? "");
   const [tags, setTags] = useState((lead.tags ?? []).join(", "));
   const [nextFollowupAt, setNextFollowupAt] = useState<string | null>(lead.nextFollowupAt);
 
   useEffect(() => {
+    setFirstName(lead.firstName);
+    setLastName(lead.lastName ?? "");
+    setEmail(lead.email ?? "");
+    setCity(lead.city ?? "");
+    setState(lead.state ?? "");
     setLeadStatus(lead.leadStatus);
     setTemperature(lead.temperature ?? "");
+    setLeadSource(lead.leadSource ?? "");
     setSecondaryPhone(lead.secondaryPhone ?? "");
     setTags((lead.tags ?? []).join(", "));
     setNextFollowupAt(lead.nextFollowupAt);
@@ -46,9 +68,15 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
       .filter(Boolean);
 
     onSave({
+      firstName: firstName.trim() || undefined,
+      lastName: lastName.trim() || undefined,
+      email: email.trim() || undefined,
+      city: city.trim() || undefined,
+      state: state.trim() || undefined,
       leadStatus,
       temperature: temperature || undefined,
-      secondaryPhone: secondaryPhone || undefined,
+      leadSource: leadSource || undefined,
+      secondaryPhone: secondaryPhone.trim() || undefined,
       tags: tagList,
       nextFollowupAt: nextFollowupAt ?? null,
     });
@@ -61,6 +89,60 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
           <Text style={styles.title}>Edit lead</Text>
 
           <ScrollView contentContainerStyle={styles.content}>
+            <SectionLabel text="Contact info" />
+            <FieldLabel text="First name *" />
+            <TextInput
+              style={styles.input}
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholderTextColor={colors.textMutedDark}
+              placeholder="First name"
+            />
+            <FieldLabel text="Last name" />
+            <TextInput
+              style={styles.input}
+              value={lastName}
+              onChangeText={setLastName}
+              placeholderTextColor={colors.textMutedDark}
+              placeholder="Last name"
+            />
+            <FieldLabel text="Email" />
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor={colors.textMutedDark}
+              placeholder="Email address"
+            />
+            <FieldLabel text="Secondary phone" />
+            <TextInput
+              style={styles.input}
+              value={secondaryPhone}
+              onChangeText={setSecondaryPhone}
+              keyboardType="phone-pad"
+              placeholderTextColor={colors.textMutedDark}
+              placeholder="Optional"
+            />
+            <FieldLabel text="City" />
+            <TextInput
+              style={styles.input}
+              value={city}
+              onChangeText={setCity}
+              placeholderTextColor={colors.textMutedDark}
+              placeholder="City"
+            />
+            <FieldLabel text="State" />
+            <TextInput
+              style={styles.input}
+              value={state}
+              onChangeText={setState}
+              placeholderTextColor={colors.textMutedDark}
+              placeholder="State"
+            />
+
+            <SectionLabel text="Lead status" />
             <FieldLabel text="Status" />
             <ChipRow options={STATUSES} value={leadStatus} onChange={(v) => setLeadStatus(v)} />
 
@@ -72,16 +154,15 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               allowEmpty
             />
 
-            <FieldLabel text="Secondary phone" />
-            <TextInput
-              style={styles.input}
-              value={secondaryPhone}
-              onChangeText={setSecondaryPhone}
-              keyboardType="phone-pad"
-              placeholderTextColor={colors.textMutedDark}
-              placeholder="Optional"
+            <FieldLabel text="Lead source" />
+            <ChipRow
+              options={LEAD_SOURCES}
+              value={leadSource}
+              onChange={setLeadSource}
+              allowEmpty
             />
 
+            <SectionLabel text="Follow-up & tags" />
             <FieldLabel text="Tags" />
             <TextInput
               style={styles.input}
@@ -90,7 +171,6 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               placeholder="comma, separated"
               placeholderTextColor={colors.textMutedDark}
             />
-
             <FieldLabel text="Next follow-up" />
             <FollowUpQuickPicker value={nextFollowupAt} onChange={setNextFollowupAt} />
           </ScrollView>
@@ -111,6 +191,10 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
       </View>
     </Modal>
   );
+}
+
+function SectionLabel({ text }: { text: string }) {
+  return <Text style={styles.sectionLabel}>{text}</Text>;
 }
 
 function FieldLabel({ text }: { text: string }) {
@@ -155,7 +239,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   sheet: {
-    maxHeight: "88%",
+    maxHeight: "92%",
     backgroundColor: colors.cardDark,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
@@ -170,6 +254,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   content: { paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: spacing.sm },
+  sectionLabel: {
+    color: colors.primaryLight,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginTop: spacing.sm,
+    marginBottom: 2,
+  },
   label: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600", marginTop: 4 },
   input: {
     backgroundColor: colors.backgroundDark,

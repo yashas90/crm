@@ -27,8 +27,10 @@ type FollowUpQuickPickerProps = {
 export function FollowUpQuickPicker({ value, onChange }: FollowUpQuickPickerProps) {
   const options = [
     { label: "Tomorrow", days: 1 },
-    { label: "In 3 days", days: 3 },
-    { label: "In 7 days", days: 7 },
+    { label: "3 days", days: 3 },
+    { label: "1 week", days: 7 },
+    { label: "2 weeks", days: 14 },
+    { label: "1 month", days: 30 },
   ] as const;
 
   return (

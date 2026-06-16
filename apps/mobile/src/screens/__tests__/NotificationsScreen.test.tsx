@@ -44,7 +44,7 @@ describe("NotificationsScreen", () => {
       isError: false,
       isRefetching: false,
       refetch: jest.fn(),
-    } as ReturnType<typeof useNotifications>);
+    } as never);
 
     mockUseMarkNotificationsRead.mockReturnValue({
       mutateAsync: jest.fn(),
