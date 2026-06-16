@@ -30,6 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       LSApplicationQueriesSchemes: ["tel", "whatsapp", "https"],
       ITSAppUsesNonExemptEncryption: false,
+      NSUserNotificationUsageDescription: "PropNinja sends follow-up reminders and lead alerts.",
     },
   },
   android: {
@@ -38,9 +39,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#0f172a",
     },
-    permissions: ["INTERNET"],
+    permissions: [
+      "INTERNET",
+      "RECEIVE_BOOT_COMPLETED",
+      "VIBRATE",
+      "android.permission.POST_NOTIFICATIONS",
+    ],
   },
-  plugins: ["expo-secure-store", "./plugins/withAndroidDialerQueries.js"],
+  plugins: ["expo-secure-store", "expo-notifications", "./plugins/withAndroidDialerQueries.js"],
   extra: {
     eas: {
       projectId: process.env.EAS_PROJECT_ID ?? EAS_PROJECT_ID,

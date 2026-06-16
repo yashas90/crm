@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useCurrentUser } from "@/hooks/use-auth";
+import { useTodayCallSummary } from "@/hooks/use-calls";
+import { useLeadScopeCounts } from "@/hooks/use-leads";
+import { useMyTasks } from "@/hooks/use-tasks";
 import { getApiUrl } from "@/lib/apiClient";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -25,6 +28,9 @@ type ProfileScreenProps = {
 export function ProfileScreen({ onLogout }: ProfileScreenProps) {
   const [loggingOut, setLoggingOut] = useState(false);
   const { data: user, isLoading, refetch, isRefetching } = useCurrentUser();
+  const { data: callSummary, refetch: refetchCalls } = useTodayCallSummary();
+  const { data: scopeCounts, refetch: refetchScope } = useLeadScopeCounts();
+  const { data: myTasks, refetch: refetchTasks } = useMyTasks();
   const insets = useSafeAreaInsets();
 
   async function handleLogout() {
@@ -34,6 +40,10 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
     } finally {
       setLoggingOut(false);
     }
+  }
+
+  function handleRefresh() {
+    void Promise.all([refetch(), refetchCalls(), refetchScope(), refetchTasks()]);
   }
 
   return (
@@ -46,7 +56,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
       refreshControl={
         <RefreshControl
           refreshing={isRefetching}
-          onRefresh={() => refetch()}
+          onRefresh={handleRefresh}
           tintColor={colors.primaryLight}
         />
       }
@@ -64,6 +74,22 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
         </View>
         <Text style={styles.name}>{user?.name ?? "—"}</Text>
         <Text style={styles.role}>{user?.role ?? "agent"}</Text>
+      </View>
+
+      <Text style={styles.sectionTitle}>Today's performance</Text>
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{callSummary?.total_calls ?? "—"}</Text>
+          <Text style={styles.statLabel}>Calls today</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{scopeCounts?.my ?? "—"}</Text>
+          <Text style={styles.statLabel}>My leads</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statValue}>{myTasks?.total ?? "—"}</Text>
+          <Text style={styles.statLabel}>Open tasks</Text>
+        </View>
       </View>
 
       <Text style={styles.sectionTitle}>Account</Text>
@@ -174,6 +200,31 @@ const styles = StyleSheet.create({
   label: { color: colors.textMutedDark, fontSize: 13, fontWeight: "600" },
   value: { color: colors.textDark, fontSize: 15 },
   mono: { fontSize: 12, lineHeight: 18 },
+  statsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.cardDark,
+    borderRadius: radii.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    alignItems: "center",
+  },
+  statValue: {
+    color: colors.primaryLight,
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  statLabel: {
+    color: colors.textMutedDark,
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: "center",
+  },
   logoutBtn: { marginTop: spacing.lg },
   linkBtn: { marginTop: spacing.sm },
   footer: {

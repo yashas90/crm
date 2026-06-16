@@ -7,6 +7,7 @@ import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { getDb } from "../lib/db.js";
 import { getJwtSecret } from "../lib/jwt.js";
 import { verifyPassword } from "../lib/password.js";
+import { jsonOk } from "../lib/response.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { loginRateLimit } from "../middleware/rateLimit.js";
 
@@ -83,4 +84,21 @@ authRoutes.get("/me", async (c) => {
       role: authUser.role,
     },
   });
+});
+
+const pushTokenSchema = z.object({ token: z.string().min(1).max(512) });
+
+authRoutes.post("/push-token", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = pushTokenSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json(
+      { ok: false, error: { code: "VALIDATION_ERROR", message: "Invalid token" } },
+      400,
+    );
+  }
+  const db = getDb();
+  await db.update(users).set({ expoPushToken: parsed.data.token }).where(eq(users.id, authUser.id));
+  return jsonOk(c, { registered: true });
 });

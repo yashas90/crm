@@ -1,10 +1,11 @@
 import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
-import { apiPost } from "@/lib/apiClient";
+import type { LeadRow } from "@/hooks/use-leads";
+import { apiGet, apiPost } from "@/lib/apiClient";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -34,12 +35,35 @@ export function LeadCreateScreen({ navigation }: Props) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [debouncedPhone, setDebouncedPhone] = useState("");
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [leadSource, setLeadSource] = useState<string>(LEAD_SOURCE_OPTIONS[0].value);
   const [tags, setTags] = useState("");
   const [nextFollowupAt, setNextFollowupAt] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length >= 10) {
+      debounceRef.current = setTimeout(() => setDebouncedPhone(digits), 600);
+    } else {
+      setDebouncedPhone("");
+    }
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [phone]);
+
+  const { data: dupCheck } = useQuery({
+    queryKey: ["leads", "dup-check", debouncedPhone],
+    queryFn: () =>
+      apiGet<{ items: LeadRow[]; total: number }>(`/api/leads?search=${debouncedPhone}&pageSize=5`),
+    enabled: Boolean(debouncedPhone),
+    staleTime: 10_000,
+  });
 
   const createLead = useMutation({
     mutationFn: () => {
@@ -69,36 +93,85 @@ export function LeadCreateScreen({ navigation }: Props) {
     },
   });
 
+  const dupMatches = debouncedPhone && (dupCheck?.items ?? []).length > 0 ? dupCheck!.items : [];
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>New lead</Text>
-      {(
-        [
-          ["First name *", firstName, setFirstName],
-          ["Last name", lastName, setLastName],
-          ["Phone *", phone, setPhone],
-          ["Email", email, setEmail],
-          ["City", city, setCity],
-          ["State", state, setState],
-        ] as const
-      ).map(([label, value, setter]) => (
-        <View key={label} style={styles.field}>
-          <Text style={styles.label}>{label}</Text>
-          <TextInput
-            style={styles.input}
-            value={value}
-            onChangeText={setter}
-            keyboardType={
-              label.includes("Phone")
-                ? "phone-pad"
-                : label.includes("Email")
-                  ? "email-address"
-                  : "default"
-            }
-            placeholderTextColor={colors.textMutedDark}
-          />
-        </View>
-      ))}
+
+      <View style={styles.field}>
+        <Text style={styles.label}>First name *</Text>
+        <TextInput
+          style={styles.input}
+          value={firstName}
+          onChangeText={setFirstName}
+          placeholderTextColor={colors.textMutedDark}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Last name</Text>
+        <TextInput
+          style={styles.input}
+          value={lastName}
+          onChangeText={setLastName}
+          placeholderTextColor={colors.textMutedDark}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Phone *</Text>
+        <TextInput
+          style={[styles.input, dupMatches.length > 0 && styles.inputWarn]}
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          placeholderTextColor={colors.textMutedDark}
+        />
+        {dupMatches.length > 0 ? (
+          <View style={styles.dupWarn}>
+            <Text style={styles.dupWarnTitle}>
+              ⚠️ {dupMatches.length} existing lead{dupMatches.length > 1 ? "s" : ""} with this number
+            </Text>
+            {dupMatches.slice(0, 3).map((d) => (
+              <Text key={d.id} style={styles.dupWarnRow}>
+                {d.firstName} {d.lastName} · {d.leadStatus}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          placeholderTextColor={colors.textMutedDark}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>City</Text>
+        <TextInput
+          style={styles.input}
+          value={city}
+          onChangeText={setCity}
+          placeholderTextColor={colors.textMutedDark}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>State</Text>
+        <TextInput
+          style={styles.input}
+          value={state}
+          onChangeText={setState}
+          placeholderTextColor={colors.textMutedDark}
+        />
+      </View>
 
       <View style={styles.field}>
         <Text style={styles.label}>Lead source</Text>
@@ -168,6 +241,19 @@ const styles = StyleSheet.create({
     color: colors.textDark,
     padding: spacing.sm,
   },
+  inputWarn: {
+    borderColor: "#f59e0b",
+  },
+  dupWarn: {
+    marginTop: 6,
+    backgroundColor: "rgba(245,158,11,0.1)",
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.35)",
+    padding: spacing.sm,
+  },
+  dupWarnTitle: { color: "#f59e0b", fontSize: 12, fontWeight: "700", marginBottom: 4 },
+  dupWarnRow: { color: colors.textMutedDark, fontSize: 12, marginTop: 2 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     borderRadius: radii.pill,

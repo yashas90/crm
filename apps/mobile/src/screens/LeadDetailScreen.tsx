@@ -14,6 +14,7 @@ import {
   useTcfForLead,
   useUpsertTcfConsent,
 } from "@/hooks/useTcf";
+import { getCurrentUserId } from "@/lib/auth";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
@@ -215,12 +216,32 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               <Text style={styles.infoValue}>{lead.email}</Text>
             </View>
           ) : null}
-          {lead.assignedUser ? (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Assigned to</Text>
-              <Text style={styles.infoValue}>{lead.assignedUser.name}</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Assigned to</Text>
+            <View style={styles.assignedRow}>
+              <Text style={styles.infoValue}>{lead.assignedUser?.name ?? "Unassigned"}</Text>
+              {lead.assignedUser?.id !== getCurrentUserId() ? (
+                <Pressable
+                  style={styles.claimButton}
+                  onPress={() =>
+                    updateLead.mutate(
+                      { leadId: lead.id, payload: { assignedTo: getCurrentUserId() } },
+                      {
+                        onError: (err) =>
+                          Alert.alert(
+                            "Error",
+                            err instanceof Error ? err.message : "Failed to assign lead.",
+                          ),
+                      },
+                    )
+                  }
+                  disabled={updateLead.isPending}
+                >
+                  <Text style={styles.claimButtonText}>Assign to me</Text>
+                </Pressable>
+              ) : null}
             </View>
-          ) : null}
+          </View>
           {(lead.tags ?? []).length > 0 ? (
             <View style={styles.badgesRow}>
               {lead.tags!.map((tag) => (
@@ -559,6 +580,16 @@ const styles = StyleSheet.create({
   infoRow: { marginBottom: 8 },
   infoLabel: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
   infoValue: { color: colors.textDark, fontSize: 16, marginTop: 2 },
+  assignedRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 },
+  claimButton: {
+    backgroundColor: "rgba(20,184,166,0.15)",
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "rgba(20,184,166,0.3)",
+  },
+  claimButtonText: { color: colors.primaryLight, fontSize: 12, fontWeight: "700" },
   badgesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   badge: {
     backgroundColor: colors.backgroundDark,

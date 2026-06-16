@@ -58,6 +58,7 @@ export const users = pgTable(
     phone: text("phone"),
     passwordHash: text("password_hash"),
     isActive: boolean("is_active").notNull().default(true),
+    expoPushToken: text("expo_push_token"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

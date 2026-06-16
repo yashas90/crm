@@ -7,6 +7,7 @@ import {
   loadAuth,
   setAuth as persistAuth,
 } from "@/lib/auth";
+import { registerPushToken } from "@/lib/pushNotifications";
 import { queryClient } from "@/lib/queryClient";
 import {
   type ReactNode,
@@ -47,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(sessionUser);
     setStatus("authenticated");
     await queryClient.invalidateQueries();
+    void registerPushToken();
   }, []);
 
   const logout = useCallback(async () => {
