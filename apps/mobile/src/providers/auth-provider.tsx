@@ -1,3 +1,4 @@
+import { setUnauthorizedHandler } from "@/lib/apiClient";
 import {
   type SessionUser,
   clearAuth,
@@ -7,7 +8,6 @@ import {
   setAuth as persistAuth,
 } from "@/lib/auth";
 import { queryClient } from "@/lib/queryClient";
-import { setUnauthorizedHandler } from "@/lib/apiClient";
 import {
   type ReactNode,
   createContext,

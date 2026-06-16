@@ -140,8 +140,12 @@ function leadScopeFromQuery(query: {
   };
 }
 
-function callScopeFilter(scope: ReportScope) {
-  const base = callStartedFilter(scope, scope.userId);
+type CallsUserScope = Pick<CallsReportQuery, "userId" | "userIds">;
+
+function callScopeFilter(scope: ReportScope, userScope?: CallsUserScope) {
+  const userIds = userScope?.userIds;
+  const userId = userIds?.length ? undefined : (userScope?.userId ?? scope.userId);
+  const base = callStartedFilter(scope, userId, userIds);
   if (!scope.status) return base;
 
   return and(
@@ -154,8 +158,10 @@ function callScopeFilter(scope: ReportScope) {
   );
 }
 
-function activityScopeFilter(scope: ReportScope) {
-  const base = leadActivityFilter(scope, scope.userId);
+function activityScopeFilter(scope: ReportScope, userScope?: CallsUserScope) {
+  const userIds = userScope?.userIds;
+  const userId = userIds?.length ? undefined : (userScope?.userId ?? scope.userId);
+  const base = leadActivityFilter(scope, userId, userIds);
   if (!scope.status) return base;
 
   return and(
@@ -248,18 +254,46 @@ function callPerUserScopeFilter(query: CallsReportQuery) {
   return and(...filters);
 }
 
-function leadActivityFilter(range: DateRange, userId?: string) {
+function leadActivityFilter(range: DateRange, userId?: string, userIds?: string[]) {
   const filters = [
     eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
     gte(leadActivities.createdAt, range.dateFrom),
     lte(leadActivities.createdAt, range.dateTo),
   ];
 
-  if (userId) {
+  if (userIds?.length) {
+    filters.push(inArray(leadActivities.userId, userIds));
+  } else if (userId) {
     filters.push(eq(leadActivities.userId, userId));
   }
 
   return and(...filters);
+}
+
+/** Expand selected manager(s) to include users who report to them (direct reports only). */
+async function expandCallsReportUserScope(query: CallsReportQuery): Promise<CallsReportQuery> {
+  if (!query.withTeam) return query;
+
+  const managerIds = query.userIds?.length ? query.userIds : query.userId ? [query.userId] : [];
+
+  if (managerIds.length === 0) return query;
+
+  const directReports = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), inArray(users.reportingToId, managerIds)));
+
+  const userIds = [...new Set([...managerIds, ...directReports.map((row) => row.id)])];
+
+  return {
+    ...query,
+    userId: undefined,
+    userIds,
+  };
+}
+
+async function resolveCallsReportQuery(query: CallsReportQuery) {
+  return expandCallsReportUserScope(query);
 }
 
 function buildActivityOnLeadsOverTime(
@@ -517,14 +551,15 @@ async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
 }
 
 async function fetchCallsReportPerUserPaginated(query: CallsReportQuery) {
-  const page = query.page ?? 1;
-  const pageSize = query.pageSize ?? 50;
+  const scopedQuery = await resolveCallsReportQuery(query);
+  const page = scopedQuery.page ?? 1;
+  const pageSize = scopedQuery.pageSize ?? 50;
   const offset = (page - 1) * pageSize;
 
   const [total, items, totals] = await Promise.all([
-    countCallsPerUserGroups(query),
-    fetchCallsPerUserRows(query, { limit: pageSize, offset }),
-    fetchCallsPerUserGrandTotals(query),
+    countCallsPerUserGroups(scopedQuery),
+    fetchCallsPerUserRows(scopedQuery, { limit: pageSize, offset }),
+    fetchCallsPerUserGrandTotals(scopedQuery),
   ]);
 
   return { items, total, page, pageSize, totals };
@@ -610,17 +645,23 @@ export const reportService = {
   },
 
   async exportCallsReportPerUserCsv(query: CallsReportQuery) {
+    const scopedQuery = await resolveCallsReportQuery(query);
     const [items, totals] = await Promise.all([
-      fetchCallsPerUserRows(query),
-      fetchCallsPerUserGrandTotals(query),
+      fetchCallsPerUserRows(scopedQuery),
+      fetchCallsPerUserGrandTotals(scopedQuery),
     ]);
     return buildCallsUserReportCsv(items, totals);
   },
 
   async getCallsReport(query: CallsReportQuery) {
-    const scope = leadScopeFromQuery(query);
-    const callWhere = callScopeFilter(scope);
-    const activityWhere = activityScopeFilter(scope);
+    const scopedQuery = await resolveCallsReportQuery(query);
+    const scope = leadScopeFromQuery(scopedQuery);
+    const userScope: CallsUserScope = {
+      userId: scopedQuery.userId,
+      userIds: scopedQuery.userIds,
+    };
+    const callWhere = callScopeFilter(scope, userScope);
+    const activityWhere = activityScopeFilter(scope, userScope);
 
     const [
       callsOverTime,

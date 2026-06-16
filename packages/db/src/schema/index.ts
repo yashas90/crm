@@ -331,6 +331,46 @@ export const tcfConsents = pgTable(
   ],
 );
 
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    leadId: uuid("lead_id").references(() => leads.id),
+    assignedTo: uuid("assigned_to").references(() => users.id),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    title: text("title").notNull(),
+    description: text("description"),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    priority: text("priority").notNull().default("medium"),
+    status: text("status").notNull().default("pending"),
+    taskType: text("task_type").notNull().default("follow_up"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("tasks_priority_check", sql`${table.priority} in ('low', 'medium', 'high', 'urgent')`),
+    check(
+      "tasks_status_check",
+      sql`${table.status} in ('pending', 'in_progress', 'completed', 'cancelled')`,
+    ),
+    check(
+      "tasks_task_type_check",
+      sql`${table.taskType} in ('call', 'meeting', 'follow_up', 'document', 'site_visit', 'other')`,
+    ),
+    index("tasks_org_id_idx").on(table.orgId),
+    index("tasks_lead_id_idx").on(table.leadId),
+    index("tasks_assigned_to_idx").on(table.assignedTo),
+    index("tasks_due_at_idx").on(table.dueAt),
+    index("tasks_status_idx").on(table.status),
+  ],
+);
+
 export const userRolesRelations = relations(userRoles, () => ({}));
 
 export const organizationsRelations = relations(organizations, ({ many }) => ({
@@ -393,6 +433,7 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
   activities: many(leadActivities),
   consents: many(tcfConsents),
   adLeads: many(adLeads),
+  tasks: many(tasks),
 }));
 
 export const adLeadsRelations = relations(adLeads, ({ one }) => ({
@@ -448,5 +489,24 @@ export const tcfConsentsRelations = relations(tcfConsents, ({ one }) => ({
   lead: one(leads, {
     fields: [tcfConsents.leadId],
     references: [leads.id],
+  }),
+}));
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [tasks.orgId],
+    references: [organizations.id],
+  }),
+  lead: one(leads, {
+    fields: [tasks.leadId],
+    references: [leads.id],
+  }),
+  assignee: one(users, {
+    fields: [tasks.assignedTo],
+    references: [users.id],
+  }),
+  creator: one(users, {
+    fields: [tasks.createdBy],
+    references: [users.id],
   }),
 }));

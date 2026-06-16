@@ -1,3 +1,5 @@
+import { users } from "@propninja/db";
+import { eq } from "drizzle-orm";
 import type { Context, Next } from "hono";
 import { jwtVerify } from "jose";
 import { getDb } from "../lib/db.js";
@@ -43,24 +45,34 @@ export const authMiddleware = async (c: Context, next: Next) => {
   try {
     const { payload } = await jwtVerify(token, getJwtSecret());
     const sub = payload.sub;
-    const role = payload.role;
-    const email = payload.email;
-    const name = payload.name;
 
-    if (
-      typeof sub !== "string" ||
-      (role !== "admin" && role !== "manager" && role !== "agent") ||
-      typeof email !== "string" ||
-      typeof name !== "string"
-    ) {
+    if (typeof sub !== "string") {
       return c.json(
         { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid token claims" } },
         401,
       );
     }
 
-    c.set("authUser", { id: sub, role, email, name });
-    c.set("db", getDb());
+    const db = getDb();
+    const [row] = await db.select().from(users).where(eq(users.id, sub)).limit(1);
+
+    if (!row?.isActive) {
+      return c.json(
+        { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid or expired token" } },
+        401,
+      );
+    }
+
+    const role = row.role;
+    if (role !== "admin" && role !== "manager" && role !== "agent") {
+      return c.json(
+        { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid token claims" } },
+        401,
+      );
+    }
+
+    c.set("authUser", { id: row.id, role, email: row.email, name: row.name });
+    c.set("db", db);
     await next();
   } catch {
     return c.json(

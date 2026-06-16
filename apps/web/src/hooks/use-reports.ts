@@ -193,6 +193,8 @@ export type DashboardReportParams = {
   dateFrom?: string;
   dateTo?: string;
   userId?: string;
+  userIds?: string[];
+  withTeam?: boolean;
   status?: string;
 };
 
@@ -202,6 +204,7 @@ export type CallsUserReportParams = DashboardReportParams & {
   userStatus?: CallsUserStatusFilter;
   userName?: string;
   userIds?: string[];
+  withTeam?: boolean;
   source?: string;
   subSource?: string;
   projectName?: string;
@@ -233,6 +236,7 @@ export function buildCallsUserReportQuery(
   if (params.projectName) search.set("project_name", params.projectName);
   if (params.projectStatus) search.set("project_status", params.projectStatus);
   if (params.campaignName) search.set("campaign_name", params.campaignName);
+  if (params.withTeam) search.set("with_team", "true");
   if (options?.includePagination !== false) {
     search.set("page", String(params.page ?? 1));
     search.set("page_size", String(params.pageSize ?? 50));
@@ -251,7 +255,12 @@ function buildReportQuery(params: DashboardReportParams) {
   const search = new URLSearchParams();
   if (params.dateFrom) search.set("date_from", params.dateFrom);
   if (params.dateTo) search.set("date_to", params.dateTo);
-  if (params.userId) search.set("user_id", params.userId);
+  if (params.userIds?.length) {
+    search.set("user_ids", params.userIds.join(","));
+  } else if (params.userId) {
+    search.set("user_id", params.userId);
+  }
+  if (params.withTeam) search.set("with_team", "true");
   if (params.status) search.set("status", params.status);
   return search.toString();
 }
@@ -284,7 +293,16 @@ export function useCallsReport(params: DashboardReportParams, options?: { enable
   const query = buildReportQuery(params);
 
   return useQuery({
-    queryKey: ["reports", "calls", params.dateFrom, params.dateTo, params.userId, params.status],
+    queryKey: [
+      "reports",
+      "calls",
+      params.dateFrom,
+      params.dateTo,
+      params.userId,
+      params.userIds,
+      params.withTeam ?? false,
+      params.status,
+    ],
     queryFn: () => apiGet<CallsReport>(`/api/reports/calls${withDateRange(query)}`),
     enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
@@ -303,6 +321,7 @@ export function useCallsUserReport(params: CallsUserReportParams, options?: { en
       params.dateTo,
       params.userId,
       params.userIds,
+      params.withTeam ?? false,
       params.status,
       userStatus,
       userName,

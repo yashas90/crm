@@ -10,5 +10,6 @@ export type MainTabParamList = {
   HomeTab: undefined;
   LeadsTab: NavigatorScreenParams<LeadsStackParamList> | undefined;
   TodayTab: { focusQueue?: boolean } | undefined;
+  NotificationsTab: undefined;
   ProfileTab: undefined;
 };

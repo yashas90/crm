@@ -62,3 +62,16 @@ export function countActiveCallsReportFilters(filters: CallsReportFilterState): 
   if (filters.datePreset !== "last7") count += 1;
   return count;
 }
+
+/** Shared lead/user filter fields for calls report API requests. */
+export function callsReportFiltersToQueryParams(filters: CallsReportFilterState) {
+  return {
+    userIds: filters.userIds.length > 0 ? filters.userIds : undefined,
+    withTeam: filters.withTeam || undefined,
+    source: filters.source || undefined,
+    subSource: filters.subSource || undefined,
+    projectName: filters.projectName || undefined,
+    projectStatus: filters.projectStatus || undefined,
+    campaignName: filters.campaignName || undefined,
+  };
+}

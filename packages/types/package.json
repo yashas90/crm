@@ -35,13 +35,14 @@
   },
   "scripts": {
     "lint": "biome check .",
-    "test": "echo \"No tests yet\""
+    "test": "vitest run && tsc --noEmit"
   },
   "dependencies": {
     "@propninja/db": "workspace:*"
   },
   "devDependencies": {
     "@propninja/config": "workspace:*",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.3"
   }
 }

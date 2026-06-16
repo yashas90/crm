@@ -155,6 +155,7 @@ function parseCallsReportRequest(
  * - `user_status` — `all` | `active` | `inactive` (filters `users.is_active`)
  * - `user_name` — partial match on `users.name` (ilike)
  * - `source`, `sub_source`, `project_name`, `project_status`, `campaign_name` — lead-linked filters
+ * - `with_team=true` — include direct reports of selected user(s) via `users.reporting_to_id`
  * - `page`, `page_size` — pagination (default page 1, size 50)
  *
  * CSV export: GET /api/reports/calls/export?group_by=user&… (same filters, no pagination).

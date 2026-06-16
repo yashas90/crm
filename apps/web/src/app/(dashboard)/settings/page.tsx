@@ -1,13 +1,17 @@
 "use client";
 
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
-import { apiGet } from "@/lib/apiClient";
+import { ApiRequestError, apiGet, apiPatch } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { Input } from "@propninja/ui/input";
+import { Label } from "@propninja/ui/label";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Plug } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 type OrgRecord = {
   id: string;
@@ -18,12 +22,56 @@ type OrgRecord = {
   createdAt: string;
 };
 
+function readSetting(settings: Record<string, unknown>, key: string): string {
+  const value = settings[key];
+  return typeof value === "string" ? value : "";
+}
+
 export default function SettingsPage() {
   const { session, ready, isAdmin } = useSession();
+  const { hasPermission } = usePermissions();
+  const canUpdateOrg = hasPermission("org_profile:update");
+  const queryClient = useQueryClient();
+
   const org = useQuery({
     queryKey: ["org"],
     queryFn: () => apiGet<OrgRecord>("/api/org"),
   });
+
+  const [name, setName] = useState("");
+  const [website, setWebsite] = useState("");
+  const [timezone, setTimezone] = useState("");
+
+  useEffect(() => {
+    if (!org.data) return;
+    setName(org.data.name);
+    setWebsite(readSetting(org.data.settings ?? {}, "website"));
+    setTimezone(readSetting(org.data.settings ?? {}, "timezone"));
+  }, [org.data]);
+
+  const saveOrg = useMutation({
+    mutationFn: (body: { name: string; website: string; timezone: string }) =>
+      apiPatch<OrgRecord>("/api/org", {
+        name: body.name.trim(),
+        website: body.website.trim() || null,
+        timezone: body.timezone.trim() || null,
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["org"], data);
+      toast.success("Organization settings saved.");
+    },
+    onError: (error) => {
+      const message =
+        error instanceof ApiRequestError ? error.message : "Failed to update organization.";
+      toast.error(message);
+    },
+  });
+
+  function handleOrgSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canUpdateOrg) return;
+    saveOrg.mutate({ name, website, timezone });
+  }
 
   return (
     <div className="space-y-6">
@@ -56,17 +104,80 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Organization</CardTitle>
-          <CardDescription>Read-only org profile from the API.</CardDescription>
+          <CardDescription>
+            {canUpdateOrg
+              ? "Update your organization profile and defaults."
+              : "Organization profile (read-only)."}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
+        <CardContent className="space-y-4 text-sm">
           {org.isLoading ? (
             <p className="text-muted-foreground">Loading organization...</p>
           ) : org.isError || !org.data ? (
             <p className="text-muted-foreground">Unable to load organization.</p>
+          ) : canUpdateOrg ? (
+            <form className="space-y-4" onSubmit={handleOrgSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="org-name">Name</Label>
+                <Input
+                  id="org-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="org-website">Website</Label>
+                <Input
+                  id="org-website"
+                  type="url"
+                  placeholder="https://example.com"
+                  value={website}
+                  onChange={(event) => setWebsite(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="org-timezone">Timezone</Label>
+                <Input
+                  id="org-timezone"
+                  placeholder="Asia/Kolkata"
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">IANA timezone, e.g. Asia/Kolkata.</p>
+              </div>
+
+              <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Slug:</span> {org.data.slug}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Plan:</span> {org.data.subscriptionTier}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Created:</span>{" "}
+                  {new Date(org.data.createdAt).toLocaleString()}
+                </p>
+              </div>
+
+              <Button type="submit" disabled={saveOrg.isPending}>
+                {saveOrg.isPending ? "Saving..." : "Save changes"}
+              </Button>
+            </form>
           ) : (
             <>
               <p>
                 <span className="text-muted-foreground">Name:</span> {org.data.name}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Website:</span>{" "}
+                {readSetting(org.data.settings ?? {}, "website") || "—"}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Timezone:</span>{" "}
+                {readSetting(org.data.settings ?? {}, "timezone") || "—"}
               </p>
               <p>
                 <span className="text-muted-foreground">Slug:</span> {org.data.slug}
@@ -78,13 +189,6 @@ export default function SettingsPage() {
                 <span className="text-muted-foreground">Created:</span>{" "}
                 {new Date(org.data.createdAt).toLocaleString()}
               </p>
-              {Object.keys(org.data.settings ?? {}).length > 0 ? (
-                <pre className="mt-2 overflow-auto rounded-lg bg-muted/40 p-3 text-xs">
-                  {JSON.stringify(org.data.settings, null, 2)}
-                </pre>
-              ) : (
-                <p className="text-muted-foreground">No custom settings configured.</p>
-              )}
             </>
           )}
         </CardContent>

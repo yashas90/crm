@@ -40,6 +40,24 @@ export const defaultLeadsUrlFilters = (): LeadsUrlFilters => ({
   datePreset: "all",
 });
 
+/** Normalize comma-separated tag filter for URL/API (trim, dedupe order preserved). */
+export function normalizeTagsFilter(raw: string): string {
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const part of raw.split(",")) {
+    const tag = part.trim();
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+  return tags.join(",");
+}
+
+export function tagsFilterToApiParam(tags: string): string | undefined {
+  const normalized = normalizeTagsFilter(tags);
+  return normalized || undefined;
+}
+
 export function parseLeadsSearchParams(params: URLSearchParams): LeadsUrlFilters {
   const from = params.get("from") ?? undefined;
   const to = params.get("to") ?? undefined;
@@ -54,7 +72,7 @@ export function parseLeadsSearchParams(params: URLSearchParams): LeadsUrlFilters
     temperature: params.get("temperature") ?? "",
     source: params.get("source") ? normalizeLeadSourceValue(params.get("source")!) : "",
     adLeadsOnly: params.get("ad_leads") === "true",
-    tags: "",
+    tags: normalizeTagsFilter(params.get("tags") ?? ""),
     myLeadsOnly: scopeParam === "my" || params.get("my_leads") === "true",
     unassigned: scopeParam === "unassigned" || params.get("unassigned") === "true",
     activeOnly: params.get("active") === "true",
@@ -102,6 +120,9 @@ export function buildLeadsSearchParams(
 
   if (filters.temperature) params.set("temperature", filters.temperature);
 
+  const tags = tagsFilterToApiParam(filters.tags);
+  if (tags) params.set("tags", tags);
+
   if (filters.dateFrom) params.set("from", filters.dateFrom);
   if (filters.dateTo && filters.dateTo !== filters.dateFrom) {
     params.set("to", filters.dateTo);
@@ -118,6 +139,7 @@ export function countAdvancedLeadsFilters(filters: LeadsUrlFilters) {
   if (filters.source.trim() || filters.adLeadsOnly) count += 1;
   if (filters.temperature) count += 1;
   if (filters.followUpFilter) count += 1;
+  if (tagsFilterToApiParam(filters.tags)) count += 1;
   return count;
 }
 
@@ -132,6 +154,7 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
       teamLeads: scopeParams.teamLeads,
       duplicatesOnly: scopeParams.duplicatesOnly,
       excludeDuplicates: scopeParams.excludeDuplicates,
+      reEnquiredOnly: scopeParams.reEnquiredOnly,
     };
   }
 
@@ -142,6 +165,7 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
     teamLeads: undefined,
     duplicatesOnly: scopeParams.duplicatesOnly,
     excludeDuplicates: scopeParams.excludeDuplicates ?? "true",
+    reEnquiredOnly: scopeParams.reEnquiredOnly,
   };
 }
 
@@ -161,6 +185,7 @@ export function leadsSharedFiltersToQuery(filters: LeadsUrlFilters) {
         ? normalizeLeadSourceValue(filters.source)
         : undefined,
     adLeads: filters.adLeadsOnly ? ("true" as const) : undefined,
+    tags: tagsFilterToApiParam(filters.tags),
     dateFrom: dateRange.dateFrom,
     dateTo: dateRange.dateTo,
   };
@@ -188,6 +213,7 @@ export function leadsBaseFiltersToQuery(
         ? normalizeLeadSourceValue(filters.source)
         : undefined,
     adLeads: filters.adLeadsOnly ? ("true" as const) : undefined,
+    tags: tagsFilterToApiParam(filters.tags),
     assignedTo: assignment.assignedTo,
     unassigned: assignment.unassigned,
     deletedOnly: assignment.deletedOnly,

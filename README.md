@@ -10,7 +10,7 @@ Single-tenant real estate CRM for a small sales team: **web back-office**, **mob
 | Mobile | React Native, Expo, React Navigation |
 | API | Hono (Node), Zod validation |
 | Data | PostgreSQL, Drizzle ORM (`packages/db`) |
-| Auth | JWT (`AUTH_JWT_SECRET`), bcrypt passwords, `GET /api/auth/me` |
+| Auth | JWT (`AUTH_JWT_SECRET`), bcrypt passwords; API re-validates user on each request; web uses localStorage + session cookie middleware |
 | Tooling | pnpm workspaces, Turborepo, Biome, Vitest |
 
 ## Monorepo layout
@@ -30,30 +30,36 @@ packages/
 ## Features
 
 ### Web (`apps/web`)
-- **Leads** — list, search/filter, create, edit, delete (admin), notes, tags, assignment
+- **Leads** — list, search/filter, scopes (my/team/unassigned/deleted/duplicate/re-enquired), page sizes 10–500, **CSV bulk import**, bulk actions, create, edit, delete (admin), notes, tags, assignment
 - **Ad leads** — “Ad Leads” quick filter, Facebook/Google source presets, ad-lead detail panel (campaign, form, external ID)
 - **Lead detail** — contact info, timeline, calls, TCF consent panel, estimated value
+- **Projects** — list, wizard, edit, delete, availability toggle (gallery step is metadata-only; no file upload)
 - **Reports** — dashboard (including **Leads from Source** via `/api/reports/sources`), leads analytics, **Leads – Call Report** (per-user tabular calls with filters, export, pagination), team performance (manager/admin)
 - **Users** — team list; role/active edits (admin)
-- **Settings** — org display; **Integrations** status (Meta + Google Ads)
+- **Settings** — org display (read-only); **Integrations** status (Meta + Google Ads); audit log
+- **Notifications** — in-app bell, mark-read
 - **TCF** — view and update call/SMS/email consent per lead
+- Auth: JWT in localStorage; Next.js middleware checks `propninja_session` cookie on dashboard routes
 - Role-aware nav and graceful 403 handling for agents
 
 ### Mobile (`apps/mobile`)
-- **SIM calling** — opens device dialer; logs calls via API after the call
-- **Leads** — assigned leads, create lead, detail with edit + notes
+- **SIM calling** — opens device dialer; logs calls via API after the call; auto-prompt log sheet on return
+- **Leads** — infinite scroll, filters, assigned leads, create lead, detail with edit + notes
 - **Today queue** — follow-ups due today; tap card for detail, Call / Log actions
-- **TCF** — compliance chip before dial (“OK to call” / “Do not call” / unknown)
-- JWT auth stored in SecureStore; profile + logout
+- **TCF** — call consent read/write on lead detail; SMS/email read-only; dial guard before “Do not call”
+- **Notifications** — inbox tab with unread badge; mark-read; navigate to lead from payload
+- JWT auth stored in SecureStore; 401 logout; profile + logout; ~30s polling refresh
+- EAS build support — see [DEPLOY.md](DEPLOY.md) and [EAS_SETUP.md](EAS_SETUP.md)
 
 ### API (`apps/api`)
-- **Auth** — DB login, JWT issue/verify, `/api/auth/me`
-- **Permissions** — admin / manager / agent scoping on leads, reports, users
-- **Leads & calls** — CRUD, notes, assign; mobile-only `POST /api/calls/log`
+- **Auth** — DB login, JWT issue/verify, `/api/auth/me`; inactive users rejected on every request
+- **Permissions** — admin / manager / agent scoping on leads, reports, users, TCF (per lead)
+- **Leads & calls** — CRUD, notes, assign, **bulk import**; mobile `POST /api/calls/log`
+- **Projects, notifications, audit logs** — CRUD or list endpoints as applicable
 - **Ad lead ingest** — Meta Lead Ads webhook (`/api/integrations/meta/webhook`), Google Ads polling job, dedup + tagging
-- **Reports** — overview, sources, dashboard, leads/calls analytics (`ad_leads` filter), team-today
-- **Integrations** — `GET /api/integrations/status` (sync health, webhook signature, scoping)
-- **TCF** — consent read/write per channel
+- **Reports** — overview, sources, dashboard, leads/calls analytics (`ad_leads` filter), team-today, CSV export
+- **Integrations** — `GET /api/integrations/status` (sync health, webhook signature, scoping); credentials via env ([INTEGRATIONS.md](INTEGRATIONS.md))
+- **TCF** — consent read/write per channel; lead authorization on all routes
 - **Users** — list and admin patch
 
 ## Local development
@@ -153,12 +159,18 @@ Other useful commands:
 
 ```bash
 pnpm lint          # turbo lint (Biome per package)
-pnpm test          # turbo test (Vitest: api, web, db)
+pnpm test          # turbo test
 pnpm build         # turbo build (api tsc, web next build)
 pnpm check         # Biome format + lint with auto-fix (root)
 ```
 
-**GitHub Actions** — `.github/workflows/ci.yml` runs on every push and PR: Postgres service → `pnpm install` → migrate → seed → `pnpm check:ci`.
+**Test coverage notes:**
+- **API** — Vitest unit tests plus integration tests against Postgres (skipped locally if DB unavailable)
+- **Web / db** — Vitest unit/component tests
+- **Mobile, types, ui** — stub `"No tests yet"` scripts (CI passes without mobile tests)
+- CI does not run Expo builds or E2E tests
+
+**GitHub Actions** — `.github/workflows/ci.yml` runs on every push and PR: Postgres 16 service → `pnpm install` → migrate → seed → `pnpm check:ci`.
 
 ## Production deploy
 

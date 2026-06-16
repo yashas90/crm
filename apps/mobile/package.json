@@ -9,7 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "lint": "biome check .",
-    "test": "echo \"No tests yet\"",
+    "test": "jest --ci",
     "eas:login": "eas login",
     "eas:init": "eas init",
     "eas:build:android": "eas build --platform android --profile production",
@@ -40,8 +40,12 @@
   "devDependencies": {
     "@babel/core": "^7.27.4",
     "@propninja/config": "workspace:*",
+    "@testing-library/react-native": "^13.2.0",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.0.14",
     "eas-cli": "^16.28.0",
+    "jest": "^29.7.0",
+    "jest-expo": "~53.0.9",
     "typescript": "^5.8.3"
   }
 }

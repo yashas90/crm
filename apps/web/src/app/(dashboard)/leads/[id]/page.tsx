@@ -9,6 +9,7 @@ import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
 import { LeadEditForm } from "@/components/leads/lead-edit-form";
 import { LeadTagsEditor } from "@/components/leads/lead-tags-editor";
 import { ComplianceChip, TcfConsentPanel } from "@/components/leads/tcf-consent-panel";
+import { TasksPanel } from "@/components/tasks/tasks-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAddLeadNote, useCalls, useLead } from "@/hooks/use-leads";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -23,7 +24,16 @@ import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { Label } from "@propninja/ui/label";
 import { cn } from "@propninja/ui/lib/utils";
-import { CalendarClock, Copy, Mail, MapPin, MoreHorizontal, Phone, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  Copy,
+  Mail,
+  MapPin,
+  MessageCircle,
+  MoreHorizontal,
+  Phone,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -271,6 +281,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   label="Primary phone"
                   value={lead.phone}
                   onCopy={() => copyText(lead.phone!, "Phone")}
+                  whatsapp={lead.phone}
                 />
               ) : null}
               {lead.secondaryPhone ? (
@@ -279,6 +290,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   label="Secondary phone"
                   value={lead.secondaryPhone}
                   onCopy={() => copyText(lead.secondaryPhone!, "Secondary phone")}
+                  whatsapp={lead.secondaryPhone}
                 />
               ) : null}
               {lead.email ? (
@@ -361,12 +373,16 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
               <Tabs defaultValue="timeline">
                 <TabsList>
                   <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                  <TabsTrigger value="tasks">Tasks</TabsTrigger>
                   <TabsTrigger value="calls">Calls</TabsTrigger>
                   <TabsTrigger value="activity">Activity chart</TabsTrigger>
                   <TabsTrigger value="compliance">Compliance</TabsTrigger>
                 </TabsList>
                 <TabsContent value="timeline">
                   <LeadActivityTimeline activities={lead.activities} />
+                </TabsContent>
+                <TabsContent value="tasks" className="pt-4">
+                  <TasksPanel leadId={params.id} assignedTo={lead.assignedUser?.id} />
                 </TabsContent>
                 <TabsContent value="calls">
                   {callsData ? (
@@ -404,16 +420,25 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
   );
 }
 
+function buildWhatsAppUrl(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  const normalized =
+    digits.startsWith("91") && digits.length === 12 ? digits : `91${digits.slice(-10)}`;
+  return `https://wa.me/${normalized}`;
+}
+
 function ContactRow({
   icon: Icon,
   label,
   value,
   onCopy,
+  whatsapp,
 }: {
   icon: typeof Phone;
   label?: string;
   value: string;
   onCopy: () => void;
+  whatsapp?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-xl bg-muted/30 px-3 py-2 text-sm">
@@ -424,14 +449,27 @@ function ContactRow({
           <span className="truncate">{value}</span>
         </div>
       </div>
-      <button
-        type="button"
-        className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        onClick={onCopy}
-        title="Copy"
-      >
-        <Copy className="h-4 w-4" />
-      </button>
+      <div className="flex shrink-0 items-center gap-1">
+        {whatsapp ? (
+          <a
+            href={buildWhatsAppUrl(whatsapp)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
+            title="Open WhatsApp"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </a>
+        ) : null}
+        <button
+          type="button"
+          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onClick={onCopy}
+          title="Copy"
+        >
+          <Copy className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }

@@ -69,12 +69,16 @@ export function CallsFilterDrawer({
   if (!open) return null;
 
   function toggleUser(userId: string) {
-    setDraft((current) => ({
-      ...current,
-      userIds: current.userIds.includes(userId)
+    setDraft((current) => {
+      const userIds = current.userIds.includes(userId)
         ? current.userIds.filter((id) => id !== userId)
-        : [...current.userIds, userId],
-    }));
+        : [...current.userIds, userId];
+      return {
+        ...current,
+        userIds,
+        withTeam: userIds.length === 0 ? false : current.withTeam,
+      };
+    });
   }
 
   function handleReset() {
@@ -143,13 +147,16 @@ export function CallsFilterDrawer({
                     type="checkbox"
                     className="h-4 w-4 rounded border-input"
                     checked={draft.withTeam}
+                    disabled={draft.userIds.length === 0}
                     onChange={(event) =>
                       setDraft((current) => ({ ...current, withTeam: event.target.checked }))
                     }
                   />
                   <span>With Team</span>
-                  <span className="text-xs text-muted-foreground">(coming soon)</span>
                 </label>
+                <p className="text-xs text-muted-foreground">
+                  Include direct reports of the selected user(s). Select at least one user first.
+                </p>
               </div>
 
               <div className="space-y-2">

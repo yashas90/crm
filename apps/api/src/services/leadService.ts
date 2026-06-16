@@ -45,9 +45,12 @@ export interface ListLeadsParams {
   teamLeadsExcludingUser?: string;
   duplicatesOnly?: boolean;
   excludeDuplicates?: boolean;
+  reEnquiredOnly?: boolean;
   activeOnly?: boolean;
   deletedOnly?: boolean;
   adLeadsOnly?: boolean;
+  /** Return leads whose tags share at least one value with this list. */
+  tags?: string[];
 }
 
 /** Last 10 digits — treats +91… and local 10-digit numbers as the same phone. */
@@ -186,6 +189,38 @@ async function findLeadByPhone(phone: string) {
   return row ?? null;
 }
 
+/** Lead returned after prior engagement: reopened from won/lost, repeat ad inquiry, or bulk import re-entry. */
+function reEnquiredLeadSql() {
+  return sql`(
+    EXISTS (
+      SELECT 1 FROM ${leadActivities} la
+      WHERE la.lead_id = ${leads.id}
+        AND la.org_id = ${leads.orgId}
+        AND (
+          (
+            la.type = 'status_change'
+            AND la.metadata->>'from' IN ('lost', 'won')
+            AND la.metadata->>'to' IN ('new', 'contacted', 'qualified', 'negotiation')
+          )
+          OR la.metadata->>'kind' = 're_enquiry'
+        )
+    )
+    OR (
+      SELECT COUNT(*)::int FROM ${leadActivities} la2
+      WHERE la2.lead_id = ${leads.id}
+        AND la2.org_id = ${leads.orgId}
+        AND la2.metadata->>'kind' = 'ad_lead'
+    ) >= 2
+    OR EXISTS (
+      SELECT 1 FROM ${leadActivities} la3
+      WHERE la3.lead_id = ${leads.id}
+        AND la3.org_id = ${leads.orgId}
+        AND la3.metadata->>'kind' = 'ad_lead'
+        AND la3.created_at > ${leads.createdAt} + interval '1 day'
+    )
+  )`;
+}
+
 function buildListWhere(params: ListLeadsParams) {
   const whereClauses = [eq(leads.orgId, SINGLE_TENANT_ORG_ID)];
 
@@ -218,6 +253,12 @@ function buildListWhere(params: ListLeadsParams) {
 
   if (params.temperature) {
     whereClauses.push(eq(leads.temperature, params.temperature));
+  }
+
+  if (params.tags?.length) {
+    whereClauses.push(
+      or(...params.tags.map((tag) => sql`${tag} = ANY(COALESCE(${leads.tags}, ARRAY[]::text[]))`))!,
+    );
   }
 
   if (params.adLeadsOnly) {
@@ -269,6 +310,10 @@ function buildListWhere(params: ListLeadsParams) {
     whereClauses.push(
       or(sql`NOT (${leadHasValidPhoneKey()})`, canonicalLeadOnlySql(deletedBucket))!,
     );
+  }
+
+  if (params.reEnquiredOnly) {
+    whereClauses.push(reEnquiredLeadSql());
   }
 
   return and(...whereClauses);
@@ -346,7 +391,7 @@ export const leadService = {
         ...(isAgent && userId ? { assignedTo: userId } : {}),
       }),
       countLeadsWhere({ ...baseParams, ...agentBook, duplicatesOnly: true }),
-      countLeadsWhere({ ...baseParams, ...agentBook, ...deduped }),
+      countLeadsWhere({ ...baseParams, ...agentBook, reEnquiredOnly: true, ...deduped }),
     ]);
 
     return {
@@ -604,6 +649,27 @@ export const leadService = {
         metadata: {
           kind: "assignment",
           assignedTo: input.assignedTo,
+          source: "bulk_import",
+        },
+      });
+    }
+
+    const reopenedFromTerminal =
+      (existing.leadStatus === "lost" || existing.leadStatus === "won") &&
+      merged.leadStatus !== existing.leadStatus &&
+      merged.leadStatus !== "lost" &&
+      merged.leadStatus !== "won";
+
+    if (reopenedFromTerminal) {
+      await db.insert(leadActivities).values({
+        orgId: SINGLE_TENANT_ORG_ID,
+        leadId: input.leadId,
+        userId: input.actingUserId,
+        type: "status_change",
+        metadata: {
+          kind: "re_enquiry",
+          from: existing.leadStatus,
+          to: merged.leadStatus,
           source: "bulk_import",
         },
       });
@@ -894,7 +960,12 @@ export const leadService = {
     }));
   },
 
-  async getRecentActivities(limit = 10) {
+  async getRecentActivities(limit = 10, options?: { assignedTo?: string }) {
+    const filters = [eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID)];
+    if (options?.assignedTo) {
+      filters.push(eq(leads.assignedTo, options.assignedTo));
+    }
+
     const rows = await db
       .select({
         activity: leadActivities,
@@ -906,7 +977,7 @@ export const leadService = {
       .from(leadActivities)
       .innerJoin(leads, eq(leadActivities.leadId, leads.id))
       .leftJoin(users, eq(leadActivities.userId, users.id))
-      .where(eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID))
+      .where(and(...filters))
       .orderBy(desc(leadActivities.createdAt))
       .limit(limit);
 

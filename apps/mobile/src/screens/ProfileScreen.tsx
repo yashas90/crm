@@ -80,9 +80,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
 
       <Text style={styles.sectionTitle}>App</Text>
       <Card>
-        {__DEV__ ? (
-          <InfoRow icon="globe-outline" label="API" value={getApiUrl()} mono />
-        ) : null}
+        {__DEV__ ? <InfoRow icon="globe-outline" label="API" value={getApiUrl()} mono /> : null}
         <InfoRow
           icon="information-circle-outline"
           label="Version"

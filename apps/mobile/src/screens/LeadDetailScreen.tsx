@@ -7,7 +7,12 @@ import { useCalls, useLogCall } from "@/hooks/use-calls";
 import { type LeadActivity, useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
-import { getCallConsent, useTcfForLead } from "@/hooks/useTcf";
+import {
+  getCallConsent,
+  getChannelConsent,
+  useTcfForLead,
+  useUpsertTcfConsent,
+} from "@/hooks/useTcf";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
@@ -40,7 +45,8 @@ function activityBody(activity: LeadActivity): string {
 export function LeadDetailScreen({ route, navigation }: Props) {
   const { leadId } = route.params;
   const { data: lead, isLoading, isError, refetch } = useLead(leadId);
-  const { data: tcfData } = useTcfForLead(leadId);
+  const { data: tcfData, refetch: refetchTcf } = useTcfForLead(leadId);
+  const upsertTcf = useUpsertTcfConsent(leadId);
   const { data: callsData, refetch: refetchCalls } = useCalls({
     lead_id: leadId,
     page: "1",
@@ -59,7 +65,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   const { beginCall } = useReturnFromDialerLog(() => setLogModalVisible(true));
 
-  useRefreshOnFocus(() => Promise.all([refetch(), refetchCalls()]));
+  useRefreshOnFocus(() => Promise.all([refetch(), refetchCalls(), refetchTcf()]));
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -75,6 +81,17 @@ export function LeadDetailScreen({ route, navigation }: Props) {
       ),
     });
   }, [navigation]);
+
+  function setCallConsent(consented: boolean) {
+    upsertTcf.mutate(
+      { consent_type: "call", consented },
+      {
+        onError: (err) => {
+          Alert.alert("Error", err instanceof Error ? err.message : "Failed to update consent.");
+        },
+      },
+    );
+  }
 
   async function startDial(phone: string) {
     // Native SIM dialer (tel:) — same API on iOS and Android.
@@ -235,6 +252,14 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           automatically.
         </Text>
 
+        <TcfConsentSection
+          callConsent={callConsent}
+          smsConsent={getChannelConsent(tcfData, "sms")}
+          emailConsent={getChannelConsent(tcfData, "email")}
+          isSaving={upsertTcf.isPending}
+          onSetCallConsent={setCallConsent}
+        />
+
         <View style={styles.summaryRow}>
           <SummaryCard label="Total calls" value={String(summary?.totalCalls ?? 0)} />
           <SummaryCard label="Last contacted" value={formatRelativeTime(lead.lastContactedAt)} />
@@ -375,6 +400,85 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   );
 }
 
+function channelStatusLabel(consent: boolean | null) {
+  if (consent === true) return { text: "Allowed", color: colors.success };
+  if (consent === false) return { text: "Not allowed", color: colors.danger };
+  return { text: "Unknown", color: colors.textMutedDark };
+}
+
+function TcfConsentSection({
+  callConsent,
+  smsConsent,
+  emailConsent,
+  isSaving,
+  onSetCallConsent,
+}: {
+  callConsent: boolean | null;
+  smsConsent: boolean | null;
+  emailConsent: boolean | null;
+  isSaving: boolean;
+  onSetCallConsent: (consented: boolean) => void;
+}) {
+  const sms = channelStatusLabel(smsConsent);
+  const email = channelStatusLabel(emailConsent);
+
+  return (
+    <View style={styles.consentCard}>
+      <Text style={styles.consentTitle}>Consent</Text>
+      <Text style={styles.consentSubtitle}>Call consent can be updated from the field.</Text>
+
+      <Text style={styles.consentChannelLabel}>Call</Text>
+      <View style={styles.consentActions}>
+        <Pressable
+          style={[
+            styles.consentButton,
+            callConsent === true && styles.consentButtonActiveOk,
+            isSaving && styles.consentButtonDisabled,
+          ]}
+          disabled={isSaving}
+          onPress={() => onSetCallConsent(true)}
+        >
+          <Text
+            style={[
+              styles.consentButtonText,
+              callConsent === true && styles.consentButtonTextActiveOk,
+            ]}
+          >
+            OK to call
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[
+            styles.consentButton,
+            callConsent === false && styles.consentButtonActiveBlock,
+            isSaving && styles.consentButtonDisabled,
+          ]}
+          disabled={isSaving}
+          onPress={() => onSetCallConsent(false)}
+        >
+          <Text
+            style={[
+              styles.consentButtonText,
+              callConsent === false && styles.consentButtonTextActiveBlock,
+            ]}
+          >
+            Do not call
+          </Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.consentReadRow}>
+        <Text style={styles.consentReadLabel}>SMS</Text>
+        <Text style={[styles.consentReadValue, { color: sms.color }]}>{sms.text}</Text>
+      </View>
+      <View style={styles.consentReadRow}>
+        <Text style={styles.consentReadLabel}>Email</Text>
+        <Text style={[styles.consentReadValue, { color: email.color }]}>{email.text}</Text>
+      </View>
+    </View>
+  );
+}
+
 function Badge({ label }: { label: string }) {
   return (
     <View style={styles.badge}>
@@ -463,6 +567,75 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     marginTop: -4,
   },
+  consentCard: {
+    backgroundColor: colors.cardDark,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  consentTitle: {
+    ...typography.subheading,
+    color: colors.textDark,
+    fontSize: 16,
+  },
+  consentSubtitle: {
+    color: colors.textMutedDark,
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: spacing.sm,
+  },
+  consentChannelLabel: {
+    color: colors.textMutedDark,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
+  consentActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  consentButton: {
+    flex: 1,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    backgroundColor: colors.backgroundDark,
+  },
+  consentButtonActiveOk: {
+    borderColor: "rgba(16, 185, 129, 0.5)",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+  },
+  consentButtonActiveBlock: {
+    borderColor: "rgba(239, 68, 68, 0.5)",
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+  },
+  consentButtonDisabled: { opacity: 0.6 },
+  consentButtonText: {
+    color: colors.textMutedDark,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  consentButtonTextActiveOk: { color: colors.success },
+  consentButtonTextActiveBlock: { color: colors.danger },
+  consentReadRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderDark,
+  },
+  consentReadLabel: { color: colors.textDark, fontSize: 14, fontWeight: "600" },
+  consentReadValue: { fontSize: 13, fontWeight: "600" },
   summaryRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   summaryCard: {
     flex: 1,

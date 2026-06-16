@@ -64,7 +64,10 @@ async function loadLeadOr404(c: JsonContext, id: string | undefined) {
 }
 
 leadsRoute.get("/activities/recent", async (c) => {
-  const data = await leadService.getRecentActivities(10);
+  const authUser = c.get("authUser") as AuthUser;
+  const data = await leadService.getRecentActivities(10, {
+    assignedTo: authUser.role === "agent" ? authUser.id : undefined,
+  });
   return c.json({ ok: true, data });
 });
 
@@ -119,6 +122,7 @@ leadsRoute.get("/scope-counts", async (c) => {
       temperature: query.temperature,
       source: query.source,
       adLeadsOnly: query.adLeads,
+      tags: query.tags,
       dateFrom: query.dateFrom,
       dateTo: query.dateTo,
     },
@@ -163,6 +167,7 @@ leadsRoute.get("/stage-counts", async (c) => {
     temperature: query.temperature,
     source: query.source,
     adLeadsOnly: query.adLeads,
+    tags: query.tags,
     dateFrom: query.dateFrom,
     dateTo: query.dateTo,
     unassigned: query.unassigned,
@@ -210,6 +215,7 @@ leadsRoute.get("/", async (c) => {
     temperature: query.temperature,
     source: query.source,
     adLeadsOnly: query.adLeads,
+    tags: query.tags,
     dateFrom: query.dateFrom,
     dateTo: query.dateTo,
     followUpDueBefore: query.followUpDueBefore,
@@ -218,6 +224,7 @@ leadsRoute.get("/", async (c) => {
     unassigned: query.unassigned,
     activeOnly: query.activeOnly,
     deletedOnly: query.deletedOnly,
+    reEnquiredOnly: query.reEnquiredOnly,
     ...leadDuplicateFilters(query),
   });
 

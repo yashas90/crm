@@ -46,10 +46,26 @@ export const listLeadsQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),
+  reEnquiredOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
   adLeads: z
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),
+  tags: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((value) => {
+      if (!value) return undefined;
+      const parts = Array.isArray(value) ? value : [value];
+      const tags = parts
+        .flatMap((part) => part.split(","))
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      return tags.length > 0 ? tags : undefined;
+    }),
 });
 
 const leadWritableFieldsSchema = z.object({

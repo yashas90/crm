@@ -23,6 +23,7 @@ import { notificationsRoutes } from "./routes/notifications.js";
 import { orgRoutes } from "./routes/org.js";
 import { projectsRoutes } from "./routes/projects.js";
 import { reportsRoutes } from "./routes/reports.js";
+import { tasksRoutes } from "./routes/tasks.js";
 import { tcfRoutes } from "./routes/tcf.js";
 import { userRolesRoutes } from "./routes/userRoles.js";
 import { usersRoutes } from "./routes/users.js";
@@ -76,6 +77,7 @@ app.route("/api/integrations", integrationsRoutes);
 app.route("/api/tcf", tcfRoutes);
 app.route("/api/audit-logs", auditLogsRoutes);
 app.route("/api/notifications", notificationsRoutes);
+app.route("/api/tasks", tasksRoutes);
 
 app.notFound((c) => jsonError(c, "NOT_FOUND", "Route not found", 404));
 

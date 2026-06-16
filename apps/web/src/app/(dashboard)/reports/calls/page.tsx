@@ -23,6 +23,7 @@ import {
 import {
   type CallsReportFilterState,
   callsReportFiltersToApiRange,
+  callsReportFiltersToQueryParams,
   countActiveCallsReportFilters,
   defaultCallsReportFilters,
   resolveCallsReportDates,
@@ -71,12 +72,7 @@ export default function CallsReportPage() {
     () => ({
       dateFrom: apiRange.dateFrom,
       dateTo: apiRange.dateTo,
-      userIds: appliedFilters.userIds.length > 0 ? appliedFilters.userIds : undefined,
-      source: appliedFilters.source || undefined,
-      subSource: appliedFilters.subSource || undefined,
-      projectName: appliedFilters.projectName || undefined,
-      projectStatus: appliedFilters.projectStatus || undefined,
-      campaignName: appliedFilters.campaignName || undefined,
+      ...callsReportFiltersToQueryParams(appliedFilters),
       userStatus,
       userName: userNameSearch,
       page: userReportPage,
@@ -97,7 +93,7 @@ export default function CallsReportPage() {
   const analyticsReport = useCallsReport({
     dateFrom: apiRange.dateFrom,
     dateTo: apiRange.dateTo,
-    userId: appliedFilters.userIds.length === 1 ? appliedFilters.userIds[0] : undefined,
+    ...callsReportFiltersToQueryParams(appliedFilters),
   });
 
   const detailRange = selectedDate

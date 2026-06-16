@@ -83,12 +83,14 @@ export type LeadsQueryParams = {
   assignedTo?: string;
   source?: string;
   adLeads?: string;
+  tags?: string;
   dateFrom?: string;
   dateTo?: string;
   unassigned?: string;
   teamLeads?: string;
   duplicatesOnly?: string;
   excludeDuplicates?: string;
+  reEnquiredOnly?: string;
   activeOnly?: string;
   deletedOnly?: string;
   followUpDueBefore?: string;
@@ -127,12 +129,14 @@ export function leadsListQueryKey(params: LeadsQueryParams) {
     params.assignedTo ?? null,
     params.source ?? null,
     params.adLeads ?? null,
+    params.tags ?? null,
     params.dateFrom ?? null,
     params.dateTo ?? null,
     params.unassigned ?? null,
     params.teamLeads ?? null,
     params.duplicatesOnly ?? null,
     params.excludeDuplicates ?? null,
+    params.reEnquiredOnly ?? null,
     params.activeOnly ?? null,
     params.deletedOnly ?? null,
     params.followUpDueBefore ?? null,
@@ -154,6 +158,7 @@ function sharedCountsQueryKey(
     params.temperature ?? null,
     params.source ?? null,
     params.adLeads ?? null,
+    params.tags ?? null,
     params.dateFrom ?? null,
     params.dateTo ?? null,
     params.assignedTo ?? null,

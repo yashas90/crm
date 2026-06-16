@@ -4,6 +4,7 @@ import { ProjectWizardFooter } from "@/components/projects/project-wizard-footer
 import type { ProjectDetail } from "@/hooks/use-projects";
 import { useUpdateProject } from "@/hooks/use-projects";
 import { getErrorMessage } from "@/lib/errors";
+import { nextWizardStep } from "@/lib/project-wizard";
 import { COMMON_AMENITIES } from "@/lib/project-wizard-types";
 import { cn } from "@propninja/ui/lib/utils";
 import { useRouter } from "next/navigation";
@@ -88,6 +89,7 @@ export function ProjectAmenitiesStep({
       <ProjectWizardFooter
         readOnly={readOnly}
         isSaving={updateProject.isPending}
+        saveLabel={nextWizardStep("amenities") ? undefined : "Save"}
         onCancel={() => router.push("/projects")}
         onSave={handleSave}
       />

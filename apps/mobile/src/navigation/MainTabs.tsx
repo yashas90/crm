@@ -1,6 +1,8 @@
+import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { LeadsStack } from "@/navigation/LeadsStack";
 import type { MainTabParamList } from "@/navigation/types";
 import { HomeScreen } from "@/screens/HomeScreen";
+import { NotificationsScreen } from "@/screens/NotificationsScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { TodayScreen } from "@/screens/TodayScreen";
 import { colors } from "@/theme";
@@ -31,6 +33,8 @@ type MainTabsProps = {
 export function MainTabs({ onLogout }: MainTabsProps) {
   const insets = useSafeAreaInsets();
   const tabBarHeight = TAB_BAR_HEIGHT + insets.bottom;
+  const unreadCount = useUnreadNotificationCount();
+  const notificationBadge = unreadCount > 0 ? (unreadCount > 9 ? "9+" : unreadCount) : undefined;
 
   return (
     <Tab.Navigator
@@ -80,6 +84,23 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           headerShown: true,
           headerStyle: { backgroundColor: colors.backgroundDark },
           headerTintColor: colors.textDark,
+        }}
+      />
+      <Tab.Screen
+        name="NotificationsTab"
+        component={NotificationsScreen}
+        options={{
+          title: "Alerts",
+          tabBarIcon: ({ focused }) => tabIcon("notifications-outline", focused),
+          tabBarBadge: notificationBadge,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.danger,
+            color: colors.textDark,
+            fontSize: 10,
+            minWidth: 18,
+            lineHeight: 14,
+          },
+          headerShown: false,
         }}
       />
       <Tab.Screen

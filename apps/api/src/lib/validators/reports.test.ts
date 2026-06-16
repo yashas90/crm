@@ -48,4 +48,12 @@ describe("callsReportQuerySchema user_status", () => {
       expect(parsed.data.userStatus).toBe("inactive");
     }
   });
+
+  it("parses with_team=true", () => {
+    const parsed = callsReportQuerySchema.safeParse({ with_team: "true", group_by: "user" });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.withTeam).toBe(true);
+    }
+  });
 });

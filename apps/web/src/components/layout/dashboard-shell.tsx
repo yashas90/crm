@@ -3,7 +3,7 @@
 import { AppErrorBoundary } from "@/components/common/app-error-boundary";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
-import { isAuthenticated } from "@/lib/auth";
+import { ensureSessionCookie, isAuthenticated } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 
@@ -13,7 +13,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated()) {
       router.replace("/login");
+      return;
     }
+    ensureSessionCookie();
   }, [router]);
 
   return (

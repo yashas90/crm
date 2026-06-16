@@ -211,13 +211,12 @@ export function LeadsAdvancedFiltersSheet({
             <Label htmlFor="adv-tags">Tags</Label>
             <Input
               id="adv-tags"
-              placeholder="Filter by tag (coming soon)"
+              placeholder="e.g. hot, vip, ad_lead"
               value={filters.tags}
-              disabled
               onChange={(event) => onApply({ ...filters, tags: event.target.value })}
             />
             <p className="text-xs text-muted-foreground">
-              Tag filtering will be wired in a later release.
+              Comma-separated. Shows leads that have any of these tags.
             </p>
           </div>
         </div>

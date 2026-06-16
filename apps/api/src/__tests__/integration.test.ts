@@ -1,15 +1,17 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import app from "../index.js";
 
-async function loginToken() {
+async function loginToken(
+  email = "admin@propninja.local",
+  password = "admin",
+): Promise<{ token: string; status: number }> {
   const res = await app.request("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "admin@propninja.local", password: "admin" }),
+    body: JSON.stringify({ email, password }),
   });
-  expect(res.status).toBe(200);
-  const json = (await res.json()) as { data: { token: string } };
-  return json.data.token;
+  const json = (await res.json()) as { data?: { token: string } };
+  return { token: json.data?.token ?? "", status: res.status };
 }
 
 async function dbReachable(token: string) {
@@ -19,14 +21,131 @@ async function dbReachable(token: string) {
   return res.status === 200;
 }
 
+async function createAssignedLead(
+  adminToken: string,
+  assignToUserId: string,
+  suffix: string,
+): Promise<string> {
+  const phone = `+9190${Date.now().toString().slice(-5)}${Math.floor(Math.random() * 1000)}`;
+  const res = await app.request("/api/leads", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      firstName: "TCF",
+      lastName: suffix,
+      phone,
+    }),
+  });
+  expect(res.status).toBe(201);
+  const json = (await res.json()) as { data: { id: string } };
+  const leadId = json.data.id;
+
+  const assignRes = await app.request(`/api/leads/${leadId}/assign`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ user_id: assignToUserId }),
+  });
+  expect(assignRes.status).toBe(200);
+
+  return leadId;
+}
+
+async function userIdForToken(token: string): Promise<string> {
+  const res = await app.request("/api/auth/me", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(res.status).toBe(200);
+  const json = (await res.json()) as { data: { id: string } };
+  return json.data.id;
+}
+
+async function addLeadNote(token: string, leadId: string, text: string) {
+  const res = await app.request(`/api/leads/${leadId}/notes`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text }),
+  });
+  expect(res.status).toBe(201);
+}
+
 describe("API integration", () => {
   let token = "";
   let hasDb = false;
 
   beforeAll(async () => {
     process.env.VITEST = "true";
-    token = await loginToken();
-    hasDb = await dbReachable(token);
+    const login = await loginToken();
+    token = login.token;
+    hasDb = login.status === 200 && (await dbReachable(token));
+  });
+
+  it("POST /api/auth/login returns token for active user", async ({ skip }) => {
+    if (!hasDb) skip();
+
+    const login = await loginToken("admin@propninja.local", "admin");
+    expect(login.status).toBe(200);
+    expect(login.token.length).toBeGreaterThan(0);
+
+    const meRes = await app.request("/api/auth/me", {
+      headers: { Authorization: `Bearer ${login.token}` },
+    });
+    expect(meRes.status).toBe(200);
+    const meJson = (await meRes.json()) as { ok: boolean; data: { email: string } };
+    expect(meJson.ok).toBe(true);
+    expect(meJson.data.email).toBe("admin@propninja.local");
+  });
+
+  it("deactivated user's previously valid token returns 401", async ({ skip }) => {
+    if (!hasDb) skip();
+
+    const agentEmail = "agent1@demo.propninja";
+    const agentLogin = await loginToken(agentEmail, "admin");
+    expect(agentLogin.status).toBe(200);
+
+    const meRes = await app.request("/api/auth/me", {
+      headers: { Authorization: `Bearer ${agentLogin.token}` },
+    });
+    expect(meRes.status).toBe(200);
+    const meJson = (await meRes.json()) as { data: { id: string } };
+    const agentId = meJson.data.id;
+
+    const deactivateRes = await app.request(`/api/users/${agentId}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ isActive: false }),
+    });
+    expect(deactivateRes.status).toBe(200);
+
+    try {
+      const blockedRes = await app.request("/api/auth/me", {
+        headers: { Authorization: `Bearer ${agentLogin.token}` },
+      });
+      expect(blockedRes.status).toBe(401);
+      const blockedJson = (await blockedRes.json()) as { error: { code: string } };
+      expect(blockedJson.error.code).toBe("UNAUTHORIZED");
+    } finally {
+      const reactivateRes = await app.request(`/api/users/${agentId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isActive: true }),
+      });
+      expect(reactivateRes.status).toBe(200);
+    }
   });
 
   it("POST /api/leads creates a lead", async ({ skip }) => {
@@ -165,5 +284,314 @@ describe("API integration", () => {
     });
     const leadJson = (await leadRes.json()) as { data: { lastContactedAt: string | null } };
     expect(leadJson.data.lastContactedAt).not.toBeNull();
+  });
+
+  describe("TCF lead authorization", () => {
+    it("agent can access own lead consent but not another agent's", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const agent1Login = await loginToken("agent1@demo.propninja", "admin");
+      const agent2Login = await loginToken("agent2@demo.propninja", "admin");
+      expect(agent1Login.status).toBe(200);
+      expect(agent2Login.status).toBe(200);
+
+      const agent1Id = await userIdForToken(agent1Login.token);
+      const agent2Id = await userIdForToken(agent2Login.token);
+
+      const ownLeadId = await createAssignedLead(token, agent1Id, "Own");
+      const otherLeadId = await createAssignedLead(token, agent2Id, "Other");
+
+      const ownGet = await app.request(`/api/tcf/leads/${ownLeadId}`, {
+        headers: { Authorization: `Bearer ${agent1Login.token}` },
+      });
+      expect(ownGet.status).toBe(200);
+
+      const otherGet = await app.request(`/api/tcf/leads/${otherLeadId}`, {
+        headers: { Authorization: `Bearer ${agent1Login.token}` },
+      });
+      expect(otherGet.status).toBe(403);
+      const otherGetJson = (await otherGet.json()) as { error: { code: string } };
+      expect(otherGetJson.error.code).toBe("FORBIDDEN");
+
+      const ownUpsert = await app.request("/api/tcf/consent", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${agent1Login.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lead_id: ownLeadId,
+          consent_type: "call",
+          consented: true,
+          source: "integration-test",
+        }),
+      });
+      expect(ownUpsert.status).toBe(201);
+
+      const otherUpsert = await app.request("/api/tcf/consent", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${agent1Login.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lead_id: otherLeadId,
+          consent_type: "call",
+          consented: true,
+          source: "integration-test",
+        }),
+      });
+      expect(otherUpsert.status).toBe(403);
+    });
+
+    it("admin and manager can access any lead consent", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const managerLogin = await loginToken("manager@demo.propninja", "admin");
+      const agentLogin = await loginToken("agent1@demo.propninja", "admin");
+      expect(managerLogin.status).toBe(200);
+      expect(agentLogin.status).toBe(200);
+
+      const agentId = await userIdForToken(agentLogin.token);
+      const leadId = await createAssignedLead(token, agentId, "Mgr");
+
+      const managerGet = await app.request(`/api/tcf/consent/${leadId}`, {
+        headers: { Authorization: `Bearer ${managerLogin.token}` },
+      });
+      expect(managerGet.status).toBe(200);
+
+      const adminGet = await app.request(`/api/tcf/leads/${leadId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(adminGet.status).toBe(200);
+
+      const managerUpsert = await app.request("/api/tcf/consent", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${managerLogin.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lead_id: leadId,
+          consent_type: "sms",
+          consented: true,
+          source: "integration-test",
+        }),
+      });
+      expect(managerUpsert.status).toBe(201);
+
+      const consentJson = (await managerUpsert.json()) as { data: { id: string } };
+      const revokeRes = await app.request(`/api/tcf/${consentJson.data.id}/revoke`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      expect(revokeRes.status).toBe(200);
+    });
+  });
+
+  describe("recent lead activities scope", () => {
+    it("agent only sees activities for assigned leads", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const agentLogin = await loginToken("agent1@demo.propninja", "admin");
+      expect(agentLogin.status).toBe(200);
+
+      const agentId = await userIdForToken(agentLogin.token);
+      const agent2Id = await userIdForToken(
+        (await loginToken("agent2@demo.propninja", "admin")).token,
+      );
+
+      const ownLeadId = await createAssignedLead(token, agentId, "ActOwn");
+      const otherLeadId = await createAssignedLead(token, agent2Id, "ActOther");
+
+      await addLeadNote(token, ownLeadId, "Recent activity on agent1 lead");
+      await addLeadNote(token, otherLeadId, "Recent activity on agent2 lead");
+
+      const res = await app.request("/api/leads/activities/recent", {
+        headers: { Authorization: `Bearer ${agentLogin.token}` },
+      });
+      expect(res.status).toBe(200);
+
+      const json = (await res.json()) as { data: Array<{ leadId: string }> };
+      expect(json.data.length).toBeGreaterThan(0);
+      expect(json.data.some((activity) => activity.leadId === ownLeadId)).toBe(true);
+      expect(json.data.some((activity) => activity.leadId === otherLeadId)).toBe(false);
+    });
+
+    it("admin sees org-wide recent activity", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const agentId = await userIdForToken(
+        (await loginToken("agent1@demo.propninja", "admin")).token,
+      );
+      const agent2Id = await userIdForToken(
+        (await loginToken("agent2@demo.propninja", "admin")).token,
+      );
+
+      const ownLeadId = await createAssignedLead(token, agentId, "ActAdm1");
+      const otherLeadId = await createAssignedLead(token, agent2Id, "ActAdm2");
+
+      await addLeadNote(token, ownLeadId, "Admin-visible activity on agent1 lead");
+      await addLeadNote(token, otherLeadId, "Admin-visible activity on agent2 lead");
+
+      const res = await app.request("/api/leads/activities/recent", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(res.status).toBe(200);
+
+      const json = (await res.json()) as { data: Array<{ leadId: string }> };
+      expect(json.data.some((activity) => activity.leadId === ownLeadId)).toBe(true);
+      expect(json.data.some((activity) => activity.leadId === otherLeadId)).toBe(true);
+    });
+  });
+
+  it("re-enquired scope lists leads reopened from lost/won", async ({ skip }) => {
+    if (!hasDb) skip();
+
+    const phone = `+9188${Date.now().toString().slice(-8)}`;
+    const createRes = await app.request("/api/leads", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ firstName: "Re", lastName: "Enquire", phone }),
+    });
+    expect(createRes.status).toBe(201);
+    const created = (await createRes.json()) as { data: { id: string } };
+    const leadId = created.data.id;
+
+    const lostRes = await app.request(`/api/leads/${leadId}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ leadStatus: "lost" }),
+    });
+    expect(lostRes.status).toBe(200);
+
+    const reopenRes = await app.request(`/api/leads/${leadId}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ leadStatus: "new" }),
+    });
+    expect(reopenRes.status).toBe(200);
+
+    const listRes = await app.request("/api/leads?reEnquiredOnly=true&page=1&pageSize=50", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(listRes.status).toBe(200);
+    const listJson = (await listRes.json()) as { data: { items: Array<{ id: string }> } };
+    expect(listJson.data.items.some((lead) => lead.id === leadId)).toBe(true);
+
+    const countsRes = await app.request("/api/leads/scope-counts", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(countsRes.status).toBe(200);
+    const countsJson = (await countsRes.json()) as { data: { "re-enquired": number; all: number } };
+    expect(countsJson.data["re-enquired"]).toBeGreaterThan(0);
+    expect(countsJson.data["re-enquired"]).toBeLessThanOrEqual(countsJson.data.all);
+  });
+
+  it("GET /api/leads filters by overlapping tags", async ({ skip }) => {
+    if (!hasDb) skip();
+
+    const suffix = Date.now().toString().slice(-8);
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const taggedRes = await app.request("/api/leads", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        firstName: "Tagged",
+        lastName: "Lead",
+        phone: `+9197${suffix}`,
+        tags: ["filter_tag_a", "shared_tag"],
+      }),
+    });
+    expect(taggedRes.status).toBe(201);
+
+    const otherRes = await app.request("/api/leads", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        firstName: "Other",
+        lastName: "Lead",
+        phone: `+9196${suffix}`,
+        tags: ["filter_tag_b"],
+      }),
+    });
+    expect(otherRes.status).toBe(201);
+
+    const matchRes = await app.request(
+      "/api/leads?tags=filter_tag_a,shared_tag&page=1&pageSize=50",
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    expect(matchRes.status).toBe(200);
+    const matchJson = (await matchRes.json()) as {
+      data: { items: Array<{ firstName: string; tags: string[] | null }> };
+    };
+    expect(matchJson.data.items.some((lead) => lead.firstName === "Tagged")).toBe(true);
+    expect(matchJson.data.items.some((lead) => lead.firstName === "Other")).toBe(false);
+
+    const overlapRes = await app.request(
+      "/api/leads?tags=shared_tag,filter_tag_b&page=1&pageSize=50",
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    expect(overlapRes.status).toBe(200);
+    const overlapJson = (await overlapRes.json()) as {
+      data: { items: Array<{ firstName: string }> };
+    };
+    const names = overlapJson.data.items.map((lead) => lead.firstName);
+    expect(names).toContain("Tagged");
+    expect(names).toContain("Other");
+  });
+
+  it("PATCH /api/org updates safe organization fields", async ({ skip }) => {
+    if (!hasDb) skip();
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const patchRes = await app.request("/api/org", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        name: "PropNinja Demo Org",
+        website: "https://demo.propninja.local",
+        timezone: "Asia/Kolkata",
+      }),
+    });
+    expect(patchRes.status).toBe(200);
+    const patchJson = (await patchRes.json()) as {
+      ok: boolean;
+      data: { name: string; settings: Record<string, unknown> };
+    };
+    expect(patchJson.ok).toBe(true);
+    expect(patchJson.data.name).toBe("PropNinja Demo Org");
+    expect(patchJson.data.settings.website).toBe("https://demo.propninja.local");
+    expect(patchJson.data.settings.timezone).toBe("Asia/Kolkata");
+
+    const getRes = await app.request("/api/org", { headers: { Authorization: `Bearer ${token}` } });
+    expect(getRes.status).toBe(200);
+    const getJson = (await getRes.json()) as {
+      data: { name: string; settings: Record<string, unknown> };
+    };
+    expect(getJson.data.settings.website).toBe("https://demo.propninja.local");
   });
 });

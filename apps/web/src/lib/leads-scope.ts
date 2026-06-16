@@ -68,6 +68,7 @@ export function scopeToQueryParams(
   teamLeads?: string;
   duplicatesOnly?: string;
   excludeDuplicates?: string;
+  reEnquiredOnly?: string;
 } {
   switch (scope) {
     case "my":
@@ -84,6 +85,8 @@ export function scopeToQueryParams(
       return { deletedOnly: "true", excludeDuplicates: "true" };
     case "duplicate":
       return { duplicatesOnly: "true" };
+    case "re-enquired":
+      return { reEnquiredOnly: "true", excludeDuplicates: "true" };
     default:
       return { excludeDuplicates: "true" };
   }

@@ -3,6 +3,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useTodayCallSummary } from "@/hooks/use-calls";
 import { useLeadScopeCounts, useTodayQueue } from "@/hooks/use-leads";
+import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
@@ -34,10 +35,10 @@ export function HomeScreen({ navigation }: Props) {
   const queue = useTodayQueue();
   const summary = useTodayCallSummary();
   const scope = useLeadScopeCounts();
+  const unreadNotifications = useUnreadNotificationCount();
   const firstName = user?.name?.split(" ")[0] ?? "Agent";
 
-  const refreshAll = () =>
-    Promise.all([queue.refetch(), summary.refetch(), scope.refetch()]);
+  const refreshAll = () => Promise.all([queue.refetch(), summary.refetch(), scope.refetch()]);
 
   useRefreshOnFocus(refreshAll);
 
@@ -61,10 +62,28 @@ export function HomeScreen({ navigation }: Props) {
         }
       >
         <View style={styles.hero}>
-          <Text style={styles.greeting}>
-            {greeting()}, {firstName}
-          </Text>
-          <Text style={styles.heroSub}>Here is your pipeline at a glance</Text>
+          <View style={styles.heroTop}>
+            <View style={styles.heroText}>
+              <Text style={styles.greeting}>
+                {greeting()}, {firstName}
+              </Text>
+              <Text style={styles.heroSub}>Here is your pipeline at a glance</Text>
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.bellButton, pressed && styles.pressed]}
+              onPress={() => navigation.navigate("NotificationsTab")}
+              accessibilityLabel="Notifications"
+            >
+              <Ionicons name="notifications-outline" size={24} color={colors.textDark} />
+              {unreadNotifications > 0 ? (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>
+                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          </View>
         </View>
 
         {isLoading ? (
@@ -182,6 +201,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDark,
     borderWidth: 1,
     borderColor: "rgba(20, 184, 166, 0.35)",
+  },
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  heroText: { flex: 1 },
+  bellButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.35)",
+    borderWidth: 1,
+    borderColor: "rgba(248, 250, 252, 0.12)",
+  },
+  bellBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: radii.pill,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  bellBadgeText: {
+    color: colors.textDark,
+    fontSize: 10,
+    fontWeight: "800",
   },
   greeting: { ...typography.heading, color: colors.textDark, fontSize: 26 },
   heroSub: { color: "rgba(248, 250, 252, 0.8)", marginTop: 6, fontSize: 15 },

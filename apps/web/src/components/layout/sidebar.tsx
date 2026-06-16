@@ -6,6 +6,8 @@ import { cn } from "@propninja/ui/lib/utils";
 import {
   BarChart3,
   Building2,
+  CheckSquare,
+  Kanban,
   LayoutDashboard,
   Phone,
   Settings,
@@ -28,6 +30,8 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager", "agent"] },
   { href: "/leads", label: "Leads", icon: Users, roles: ["admin", "manager", "agent"] },
+  { href: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "manager", "agent"] },
+  { href: "/tasks", label: "Tasks", icon: CheckSquare, roles: ["admin", "manager", "agent"] },
   { href: "/projects", label: "Projects", icon: Building2, roles: ["admin", "manager", "agent"] },
   { href: "/reports/calls", label: "Calls", icon: Phone, roles: ["admin", "manager", "agent"] },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["admin", "manager"] },

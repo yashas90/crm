@@ -86,6 +86,10 @@ export const callsReportQuerySchema = reportFilterFieldsSchema
     project_name: z.string().trim().optional(),
     project_status: z.enum(["active", "inactive"]).optional(),
     campaign_name: z.string().trim().optional(),
+    with_team: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((value) => value === "true"),
     page: z.coerce.number().int().min(1).optional(),
     page_size: z.coerce.number().int().min(1).max(100).optional(),
   })
@@ -102,6 +106,7 @@ export const callsReportQuerySchema = reportFilterFieldsSchema
     projectName: value.project_name,
     projectStatus: value.project_status,
     campaignName: value.campaign_name,
+    withTeam: value.with_team ?? false,
     page: value.page ?? 1,
     pageSize: value.page_size ?? 50,
   }));

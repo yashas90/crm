@@ -26,6 +26,18 @@ describe("leads URL filters", () => {
     expect(serialized).toContain("source=Facebook+Ads");
   });
 
+  it("round-trips tags filter", () => {
+    const params = new URLSearchParams("tags=hot%2Cvip&active=true");
+    const parsed = parseLeadsPageUrl(params);
+    expect(parsed.filters.tags).toBe("hot,vip");
+
+    const serialized = buildLeadsSearchParams(parsed.filters, {
+      scope: parsed.scope,
+      stage: parsed.stage,
+    });
+    expect(serialized).toContain("tags=hot%2Cvip");
+  });
+
   it("writes scope to the URL", () => {
     const query = buildLeadsSearchParams(
       { ...parseLeadsPageUrl(new URLSearchParams()).filters, adLeadsOnly: false },
