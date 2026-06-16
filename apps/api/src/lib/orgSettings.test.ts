@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { UpdateOrgBody } from "./validators/org.js";
 import { buildOrgSettingsPatch, mergeOrgSettings } from "./orgSettings.js";
 
 describe("orgSettings", () => {
@@ -22,7 +23,7 @@ describe("orgSettings", () => {
           locale: "en-IN",
           secretKey: "nope",
         },
-      }),
+      } as UpdateOrgBody),
     ).toEqual({
       website: "https://a.example",
       locale: "en-IN",
