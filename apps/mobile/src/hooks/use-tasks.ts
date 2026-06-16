@@ -9,6 +9,14 @@ export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskType = "call" | "meeting" | "follow_up" | "document" | "site_visit" | "other";
 
+export type TaskNoteEntry = {
+  id: string;
+  text: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+};
+
 export type Task = {
   id: string;
   leadId: string | null;
@@ -21,6 +29,8 @@ export type Task = {
   status: TaskStatus;
   taskType: TaskType;
   completedAt: string | null;
+  notes?: string | null;
+  noteEntries?: TaskNoteEntry[];
   createdAt: string;
   updatedAt: string;
   assigneeUser: { id: string; name: string } | null;
@@ -47,15 +57,44 @@ export function useLeadTasks(leadId: string) {
 
 export function useMyTasks() {
   const ready = useAuthReady();
-  const userId = getCurrentUserId();
   return useQuery({
-    queryKey: ["tasks", "mine", userId],
+    queryKey: ["tasks", "mine", "open"],
     queryFn: () =>
       apiGet<{ items: Task[]; total: number; page: number; pageSize: number }>(
-        `/api/tasks?assignedTo=${userId}&status=pending&pageSize=50`,
+        "/api/tasks?assigneeId=me&status=open&pageSize=100",
       ),
-    enabled: ready && Boolean(userId),
+    enabled: ready,
     refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useMyOpenTasks() {
+  const ready = useAuthReady();
+  return useQuery({
+    queryKey: ["tasks", "mine", "open-sorted"],
+    queryFn: async () => {
+      const data = await apiGet<{ items: Task[]; total: number; page: number; pageSize: number }>(
+        "/api/tasks?assigneeId=me&status=open&pageSize=100",
+      );
+      const items = [...data.items].sort((a, b) => {
+        if (!a.dueAt && !b.dueAt) return 0;
+        if (!a.dueAt) return 1;
+        if (!b.dueAt) return -1;
+        return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+      });
+      return { ...data, items };
+    },
+    enabled: ready,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useTask(taskId: string) {
+  const ready = useAuthReady();
+  return useQuery({
+    queryKey: ["task", taskId],
+    queryFn: () => apiGet<Task>(`/api/tasks/${taskId}`),
+    enabled: ready && Boolean(taskId),
   });
 }
 
@@ -82,7 +121,7 @@ export function useCreateTask() {
 export function useCompleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (taskId: string) => apiPost<Task>(`/api/tasks/${taskId}/complete`, {}),
+    mutationFn: (taskId: string) => apiPatch<Task>(`/api/tasks/${taskId}/complete`, {}),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },

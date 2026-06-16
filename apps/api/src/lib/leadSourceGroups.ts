@@ -30,7 +30,7 @@ const SOCIAL_MATCHERS = [
 
 /** Always shown in dashboard source panels (count 0 when no leads). */
 export const CANONICAL_SOCIAL_SOURCES = [
-  "Facebook Ads",
+  "Meta Ads",
   "Google Ads",
   "LinkedIn",
   "Gmail",

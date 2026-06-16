@@ -1,10 +1,11 @@
+import { Ionicons } from "@expo/vector-icons";
+import { CALL_OUTCOMES, CALL_OUTCOME_LABELS, type CallOutcome } from "@propninja/types/enums";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export type QuickLogPayload = {
-  disposition: string;
-  status: "completed" | "missed" | "rejected" | "failed";
+  outcome: CallOutcome;
   durationSeconds: number;
   notes?: string;
 };
@@ -13,16 +14,7 @@ export type SubmitOptions = {
   goNext?: boolean;
 };
 
-const OUTCOMES = [
-  { label: "Interested", disposition: "interested", status: "completed" as const },
-  { label: "Not interested", disposition: "not_interested", status: "completed" as const },
-  { label: "Callback", disposition: "callback", status: "completed" as const },
-  { label: "No answer", disposition: "no_answer", status: "missed" as const },
-  { label: "Wrong number", disposition: "wrong_number", status: "rejected" as const },
-];
-
-const NO_ANSWER_INDEX = 3;
-const DURATION_PRESETS = [30, 60, 120];
+const DURATION_PRESETS = [30, 60, 120, 300];
 
 type CallLogModalProps = {
   visible: boolean;
@@ -43,36 +35,28 @@ export function CallLogModal({
   isSubmitting = false,
   showSaveAndNext = false,
 }: CallLogModalProps) {
-  const [selectedOutcome, setSelectedOutcome] = useState(0);
+  const [outcome, setOutcome] = useState<CallOutcome>("answered");
   const [durationSeconds, setDurationSeconds] = useState(String(defaultDurationSeconds));
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState("");
-
-  const isNoAnswer = selectedOutcome === NO_ANSWER_INDEX;
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setDurationSeconds(String(defaultDurationSeconds));
-      setSelectedOutcome(0);
+      setOutcome("answered");
       setShowNotes(false);
       setNotes("");
+      setDropdownOpen(false);
     }
   }, [visible, defaultDurationSeconds]);
-
-  useEffect(() => {
-    if (isNoAnswer) {
-      setDurationSeconds("30");
-    }
-  }, [isNoAnswer]);
 
   function buildPayload(): QuickLogPayload | null {
     const duration = Number.parseInt(durationSeconds, 10);
     if (Number.isNaN(duration) || duration < 0) return null;
 
-    const outcome = OUTCOMES[selectedOutcome]!;
     return {
-      disposition: outcome.disposition,
-      status: outcome.status,
+      outcome,
       durationSeconds: duration,
       notes: notes.trim() || undefined,
     };
@@ -87,31 +71,43 @@ export function CallLogModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        {/* SafeAreaView keeps the sheet above the iOS home indicator */}
         <SafeAreaView edges={["bottom"]} style={styles.sheetSafe}>
           <View style={styles.sheet}>
             <ScrollView contentContainerStyle={styles.content}>
               <Text style={styles.title}>Log call outcome</Text>
               {phoneNumber ? <Text style={styles.subtitle}>{phoneNumber}</Text> : null}
 
-              <Text style={styles.label}>Call outcome</Text>
-              <View style={styles.chipRow}>
-                {OUTCOMES.map((outcome, index) => (
-                  <Pressable
-                    key={outcome.disposition}
-                    style={[styles.chip, selectedOutcome === index && styles.chipActive]}
-                    onPress={() => setSelectedOutcome(index)}
-                  >
-                    <Text
-                      style={[styles.chipText, selectedOutcome === index && styles.chipTextActive]}
+              <Text style={styles.label}>Outcome</Text>
+              <Pressable style={styles.dropdown} onPress={() => setDropdownOpen((open) => !open)}>
+                <Text style={styles.dropdownText}>{CALL_OUTCOME_LABELS[outcome]}</Text>
+                <Ionicons
+                  name={dropdownOpen ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color="#94a3b8"
+                />
+              </Pressable>
+              {dropdownOpen ? (
+                <View style={styles.dropdownList}>
+                  {CALL_OUTCOMES.map((value) => (
+                    <Pressable
+                      key={value}
+                      style={[styles.dropdownItem, outcome === value && styles.dropdownItemActive]}
+                      onPress={() => {
+                        setOutcome(value);
+                        setDropdownOpen(false);
+                      }}
                     >
-                      {outcome.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              {isNoAnswer ? (
-                <Text style={styles.hint}>Disposition set to no answer (missed call)</Text>
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          outcome === value && styles.dropdownItemTextActive,
+                        ]}
+                      >
+                        {CALL_OUTCOME_LABELS[value]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               ) : null}
 
               <Text style={styles.label}>Duration</Text>
@@ -131,7 +127,7 @@ export function CallLogModal({
                         durationSeconds === String(preset) && styles.chipTextActive,
                       ]}
                     >
-                      {preset}s
+                      {preset < 60 ? `${preset}s` : `${Math.round(preset / 60)}m`}
                     </Text>
                   </Pressable>
                 ))}
@@ -141,7 +137,7 @@ export function CallLogModal({
                 keyboardType="number-pad"
                 value={durationSeconds}
                 onChangeText={setDurationSeconds}
-                placeholder="Custom seconds"
+                placeholder="Duration in seconds"
                 placeholderTextColor="#64748b"
               />
 
@@ -214,16 +210,35 @@ const styles = StyleSheet.create({
   title: { color: "#f8fafc", fontSize: 20, fontWeight: "700" },
   subtitle: { color: "#94a3b8", marginBottom: 4 },
   label: { color: "#cbd5e1", fontSize: 14, fontWeight: "600", marginTop: 8 },
-  hint: { color: "#64748b", fontSize: 12, fontStyle: "italic" },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  durationRow: { flexDirection: "row", gap: 8 },
-  chip: {
+  dropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderColor: "#334155",
     borderWidth: 1,
-    borderRadius: 999,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    backgroundColor: "#0f172a",
   },
+  dropdownText: { color: "#f8fafc", fontSize: 15 },
+  dropdownList: {
+    borderColor: "#334155",
+    borderWidth: 1,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#0f172a",
+  },
+  dropdownItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
+  dropdownItemActive: { backgroundColor: "#1d4ed8" },
+  dropdownItemText: { color: "#cbd5e1", fontSize: 14 },
+  dropdownItemTextActive: { color: "#ffffff", fontWeight: "600" },
+  durationRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   durationChip: {
     borderColor: "#334155",
     borderWidth: 1,

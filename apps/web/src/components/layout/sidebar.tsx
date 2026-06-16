@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Kanban,
   LayoutDashboard,
+  LayoutGrid,
   Phone,
   Settings,
   UserCircle,
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { href: "/projects", label: "Projects", icon: Building2, roles: ["admin", "manager", "agent"] },
   { href: "/reports/calls", label: "Calls", icon: Phone, roles: ["admin", "manager", "agent"] },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["admin", "manager"] },
+  { href: "/reports/sources", label: "Sources", icon: LayoutGrid, roles: ["admin", "manager"] },
   { href: "/users", label: "Users", icon: UserCircle, roles: ["admin", "manager"] },
   { href: "/settings", label: "Settings", icon: Settings, roles: ["admin", "manager", "agent"] },
 ];

@@ -1,4 +1,4 @@
-import { callRecords, leadActivities, leads, projects, users } from "@propninja/db";
+import { callRecords, leadActivities, leads, projects, tasks, users } from "@propninja/db";
 import { and, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
@@ -18,6 +18,7 @@ import type {
   OverviewReportQuery,
   SourcesReportQuery,
 } from "../lib/validators/reports.js";
+import { asyncLinesToCsvStream } from "../utils/csvExport.js";
 
 type DateRange = { dateFrom: Date; dateTo: Date };
 
@@ -653,6 +654,77 @@ export const reportService = {
     return buildCallsUserReportCsv(items, totals);
   },
 
+  async exportCallsReportPerUserCsvStream(query: CallsReportQuery) {
+    const scopedQuery = await resolveCallsReportQuery(query);
+    const totals = await fetchCallsPerUserGrandTotals(scopedQuery);
+
+    const headers = [
+      "User Name",
+      "Incoming Answered",
+      "Incoming Missed",
+      "Incoming Total",
+      "Outgoing Answered",
+      "Outgoing Not Connected",
+      "Outgoing Total",
+      "Total TalkTime",
+      "Avg TalkTime",
+      "Min TalkTime",
+      "Max TalkTime",
+      "Total Calls",
+    ];
+
+    const pageSize = 200;
+    async function* lines() {
+      yield headers.join(",");
+
+      let offset = 0;
+      while (true) {
+        const batch = await fetchCallsPerUserRows(scopedQuery, { limit: pageSize, offset });
+        if (batch.length === 0) break;
+
+        for (const row of batch) {
+          yield [
+            escapeCsvCell(row.userName),
+            row.incomingAnswered,
+            row.incomingMissed,
+            row.incomingTotal,
+            row.outgoingAnswered,
+            row.outgoingNotConnected,
+            row.outgoingTotal,
+            formatTalkTimeCsv(row.totalTalkTimeSeconds),
+            formatTalkTimeCsv(row.avgTalkTimeSeconds),
+            formatTalkTimeCsv(row.minTalkTimeSeconds),
+            formatTalkTimeCsv(row.maxTalkTimeSeconds),
+            row.totalCalls,
+          ]
+            .map((cell) => escapeCsvCell(cell as unknown as string | number))
+            .join(",");
+        }
+
+        offset += pageSize;
+      }
+
+      yield [
+        "Total",
+        totals.incomingAnswered,
+        totals.incomingMissed,
+        totals.incomingTotal,
+        totals.outgoingAnswered,
+        totals.outgoingNotConnected,
+        totals.outgoingTotal,
+        formatTalkTimeCsv(totals.totalTalkTimeSeconds),
+        formatTalkTimeCsv(totals.avgTalkTimeSeconds),
+        formatTalkTimeCsv(totals.minTalkTimeSeconds),
+        formatTalkTimeCsv(totals.maxTalkTimeSeconds),
+        totals.totalCalls,
+      ]
+        .map((cell) => escapeCsvCell(cell as unknown as string | number))
+        .join(",");
+    }
+
+    return asyncLinesToCsvStream(lines());
+  },
+
   async getCallsReport(query: CallsReportQuery) {
     const scopedQuery = await resolveCallsReportQuery(query);
     const scope = leadScopeFromQuery(scopedQuery);
@@ -752,6 +824,52 @@ export const reportService = {
     };
   },
 
+  async exportCallsAnalyticsCsvStream(query: CallsReportQuery) {
+    const report = await reportService.getCallsReport(query);
+
+    const outcomeLabel = (disposition: string) => {
+      switch (disposition) {
+        case "answered":
+          return "Answered";
+        case "no_answer":
+          return "No Answer";
+        case "busy":
+          return "Busy";
+        case "left_voicemail":
+          return "Left Voicemail";
+        default:
+          return disposition
+            .replace(/_/g, " ")
+            .split(" ")
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(" ");
+      }
+    };
+
+    async function* lines() {
+      yield ["Date", "Total Calls", "Completed Calls", "Missed Calls"].join(",");
+
+      for (const row of report.calls_over_time) {
+        yield [row.date, row.total_calls, row.completed_calls, row.missed_calls]
+          .map((cell) => escapeCsvCell(cell as unknown as string | number))
+          .join(",");
+      }
+
+      // Separate outcome breakdown section for the pie chart.
+      yield "";
+      yield ["Outcome", "Count"].join(",");
+
+      for (const row of report.disposition_breakdown) {
+        yield [outcomeLabel(row.disposition), row.count]
+          .map((cell) => escapeCsvCell(cell as unknown as string | number))
+          .join(",");
+      }
+    }
+
+    return asyncLinesToCsvStream(lines());
+  },
+
   async getLeadsReport(query: LeadsReportQuery) {
     const leadWhere = leadCreatedFilter(query);
 
@@ -848,15 +966,23 @@ export const reportService = {
       lte(callRecords.startedAt, dateTo),
     );
 
-    const wonWhere = and(
-      eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
-      eq(leadActivities.type, "status_change"),
-      gte(leadActivities.createdAt, dateFrom),
-      lte(leadActivities.createdAt, dateTo),
-      sql`${leadActivities.metadata}->>'to' = 'won'`,
+    const leadsAssignedWhere = and(
+      eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+      isNull(leads.deletedAt),
+      isNotNull(leads.assignedTo),
+      gte(leads.createdAt, dateFrom),
+      lte(leads.createdAt, dateTo),
     );
 
-    const [orgUsers, callStats, leadsTouched, dealsWon] = await Promise.all([
+    const tasksCompletedWhere = and(
+      eq(tasks.orgId, SINGLE_TENANT_ORG_ID),
+      eq(tasks.status, "completed"),
+      isNotNull(tasks.assignedTo),
+      gte(tasks.completedAt, dateFrom),
+      lte(tasks.completedAt, dateTo),
+    );
+
+    const [orgUsers, callsMade, leadsAssigned, tasksCompleted] = await Promise.all([
       db
         .select({ id: users.id, name: users.name, email: users.email })
         .from(users)
@@ -865,55 +991,85 @@ export const reportService = {
       db
         .select({
           userId: callRecords.userId,
-          callsToday: sql<number>`count(*)::int`,
-          completedToday: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
-          avgDurationToday: sql<number | null>`avg(${callRecords.durationSeconds})`,
+          callsMade: sql<number>`count(*)::int`,
         })
         .from(callRecords)
         .where(callWhere)
         .groupBy(callRecords.userId),
       db
         .select({
-          userId: callRecords.userId,
-          leadsTouchedToday: sql<number>`count(distinct ${callRecords.leadId})::int`,
+          userId: leads.assignedTo,
+          leadsAssigned: sql<number>`count(distinct ${leads.id})::int`,
         })
-        .from(callRecords)
-        .where(and(callWhere, sql`${callRecords.leadId} is not null`))
-        .groupBy(callRecords.userId),
+        .from(leads)
+        .where(leadsAssignedWhere)
+        .groupBy(leads.assignedTo),
       db
         .select({
-          userId: leadActivities.userId,
-          dealsWonToday: sql<number>`count(*)::int`,
+          userId: tasks.assignedTo,
+          tasksCompleted: sql<number>`count(*)::int`,
         })
-        .from(leadActivities)
-        .where(wonWhere)
-        .groupBy(leadActivities.userId),
+        .from(tasks)
+        .where(tasksCompletedWhere)
+        .groupBy(tasks.assignedTo),
     ]);
 
-    const callMap = new Map(callStats.map((r) => [r.userId, r]));
-    const touchedMap = new Map(leadsTouched.map((r) => [r.userId, r]));
-    const wonMap = new Map(dealsWon.map((r) => [r.userId, r]));
+    const callsMap = new Map(callsMade.map((r) => [r.userId, r]));
+    const leadsMap = new Map(leadsAssigned.map((r) => [r.userId, r]));
+    const tasksMap = new Map(tasksCompleted.map((r) => [r.userId, r]));
 
     return {
       users: orgUsers.map((user) => {
-        const calls = callMap.get(user.id);
-        const touched = touchedMap.get(user.id);
-        const won = wonMap.get(user.id);
+        const calls = callsMap.get(user.id);
+        const leadsAssignedRow = leadsMap.get(user.id);
+        const tasksCompletedRow = tasksMap.get(user.id);
+
+        const callsMadeCount = calls?.callsMade ?? 0;
+        const leadsAssignedCount = leadsAssignedRow?.leadsAssigned ?? 0;
+        const tasksCompletedCount = tasksCompletedRow?.tasksCompleted ?? 0;
+
+        const conversionRate =
+          leadsAssignedCount > 0
+            ? Number(((tasksCompletedCount / leadsAssignedCount) * 100).toFixed(2))
+            : 0;
 
         return {
           userId: user.id,
           name: user.name,
           email: user.email,
-          callsToday: calls?.callsToday ?? 0,
-          completedToday: calls?.completedToday ?? 0,
-          avgDurationToday: calls?.avgDurationToday
-            ? Math.round(Number(calls.avgDurationToday))
-            : 0,
-          leadsTouchedToday: touched?.leadsTouchedToday ?? 0,
-          dealsWonToday: won?.dealsWonToday ?? 0,
+          leadsAssigned: leadsAssignedCount,
+          callsMade: callsMadeCount,
+          tasksCompleted: tasksCompletedCount,
+          conversionRate,
         };
       }),
     };
+  },
+
+  async exportTeamTodayCsvStream(dateFrom: Date, dateTo: Date) {
+    const data = await reportService.getTeamToday(dateFrom, dateTo);
+
+    const headers = [
+      "Agent Name",
+      "Leads Assigned",
+      "Calls Made",
+      "Tasks Completed",
+      "Conversion Rate",
+    ];
+    async function* lines() {
+      yield headers.join(",");
+      for (const row of data.users) {
+        yield [
+          escapeCsvCell(row.name),
+          escapeCsvCell(row.leadsAssigned),
+          escapeCsvCell(row.callsMade),
+          escapeCsvCell(row.tasksCompleted),
+          escapeCsvCell(row.conversionRate),
+        ].join(",");
+      }
+    }
+
+    return asyncLinesToCsvStream(lines());
   },
 
   async getOverviewStats(query: OverviewReportQuery) {
@@ -1323,6 +1479,74 @@ export const reportService = {
     const scope = leadScopeFromQuery(query);
     const leads_from_source = await queryLeadsBySource(scope);
     return { leads_from_source };
+  },
+
+  async exportSourcesReportCsvStream(query: SourcesReportQuery) {
+    const scope = leadScopeFromQuery(query);
+    const leads_from_source = await queryLeadsBySource(scope);
+
+    const flatSources = leads_from_source.flatMap((group) =>
+      group.sources.map((s) => ({
+        name: s.name,
+        count: s.count,
+      })),
+    );
+
+    const normalize = (value: string) => value.trim().toLowerCase();
+
+    const categoryOf = (
+      sourceName: string,
+    ): "Meta Ads" | "Google Ads" | "Manual" | "CSV Import" => {
+      const n = normalize(sourceName);
+
+      if (n.includes("google")) return "Google Ads";
+      if (
+        n.includes("facebook") ||
+        n.includes("instagram") ||
+        n.includes("whatsapp") ||
+        n.includes("meta")
+      ) {
+        return "Meta Ads";
+      }
+
+      if (
+        n.includes("bulk_import") ||
+        (n.includes("csv") && n.includes("import")) ||
+        (n.includes("bulk") && n.includes("import"))
+      ) {
+        return "CSV Import";
+      }
+
+      return "Manual";
+    };
+
+    const totals: Record<"Meta Ads" | "Google Ads" | "Manual" | "CSV Import", number> = {
+      "Meta Ads": 0,
+      "Google Ads": 0,
+      Manual: 0,
+      "CSV Import": 0,
+    };
+
+    for (const row of flatSources) {
+      totals[categoryOf(row.name)] += row.count;
+    }
+
+    const headers = ["Source", "Lead Count"];
+    const lines = async function* () {
+      yield headers.join(",");
+
+      const ordered: Array<keyof typeof totals> = [
+        "Meta Ads",
+        "Google Ads",
+        "Manual",
+        "CSV Import",
+      ];
+      for (const name of ordered) {
+        yield [escapeCsvCell(name), totals[name]].join(",");
+      }
+    };
+
+    return asyncLinesToCsvStream(lines());
   },
 
   async getProjects() {

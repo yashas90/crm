@@ -6,7 +6,7 @@ import { notFound } from "../lib/errors.js";
 
 type CallDirection = "incoming" | "outgoing";
 type CallStatus = "completed" | "missed" | "rejected" | "failed";
-type CallSource = "mobile-manual" | "mobile-auto";
+type CallSource = "mobile-manual" | "mobile-auto" | "web-manual";
 
 export interface LogCallInput {
   userId: string;
@@ -18,6 +18,7 @@ export interface LogCallInput {
   endedAt: Date;
   durationSeconds: number;
   disposition: string;
+  outcome?: string;
   notes?: string;
   source: CallSource;
 }
@@ -69,6 +70,7 @@ export const callService = {
       endedAt,
       durationSeconds,
       disposition,
+      outcome,
       notes,
       source,
     } = input;
@@ -123,6 +125,7 @@ export const callService = {
         endedAt,
         durationSeconds,
         disposition,
+        outcome: input.outcome ?? null,
         notes: notes ?? null,
       })
       .returning();
@@ -145,6 +148,7 @@ export const callService = {
             status,
             durationSeconds,
             disposition,
+            outcome: outcome ?? null,
             source,
             phoneNumber,
           },

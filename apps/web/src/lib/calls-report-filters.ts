@@ -6,7 +6,7 @@ export const CALLS_LEAD_SOURCE_OPTIONS = LEAD_SOURCE_VALUES;
 
 export type CallsReportDatePreset = Extract<
   DateRangePreset,
-  "today" | "yesterday" | "last7" | "custom"
+  "today" | "yesterday" | "last7" | "last30" | "custom"
 >;
 
 export type CallsReportFilterState = {

@@ -1,4 +1,4 @@
-export type DateRangePreset = "today" | "yesterday" | "last7" | "thisMonth" | "custom";
+export type DateRangePreset = "today" | "yesterday" | "last7" | "last30" | "thisMonth" | "custom";
 
 export type ReportFilterValue = {
   dateRange: {
@@ -41,6 +41,12 @@ export function resolveReportFilters(value: ReportFilterValue): { from: string; 
   if (value.dateRange.preset === "thisMonth") {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     return { from: formatDate(start), to: formatDate(now) };
+  }
+
+  if (value.dateRange.preset === "last30") {
+    const from = new Date(now);
+    from.setDate(from.getDate() - 30);
+    return { from: formatDate(from), to: formatDate(now) };
   }
 
   const from = new Date(now);

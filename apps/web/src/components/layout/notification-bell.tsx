@@ -138,7 +138,7 @@ export function NotificationBell() {
             )}
           </div>
 
-          {/* TODO: email / SMS / web-push delivery */}
+          {/* Deferred: email / SMS / web-push delivery (in-app only in v1.0) */}
         </div>
       ) : null}
     </div>

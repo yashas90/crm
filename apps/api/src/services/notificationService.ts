@@ -2,10 +2,12 @@ import { notifications } from "@propninja/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
+import { sendPushNotification } from "../lib/pushNotifications.js";
 
 export const NOTIFICATION_TYPES = {
   LEAD_ASSIGNED: "lead_assigned",
   FOLLOWUP_DUE: "followup_due",
+  TASK_ASSIGNED: "task_assigned",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -21,6 +23,42 @@ function formatNotification(row: typeof notifications.$inferSelect) {
   };
 }
 
+function pushMessageFor(type: string, payload: Record<string, unknown>) {
+  const leadName = typeof payload.leadName === "string" ? payload.leadName : "a lead";
+  const assignedBy = typeof payload.assignedBy === "string" ? payload.assignedBy : "Someone";
+  const taskTitle = typeof payload.taskTitle === "string" ? payload.taskTitle : "a task";
+
+  switch (type) {
+    case NOTIFICATION_TYPES.LEAD_ASSIGNED:
+      return {
+        title: "Lead assigned",
+        body: `${assignedBy} assigned you ${leadName}`,
+      };
+    case NOTIFICATION_TYPES.FOLLOWUP_DUE:
+      return {
+        title: "Follow-up due",
+        body: `Follow-up due for ${leadName}`,
+      };
+    case NOTIFICATION_TYPES.TASK_ASSIGNED:
+      return {
+        title: "Task assigned",
+        body: `You were assigned: ${taskTitle}`,
+      };
+    default:
+      return {
+        title: "PropNinja",
+        body: "You have a new notification",
+      };
+  }
+}
+
+function pushDataFor(type: string, payload: Record<string, unknown>) {
+  const data: Record<string, unknown> = { type };
+  if (typeof payload.leadId === "string") data.leadId = payload.leadId;
+  if (typeof payload.taskId === "string") data.taskId = payload.taskId;
+  return data;
+}
+
 export function createNotificationService(db: Database) {
   return {
     async createNotification(
@@ -30,6 +68,18 @@ export function createNotificationService(db: Database) {
     ) {
       try {
         const [row] = await db.insert(notifications).values({ userId, type, payload }).returning();
+        if (row) {
+          const { title, body } = pushMessageFor(type, payload);
+          void sendPushNotification(db, userId, title, body, pushDataFor(type, payload)).catch(
+            (error) => {
+              logger.error("Push notification failed", {
+                userId,
+                type,
+                message: error instanceof Error ? error.message : String(error),
+              });
+            },
+          );
+        }
         return row ? formatNotification(row) : null;
       } catch (error) {
         logger.error("Failed to create notification", {

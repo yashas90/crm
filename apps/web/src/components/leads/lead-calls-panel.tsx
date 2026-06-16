@@ -137,6 +137,7 @@ export function LeadCallsPanel({ calls, mode = "table" }: LeadCallsPanelProps) {
               <TableHead />
               <TableHead>Status</TableHead>
               <TableHead>Duration</TableHead>
+              <TableHead>Outcome</TableHead>
               <TableHead>Disposition</TableHead>
               <TableHead>When</TableHead>
               <TableHead>Agent</TableHead>
@@ -166,6 +167,9 @@ export function LeadCallsPanel({ calls, mode = "table" }: LeadCallsPanelProps) {
                   </span>
                 </TableCell>
                 <TableCell>{formatDuration(call.durationSeconds)}</TableCell>
+                <TableCell className="capitalize">
+                  {call.outcome?.replace(/_/g, " ") ?? "—"}
+                </TableCell>
                 <TableCell className="capitalize">{call.disposition ?? "—"}</TableCell>
                 <TableCell>{new Date(call.startedAt).toLocaleString()}</TableCell>
                 <TableCell>{call.userName ?? "—"}</TableCell>

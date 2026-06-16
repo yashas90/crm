@@ -1,5 +1,5 @@
 /** Canonical lead_source values written by adLeadService.ingestAdLead. */
-export const AD_LEAD_SOURCE_LABELS = ["Facebook Ads", "Google Ads"] as const;
+export const AD_LEAD_SOURCE_LABELS = ["Meta Ads", "Google Ads"] as const;
 
 export type AdLeadSourceLabel = (typeof AD_LEAD_SOURCE_LABELS)[number];
 

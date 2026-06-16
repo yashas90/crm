@@ -11,6 +11,8 @@ export interface NormalizedAdLead {
   campaignName?: string;
   adsetId?: string;
   adsetName?: string;
+  adId?: string;
+  adName?: string;
   formId?: string;
   formName?: string;
   firstName?: string;
@@ -25,7 +27,7 @@ export interface NormalizedAdLead {
 type LeadRow = typeof leads.$inferSelect;
 
 const LEAD_SOURCE_BY_PLATFORM: Record<NormalizedAdLead["source"], string> = {
-  facebook_ads: "Facebook Ads",
+  facebook_ads: "Meta Ads",
   google_ads: "Google Ads",
 };
 
@@ -85,6 +87,8 @@ function buildActivityMetadata(input: NormalizedAdLead, leadSource: string) {
     campaignName: input.campaignName ?? null,
     adsetId: input.adsetId ?? null,
     adsetName: input.adsetName ?? null,
+    adId: input.adId ?? null,
+    adName: input.adName ?? null,
     formId: input.formId ?? null,
     formName: input.formName ?? null,
     rawPayload: input.rawPayload,
@@ -211,6 +215,8 @@ function buildAdLeadCustomFields(
     campaignName: input.campaignName ?? null,
     adsetId: input.adsetId ?? null,
     adsetName: input.adsetName ?? null,
+    adId: input.adId ?? null,
+    adName: input.adName ?? null,
     formId: input.formId ?? null,
     formName: input.formName ?? null,
     rawPayload: input.rawPayload,

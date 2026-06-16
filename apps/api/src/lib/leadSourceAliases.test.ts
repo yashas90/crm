@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import { expandLeadSourceFilter } from "./leadSourceAliases.js";
 
 describe("expandLeadSourceFilter", () => {
-  it("expands Facebook Ads to canonical and legacy values", () => {
-    expect(expandLeadSourceFilter("Facebook Ads")).toEqual(["Facebook Ads", "facebook"]);
-    expect(expandLeadSourceFilter("facebook")).toEqual(["Facebook Ads", "facebook"]);
+  it("expands Meta Ads to canonical and legacy values", () => {
+    expect(expandLeadSourceFilter("Meta Ads")).toEqual(["Meta Ads", "Facebook Ads", "facebook"]);
+    expect(expandLeadSourceFilter("Facebook Ads")).toEqual([
+      "Meta Ads",
+      "Facebook Ads",
+      "facebook",
+    ]);
+    expect(expandLeadSourceFilter("facebook")).toEqual(["Meta Ads", "Facebook Ads", "facebook"]);
   });
 
   it("expands Google Ads aliases", () => {

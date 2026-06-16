@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { canViewReports } from "../lib/permissions.js";
+import { canExportReports, canViewReports } from "../lib/permissions.js";
 import {
   callsReportQuerySchema,
   dashboardReportQuerySchema,
@@ -39,12 +39,38 @@ function requireReportsAccess(c: {
   json: (body: unknown, status?: number) => Response;
 }) {
   const authUser = c.get("authUser") as AuthUser;
+
+  if (authUser.role !== "admin" && authUser.role !== "manager") {
+    return c.json(
+      { ok: false, error: { code: "FORBIDDEN", message: "Reports access denied" } },
+      403,
+    );
+  }
+
   if (!canViewReports(authUser)) {
     return c.json(
       { ok: false, error: { code: "FORBIDDEN", message: "Reports access denied" } },
       403,
     );
   }
+  return null;
+}
+
+function requireReportsExportAccess(c: {
+  get: (key: "authUser") => AuthUser;
+  json: (body: unknown, status?: number) => Response;
+}) {
+  const denied = requireReportsAccess(c);
+  if (denied) return denied;
+
+  const authUser = c.get("authUser") as AuthUser;
+  if (!canExportReports(authUser)) {
+    return c.json(
+      { ok: false, error: { code: "FORBIDDEN", message: "Reports export denied" } },
+      403,
+    );
+  }
+
   return null;
 }
 
@@ -161,7 +187,7 @@ function parseCallsReportRequest(
  * CSV export: GET /api/reports/calls/export?group_by=user&… (same filters, no pagination).
  */
 reportsRoutes.get("/calls/export", async (c) => {
-  const denied = requireReportsAccess(c);
+  const denied = requireReportsExportAccess(c);
   if (denied) return denied;
   const authUser = c.get("authUser") as AuthUser;
   const result = parseCallsReportRequest(authUser, c.req.query());
@@ -193,10 +219,10 @@ reportsRoutes.get("/calls/export", async (c) => {
     );
   }
 
-  const csv = await reportService.exportCallsReportPerUserCsv(result.scopedQuery);
+  const stream = await reportService.exportCallsReportPerUserCsvStream(result.scopedQuery);
   const date = new Date().toISOString().slice(0, 10);
 
-  return new Response(csv, {
+  return new Response(stream, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="calls-report-${date}.csv"`,
@@ -319,4 +345,117 @@ reportsRoutes.get("/team-today", async (c) => {
   const data = await reportService.getTeamToday(dateFrom, dateTo);
 
   return c.json({ ok: true, data });
+});
+
+reportsRoutes.get("/team-today/export", async (c) => {
+  const denied = requireReportsExportAccess(c);
+  if (denied) return denied;
+
+  const parsed = teamTodayQuerySchema.safeParse(c.req.query());
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const range = defaultTodayRange();
+  const dateFrom = parsed.data.date_from ? new Date(parsed.data.date_from) : range.dateFrom;
+  const dateTo = parsed.data.date_to ? new Date(parsed.data.date_to) : range.dateTo;
+
+  const stream = await reportService.exportTeamTodayCsvStream(dateFrom, dateTo);
+  const date = new Date().toISOString().slice(0, 10);
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="team-performance-${date}.csv"`,
+    },
+  });
+});
+
+reportsRoutes.get("/sources/export", async (c) => {
+  const denied = requireReportsExportAccess(c);
+  if (denied) return denied;
+
+  const authUser = c.get("authUser") as AuthUser;
+  const parsed = sourcesReportQuerySchema.safeParse(c.req.query());
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const stream = await reportService.exportSourcesReportCsvStream({
+    ...parsed.data,
+    userId: resolveReportUserId(authUser, parsed.data.userId),
+  });
+
+  const date = new Date().toISOString().slice(0, 10);
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="lead-sources-${date}.csv"`,
+    },
+  });
+});
+
+reportsRoutes.get("/calls/analytics/export", async (c) => {
+  const denied = requireReportsExportAccess(c);
+  if (denied) return denied;
+
+  const authUser = c.get("authUser") as AuthUser;
+  const result = parseCallsReportRequest(authUser, c.req.query());
+
+  if ("error" in result) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: result.error,
+        },
+      },
+      400,
+    );
+  }
+
+  if (result.parsed.groupBy === "user") {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Analytics export does not support group_by=user",
+        },
+      },
+      400,
+    );
+  }
+
+  const stream = await reportService.exportCallsAnalyticsCsvStream(result.scopedQuery);
+  const date = new Date().toISOString().slice(0, 10);
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="calls-analytics-${date}.csv"`,
+    },
+  });
 });

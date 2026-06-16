@@ -22,13 +22,15 @@
     },
     "production": {
       "autoIncrement": true,
-      "distribution": "store",
+      "autoSubmit": false,
+      "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://crm-production-6cfe.up.railway.app"
       },
       "android": {
-        "buildType": "app-bundle"
-      }
+        "buildType": "apk"
+      },
+      "ios": {}
     }
   },
   "submit": {

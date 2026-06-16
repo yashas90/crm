@@ -1,11 +1,16 @@
 import "dotenv/config";
 import {
+  adLeads,
+  auditLogs,
   callRecords,
   createDb,
+  integrationSyncState,
   leadActivities,
   leads,
+  notifications,
   organizations,
   projects,
+  tasks,
   tcfConsents,
   users,
 } from "@propninja/db";
@@ -152,7 +157,18 @@ async function clearDemoOrg(db: ReturnType<typeof createDb>) {
   const orgLeads = await db.select({ id: leads.id }).from(leads).where(eq(leads.orgId, org.id));
   const leadIds = orgLeads.map((row) => row.id);
 
+  const orgUsers = await db.select({ id: users.id }).from(users).where(eq(users.orgId, org.id));
+  const userIds = orgUsers.map((row) => row.id);
+
+  await db.delete(tasks).where(eq(tasks.orgId, org.id));
+
+  if (userIds.length > 0) {
+    await db.delete(notifications).where(inArray(notifications.userId, userIds));
+    await db.delete(auditLogs).where(inArray(auditLogs.userId, userIds));
+  }
+
   if (leadIds.length > 0) {
+    await db.delete(adLeads).where(inArray(adLeads.leadId, leadIds));
     await db.delete(tcfConsents).where(inArray(tcfConsents.leadId, leadIds));
     await db.delete(leadActivities).where(inArray(leadActivities.leadId, leadIds));
   }
@@ -160,6 +176,7 @@ async function clearDemoOrg(db: ReturnType<typeof createDb>) {
   await db.delete(callRecords).where(eq(callRecords.orgId, org.id));
   await db.delete(leads).where(eq(leads.orgId, org.id));
   await db.delete(projects).where(eq(projects.orgId, org.id));
+  await db.delete(integrationSyncState).where(eq(integrationSyncState.orgId, org.id));
   await db.delete(users).where(eq(users.orgId, org.id));
   await db.delete(organizations).where(eq(organizations.id, org.id));
 }

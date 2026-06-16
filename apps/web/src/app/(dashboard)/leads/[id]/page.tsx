@@ -8,6 +8,7 @@ import { ProjectChip, StatusChip, TemperatureChip } from "@/components/leads/lea
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
 import { LeadEditForm } from "@/components/leads/lead-edit-form";
 import { LeadTagsEditor } from "@/components/leads/lead-tags-editor";
+import { LogCallDialog } from "@/components/leads/log-call-dialog";
 import { ComplianceChip, TcfConsentPanel } from "@/components/leads/tcf-consent-panel";
 import { TasksPanel } from "@/components/tasks/tasks-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -54,8 +55,12 @@ function avatarInitials(name: string) {
 }
 
 export default function LeadDetailPage({ params }: { params: { id: string } }) {
-  const { data: lead, isLoading, isError } = useLead(params.id);
-  const { data: callsData } = useCalls({ lead_id: params.id, page: "1", pageSize: "50" });
+  const { data: lead, isLoading, isError, refetch: refetchLead } = useLead(params.id);
+  const { data: callsData, refetch: refetchCalls } = useCalls({
+    lead_id: params.id,
+    page: "1",
+    pageSize: "50",
+  });
   const { data: tcfData, isLoading: tcfLoading } = useTcfConsent(params.id);
   const { data: users } = useUsers();
   const addNote = useAddLeadNote(params.id);
@@ -65,6 +70,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
   const [assignUserId, setAssignUserId] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showLogCall, setShowLogCall] = useState(false);
 
   const { ready, canDeleteLead } = usePermissions();
   const callConsent = tcfData?.consents.call?.consented ?? null;
@@ -271,8 +277,13 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
         {/* Left column ~40% */}
         <div className="space-y-4 lg:col-span-2">
           <Card className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-base">Contact details</CardTitle>
+              {lead.phone ? (
+                <Button size="sm" variant="outline" onClick={() => setShowLogCall(true)}>
+                  Log a call
+                </Button>
+              ) : null}
             </CardHeader>
             <CardContent className="space-y-3">
               {lead.phone ? (
@@ -282,6 +293,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   value={lead.phone}
                   onCopy={() => copyText(lead.phone!, "Phone")}
                   whatsapp={lead.phone}
+                  leadFirstName={lead.firstName}
                 />
               ) : null}
               {lead.secondaryPhone ? (
@@ -291,6 +303,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   value={lead.secondaryPhone}
                   onCopy={() => copyText(lead.secondaryPhone!, "Secondary phone")}
                   whatsapp={lead.secondaryPhone}
+                  leadFirstName={lead.firstName}
                 />
               ) : null}
               {lead.email ? (
@@ -416,15 +429,28 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
           redirectOnSuccess
         />
       ) : null}
+
+      {showLogCall ? (
+        <LogCallDialog
+          lead={lead}
+          open={showLogCall}
+          onOpenChange={setShowLogCall}
+          onLogged={() => {
+            void refetchCalls();
+            void refetchLead();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function buildWhatsAppUrl(phone: string) {
+function buildWhatsAppUrl(phone: string, firstName: string) {
   const digits = phone.replace(/\D/g, "");
   const normalized =
     digits.startsWith("91") && digits.length === 12 ? digits : `91${digits.slice(-10)}`;
-  return `https://wa.me/${normalized}`;
+  const greeting = encodeURIComponent(`Hi ${firstName}`);
+  return `https://wa.me/${normalized}?text=${greeting}`;
 }
 
 function ContactRow({
@@ -433,12 +459,14 @@ function ContactRow({
   value,
   onCopy,
   whatsapp,
+  leadFirstName,
 }: {
   icon: typeof Phone;
   label?: string;
   value: string;
   onCopy: () => void;
   whatsapp?: string;
+  leadFirstName?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-xl bg-muted/30 px-3 py-2 text-sm">
@@ -452,7 +480,7 @@ function ContactRow({
       <div className="flex shrink-0 items-center gap-1">
         {whatsapp ? (
           <a
-            href={buildWhatsAppUrl(whatsapp)}
+            href={buildWhatsAppUrl(whatsapp, leadFirstName ?? "there")}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700"

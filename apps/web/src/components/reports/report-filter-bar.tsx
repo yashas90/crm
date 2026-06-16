@@ -10,6 +10,7 @@ const PRESETS: { id: ReportFilterValue["dateRange"]["preset"]; label: string }[]
   { id: "today", label: "Today" },
   { id: "yesterday", label: "Yesterday" },
   { id: "last7", label: "Last 7 days" },
+  { id: "last30", label: "Last 30 days" },
   { id: "thisMonth", label: "This month" },
   { id: "custom", label: "Custom" },
 ];
@@ -17,9 +18,10 @@ const PRESETS: { id: ReportFilterValue["dateRange"]["preset"]; label: string }[]
 type ReportFilterBarProps = {
   value: ReportFilterValue;
   onChange: (next: ReportFilterValue) => void;
+  hideAgent?: boolean;
 };
 
-export function ReportFilterBar({ value, onChange }: ReportFilterBarProps) {
+export function ReportFilterBar({ value, onChange, hideAgent = false }: ReportFilterBarProps) {
   const { data: users } = useUsers();
   const selectClass =
     "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -29,7 +31,9 @@ export function ReportFilterBar({ value, onChange }: ReportFilterBarProps) {
       <CardHeader>
         <CardTitle className="text-base">Filters</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-3">
+      <CardContent
+        className={hideAgent ? "grid gap-4 md:grid-cols-2" : "grid gap-4 md:grid-cols-3"}
+      >
         <div className="space-y-2">
           <Label htmlFor="datePreset">Date range</Label>
           <select
@@ -55,22 +59,24 @@ export function ReportFilterBar({ value, onChange }: ReportFilterBarProps) {
           </select>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="agent">Agent</Label>
-          <select
-            id="agent"
-            className={selectClass}
-            value={value.userId ?? ""}
-            onChange={(e) => onChange({ ...value, userId: e.target.value || undefined })}
-          >
-            <option value="">All agents</option>
-            {users?.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!hideAgent ? (
+          <div className="space-y-2">
+            <Label htmlFor="agent">Agent</Label>
+            <select
+              id="agent"
+              className={selectClass}
+              value={value.userId ?? ""}
+              onChange={(e) => onChange({ ...value, userId: e.target.value || undefined })}
+            >
+              <option value="">All agents</option>
+              {users?.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         {value.dateRange.preset === "custom" ? (
           <div className="grid gap-4 md:col-span-3 md:grid-cols-2">

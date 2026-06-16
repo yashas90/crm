@@ -4,6 +4,7 @@ import type { MainTabParamList } from "@/navigation/types";
 import { HomeScreen } from "@/screens/HomeScreen";
 import { NotificationsScreen } from "@/screens/NotificationsScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
+import { TasksScreen } from "@/screens/TasksScreen";
 import { TodayScreen } from "@/screens/TodayScreen";
 import { colors } from "@/theme";
 import { TAB_BAR_HEIGHT } from "@/theme/layout";
@@ -73,6 +74,15 @@ export function MainTabs({ onLogout }: MainTabsProps) {
         options={{
           title: "Leads",
           tabBarIcon: ({ focused }) => tabIcon("people-outline", focused),
+        }}
+      />
+      <Tab.Screen
+        name="TasksTab"
+        component={TasksScreen}
+        options={{
+          title: "Tasks",
+          tabBarIcon: ({ focused }) => tabIcon("checkbox-outline", focused),
+          headerShown: false,
         }}
       />
       <Tab.Screen

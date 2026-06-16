@@ -14,16 +14,16 @@ describe("leads URL filters", () => {
     expect(serialized).toContain("ad_leads=true");
   });
 
-  it("round-trips Facebook Ads source filter", () => {
+  it("round-trips Meta Ads source filter (legacy Facebook Ads URL)", () => {
     const params = new URLSearchParams("source=Facebook%20Ads&active=true");
     const parsed = parseLeadsPageUrl(params);
-    expect(parsed.filters.source).toBe("Facebook Ads");
+    expect(parsed.filters.source).toBe("Meta Ads");
 
     const serialized = buildLeadsSearchParams(parsed.filters, {
       scope: parsed.scope,
       stage: parsed.stage,
     });
-    expect(serialized).toContain("source=Facebook+Ads");
+    expect(serialized).toContain("source=Meta+Ads");
   });
 
   it("round-trips tags filter", () => {

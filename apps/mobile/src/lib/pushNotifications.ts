@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { apiPost } from "./apiClient";
@@ -14,6 +15,11 @@ Notifications.setNotificationHandler({
 
 type PermStatus = { granted: boolean; canAskAgain: boolean };
 
+function getExpoProjectId(): string | undefined {
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  return typeof projectId === "string" && projectId.length > 0 ? projectId : undefined;
+}
+
 export async function registerPushToken(): Promise<void> {
   try {
     const existing = (await Notifications.getPermissionsAsync()) as unknown as PermStatus;
@@ -26,7 +32,10 @@ export async function registerPushToken(): Promise<void> {
 
     if (!granted) return;
 
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const projectId = getExpoProjectId();
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
     const token = tokenData.data;
 
     await apiPost("/api/auth/push-token", { token });

@@ -8,17 +8,20 @@ import {
 
 describe("lead-sources", () => {
   it("normalizes legacy slugs to canonical labels", () => {
-    expect(normalizeLeadSourceValue("facebook")).toBe("Facebook Ads");
+    expect(normalizeLeadSourceValue("facebook")).toBe("Meta Ads");
+    expect(normalizeLeadSourceValue("Facebook Ads")).toBe("Meta Ads");
     expect(normalizeLeadSourceValue("google-ads")).toBe("Google Ads");
     expect(normalizeLeadSourceValue("walk-in")).toBe("Walk In");
   });
 
   it("formats display labels for legacy stored values", () => {
-    expect(formatLeadSourceDisplay("facebook")).toBe("Facebook Ads");
-    expect(formatLeadSourceDisplay("Facebook Ads")).toBe("Facebook Ads");
+    expect(formatLeadSourceDisplay("facebook")).toBe("Meta Ads");
+    expect(formatLeadSourceDisplay("Facebook Ads")).toBe("Meta Ads");
+    expect(formatLeadSourceDisplay("Meta Ads")).toBe("Meta Ads");
   });
 
   it("detects ad leads by source or tag", () => {
+    expect(isAdLeadLead({ leadSource: "Meta Ads", tags: [] })).toBe(true);
     expect(isAdLeadLead({ leadSource: "Facebook Ads", tags: [] })).toBe(true);
     expect(isAdLeadLead({ leadSource: "website", tags: ["ad_lead"] })).toBe(true);
     expect(isAdLeadLead({ leadSource: "website", tags: [] })).toBe(false);

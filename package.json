@@ -8,10 +8,11 @@
     "test": "turbo test",
     "db:migrate": "pnpm --filter @propninja/db db:migrate",
     "db:seed": "pnpm --filter @propninja/db db:seed",
+    "reset:admin": "pnpm --filter @propninja/db exec tsx ../../scripts/reset-admin.ts",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "check": "biome check --write .",
-    "check:ci": "turbo lint test build",
+    "check:ci": "cross-env NEXT_PUBLIC_API_URL=https://api.ci.propninja.test turbo lint test build",
     "railway:build": "pnpm --filter @propninja/db build && pnpm --filter @propninja/api build",
     "railway:start": "pnpm db:migrate && pnpm --filter @propninja/api start",
     "mobile:eas:init": "pnpm --filter @propninja/mobile eas:init",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "cross-env": "^10.1.0",
     "husky": "^9.1.7",
     "turbo": "^2.5.4",
     "typescript": "^5.8.3"

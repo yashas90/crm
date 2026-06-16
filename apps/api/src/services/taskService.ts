@@ -1,7 +1,14 @@
 import { leads, tasks, users } from "@propninja/db";
-import { and, asc, count, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import {
+  type TaskNoteEntry,
+  appendTaskNote,
+  endOfTodayIso,
+  parseTaskNotes,
+  startOfTodayIso,
+} from "../lib/taskNotes.js";
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -31,11 +38,63 @@ export interface UpdateTaskInput {
 export interface ListTasksParams {
   leadId?: string;
   assignedTo?: string;
-  status?: TaskStatus;
+  status?: TaskStatus | "open";
+  priority?: TaskPriority;
   dueBefore?: string;
   dueAfter?: string;
   page?: number;
   pageSize?: number;
+}
+
+const taskSelectFields = {
+  id: tasks.id,
+  orgId: tasks.orgId,
+  leadId: tasks.leadId,
+  assignedTo: tasks.assignedTo,
+  createdBy: tasks.createdBy,
+  title: tasks.title,
+  description: tasks.description,
+  dueAt: tasks.dueAt,
+  priority: tasks.priority,
+  status: tasks.status,
+  taskType: tasks.taskType,
+  completedAt: tasks.completedAt,
+  notes: tasks.notes,
+  createdAt: tasks.createdAt,
+  updatedAt: tasks.updatedAt,
+  assigneeUser: {
+    id: users.id,
+    name: users.name,
+  },
+  lead: {
+    id: leads.id,
+    firstName: leads.firstName,
+    lastName: leads.lastName,
+  },
+};
+
+function mapTaskRow<T extends { notes: string | null }>(row: T) {
+  return {
+    ...row,
+    noteEntries: parseTaskNotes(row.notes),
+  };
+}
+
+function buildListConditions(params: ListTasksParams) {
+  const conditions = [eq(tasks.orgId, SINGLE_TENANT_ORG_ID)];
+
+  if (params.leadId) conditions.push(eq(tasks.leadId, params.leadId));
+  if (params.assignedTo) conditions.push(eq(tasks.assignedTo, params.assignedTo));
+  if (params.priority) conditions.push(eq(tasks.priority, params.priority));
+  if (params.status === "open") {
+    conditions.push(or(eq(tasks.status, "pending"), eq(tasks.status, "in_progress"))!);
+  } else if (params.status) {
+    conditions.push(eq(tasks.status, params.status));
+  }
+  if (params.dueBefore) conditions.push(lte(tasks.dueAt, new Date(params.dueBefore)));
+  if (params.dueAfter) conditions.push(gte(tasks.dueAt, new Date(params.dueAfter)));
+
+  return and(...conditions);
 }
 
 export const taskService = {
@@ -59,52 +118,19 @@ export const taskService = {
 
   async getById(id: string) {
     const [row] = await db
-      .select({
-        id: tasks.id,
-        orgId: tasks.orgId,
-        leadId: tasks.leadId,
-        assignedTo: tasks.assignedTo,
-        createdBy: tasks.createdBy,
-        title: tasks.title,
-        description: tasks.description,
-        dueAt: tasks.dueAt,
-        priority: tasks.priority,
-        status: tasks.status,
-        taskType: tasks.taskType,
-        completedAt: tasks.completedAt,
-        createdAt: tasks.createdAt,
-        updatedAt: tasks.updatedAt,
-        assigneeUser: {
-          id: users.id,
-          name: users.name,
-        },
-        lead: {
-          id: leads.id,
-          firstName: leads.firstName,
-          lastName: leads.lastName,
-        },
-      })
+      .select(taskSelectFields)
       .from(tasks)
       .leftJoin(users, eq(tasks.assignedTo, users.id))
       .leftJoin(leads, eq(tasks.leadId, leads.id))
       .where(and(eq(tasks.id, id), eq(tasks.orgId, SINGLE_TENANT_ORG_ID)))
       .limit(1);
-    return row ?? null;
+    return row ? mapTaskRow(row) : null;
   },
 
   async list(params: ListTasksParams = {}) {
     const { page = 1, pageSize = 50 } = params;
     const offset = (page - 1) * pageSize;
-
-    const conditions = [eq(tasks.orgId, SINGLE_TENANT_ORG_ID)];
-
-    if (params.leadId) conditions.push(eq(tasks.leadId, params.leadId));
-    if (params.assignedTo) conditions.push(eq(tasks.assignedTo, params.assignedTo));
-    if (params.status) conditions.push(eq(tasks.status, params.status));
-    if (params.dueBefore) conditions.push(lte(tasks.dueAt, new Date(params.dueBefore)));
-    if (params.dueAfter) conditions.push(gte(tasks.dueAt, new Date(params.dueAfter)));
-
-    const where = and(...conditions);
+    const where = buildListConditions(params);
 
     const [{ total }] = await db.select({ total: count() }).from(tasks).where(where);
 
@@ -121,17 +147,11 @@ export const taskService = {
         status: tasks.status,
         taskType: tasks.taskType,
         completedAt: tasks.completedAt,
+        notes: tasks.notes,
         createdAt: tasks.createdAt,
         updatedAt: tasks.updatedAt,
-        assigneeUser: {
-          id: users.id,
-          name: users.name,
-        },
-        lead: {
-          id: leads.id,
-          firstName: leads.firstName,
-          lastName: leads.lastName,
-        },
+        assigneeUser: taskSelectFields.assigneeUser,
+        lead: taskSelectFields.lead,
       })
       .from(tasks)
       .leftJoin(users, eq(tasks.assignedTo, users.id))
@@ -145,7 +165,12 @@ export const taskService = {
       .limit(pageSize)
       .offset(offset);
 
-    return { items, total: total ?? 0, page, pageSize };
+    return {
+      items: items.map(mapTaskRow),
+      total: total ?? 0,
+      page,
+      pageSize,
+    };
   },
 
   async update(id: string, input: UpdateTaskInput) {
@@ -193,6 +218,60 @@ export const taskService = {
     return row ?? null;
   },
 
+  async addNote(
+    id: string,
+    input: { text: string; authorId: string; authorName: string },
+  ): Promise<{ noteEntries: TaskNoteEntry[] } | null> {
+    const existing = await this.getById(id);
+    if (!existing) return null;
+
+    const notes = appendTaskNote(existing.notes, input);
+    const [row] = await db
+      .update(tasks)
+      .set({ notes, updatedAt: new Date() })
+      .where(and(eq(tasks.id, id), eq(tasks.orgId, SINGLE_TENANT_ORG_ID)))
+      .returning({ notes: tasks.notes });
+
+    if (!row) return null;
+    return { noteEntries: parseTaskNotes(row.notes) };
+  },
+
+  async bulkComplete(taskIds: string[]) {
+    if (taskIds.length === 0) return { succeeded: [] as string[], failed: [] as string[] };
+    const now = new Date();
+    const rows = await db
+      .update(tasks)
+      .set({ status: "completed", completedAt: now, updatedAt: now })
+      .where(and(eq(tasks.orgId, SINGLE_TENANT_ORG_ID), inArray(tasks.id, taskIds)))
+      .returning({ id: tasks.id });
+    const succeeded = rows.map((r) => r.id);
+    const failed = taskIds.filter((id) => !succeeded.includes(id));
+    return { succeeded, failed };
+  },
+
+  async bulkReassign(taskIds: string[], assignedTo: string) {
+    if (taskIds.length === 0) return { succeeded: [] as string[], failed: [] as string[] };
+    const rows = await db
+      .update(tasks)
+      .set({ assignedTo, updatedAt: new Date() })
+      .where(and(eq(tasks.orgId, SINGLE_TENANT_ORG_ID), inArray(tasks.id, taskIds)))
+      .returning({ id: tasks.id });
+    const succeeded = rows.map((r) => r.id);
+    const failed = taskIds.filter((id) => !succeeded.includes(id));
+    return { succeeded, failed };
+  },
+
+  async bulkDelete(taskIds: string[]) {
+    if (taskIds.length === 0) return { succeeded: [] as string[], failed: [] as string[] };
+    const rows = await db
+      .delete(tasks)
+      .where(and(eq(tasks.orgId, SINGLE_TENANT_ORG_ID), inArray(tasks.id, taskIds)))
+      .returning({ id: tasks.id });
+    const succeeded = rows.map((r) => r.id);
+    const failed = taskIds.filter((id) => !succeeded.includes(id));
+    return { succeeded, failed };
+  },
+
   async getOverdueCounts(assignedTo?: string) {
     const now = new Date();
     const conditions = [
@@ -208,4 +287,16 @@ export const taskService = {
       .where(and(...conditions));
     return total ?? 0;
   },
+
+  async listDueToday(assignedTo: string) {
+    return this.list({
+      assignedTo,
+      status: "open",
+      dueAfter: startOfTodayIso(),
+      dueBefore: endOfTodayIso(),
+      pageSize: 20,
+    });
+  },
 };
+
+export { endOfTodayIso, parseTaskNotes, startOfTodayIso };

@@ -15,6 +15,7 @@ import {
   CALLS_REPORT_PAGE_SIZES,
   type CallsReportPageSize,
   type CallsUserStatusFilter,
+  downloadCallsAnalyticsReport,
   downloadCallsUserReport,
   isForbiddenError,
   useCallsReport,
@@ -29,6 +30,7 @@ import {
   resolveCallsReportDates,
 } from "@/lib/calls-report-filters";
 import { toApiRange } from "@/lib/report-filters";
+import { CALL_OUTCOME_LABELS, type CallOutcome } from "@propninja/types/enums";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { Input } from "@propninja/ui/input";
@@ -53,6 +55,7 @@ export default function CallsReportPage() {
   const [userReportPage, setUserReportPage] = useState(1);
   const [userReportPageSize, setUserReportPageSize] = useState<CallsReportPageSize>(50);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingAnalytics, setIsExportingAnalytics] = useState(false);
   const [userStatus, setUserStatus] = useState<CallsUserStatusFilter>("all");
   const [userNameDraft, setUserNameDraft] = useState("");
   const [userNameSearch, setUserNameSearch] = useState("");
@@ -132,6 +135,20 @@ export default function CallsReportPage() {
       await downloadCallsUserReport(reportQueryParams);
     } finally {
       setIsExporting(false);
+    }
+  }
+
+  async function handleExportAnalytics() {
+    setIsExportingAnalytics(true);
+    try {
+      await downloadCallsAnalyticsReport({
+        dateFrom: apiRange.dateFrom,
+        dateTo: apiRange.dateTo,
+        userIds: appliedFilters.userIds.length > 0 ? appliedFilters.userIds : undefined,
+        withTeam: appliedFilters.withTeam,
+      });
+    } finally {
+      setIsExportingAnalytics(false);
     }
   }
 
@@ -300,6 +317,18 @@ export default function CallsReportPage() {
               />
             ) : showAnalytics ? (
               <>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleExportAnalytics()}
+                    disabled={isExportingAnalytics}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {isExportingAnalytics ? "Exporting..." : "Export (analytics)"}
+                  </Button>
+                </div>
+
                 <LineAreaChart
                   title="Calls over time (click a point to drill down)"
                   points={analyticsReport.data.calls_over_time.map((row) => ({
@@ -312,9 +341,12 @@ export default function CallsReportPage() {
 
                 <div className="grid gap-6 lg:grid-cols-2">
                   <PieChart
-                    title="Disposition breakdown"
+                    title="Outcome breakdown"
                     items={analyticsReport.data.disposition_breakdown.map((row) => ({
-                      label: row.disposition,
+                      label:
+                        row.disposition in CALL_OUTCOME_LABELS
+                          ? CALL_OUTCOME_LABELS[row.disposition as CallOutcome]
+                          : row.disposition,
                       value: row.count,
                     }))}
                   />

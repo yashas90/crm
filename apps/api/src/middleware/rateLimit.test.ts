@@ -30,6 +30,25 @@ describe("createUserRateLimiter", () => {
     resetRateLimitStoreForTests();
   });
 
+  it("limits all HTTP methods when methods=all", async () => {
+    const limiter = createUserRateLimiter({
+      limit: 2,
+      windowMs: 60_000,
+      bucket: "all-methods",
+      methods: "all",
+    });
+    const app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("authUser", testUser);
+      await next();
+    });
+    app.get("/read", limiter, (c) => c.json({ ok: true }));
+
+    expect((await app.request("/read")).status).toBe(200);
+    expect((await app.request("/read")).status).toBe(200);
+    expect((await app.request("/read")).status).toBe(429);
+  });
+
   it("returns 429 after limit+1 calls in the same window", async () => {
     const limiter = createUserRateLimiter({ limit: 3, windowMs: 60_000, bucket: "test" });
     const app = appWithUser(limiter);
@@ -41,6 +60,7 @@ describe("createUserRateLimiter", () => {
 
     const blocked = await app.request("/test", { method: "POST" });
     expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("retry-after")).toBeTruthy();
     const body = (await blocked.json()) as { ok: boolean; error: { code: string } };
     expect(body.ok).toBe(false);
     expect(body.error.code).toBe("RATE_LIMITED");

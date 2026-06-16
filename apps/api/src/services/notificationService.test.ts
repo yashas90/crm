@@ -16,6 +16,13 @@ describe("createNotificationService", () => {
 
     const db = {
       insert: vi.fn().mockReturnValue({ values: vi.fn().mockReturnValue({ returning }) }),
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([{ expoPushToken: null }]),
+          }),
+        }),
+      }),
     };
 
     const service = createNotificationService(db as never);

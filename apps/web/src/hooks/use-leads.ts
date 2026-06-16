@@ -66,6 +66,7 @@ export type CallRecord = {
   durationSeconds: number;
   startedAt: string;
   disposition: string | null;
+  outcome: string | null;
   notes: string | null;
   userName?: string | null;
   lead?: {
@@ -256,7 +257,7 @@ export function useLead(id: string) {
   });
 }
 
-// Read-only on web: lists call records for lead detail and reports. Logging happens on mobile.
+// Call records for lead detail and reports. Web can log via POST /api/calls/log.
 export function useCalls(params: CallsQueryParams) {
   const query = buildQuery(params);
   const hasFilter = Boolean(params.lead_id || params.user_id || params.date_from || params.date_to);
@@ -279,6 +280,27 @@ export function useUpdateLead(leadId: string) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
+export type LogCallInput = {
+  lead_id: string;
+  phone_number: string;
+  duration: number;
+  outcome: "answered" | "no_answer" | "busy" | "left_voicemail";
+  notes?: string;
+  source: "web-manual";
+};
+
+export function useLogCall() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: LogCallInput) => apiPost("/api/calls/log", payload),
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["calls"] });
+      await queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] });
     },
   });
 }

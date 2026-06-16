@@ -31,6 +31,8 @@ export function formatNotificationType(type: string): string {
       return "Lead assigned";
     case "followup_due":
       return "Follow-up due";
+    case "task_assigned":
+      return "Task assigned";
     default:
       return type.replace(/_/g, " ");
   }
@@ -47,6 +49,11 @@ export function formatNotificationLabel(notification: NotificationRow): string {
 
   if (notification.type === "followup_due") {
     return `Follow-up due for ${leadName}`;
+  }
+
+  if (notification.type === "task_assigned") {
+    const taskTitle = typeof payload.taskTitle === "string" ? payload.taskTitle : "a task";
+    return `You were assigned: ${taskTitle}`;
   }
 
   return leadName;

@@ -22,7 +22,7 @@ import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useLayoutEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -59,13 +59,20 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const updateLead = useUpdateLead();
   const addNote = useAddLeadNote(leadId);
   const [logModalVisible, setLogModalVisible] = useState(false);
+  const [defaultLogDuration, setDefaultLogDuration] = useState(60);
+  const [callLoggedToast, setCallLoggedToast] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [tab, setTab] = useState<"calls" | "notes" | "tasks">("calls");
   const [noteText, setNoteText] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
   const insets = useSafeAreaInsets();
 
-  const { beginCall } = useReturnFromDialerLog(() => setLogModalVisible(true));
+  const handleReturnFromDialer = useCallback((elapsedSeconds: number) => {
+    setDefaultLogDuration(elapsedSeconds);
+    setLogModalVisible(true);
+  }, []);
+
+  const { beginCall } = useReturnFromDialerLog(handleReturnFromDialer);
 
   useRefreshOnFocus(() => Promise.all([refetch(), refetchCalls(), refetchTcf()]));
 
@@ -124,26 +131,20 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         lead_id: lead.id,
         phone_number: lead.phone,
         direction: "outgoing",
-        status: payload.status,
         duration_seconds: payload.durationSeconds,
         started_at: startedAt.toISOString(),
         ended_at: endedAt.toISOString(),
-        disposition: payload.disposition,
+        outcome: payload.outcome,
         notes: payload.notes,
         source: "mobile-manual",
       },
       {
-        onSuccess: () => {
-          if (payload.disposition === "callback") {
-            const nextFollowupAt = new Date();
-            nextFollowupAt.setDate(nextFollowupAt.getDate() + 1);
-            updateLead.mutate({
-              leadId: lead.id,
-              payload: { nextFollowupAt: nextFollowupAt.toISOString() },
-            });
-          }
+        onSuccess: async () => {
+          await refetchCalls();
           void feedbackCallSaved();
           setLogModalVisible(false);
+          setCallLoggedToast(true);
+          setTimeout(() => setCallLoggedToast(false), 2500);
         },
         onError: (err) => {
           Alert.alert("Error", err instanceof Error ? err.message : "Failed to log call.");
@@ -401,10 +402,17 @@ export function LeadDetailScreen({ route, navigation }: Props) {
       <CallLogModal
         visible={logModalVisible}
         phoneNumber={lead.phone ?? undefined}
+        defaultDurationSeconds={defaultLogDuration}
         onClose={() => setLogModalVisible(false)}
         onSubmit={submitLog}
         isSubmitting={logCall.isPending}
       />
+
+      {callLoggedToast ? (
+        <View style={[styles.callLoggedToast, { bottom: 24 + insets.bottom }]}>
+          <Text style={styles.callLoggedToastText}>Call logged ✓</Text>
+        </View>
+      ) : null}
 
       <LeadEditModal
         visible={editVisible}
@@ -741,6 +749,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  callLoggedToast: {
+    position: "absolute",
+    alignSelf: "center",
+    backgroundColor: "#166534",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radii.sm,
+    zIndex: 100,
+  },
+  callLoggedToastText: { color: "#ffffff", fontWeight: "600", fontSize: 14 },
   noteBlock: { marginTop: spacing.md },
   noteBlockTitle: {
     color: colors.textMutedDark,

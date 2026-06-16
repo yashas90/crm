@@ -1,8 +1,10 @@
 # Ad lead integrations
 
+> **Production setup:** see [docs/integrations.md](docs/integrations.md) for Railway env vars, webhook URL, and Google Ads polling.
+
 PropNinja ingests leads from **Meta Lead Ads** (Facebook / Instagram) via webhook and from **Google Ads** lead forms via a background sync job. Configure env vars on the API server (`apps/api/.env`). Status is visible at **Settings → Integrations** in the web app.
 
-Ingested leads are tagged `ad_lead`, tagged by platform (`facebook_ads` / `google_ads`), and appear in reports under **Facebook Ads** and **Google Ads**.
+Ingested leads are tagged `ad_lead`, tagged by platform (`facebook_ads` / `google_ads`), and appear in reports under **Meta Ads** and **Google Ads**.
 
 ---
 

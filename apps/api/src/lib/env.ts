@@ -22,6 +22,8 @@ const envSchema = z
     AUTH_JWT_SECRET: z.string().min(16, "AUTH_JWT_SECRET is required (min 16 characters)"),
     /** Optional — enables Sentry error tracking when set. */
     SENTRY_DSN: z.string().url().optional(),
+    /** Git commit SHA for Sentry release tracking (set automatically on Railway). */
+    RAILWAY_GIT_COMMIT_SHA: z.string().min(1).optional(),
     /** Optional — Redis URL for distributed rate limiting (falls back to in-memory when unset). */
     REDIS_URL: z.string().min(1).optional(),
     /** When true, META_VERIFY_TOKEN and META_APP_SECRET are required at startup. */

@@ -18,6 +18,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { AppState } from "react-native";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -42,6 +43,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => setStatus("unauthenticated"));
   }, []);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    void registerPushToken();
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void registerPushToken();
+      }
+    });
+
+    return () => sub.remove();
+  }, [status]);
 
   const login = useCallback(async (token: string, sessionUser: SessionUser) => {
     await persistAuth(token, sessionUser);

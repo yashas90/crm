@@ -45,10 +45,18 @@ export function TaskCard({
   task,
   showLead = false,
   canDelete = false,
+  selected = false,
+  onSelect,
+  onOpen,
+  compact = false,
 }: {
   task: Task;
   showLead?: boolean;
   canDelete?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string, checked: boolean) => void;
+  onOpen?: (id: string) => void;
+  compact?: boolean;
 }) {
   const complete = useCompleteTask();
   const remove = useDeleteTask();
@@ -60,11 +68,21 @@ export function TaskCard({
     <div
       className={cn(
         "group flex items-start gap-3 rounded-xl border p-3 transition-all duration-200",
-        isDone
-          ? "border-border/40 bg-muted/20 opacity-60"
-          : "border-border/60 bg-card hover:border-border hover:shadow-sm",
+        selected ? "border-primary bg-primary/5" : "border-border/60 bg-card",
+        isDone ? "opacity-60" : "hover:border-border hover:shadow-sm",
+        compact && "p-2",
       )}
     >
+      {onSelect ? (
+        <input
+          type="checkbox"
+          className="mt-1 h-4 w-4 shrink-0 accent-primary"
+          checked={selected}
+          onChange={(e) => onSelect(task.id, e.target.checked)}
+          aria-label={`Select ${task.title}`}
+        />
+      ) : null}
+
       <button
         type="button"
         className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-primary"
@@ -79,7 +97,12 @@ export function TaskCard({
         )}
       </button>
 
-      <div className="min-w-0 flex-1">
+      <button
+        type="button"
+        className="min-w-0 flex-1 text-left"
+        onClick={() => onOpen?.(task.id)}
+        disabled={!onOpen}
+      >
         <div className="flex flex-wrap items-center gap-2">
           <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <p className={cn("text-sm font-medium", isDone && "line-through")}>{task.title}</p>
@@ -93,7 +116,7 @@ export function TaskCard({
           </span>
         </div>
 
-        {task.description ? (
+        {!compact && task.description ? (
           <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{task.description}</p>
         ) : null}
 
@@ -117,15 +140,12 @@ export function TaskCard({
             </span>
           ) : null}
           {showLead && task.lead ? (
-            <a
-              href={`/leads/${task.lead.id}`}
-              className="text-primary underline-offset-2 hover:underline"
-            >
+            <span className="text-primary">
               {task.lead.firstName} {task.lead.lastName}
-            </a>
+            </span>
           ) : null}
         </div>
-      </div>
+      </button>
 
       {canDelete && !isDone ? (
         <button

@@ -10,13 +10,14 @@ import { cn } from "@propninja/ui/lib/utils";
 import { Megaphone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
-function StatusBadge({ configured }: { configured: boolean }) {
+function StatusBadge({ status }: { status: "live" | "not_configured" | undefined }) {
+  const live = status === "live";
   return (
     <Badge
-      variant={configured ? "default" : "secondary"}
-      className={cn(!configured && "text-muted-foreground")}
+      variant={live ? "default" : "secondary"}
+      className={cn(!live && "text-muted-foreground")}
     >
-      {configured ? "Configured" : "Not configured"}
+      {live ? "Live" : "Not configured"}
     </Badge>
   );
 }
@@ -87,13 +88,13 @@ export default function IntegrationsSettingsPage() {
               <div className="space-y-1">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Megaphone className="h-4 w-4 text-blue-600" />
-                  Facebook Lead Ads
+                  Meta Lead Ads
                 </CardTitle>
                 <CardDescription>
                   Webhook ingestion from Meta Lead Ads (Facebook / Instagram).
                 </CardDescription>
               </div>
-              <StatusBadge configured={status?.facebook.enabled ?? false} />
+              <StatusBadge status={status?.facebook.status} />
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <IntegrationMetaRow
@@ -154,7 +155,7 @@ export default function IntegrationsSettingsPage() {
                 </CardTitle>
                 <CardDescription>Scheduled polling of lead form submissions.</CardDescription>
               </div>
-              <StatusBadge configured={status?.googleAds.enabled ?? false} />
+              <StatusBadge status={status?.googleAds.status} />
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <IntegrationMetaRow

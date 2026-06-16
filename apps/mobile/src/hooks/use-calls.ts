@@ -31,7 +31,8 @@ export type LogCallInput = {
   started_at: string;
   ended_at: string;
   duration_seconds: number;
-  disposition: string;
+  outcome: "answered" | "no_answer" | "busy" | "left_voicemail";
+  disposition?: string;
   notes?: string;
   source: "mobile-manual";
 };

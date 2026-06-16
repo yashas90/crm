@@ -3,7 +3,7 @@ import { LeadContactActions } from "@/components/LeadContactActions";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
-import { type LeadRow, useTodayQueue, useUpdateLead } from "@/hooks/use-leads";
+import { type LeadRow, useTodayQueue } from "@/hooks/use-leads";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import { formatDuration } from "@/lib/dates";
@@ -80,7 +80,6 @@ export function TodayScreen({ route, navigation }: Props) {
   const calls = useTodayCalls();
   const summary = useTodayCallSummary();
   const logCall = useLogCall();
-  const updateLead = useUpdateLead();
 
   const queueItems = queue.data?.items ?? [];
   const recentCalls = (calls.data?.items ?? []).slice(0, 3);
@@ -89,7 +88,11 @@ export function TodayScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
 
-  const openLogForReturn = useCallback(() => {
+  const [defaultLogDuration, setDefaultLogDuration] = useState(60);
+  const [callLoggedToast, setCallLoggedToast] = useState(false);
+
+  const openLogForReturn = useCallback((elapsedSeconds: number) => {
+    setDefaultLogDuration(elapsedSeconds);
     if (pendingLogLeadRef.current) {
       setLogTarget(pendingLogLeadRef.current);
       pendingLogLeadRef.current = null;
@@ -145,27 +148,19 @@ export function TodayScreen({ route, navigation }: Props) {
         lead_id: target.id,
         phone_number: target.phone ?? "",
         direction: "outgoing",
-        status: payload.status,
         duration_seconds: payload.durationSeconds,
         started_at: startedAt.toISOString(),
         ended_at: endedAt.toISOString(),
-        disposition: payload.disposition,
+        outcome: payload.outcome,
         notes: payload.notes,
         source: "mobile-manual",
       },
       {
         onSuccess: async () => {
-          if (payload.disposition === "callback") {
-            const nextFollowupAt = new Date();
-            nextFollowupAt.setDate(nextFollowupAt.getDate() + 1);
-            updateLead.mutate({
-              leadId: target.id,
-              payload: { nextFollowupAt: nextFollowupAt.toISOString() },
-            });
-          }
-
           await queue.refetch();
           void feedbackCallSaved();
+          setCallLoggedToast(true);
+          setTimeout(() => setCallLoggedToast(false), 2500);
           if (options?.goNext && nextLead) {
             setLogTarget(nextLead);
           } else {
@@ -309,11 +304,18 @@ export function TodayScreen({ route, navigation }: Props) {
       <CallLogModal
         visible={Boolean(logTarget)}
         phoneNumber={logTarget?.phone ?? undefined}
+        defaultDurationSeconds={defaultLogDuration}
         onClose={() => setLogTarget(null)}
         onSubmit={handleLogSubmit}
         isSubmitting={logCall.isPending}
         showSaveAndNext={hasNextInQueue}
       />
+
+      {callLoggedToast ? (
+        <View style={[styles.callLoggedToast, { bottom: 24 + insets.bottom }]}>
+          <Text style={styles.callLoggedToastText}>Call logged ✓</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -410,4 +412,14 @@ const styles = StyleSheet.create({
   recentStatus: { color: colors.textDark, fontSize: 13, fontWeight: "600", width: 90 },
   recentMeta: { flex: 1, color: colors.textMutedDark, fontSize: 12, textTransform: "capitalize" },
   recentTime: { color: colors.textMutedDark, fontSize: 12 },
+  callLoggedToast: {
+    position: "absolute",
+    alignSelf: "center",
+    backgroundColor: "#166534",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radii.sm,
+    zIndex: 100,
+  },
+  callLoggedToastText: { color: "#ffffff", fontWeight: "600", fontSize: 14 },
 });

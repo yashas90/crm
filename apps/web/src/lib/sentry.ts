@@ -1,4 +1,4 @@
-import * as Sentry from "@sentry/react";
+import * as Sentry from "@sentry/nextjs";
 import type { SessionUser } from "./auth";
 
 function isSentryEnabled(): boolean {
@@ -9,7 +9,7 @@ export function setSentryUser(user: SessionUser | null): void {
   if (!isSentryEnabled()) return;
 
   if (user) {
-    Sentry.setUser({ id: user.id, email: user.email });
+    Sentry.setUser({ id: user.id });
     Sentry.setTag("role", user.role);
   } else {
     Sentry.setUser(null);
@@ -24,7 +24,7 @@ export function captureClientException(
 
   Sentry.withScope((scope) => {
     if (context?.user) {
-      scope.setUser({ id: context.user.id, email: context.user.email });
+      scope.setUser({ id: context.user.id });
       scope.setTag("role", context.user.role);
     }
     if (context?.componentStack) {

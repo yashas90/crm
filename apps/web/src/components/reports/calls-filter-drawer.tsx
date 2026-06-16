@@ -22,6 +22,7 @@ const DATE_PRESETS: { id: CallsReportDatePreset; label: string }[] = [
   { id: "today", label: "Today" },
   { id: "yesterday", label: "Yesterday" },
   { id: "last7", label: "Last 7 days" },
+  { id: "last30", label: "Last 30 days" },
   { id: "custom", label: "Custom" },
 ];
 

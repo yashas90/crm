@@ -2,7 +2,7 @@ import { AD_LEAD_SOURCE_LABELS } from "./adLeadSources.js";
 
 /** Canonical label → legacy stored values still present in older leads. */
 const SOURCE_ALIAS_GROUPS: Record<string, readonly string[]> = {
-  "Facebook Ads": ["Facebook Ads", "facebook"],
+  "Meta Ads": ["Meta Ads", "Facebook Ads", "facebook"],
   "Google Ads": ["Google Ads", "google-ads", "google"],
   Website: ["Website", "website"],
   Referral: ["Referral", "referral"],

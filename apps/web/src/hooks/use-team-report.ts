@@ -1,6 +1,6 @@
 "use client";
 
-import { apiGet } from "@/lib/apiClient";
+import { apiDownload, apiGet } from "@/lib/apiClient";
 // Team report requires manager/admin; use isForbiddenError() in pages for 403 UX.
 import { useQuery } from "@tanstack/react-query";
 export { isForbiddenError } from "@/lib/query-errors";
@@ -10,11 +10,10 @@ export type TeamMemberStats = {
   userId: string;
   name: string;
   email: string;
-  callsToday: number;
-  completedToday: number;
-  avgDurationToday: number;
-  leadsTouchedToday: number;
-  dealsWonToday: number;
+  leadsAssigned: number;
+  callsMade: number;
+  tasksCompleted: number;
+  conversionRate: number;
 };
 
 type TeamReportParams = {
@@ -33,6 +32,18 @@ export function useTeamReport(params: TeamReportParams) {
     queryFn: () =>
       apiGet<{ users: TeamMemberStats[] }>(`/api/reports/team-today?${searchParams.toString()}`),
   });
+}
+
+export async function downloadTeamPerformanceCsv(params: TeamReportParams) {
+  const searchParams = new URLSearchParams({
+    date_from: toApiDateFrom(params.dateFrom),
+    date_to: toApiDateTo(params.dateTo),
+  });
+  const date = new Date().toISOString().slice(0, 10);
+  await apiDownload(
+    `/api/reports/team-today/export?${searchParams.toString()}`,
+    `team-performance-${date}.csv`,
+  );
 }
 
 export function todayDateRange() {

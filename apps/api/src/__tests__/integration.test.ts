@@ -269,11 +269,10 @@ describe("API integration", () => {
         lead_id: leadId,
         phone_number: phone,
         direction: "outgoing",
-        status: "completed",
         started_at: startedAt.toISOString(),
         ended_at: endedAt.toISOString(),
         duration_seconds: 60,
-        disposition: "interested",
+        outcome: "answered",
         source: "mobile-manual",
       }),
     });
@@ -593,5 +592,71 @@ describe("API integration", () => {
       data: { name: string; settings: Record<string, unknown> };
     };
     expect(getJson.data.settings.website).toBe("https://demo.propninja.local");
+  });
+
+  it("tasks CRUD with assigneeId=me, status=open, and PATCH complete", async ({ skip }) => {
+    if (!hasDb) skip();
+
+    const adminId = await userIdForToken(token);
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const createRes = await app.request("/api/tasks", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title: "Integration test task",
+        description: "Follow up tomorrow",
+        priority: "high",
+        taskType: "call",
+        assignedTo: adminId,
+      }),
+    });
+    expect(createRes.status).toBe(201);
+    const createJson = (await createRes.json()) as { data: { id: string; status: string } };
+    const taskId = createJson.data.id;
+    expect(createJson.data.status).toBe("pending");
+
+    const listRes = await app.request("/api/tasks?assigneeId=me&status=open&page=1&pageSize=50", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(listRes.status).toBe(200);
+    const listJson = (await listRes.json()) as {
+      data: { items: Array<{ id: string; status: string }> };
+    };
+    expect(listJson.data.items.some((task) => task.id === taskId)).toBe(true);
+
+    const noteRes = await app.request(`/api/tasks/${taskId}/notes`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ text: "Left voicemail" }),
+    });
+    expect(noteRes.status).toBe(201);
+    const noteJson = (await noteRes.json()) as {
+      data: { noteEntries: Array<{ text: string }> };
+    };
+    expect(noteJson.data.noteEntries[0]?.text).toBe("Left voicemail");
+
+    const completeRes = await app.request(`/api/tasks/${taskId}/complete`, {
+      method: "PATCH",
+      headers,
+    });
+    expect(completeRes.status).toBe(200);
+    const completeJson = (await completeRes.json()) as {
+      data: { status: string; noteEntries: Array<{ text: string }> };
+    };
+    expect(completeJson.data.status).toBe("completed");
+    expect(completeJson.data.noteEntries).toHaveLength(1);
+
+    const bulkRes = await app.request("/api/tasks/bulk", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ action: "delete", taskIds: [taskId] }),
+    });
+    expect(bulkRes.status).toBe(200);
+    const bulkJson = (await bulkRes.json()) as { data: { succeeded: string[] } };
+    expect(bulkJson.data.succeeded).toContain(taskId);
   });
 });

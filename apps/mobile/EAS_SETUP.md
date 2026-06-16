@@ -172,12 +172,13 @@ See [`store/submit.env.example`](./store/submit.env.example) for credential env 
 
 | Profile | Android output | Distribution | Use case |
 |---------|----------------|--------------|----------|
-| `development` | Dev client | Internal | Local debugging with native modules |
+| `development` | Dev client (simulator) | Internal | Local debugging with native modules |
 | `preview` | **APK** | Internal | QA / sideload |
-| `production` | **AAB** | Store | Google Play submission |
-| `production` | **IPA** | Store | App Store / TestFlight |
+| `production` | **APK** | Internal | Internal testing (current) |
 
 `EXPO_PUBLIC_API_URL` is baked in at build time for preview + production.
+
+When you are ready for store submission, switch `build.production` back to `distribution: store` and use Android **AAB** + iOS submission (see Step 8).
 
 ---
 

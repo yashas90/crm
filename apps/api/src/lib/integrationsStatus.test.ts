@@ -32,10 +32,11 @@ describe("getIntegrationsStatus", () => {
     vi.resetModules();
   });
 
-  it("reports configured integrations from env", async () => {
+  it("reports live status when integrations are fully configured", async () => {
     const { getIntegrationsStatus } = await import("./integrationsStatus.js");
     expect(await getIntegrationsStatus()).toEqual({
       facebook: {
+        status: "live",
         enabled: true,
         pageId: "1122334455",
         formIds: ["form-a", "form-b"],
@@ -44,6 +45,7 @@ describe("getIntegrationsStatus", () => {
         formScopingEnabled: true,
       },
       googleAds: {
+        status: "live",
         enabled: true,
         customerId: "123-456-7890",
         syncEnabled: true,

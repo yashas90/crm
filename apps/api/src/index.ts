@@ -1,15 +1,17 @@
 import "dotenv/config";
+import "./instrument.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { startFollowupNotificationJob } from "./jobs/followupNotificationJob.js";
 import { startGoogleAdsLeadSync } from "./jobs/googleAdsLeadJob.js";
+import { resolveCorsOrigins } from "./lib/cors.js";
 import { env } from "./lib/env.js";
 import { logger } from "./lib/logger.js";
 import { jsonError } from "./lib/response.js";
-import { initSentry } from "./lib/sentry.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { authenticatedUserRateLimit, publicIpRateLimitMiddleware } from "./middleware/rateLimit.js";
 import { requestContextMiddleware } from "./middleware/requestContext.js";
 import { sentryRequestMiddleware, sentryUserMiddleware } from "./middleware/sentry.js";
 import { auditLogsRoutes } from "./routes/auditLogs.js";
@@ -28,34 +30,25 @@ import { tcfRoutes } from "./routes/tcf.js";
 import { userRolesRoutes } from "./routes/userRoles.js";
 import { usersRoutes } from "./routes/users.js";
 
-initSentry();
-
 const app = new Hono();
 
 app.use("*", requestContextMiddleware);
 app.use("*", sentryRequestMiddleware);
+app.use("*", publicIpRateLimitMiddleware);
 
-const defaultOrigins = ["http://localhost:3000", "http://localhost:8081"];
-
-function parseCorsOrigins(): string[] {
-  const fromEnv = process.env.CORS_ORIGINS?.split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
-
-  if (env.NODE_ENV === "production" && !fromEnv?.length) {
-    logger.error(
-      "CORS_ORIGINS is not configured; only localhost origins are allowed. Production web will fail.",
-    );
-  }
-
-  return fromEnv?.length ? [...defaultOrigins, ...fromEnv] : defaultOrigins;
+const corsOrigins = resolveCorsOrigins();
+if (env.NODE_ENV === "production") {
+  logger.info("CORS origins configured", { origins: corsOrigins });
 }
 
 app.use(
   "*",
   cors({
-    origin: parseCorsOrigins(),
+    origin: corsOrigins,
     credentials: true,
+    allowMethods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Authorization", "Content-Type", "Accept"],
+    maxAge: 86_400,
   }),
 );
 
@@ -63,6 +56,7 @@ app.route("/health", healthRoutes);
 app.route("/api/integrations/meta", metaIntegrationsRoute);
 
 app.use("/api/*", authMiddleware);
+app.use("/api/*", authenticatedUserRateLimit);
 app.use("/api/*", sentryUserMiddleware);
 
 app.route("/api/auth", authRoutes);

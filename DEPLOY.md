@@ -46,10 +46,24 @@ Already configured via `railway.toml` at repo root.
 
 | Variable | Purpose |
 |----------|---------|
-| `SENTRY_DSN` | API error tracking |
+| `SENTRY_DSN` | API error tracking (scrubs JWT/password/phone from payloads) |
+| `RAILWAY_GIT_COMMIT_SHA` | Set by Railway — used as Sentry `release` for deploy correlation |
 | `REDIS_URL` | Distributed rate limiting (in-memory fallback if unset) |
-| `META_VERIFY_TOKEN`, `META_APP_SECRET`, `PAGE_ACCESS_TOKEN` | Facebook Lead Ads webhook |
-| `GOOGLE_ADS_*` | Google Ads lead sync — see [INTEGRATIONS.md](INTEGRATIONS.md) |
+| `META_WEBHOOK_ENABLED` | Set `true` in production to require Meta vars at startup |
+| `META_VERIFY_TOKEN` | Meta webhook subscription handshake (you choose this string; must match Meta Developer Console) |
+| `META_APP_SECRET` | Verifies `X-Hub-Signature-256` on Meta POST webhooks (**required in production**) |
+| `PAGE_ACCESS_TOKEN` | Meta Graph API — fetches lead field data (`leads_retrieval`) |
+| `META_PAGE_ID` | Optional — scope ingestion to one Facebook Page |
+| `META_FORM_IDS` | Optional — comma-separated lead form allowlist |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Google Ads API developer token |
+| `GOOGLE_ADS_CLIENT_ID` | OAuth client ID |
+| `GOOGLE_ADS_CLIENT_SECRET` | OAuth client secret |
+| `GOOGLE_ADS_REFRESH_TOKEN` | OAuth refresh token (Google Ads scope) |
+| `GOOGLE_ADS_CUSTOMER_ID` | Google Ads customer ID |
+| `GOOGLE_ADS_SYNC_ENABLED` | Set `true` to enable lead form polling |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | Optional MCC manager ID |
+
+Full integration setup: [docs/integrations.md](docs/integrations.md)
 
 7. Deploy. Confirm: `GET https://<your-domain>/health` → `200`.
 
@@ -100,7 +114,10 @@ Configured via `apps/web/vercel.json` (monorepo install/build from root).
 | Variable | Example |
 |----------|---------|
 | `NEXT_PUBLIC_API_URL` | `https://crm-production-6cfe.up.railway.app` |
-| `SENTRY_DSN_WEB` | optional Sentry browser DSN |
+| `SENTRY_DSN_WEB` | Sentry browser + server DSN (optional) |
+| `SENTRY_AUTH_TOKEN` | Sentry auth token for source map upload (optional) |
+| `SENTRY_ORG` | Sentry org slug (required when uploading source maps) |
+| `SENTRY_PROJECT` | Sentry project slug (required when uploading source maps) |
 
 5. Add custom domain (e.g. `www.ninjamarketing.in`) under **Domains**.
 6. Deploy. Open the site and sign in.
@@ -120,7 +137,8 @@ Push to `main` (auto) or Vercel dashboard → **Redeploy**.
 - [ ] `ALLOW_DEMO_AUTH=false` in production
 - [ ] Migrations applied (check Railway/Render deploy logs for `migrations applied`)
 - [ ] Meta webhook URL: `https://<API>/api/integrations/meta/webhook`
-- [ ] Optional: Sentry receiving test errors; Redis connected if using `REDIS_URL`
+- [ ] Optional: Sentry receiving test errors (`GET /api/sentry-test` on web with admin JWT); Redis connected if using `REDIS_URL`
+- [ ] Security checklist complete — [docs/pre-launch-security.md](docs/pre-launch-security.md)
 
 ---
 

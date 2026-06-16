@@ -6,7 +6,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+
 export type TaskType = "call" | "meeting" | "follow_up" | "document" | "site_visit" | "other";
+
+export type TaskNoteEntry = {
+  id: string;
+  text: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+};
 
 export type Task = {
   id: string;
@@ -20,6 +29,8 @@ export type Task = {
   status: TaskStatus;
   taskType: TaskType;
   completedAt: string | null;
+  notes?: string | null;
+  noteEntries?: TaskNoteEntry[];
   createdAt: string;
   updatedAt: string;
   assigneeUser: { id: string; name: string } | null;
@@ -36,7 +47,9 @@ export type TasksListData = {
 export type TasksQueryParams = {
   leadId?: string;
   assignedTo?: string;
-  status?: TaskStatus;
+  assigneeId?: string;
+  status?: TaskStatus | "open";
+  priority?: TaskPriority;
   dueBefore?: string;
   dueAfter?: string;
   page?: string;
@@ -59,6 +72,11 @@ export type UpdateTaskInput = Partial<CreateTaskInput> & {
   dueAt?: string | null;
 };
 
+export type BulkTaskResult = {
+  succeeded: string[];
+  failed: string[];
+};
+
 function buildUrl(base: string, params?: Record<string, string | undefined>) {
   if (!params) return base;
   const qs = new URLSearchParams();
@@ -78,6 +96,16 @@ export function useTasks(params?: TasksQueryParams) {
     queryKey: tasksQueryKey(params),
     queryFn: () =>
       apiGet<TasksListData>(buildUrl("/api/tasks", params as Record<string, string | undefined>)),
+  });
+}
+
+export function useTasksDueToday() {
+  return useQuery({
+    queryKey: ["tasks", "due-today"],
+    queryFn: () =>
+      apiGet<TasksListData>(
+        `/api/tasks?assigneeId=me&status=open&dueAfter=${encodeURIComponent(new Date(new Date().setHours(0, 0, 0, 0)).toISOString())}&dueBefore=today&pageSize=20`,
+      ),
   });
 }
 
@@ -116,7 +144,7 @@ export function useUpdateTask(id: string) {
 export function useCompleteTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiPost<Task>(`/api/tasks/${id}/complete`, {}),
+    mutationFn: (id: string) => apiPatch<Task>(`/api/tasks/${id}/complete`, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Task marked complete");
@@ -135,4 +163,56 @@ export function useDeleteTask() {
     },
     onError: () => toast.error("Failed to delete task"),
   });
+}
+
+export function useAddTaskNote(taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (text: string) =>
+      apiPost<{ noteEntries: TaskNoteEntry[] }>(`/api/tasks/${taskId}/notes`, { text }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["task", taskId] });
+      void qc.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Comment added");
+    },
+    onError: () => toast.error("Failed to add comment"),
+  });
+}
+
+export function useBulkTaskActions() {
+  const qc = useQueryClient();
+
+  const invalidate = () => void qc.invalidateQueries({ queryKey: ["tasks"] });
+
+  const complete = useMutation({
+    mutationFn: (taskIds: string[]) =>
+      apiPost<BulkTaskResult>("/api/tasks/bulk", { action: "complete", taskIds }),
+    onSuccess: (result) => {
+      invalidate();
+      toast.success(`${result.succeeded.length} task(s) completed`);
+    },
+    onError: () => toast.error("Bulk complete failed"),
+  });
+
+  const reassign = useMutation({
+    mutationFn: ({ taskIds, assignedTo }: { taskIds: string[]; assignedTo: string }) =>
+      apiPost<BulkTaskResult>("/api/tasks/bulk", { action: "reassign", taskIds, assignedTo }),
+    onSuccess: (result) => {
+      invalidate();
+      toast.success(`${result.succeeded.length} task(s) reassigned`);
+    },
+    onError: () => toast.error("Bulk reassign failed"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (taskIds: string[]) =>
+      apiPost<BulkTaskResult>("/api/tasks/bulk", { action: "delete", taskIds }),
+    onSuccess: (result) => {
+      invalidate();
+      toast.success(`${result.succeeded.length} task(s) deleted`);
+    },
+    onError: () => toast.error("Bulk delete failed"),
+  });
+
+  return { complete, reassign, delete: remove };
 }

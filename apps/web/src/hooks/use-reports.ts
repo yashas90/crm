@@ -251,6 +251,20 @@ export async function downloadCallsUserReport(params: CallsUserReportParams) {
   await apiDownload(`/api/reports/calls/export?${query}`, `calls-report-${date}.csv`);
 }
 
+export async function downloadSourcesReportCsv(params: DashboardReportParams) {
+  const query = buildReportQuery(params);
+  const date = new Date().toISOString().slice(0, 10);
+  await apiDownload(`/api/reports/sources/export?${query}`, `lead-sources-${date}.csv`);
+}
+
+export async function downloadCallsAnalyticsReport(
+  params: DashboardReportParams & { userIds?: string[] },
+) {
+  const query = buildReportQuery(params);
+  const date = new Date().toISOString().slice(0, 10);
+  await apiDownload(`/api/reports/calls/analytics/export?${query}`, `calls-analytics-${date}.csv`);
+}
+
 function buildReportQuery(params: DashboardReportParams) {
   const search = new URLSearchParams();
   if (params.dateFrom) search.set("date_from", params.dateFrom);

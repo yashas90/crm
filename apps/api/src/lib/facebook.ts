@@ -80,9 +80,10 @@ async function fetchGraphObjectName(objectId: string): Promise<string | undefine
 export async function enrichFacebookAdLeadMetadata(
   lead: NormalizedAdLead,
 ): Promise<NormalizedAdLead> {
-  const [campaignName, adsetName, formName] = await Promise.all([
+  const [campaignName, adsetName, adName, formName] = await Promise.all([
     lead.campaignId ? fetchGraphObjectName(lead.campaignId) : undefined,
     lead.adsetId ? fetchGraphObjectName(lead.adsetId) : undefined,
+    lead.adId ? fetchGraphObjectName(lead.adId) : undefined,
     lead.formId ? fetchGraphObjectName(lead.formId) : undefined,
   ]);
 
@@ -90,6 +91,7 @@ export async function enrichFacebookAdLeadMetadata(
     ...lead,
     campaignName: campaignName ?? lead.campaignName,
     adsetName: adsetName ?? lead.adsetName,
+    adName: adName ?? lead.adName,
     formName: formName ?? lead.formName,
   };
 }
@@ -131,11 +133,16 @@ export function mapFacebookLeadToNormalizedAdLead(
 ): NormalizedAdLead {
   const fieldData = leadDetails.field_data;
 
+  const adId =
+    context.ad_id ?? (typeof leadDetails.ad_id === "string" ? leadDetails.ad_id : undefined);
+
   return {
     source: "facebook_ads",
     externalLeadId: leadgenId,
     campaignId: context.campaign_id ?? leadDetails.campaign_id,
     adsetId: context.adgroup_id ?? leadDetails.adset_id,
+    adId,
+    adName: getFieldValue(fieldData, "ad_name"),
     formId: context.form_id ?? leadDetails.form_id,
     firstName: getFieldValue(fieldData, "first_name"),
     lastName: getFieldValue(fieldData, "last_name"),

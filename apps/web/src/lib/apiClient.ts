@@ -1,5 +1,7 @@
 import { getToken } from "@/lib/auth";
 
+let cachedApiUrl: string | undefined;
+
 function resolveApiUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
 
@@ -15,7 +17,12 @@ function resolveApiUrl(): string {
   return configured?.replace(/\/$/, "") ?? "http://localhost:3001";
 }
 
-const API_URL = resolveApiUrl();
+function getApiUrl(): string {
+  if (!cachedApiUrl) {
+    cachedApiUrl = resolveApiUrl();
+  }
+  return cachedApiUrl;
+}
 
 export type ApiSuccess<T> = { ok: true; data: T };
 export type ApiError = {
@@ -46,7 +53,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${getApiUrl()}${path}`, {
       ...init,
       headers,
     });
@@ -98,7 +105,7 @@ export async function apiDownload(path: string, filename: string) {
 
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${getApiUrl()}${path}`, {
       method: "GET",
       headers,
       cache: "no-store",

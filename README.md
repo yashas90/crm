@@ -130,16 +130,20 @@ Web and mobile API URLs are configured via env vars (`NEXT_PUBLIC_API_URL` / `EX
 
 ### Error tracking (optional)
 
-Sentry is disabled by default. When a DSN is set, unhandled API errors and client React errors are reported with `userId` and `role` tags when a user is authenticated.
+Sentry is disabled by default. When a DSN is set, unhandled API errors and client React errors are reported with `userId` and `role` tags when a user is authenticated. JWTs, passwords, and phone numbers are scrubbed before upload.
 
 | App | Env var | Where to set |
 |-----|---------|--------------|
 | API (`apps/api`) | `SENTRY_DSN` | Railway / `apps/api/.env` |
+| API release | `RAILWAY_GIT_COMMIT_SHA` | Set automatically on Railway deploys |
 | Web (`apps/web`) | `SENTRY_DSN_WEB` | Vercel / `apps/web/.env.local` |
+| Web source maps | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Vercel build env (optional) |
 
 For production web deploys, set `SENTRY_DSN_WEB` in Vercel before build — it is inlined as `NEXT_PUBLIC_SENTRY_DSN_WEB` for the browser SDK.
 
-Leave both unset locally; the app runs normally without Sentry.
+**Verify setup (admin):** call `GET /api/sentry-test` on the web app with `Authorization: Bearer <admin-jwt>`.
+
+Leave DSN vars unset locally; the app runs normally without Sentry.
 
 ## Testing & CI
 
@@ -175,6 +179,44 @@ pnpm check         # Biome format + lint with auto-fix (root)
 ## Production deploy
 
 API on **Railway** (or **Render** via `render.yaml`), web on **Vercel**. Full setup, env vars, and redeploy steps: [DEPLOY.md](DEPLOY.md).
+
+**Pre-launch security:** [docs/pre-launch-security.md](docs/pre-launch-security.md)
+
+**Launch checklist:** [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md)
+
+## First deploy checklist
+
+After the first production deploy and `pnpm db:seed`, the database contains a default admin account (`admin@propninja.local` / `admin`). **Rotate these credentials before going live.**
+
+### Reset admin credentials
+
+From the repo root, with `DATABASE_URL` pointing at your production Postgres:
+
+```bash
+export DATABASE_URL="postgres://..."   # Railway internal or public URL
+export NEW_ADMIN_EMAIL="you@yourcompany.com"
+export NEW_ADMIN_PASSWORD="your-strong-password-here"
+
+pnpm reset:admin
+```
+
+**On Railway** (uses the linked service `DATABASE_URL` automatically):
+
+```bash
+railway link
+railway run bash -c 'NEW_ADMIN_EMAIL=you@yourcompany.com NEW_ADMIN_PASSWORD=your-strong-password-here pnpm reset:admin'
+```
+
+Or set `NEW_ADMIN_EMAIL` and `NEW_ADMIN_PASSWORD` in the Railway service variables, then run `railway run pnpm reset:admin`.
+
+The script finds the seeded admin user (fixed seed ID or `admin@propninja.local`), bcrypt-hashes the new password (12 rounds, matching the API), updates the email, and prints success or a clear error. It never logs the password.
+
+Requirements:
+
+- `NEW_ADMIN_PASSWORD` — at least 6 characters (use 16+ in production)
+- `NEW_ADMIN_EMAIL` — must not already belong to another user
+
+Then sign in on the web dashboard with the new credentials and confirm other seeded demo users (`manager@demo.propninja`, etc.) are deactivated or given new passwords if needed.
 
 ## Other seeded users
 

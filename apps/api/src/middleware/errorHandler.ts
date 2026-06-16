@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { jsonError } from "../lib/response.js";
-import { captureSentryException } from "../lib/sentry.js";
+import { captureSentryRouteError } from "../lib/sentry.js";
 import { LeadDuplicatePhoneError } from "../services/leadService.js";
 
 export const errorHandler: ErrorHandler = (err, c) => {
@@ -31,7 +31,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
     method: c.req.method,
   });
 
-  captureSentryException(err, c);
+  captureSentryRouteError(err, c);
 
   return jsonError(c, "INTERNAL_ERROR", "Something went wrong", 500);
 };

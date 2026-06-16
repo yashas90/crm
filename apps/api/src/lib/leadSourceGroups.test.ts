@@ -42,7 +42,7 @@ describe("leadSourceGroups", () => {
 
     expect(report).toHaveLength(3);
     expect(report[0]?.sourceGroup).toBe("Social");
-    expect(report[0]?.sources[0]).toEqual({ name: "Facebook Ads", count: 0 });
+    expect(report[0]?.sources[0]).toEqual({ name: "Meta Ads", count: 0 });
     expect(report[0]?.sources[1]).toEqual({ name: "Google Ads", count: 0 });
     expect(report[0]?.sources.find((s) => s.name === "Instagram")).toEqual({
       name: "Instagram",
@@ -60,13 +60,13 @@ describe("leadSourceGroups", () => {
 
   it("pins ad source bars with counts ahead of other social sources", () => {
     const report = buildSourceGroupReport([
-      { source: "Facebook Ads", count: 7 },
+      { source: "Meta Ads", count: 7 },
       { source: "Google Ads", count: 2 },
       { source: "instagram", count: 5 },
     ]);
 
     const social = report.find((group) => group.sourceGroup === "Social");
-    expect(social?.sources[0]).toEqual({ name: "Facebook Ads", count: 7 });
+    expect(social?.sources[0]).toEqual({ name: "Meta Ads", count: 7 });
     expect(social?.sources[1]).toEqual({ name: "Google Ads", count: 2 });
     expect(social?.sources.find((s) => s.name === "Instagram")).toEqual({
       name: "Instagram",

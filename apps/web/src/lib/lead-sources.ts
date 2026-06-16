@@ -1,4 +1,4 @@
-export const AD_LEAD_SOURCE_LABELS = ["Facebook Ads", "Google Ads"] as const;
+export const AD_LEAD_SOURCE_LABELS = ["Meta Ads", "Google Ads"] as const;
 
 export const AD_LEAD_TAG = "ad_lead";
 
@@ -7,7 +7,7 @@ export const LEAD_SOURCE_OPTIONS = [
   { value: "Website", label: "Website" },
   { value: "Referral", label: "Referral" },
   { value: "Walk In", label: "Walk In" },
-  { value: "Facebook Ads", label: "Facebook Ads" },
+  { value: "Meta Ads", label: "Meta Ads" },
   { value: "Google Ads", label: "Google Ads" },
   { value: "Cold Call", label: "Cold Call" },
   { value: "Other", label: "Other" },
@@ -30,7 +30,9 @@ const LEGACY_TO_CANONICAL: Record<string, string> = {
   website: "Website",
   referral: "Referral",
   "walk-in": "Walk In",
-  facebook: "Facebook Ads",
+  facebook: "Meta Ads",
+  "facebook ads": "Meta Ads",
+  "meta ads": "Meta Ads",
   "google-ads": "Google Ads",
   google: "Google Ads",
   "cold-call": "Cold Call",
@@ -46,6 +48,7 @@ export function formatLeadSourceDisplay(value: string | null | undefined): strin
   }
   const legacy = LEGACY_TO_CANONICAL[trimmed.toLowerCase()];
   if (legacy) return legacy;
+  if (trimmed === "Facebook Ads") return "Meta Ads";
   return trimmed
     .split(/[-_\s]+/)
     .filter(Boolean)
@@ -57,6 +60,7 @@ export function formatLeadSourceDisplay(value: string | null | undefined): strin
 export function normalizeLeadSourceValue(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
+  if (trimmed === "Facebook Ads") return "Meta Ads";
   if (LEAD_SOURCE_VALUES.includes(trimmed as (typeof LEAD_SOURCE_VALUES)[number])) {
     return trimmed;
   }
@@ -69,7 +73,8 @@ export function isAdLeadLead(lead: {
 }): boolean {
   const source = lead.leadSource?.trim() ?? "";
   if ((AD_LEAD_SOURCE_LABELS as readonly string[]).includes(source)) return true;
-  if (LEGACY_TO_CANONICAL[source.toLowerCase()] === "Facebook Ads") return true;
+  if (source === "Facebook Ads") return true;
+  if (LEGACY_TO_CANONICAL[source.toLowerCase()] === "Meta Ads") return true;
   if (LEGACY_TO_CANONICAL[source.toLowerCase()] === "Google Ads") return true;
   return (lead.tags ?? []).includes(AD_LEAD_TAG);
 }
@@ -81,6 +86,8 @@ export type AdLeadCustomFields = {
   campaignName?: string | null;
   adsetId?: string | null;
   adsetName?: string | null;
+  adId?: string | null;
+  adName?: string | null;
   formId?: string | null;
   formName?: string | null;
   ingestedAt?: string;

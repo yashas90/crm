@@ -1,23 +1,59 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { mapCallOutcome } from "../lib/callOutcomes.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { callsLogRateLimit } from "../middleware/rateLimit.js";
 import { callService } from "../services/callService.js";
 
 export const callsRoute = new Hono();
 
-const logCallSchema = z.object({
-  lead_id: z.string().uuid().optional(),
-  phone_number: z.string().min(5),
-  direction: z.enum(["incoming", "outgoing"]),
-  status: z.enum(["completed", "missed", "rejected", "failed"]),
-  started_at: z.string().datetime(),
-  ended_at: z.string().datetime(),
-  duration_seconds: z.number().int().nonnegative(),
-  disposition: z.string().min(1),
-  notes: z.string().optional(),
-  source: z.enum(["mobile-manual", "mobile-auto"]),
-});
+const callOutcomeSchema = z.enum(["answered", "no_answer", "busy", "left_voicemail"]);
+
+const logCallSchema = z
+  .object({
+    lead_id: z.string().uuid().optional(),
+    leadId: z.string().uuid().optional(),
+    phone_number: z.string().min(5).optional(),
+    phoneNumber: z.string().min(5).optional(),
+    direction: z.enum(["incoming", "outgoing"]).optional(),
+    status: z.enum(["completed", "missed", "rejected", "failed"]).optional(),
+    started_at: z.string().datetime().optional(),
+    ended_at: z.string().datetime().optional(),
+    duration_seconds: z.number().int().nonnegative().optional(),
+    /** Duration in whole minutes (web-friendly). */
+    duration: z.number().positive().optional(),
+    outcome: callOutcomeSchema,
+    disposition: z.string().min(1).optional(),
+    notes: z.string().optional(),
+    source: z.enum(["mobile-manual", "mobile-auto", "web-manual"]).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const leadId = value.lead_id ?? value.leadId;
+    const phone = value.phone_number ?? value.phoneNumber;
+    const hasDuration = value.duration_seconds !== undefined || value.duration !== undefined;
+
+    if (!leadId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "lead_id is required",
+        path: ["lead_id"],
+      });
+    }
+    if (!phone) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "phone_number is required",
+        path: ["phone_number"],
+      });
+    }
+    if (!hasDuration) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "duration_seconds or duration is required",
+        path: ["duration_seconds"],
+      });
+    }
+  });
 
 const listCallsQuerySchema = z.object({
   user_id: z.string().uuid().optional(),
@@ -36,7 +72,6 @@ const summaryQuerySchema = z.object({
   date_to: z.string().datetime().optional(),
 });
 
-// Call logging is mobile-only (SIM dialer). Web clients read via GET / and GET /summary.
 callsRoute.post("/log", callsLogRateLimit, async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const body = await c.req.json();
@@ -57,18 +92,28 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
   }
 
   const data = parsed.data;
+  const leadId = data.lead_id ?? data.leadId;
+  const phoneNumber = data.phone_number ?? data.phoneNumber!;
+  const durationSeconds = data.duration_seconds ?? Math.round((data.duration ?? 0) * 60);
+  const mapped = mapCallOutcome(data.outcome);
+  const endedAt = data.ended_at ? new Date(data.ended_at) : new Date();
+  const startedAt = data.started_at
+    ? new Date(data.started_at)
+    : new Date(endedAt.getTime() - durationSeconds * 1000);
+
   const record = await callService.logCall({
     userId: authUser.id,
-    leadId: data.lead_id,
-    phoneNumber: data.phone_number,
-    direction: data.direction,
-    status: data.status,
-    startedAt: new Date(data.started_at),
-    endedAt: new Date(data.ended_at),
-    durationSeconds: data.duration_seconds,
-    disposition: data.disposition,
+    leadId,
+    phoneNumber,
+    direction: data.direction ?? "outgoing",
+    status: data.status ?? mapped.status,
+    startedAt,
+    endedAt,
+    durationSeconds,
+    disposition: data.disposition ?? mapped.disposition,
+    outcome: data.outcome,
     notes: data.notes,
-    source: data.source,
+    source: data.source ?? "web-manual",
   });
 
   return c.json({ ok: true, data: record }, 201);
@@ -95,7 +140,6 @@ callsRoute.get("/", async (c) => {
   }
 
   const q = parsed.data;
-  // Agents may only list their own calls regardless of query user_id.
   const userId = authUser.role === "agent" ? authUser.id : q.user_id;
   const result = await callService.listCalls({
     userId,
@@ -111,8 +155,6 @@ callsRoute.get("/", async (c) => {
   return c.json({ ok: true, data: result });
 });
 
-// Call summary: agents always scoped to own user_id (query user_id ignored);
-// managers/admins may filter by user_id.
 callsRoute.get("/summary", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const parsed = summaryQuerySchema.safeParse(c.req.query());

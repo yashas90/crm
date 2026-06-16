@@ -21,9 +21,20 @@ export const CALL_STATUSES = ["completed", "missed", "rejected", "failed"] as co
 
 export type CallStatus = (typeof CALL_STATUSES)[number];
 
-export const CALL_SOURCES = ["mobile-manual", "mobile-auto"] as const;
+export const CALL_SOURCES = ["mobile-manual", "mobile-auto", "web-manual"] as const;
 
 export type CallSource = (typeof CALL_SOURCES)[number];
+
+export const CALL_OUTCOMES = ["answered", "no_answer", "busy", "left_voicemail"] as const;
+
+export type CallOutcome = (typeof CALL_OUTCOMES)[number];
+
+export const CALL_OUTCOME_LABELS: Record<CallOutcome, string> = {
+  answered: "Answered",
+  no_answer: "No Answer",
+  busy: "Busy",
+  left_voicemail: "Left Voicemail",
+};
 
 export const ACTIVITY_TYPES = ["call", "note", "status_change", "meeting", "task"] as const;
 

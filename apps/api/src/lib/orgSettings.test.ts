@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { UpdateOrgBody } from "./validators/org.js";
 import { buildOrgSettingsPatch, mergeOrgSettings } from "./orgSettings.js";
+import type { UpdateOrgBody } from "./validators/org.js";
 
 describe("orgSettings", () => {
   it("merges top-level website and timezone into settings patch", () => {

@@ -3,8 +3,11 @@
 import { apiGet } from "@/lib/apiClient";
 import { useQuery } from "@tanstack/react-query";
 
+export type IntegrationConnectionStatus = "live" | "not_configured";
+
 export type IntegrationsStatus = {
   facebook: {
+    status: IntegrationConnectionStatus;
     enabled: boolean;
     pageId?: string;
     formIds?: string[];
@@ -13,6 +16,7 @@ export type IntegrationsStatus = {
     formScopingEnabled: boolean;
   };
   googleAds: {
+    status: IntegrationConnectionStatus;
     enabled: boolean;
     customerId?: string;
     syncEnabled: boolean;

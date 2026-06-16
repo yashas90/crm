@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { AdminDashboardView } from "@/components/dashboard/admin-dashboard-view";
 import { OverviewSectionsSkeleton } from "@/components/dashboard/dashboard-skeletons";
 import { HotLeadsTable } from "@/components/dashboard/hot-leads-table";
+import { MyTasksDueTodayWidget } from "@/components/dashboard/my-tasks-due-today-widget";
 import { RecentActivityFeed } from "@/components/dashboard/recent-activity-feed";
 import { RemindersPanel } from "@/components/dashboard/reminders-panel";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,50 +55,54 @@ function AgentDashboard() {
               className="py-8"
             />
           ) : (
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card className="border-border/60 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    My leads
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {myLeads.isLoading ? (
-                    <Skeleton className="h-9 w-16" />
-                  ) : (
-                    <p className="text-3xl font-bold">{myLeads.data?.total ?? "—"}</p>
-                  )}
-                </CardContent>
-              </Card>
-              <Card className="border-border/60 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Hot leads
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {myLeads.isLoading ? (
-                    <Skeleton className="h-9 w-16" />
-                  ) : (
-                    <p className="text-3xl font-bold">{hotLeads.length}</p>
-                  )}
-                </CardContent>
-              </Card>
-              <Card className="border-border/60 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Follow-ups due
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {myLeads.isLoading ? (
-                    <Skeleton className="h-9 w-16" />
-                  ) : (
-                    <p className="text-3xl font-bold">{followUpsDue}</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <>
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card className="border-border/60 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      My leads
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {myLeads.isLoading ? (
+                      <Skeleton className="h-9 w-16" />
+                    ) : (
+                      <p className="text-3xl font-bold">{myLeads.data?.total ?? "—"}</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="border-border/60 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Hot leads
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {myLeads.isLoading ? (
+                      <Skeleton className="h-9 w-16" />
+                    ) : (
+                      <p className="text-3xl font-bold">{hotLeads.length}</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="border-border/60 shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Follow-ups due
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {myLeads.isLoading ? (
+                      <Skeleton className="h-9 w-16" />
+                    ) : (
+                      <p className="text-3xl font-bold">{followUpsDue}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <MyTasksDueTodayWidget />
+            </>
           )}
 
           <div className="flex flex-wrap gap-2">

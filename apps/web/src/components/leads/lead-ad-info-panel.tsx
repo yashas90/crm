@@ -27,7 +27,7 @@ function MetaRow({ label, value }: { label: string; value: string | null | undef
 }
 
 function platformLabel(payload: AdLeadCustomFields | null, leadSource: string | null) {
-  if (payload?.source === "facebook_ads") return "Facebook Ads";
+  if (payload?.source === "facebook_ads") return "Meta Ads";
   if (payload?.source === "google_ads") return "Google Ads";
   return formatLeadSourceDisplay(leadSource);
 }
@@ -51,6 +51,7 @@ export function LeadAdInfoPanel({ leadSource, tags, customFields }: LeadAdInfoPa
       </CardHeader>
       <CardContent className="space-y-2">
         <MetaRow label="Campaign" value={payload?.campaignName ?? undefined} />
+        <MetaRow label="Ad" value={payload?.adName ?? undefined} />
         <MetaRow label="Ad set" value={payload?.adsetName ?? undefined} />
         <MetaRow label="Form" value={payload?.formName ?? undefined} />
         <MetaRow label="External ID" value={payload?.externalLeadId ?? undefined} />

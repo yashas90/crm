@@ -1,38 +1,68 @@
 "use client";
 
 import { TaskCard } from "@/components/tasks/task-card";
-import { TaskForm } from "@/components/tasks/task-form";
+import { TaskDetailSheet } from "@/components/tasks/task-detail-sheet";
+import { type TaskFilters, TaskFiltersBar } from "@/components/tasks/task-filters-bar";
+import { TaskFormSheet } from "@/components/tasks/task-form-sheet";
+import { TasksBulkActionsBar } from "@/components/tasks/tasks-bulk-actions-bar";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
-import { type TaskStatus, useTasks } from "@/hooks/use-tasks";
+import { useTasks } from "@/hooks/use-tasks";
 import { Button } from "@propninja/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
+import { Card, CardContent } from "@propninja/ui/card";
 import { CheckSquare, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-const STATUS_TABS: { value: TaskStatus | "all"; label: string }[] = [
-  { value: "all", label: "All open" },
-  { value: "pending", label: "Pending" },
-  { value: "in_progress", label: "In progress" },
-  { value: "completed", label: "Completed" },
-];
+function dateToIsoEnd(date: string) {
+  if (!date) return undefined;
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString();
+}
+
+function dateToIsoStart(date: string) {
+  if (!date) return undefined;
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
 
 export default function TasksPage() {
   const { session } = useSession();
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isAdmin, isManager } = usePermissions();
   const canDelete = hasPermission("tasks:delete");
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
+  const canManage = isAdmin || isManager;
+
+  const [filters, setFilters] = useState<TaskFilters>({
+    status: "open",
+    priority: "",
+    assignedTo: "",
+    dueAfter: "",
+    dueBefore: "",
+  });
   const [showForm, setShowForm] = useState(false);
-  const [myOnly, setMyOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
-  const params = {
-    status: statusFilter === "all" ? undefined : statusFilter,
-    assignedTo: myOnly ? session?.id : undefined,
-    pageSize: "100",
-  };
+  const queryParams = useMemo(() => {
+    const params: Record<string, string> = { pageSize: "100" };
+    if (filters.status) params.status = filters.status;
+    if (filters.priority) params.priority = filters.priority;
+    if (filters.assignedTo) params.assignedTo = filters.assignedTo;
+    else if (!canManage && session?.id) params.assigneeId = "me";
+    const dueAfter = dateToIsoStart(filters.dueAfter);
+    const dueBefore = dateToIsoEnd(filters.dueBefore);
+    if (dueAfter) params.dueAfter = dueAfter;
+    if (dueBefore) params.dueBefore = dueBefore;
+    return params;
+  }, [filters, canManage, session?.id]);
 
-  const { data, isLoading } = useTasks(params);
+  const { data, isLoading } = useTasks(queryParams);
   const tasks = data?.items ?? [];
+
+  function handleSelect(id: string, checked: boolean) {
+    setSelectedIds((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
+  }
 
   return (
     <div className="space-y-6">
@@ -41,52 +71,19 @@ export default function TasksPage() {
           <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground">Manage follow-ups, meetings, and action items.</p>
         </div>
-        <Button onClick={() => setShowForm((v) => !v)}>
+        <Button onClick={() => setShowForm(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          New task
+          Add task
         </Button>
       </div>
 
-      {showForm ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Create task</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TaskForm onSuccess={() => setShowForm(false)} onCancel={() => setShowForm(false)} />
-          </CardContent>
-        </Card>
-      ) : null}
+      <TaskFiltersBar filters={filters} onChange={setFilters} showAssignee={canManage} />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-lg border border-border/60 bg-muted/30 p-1">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => setStatusFilter(tab.value)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
-                statusFilter === tab.value
-                  ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => setMyOnly((v) => !v)}
-          className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-all ${
-            myOnly
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border/60 text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          My tasks
-        </button>
-      </div>
+      <TasksBulkActionsBar
+        selectedIds={selectedIds}
+        onClearSelection={() => setSelectedIds([])}
+        canManage={canManage}
+      />
 
       {isLoading ? (
         <p className="text-muted-foreground">Loading tasks...</p>
@@ -100,20 +97,38 @@ export default function TasksPage() {
             </p>
             <Button onClick={() => setShowForm(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Create first task
+              Add task
             </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} showLead canDelete={canDelete} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              showLead
+              canDelete={canDelete}
+              selected={selectedIds.includes(task.id)}
+              onSelect={handleSelect}
+              onOpen={setDetailTaskId}
+            />
           ))}
           <p className="text-xs text-muted-foreground">
-            {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+            {tasks.length} of {data?.total ?? tasks.length} task
+            {(data?.total ?? tasks.length) !== 1 ? "s" : ""}
           </p>
         </div>
       )}
+
+      <TaskFormSheet open={showForm} onOpenChange={setShowForm} />
+      <TaskDetailSheet
+        taskId={detailTaskId}
+        open={Boolean(detailTaskId)}
+        onOpenChange={(open) => {
+          if (!open) setDetailTaskId(null);
+        }}
+      />
     </div>
   );
 }

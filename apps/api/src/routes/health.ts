@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { getApiVersion } from "../lib/apiVersion.js";
 import { db } from "../lib/db.js";
 
 const DB_CHECK_TIMEOUT_MS = 3_000;
@@ -16,11 +17,14 @@ async function checkDatabase(): Promise<void> {
 }
 
 healthRoutes.get("/", async (c) => {
+  const timestamp = new Date().toISOString();
+  const version = getApiVersion();
+
   try {
     await checkDatabase();
-    return c.json({ status: "ok", service: "propninja-api", db: "ok" });
+    return c.json({ status: "ok", version, timestamp, service: "propninja-api", db: "ok" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Database unavailable";
-    return c.json({ status: "degraded", db: "error", message }, 503);
+    return c.json({ status: "degraded", version, timestamp, db: "error", message }, 503);
   }
 });

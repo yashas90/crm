@@ -1,13 +1,21 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-/**
- * Production API used by EAS release builds (iOS + Android).
- * Override with EXPO_PUBLIC_API_URL in eas.json or .env for staging.
- */
-export const DEFAULT_PRODUCTION_API_URL = "https://crm-production-6cfe.up.railway.app";
-
 const DEV_API_PORT = process.env.EXPO_PUBLIC_API_PORT ?? "3001";
+
+type ExpoExtra = {
+  apiUrl?: string;
+};
+
+function configuredApiUrl(): string | undefined {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+
+  const fromExtra = (Constants.expoConfig?.extra as ExpoExtra | undefined)?.apiUrl?.trim();
+  if (fromExtra) return fromExtra.replace(/\/$/, "");
+
+  return undefined;
+}
 
 /**
  * Dev base URL when no EXPO_PUBLIC_API_URL is set:
@@ -16,8 +24,8 @@ const DEV_API_PORT = process.env.EXPO_PUBLIC_API_PORT ?? "3001";
  * - Physical device → set EXPO_PUBLIC_API_URL to http://<LAN_IP>:3001
  */
 function resolveDevApiBaseUrl(): string {
-  const explicit = process.env.EXPO_PUBLIC_API_URL?.trim();
-  if (explicit) return explicit.replace(/\/$/, "");
+  const explicit = configuredApiUrl();
+  if (explicit) return explicit;
 
   if (Platform.OS === "android") {
     const isEmulator = Constants.isDevice === false;
@@ -26,32 +34,23 @@ function resolveDevApiBaseUrl(): string {
     }
   }
 
-  // iOS Simulator and default fallback
   return `http://localhost:${DEV_API_PORT}`;
 }
 
-let releaseFallbackWarned = false;
-
 function resolveReleaseApiBaseUrl(): string {
-  const configured = process.env.EXPO_PUBLIC_API_URL?.trim();
-  if (configured) {
-    return configured.replace(/\/$/, "");
-  }
-
-  if (!releaseFallbackWarned) {
-    releaseFallbackWarned = true;
-    console.warn(
-      `[PropNinja] EXPO_PUBLIC_API_URL is not set; falling back to ${DEFAULT_PRODUCTION_API_URL}. Set EXPO_PUBLIC_API_URL in eas.json (preview/production) before the next EAS build if the API domain changes.`,
+  const url = configuredApiUrl();
+  if (!url) {
+    throw new Error(
+      "EXPO_PUBLIC_API_URL is not configured. Set it in eas.json or .env before building a release app.",
     );
   }
-
-  return DEFAULT_PRODUCTION_API_URL;
+  return url;
 }
 
 /**
  * Resolved API origin for the current build.
- * - __DEV__: platform-aware localhost / emulator host (see above)
- * - Release: EXPO_PUBLIC_API_URL when set, otherwise DEFAULT_PRODUCTION_API_URL
+ * - __DEV__: platform-aware localhost / emulator host, or EXPO_PUBLIC_API_URL when set
+ * - Release: EXPO_PUBLIC_API_URL (or expo.extra.apiUrl from app.config at build time)
  */
 export function getApiBaseUrl(): string {
   if (__DEV__) {
