@@ -68,6 +68,7 @@ vi.mock("@/lib/apiClient", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useParams: () => ({ id: "lead-hero-1" }),
 }));
 
 vi.mock("@/components/leads/lead-delete-dialog", () => ({
@@ -76,7 +77,7 @@ vi.mock("@/components/leads/lead-delete-dialog", () => ({
 
 describe("LeadDetailPage", () => {
   it("renders hero section with lead name and status chips", () => {
-    render(<LeadDetailPage params={{ id: mockLead.id }} />);
+    render(<LeadDetailPage />);
 
     expect(screen.getByRole("heading", { name: "Vikram Reddy" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Compliance" })).toBeInTheDocument();

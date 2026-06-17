@@ -6,17 +6,16 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useUser } from "@/hooks/use-users";
 import { Button } from "@propninja/ui/button";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-type UserDetailPageProps = {
-  params: { id: string };
-};
-
-export default function UserDetailPage({ params }: UserDetailPageProps) {
+function UserDetailPageContent() {
+  const { id } = useParams<{ id: string }>();
+  const userId = id ?? "";
   const searchParams = useSearchParams();
   const readOnly = searchParams.get("view") === "1";
   const { ready, canUpdateUser, canViewUsers } = usePermissions();
-  const userQuery = useUser(params.id, { enabled: ready && canViewUsers });
+  const userQuery = useUser(userId, { enabled: ready && canViewUsers });
 
   if (ready && !canViewUsers) {
     return (
@@ -57,5 +56,13 @@ export default function UserDetailPage({ params }: UserDetailPageProps) {
       </div>
       <UserForm mode="edit" user={user} readOnly={!canEdit} />
     </div>
+  );
+}
+
+export default function UserDetailPage() {
+  return (
+    <Suspense fallback={<p className="text-muted-foreground">Loading user...</p>}>
+      <UserDetailPageContent />
+    </Suspense>
   );
 }

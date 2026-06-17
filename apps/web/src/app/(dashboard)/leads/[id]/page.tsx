@@ -36,6 +36,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 
 function copyText(text: string, label: string) {
@@ -54,16 +55,18 @@ function avatarInitials(name: string) {
     .toUpperCase();
 }
 
-export default function LeadDetailPage({ params }: { params: { id: string } }) {
-  const { data: lead, isLoading, isError, refetch: refetchLead } = useLead(params.id);
+export default function LeadDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const leadId = id ?? "";
+  const { data: lead, isLoading, isError, refetch: refetchLead } = useLead(leadId);
   const { data: callsData, refetch: refetchCalls } = useCalls({
-    lead_id: params.id,
+    lead_id: leadId,
     page: "1",
     pageSize: "50",
   });
-  const { data: tcfData, isLoading: tcfLoading } = useTcfConsent(params.id);
+  const { data: tcfData, isLoading: tcfLoading } = useTcfConsent(leadId);
   const { data: users } = useUsers();
-  const addNote = useAddLeadNote(params.id);
+  const addNote = useAddLeadNote(leadId);
   const [noteText, setNoteText] = useState("");
   const [showEdit, setShowEdit] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
@@ -395,7 +398,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   <LeadActivityTimeline activities={lead.activities} />
                 </TabsContent>
                 <TabsContent value="tasks" className="pt-4">
-                  <TasksPanel leadId={params.id} assignedTo={lead.assignedUser?.id} />
+                  <TasksPanel leadId={leadId} assignedTo={lead.assignedUser?.id} />
                 </TabsContent>
                 <TabsContent value="calls">
                   {callsData ? (
@@ -412,7 +415,7 @@ export default function LeadDetailPage({ params }: { params: { id: string } }) {
                   )}
                 </TabsContent>
                 <TabsContent value="compliance">
-                  <TcfConsentPanel leadId={params.id} data={tcfData} isLoading={tcfLoading} />
+                  <TcfConsentPanel leadId={leadId} data={tcfData} isLoading={tcfLoading} />
                 </TabsContent>
               </Tabs>
             </CardContent>

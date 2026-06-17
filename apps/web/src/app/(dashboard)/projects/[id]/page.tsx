@@ -2,14 +2,12 @@
 
 import { ProjectWizard } from "@/components/projects/project-wizard";
 import { PROJECT_GALLERY_ENABLED, parseWizardStep } from "@/lib/project-wizard";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
 
-type EditProjectPageProps = {
-  params: { id: string };
-};
-
-export default function EditProjectPage({ params }: EditProjectPageProps) {
+function EditProjectPageContent() {
+  const { id } = useParams<{ id: string }>();
+  const projectId = id ?? "";
   const searchParams = useSearchParams();
   const router = useRouter();
   const readOnly = searchParams.get("view") === "1";
@@ -20,15 +18,23 @@ export default function EditProjectPage({ params }: EditProjectPageProps) {
 
     const query = new URLSearchParams(searchParams.toString());
     query.set("step", "amenities");
-    router.replace(`/projects/${params.id}?${query.toString()}`);
-  }, [params.id, router, searchParams]);
+    router.replace(`/projects/${projectId}?${query.toString()}`);
+  }, [projectId, router, searchParams]);
 
   return (
     <ProjectWizard
       mode="edit"
-      projectId={params.id}
+      projectId={projectId}
       readOnly={readOnly}
       initialStep={initialStep}
     />
+  );
+}
+
+export default function EditProjectPage() {
+  return (
+    <Suspense fallback={<p className="p-8 text-sm text-muted-foreground">Loading project…</p>}>
+      <EditProjectPageContent />
+    </Suspense>
   );
 }
