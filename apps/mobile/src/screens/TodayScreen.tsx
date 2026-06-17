@@ -6,6 +6,7 @@ import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-call
 import { type LeadRow, useTodayQueue } from "@/hooks/use-leads";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
+import { callLogSuccessMessage } from "@/lib/call-log-feedback";
 import { formatDuration } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
@@ -89,7 +90,7 @@ export function TodayScreen({ route, navigation }: Props) {
   const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
 
   const [defaultLogDuration, setDefaultLogDuration] = useState(60);
-  const [callLoggedToast, setCallLoggedToast] = useState(false);
+  const [callLoggedToast, setCallLoggedToast] = useState<string | null>(null);
 
   const openLogForReturn = useCallback((elapsedSeconds: number) => {
     setDefaultLogDuration(elapsedSeconds);
@@ -159,8 +160,8 @@ export function TodayScreen({ route, navigation }: Props) {
         onSuccess: async () => {
           await queue.refetch();
           void feedbackCallSaved();
-          setCallLoggedToast(true);
-          setTimeout(() => setCallLoggedToast(false), 2500);
+          setCallLoggedToast(callLogSuccessMessage(payload.outcome));
+          setTimeout(() => setCallLoggedToast(null), 2500);
           if (options?.goNext && nextLead) {
             setLogTarget(nextLead);
           } else {
@@ -313,7 +314,7 @@ export function TodayScreen({ route, navigation }: Props) {
 
       {callLoggedToast ? (
         <View style={[styles.callLoggedToast, { bottom: 24 + insets.bottom }]}>
-          <Text style={styles.callLoggedToastText}>Call logged ✓</Text>
+          <Text style={styles.callLoggedToastText}>{callLoggedToast}</Text>
         </View>
       ) : null}
     </View>

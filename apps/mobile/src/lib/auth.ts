@@ -8,6 +8,13 @@ export type SessionUser = {
   role: string;
 };
 
+export type AppRole = "admin" | "manager" | "agent";
+
+export function normalizeRole(role: string): AppRole {
+  if (role === "admin" || role === "manager") return role;
+  return "agent";
+}
+
 const TOKEN_KEY = "propninja_token";
 const USER_KEY = "propninja_user";
 

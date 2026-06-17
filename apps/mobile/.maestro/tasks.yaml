@@ -1,0 +1,16 @@
+appId: com.propninja.crm
+---
+- runFlow: login.yaml
+- tapOn: Tasks
+- extendedWaitUntil:
+    visible:
+      id: tasks-screen-title
+    timeout: 15000
+- assertVisible: E2E follow-up call
+- tapOn: E2E follow-up call
+- tapOn:
+    id: task-mark-complete
+- extendedWaitUntil:
+    notVisible:
+      text: E2E follow-up call
+    timeout: 15000

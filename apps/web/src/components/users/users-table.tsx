@@ -38,6 +38,7 @@ type UsersTableProps = {
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
   onAddUser?: () => void;
+  onEditUser?: (user: UserRow) => void;
 };
 
 type ActionIconButtonProps = {
@@ -160,9 +161,15 @@ const UsersTableRow = memo(function UsersTableRow({
           />
           <ActionIconButton
             icon={<Power className="h-3.5 w-3.5" />}
-            label={user.isActive ? `Deactivate ${fullName}` : `Activate ${fullName}`}
+            label={
+              user.isLastAdmin && user.isActive
+                ? `Cannot deactivate ${fullName} — last admin`
+                : user.isActive
+                  ? `Deactivate ${fullName}`
+                  : `Activate ${fullName}`
+            }
             className={user.isActive ? "bg-rose-500" : "bg-emerald-600"}
-            disabled={!canUpdate || isSelf || isToggling}
+            disabled={!canUpdate || isSelf || isToggling || (user.isLastAdmin && user.isActive)}
             onClick={() => onToggleActive(user)}
           />
           <ActionIconButton
@@ -189,6 +196,7 @@ export const UsersTable = memo(function UsersTable({
   selectedIds,
   onSelectionChange,
   onAddUser,
+  onEditUser,
 }: UsersTableProps) {
   const router = useRouter();
   const updateUser = useUpdateUser();
@@ -226,7 +234,17 @@ export const UsersTable = memo(function UsersTable({
     setSelected([...merged]);
   }, [allOnPageSelected, users, selected, setSelected, visibleIds]);
 
-  const handleEdit = useCallback((userId: string) => router.push(`/users/${userId}`), [router]);
+  const handleEdit = useCallback(
+    (userId: string) => {
+      const user = users.find((row) => row.id === userId);
+      if (user && onEditUser) {
+        onEditUser(user);
+        return;
+      }
+      router.push(`/users/${userId}`);
+    },
+    [users, onEditUser, router],
+  );
   const handleView = useCallback(
     (userId: string) => router.push(`/users/${userId}?view=1`),
     [router],

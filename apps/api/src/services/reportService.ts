@@ -1582,4 +1582,270 @@ export const reportService = {
         })),
     };
   },
+
+  async getAgentStats(agentId: string) {
+    const { start: todayStart, end: todayEnd } = calendarDayRange();
+    const { start: monthStart, end: monthEnd } = calendarMonthRange();
+    const sevenDaysAgo = new Date(todayStart);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+    const callBase = and(
+      eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
+      eq(callRecords.userId, agentId),
+    );
+
+    const [
+      [todayCalls],
+      [monthCalls],
+      [todayLeadsContacted],
+      [todayTasksCompleted],
+      [todayNewLeads],
+      [todayFollowUps],
+      [monthTasksCompleted],
+      [monthTasksOverdue],
+      [monthLeadsConverted],
+      [monthLeadsAssigned],
+      [monthLeadsContacted],
+      bestDayRows,
+      callsLast7Days,
+      agentCallRanks,
+    ] = await Promise.all([
+      db
+        .select({
+          callsMade: sql<number>`count(*)::int`,
+          callsAnswered: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
+        })
+        .from(callRecords)
+        .where(
+          and(
+            callBase,
+            gte(callRecords.startedAt, todayStart),
+            lte(callRecords.startedAt, todayEnd),
+          ),
+        ),
+      db
+        .select({
+          totalCalls: sql<number>`count(*)::int`,
+          answeredCalls: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
+          avgDurationSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed' and ${callRecords.durationSeconds} > 0)), 0)::int`,
+        })
+        .from(callRecords)
+        .where(
+          and(
+            callBase,
+            gte(callRecords.startedAt, monthStart),
+            lte(callRecords.startedAt, monthEnd),
+          ),
+        ),
+      db
+        .select({
+          count: sql<number>`count(distinct ${callRecords.leadId})::int`,
+        })
+        .from(callRecords)
+        .where(
+          and(
+            callBase,
+            isNotNull(callRecords.leadId),
+            gte(callRecords.startedAt, todayStart),
+            lte(callRecords.startedAt, todayEnd),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.orgId, SINGLE_TENANT_ORG_ID),
+            eq(tasks.assignedTo, agentId),
+            eq(tasks.status, "completed"),
+            gte(tasks.completedAt, todayStart),
+            lte(tasks.completedAt, todayEnd),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            leadBaseFilter(),
+            eq(leads.assignedTo, agentId),
+            gte(leads.createdAt, todayStart),
+            lte(leads.createdAt, todayEnd),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leadActivities)
+        .innerJoin(leads, eq(leadActivities.leadId, leads.id))
+        .where(
+          and(
+            eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
+            eq(leadActivities.type, "follow_up"),
+            eq(leadActivities.userId, agentId),
+            gte(leadActivities.createdAt, todayStart),
+            lte(leadActivities.createdAt, todayEnd),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.orgId, SINGLE_TENANT_ORG_ID),
+            eq(tasks.assignedTo, agentId),
+            eq(tasks.status, "completed"),
+            gte(tasks.completedAt, monthStart),
+            lte(tasks.completedAt, monthEnd),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.orgId, SINGLE_TENANT_ORG_ID),
+            eq(tasks.assignedTo, agentId),
+            eq(tasks.status, "pending"),
+            isNotNull(tasks.dueAt),
+            lt(tasks.dueAt, new Date()),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            leadBaseFilter(),
+            eq(leads.assignedTo, agentId),
+            eq(leads.leadStatus, "won"),
+            gte(leads.updatedAt, monthStart),
+            lte(leads.updatedAt, monthEnd),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            leadBaseFilter(),
+            eq(leads.assignedTo, agentId),
+            gte(leads.createdAt, monthStart),
+            lte(leads.createdAt, monthEnd),
+          ),
+        ),
+      db
+        .select({
+          count: sql<number>`count(distinct ${leads.id})::int`,
+        })
+        .from(leads)
+        .where(
+          and(
+            leadBaseFilter(),
+            eq(leads.assignedTo, agentId),
+            isNotNull(leads.lastContactedAt),
+            gte(leads.lastContactedAt, monthStart),
+            lte(leads.lastContactedAt, monthEnd),
+          ),
+        ),
+      db
+        .select({
+          date: sql<string>`to_char(${callRecords.startedAt}::date, 'YYYY-MM-DD')`,
+          calls: sql<number>`count(*)::int`,
+        })
+        .from(callRecords)
+        .where(
+          and(
+            callBase,
+            gte(callRecords.startedAt, monthStart),
+            lte(callRecords.startedAt, monthEnd),
+          ),
+        )
+        .groupBy(sql`${callRecords.startedAt}::date`)
+        .orderBy(sql`count(*) desc`)
+        .limit(1),
+      db
+        .select({
+          date: sql<string>`to_char(${callRecords.startedAt}::date, 'YYYY-MM-DD')`,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(callRecords)
+        .where(
+          and(
+            callBase,
+            gte(callRecords.startedAt, sevenDaysAgo),
+            lte(callRecords.startedAt, todayEnd),
+          ),
+        )
+        .groupBy(sql`${callRecords.startedAt}::date`)
+        .orderBy(sql`${callRecords.startedAt}::date`),
+      db
+        .select({
+          userId: callRecords.userId,
+          callsThisMonth: sql<number>`count(*)::int`,
+        })
+        .from(callRecords)
+        .innerJoin(users, eq(callRecords.userId, users.id))
+        .where(
+          and(
+            eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
+            eq(users.orgId, SINGLE_TENANT_ORG_ID),
+            eq(users.role, "agent"),
+            eq(users.isActive, true),
+            gte(callRecords.startedAt, monthStart),
+            lte(callRecords.startedAt, monthEnd),
+          ),
+        )
+        .groupBy(callRecords.userId)
+        .orderBy(sql`count(*) desc`),
+    ]);
+
+    const callsMade = todayCalls?.callsMade ?? 0;
+    const callsAnswered = todayCalls?.callsAnswered ?? 0;
+    const totalCalls = monthCalls?.totalCalls ?? 0;
+    const answeredCalls = monthCalls?.answeredCalls ?? 0;
+    const leadsAssigned = monthLeadsAssigned?.count ?? 0;
+    const leadsContacted = monthLeadsContacted?.count ?? 0;
+
+    const sortedRanks = agentCallRanks.map((row, index) => ({
+      agentId: row.userId,
+      agentName: "",
+      callsThisMonth: row.callsThisMonth,
+      leadsConverted: 0,
+      rank: index + 1,
+    }));
+
+    const rankIndex = sortedRanks.findIndex((row) => row.agentId === agentId);
+
+    return {
+      today: {
+        callsMade,
+        callsAnswered,
+        callsAnsweredPercent: callsMade > 0 ? Math.round((callsAnswered / callsMade) * 100) : 0,
+        leadsContacted: todayLeadsContacted?.count ?? 0,
+        tasksCompleted: todayTasksCompleted?.count ?? 0,
+        newLeadsAssigned: todayNewLeads?.count ?? 0,
+        followUpsDone: todayFollowUps?.count ?? 0,
+      },
+      thisMonth: {
+        totalCalls,
+        answeredPercent: totalCalls > 0 ? Math.round((answeredCalls / totalCalls) * 100) : 0,
+        avgCallDurationMinutes: Math.round((monthCalls?.avgDurationSeconds ?? 0) / 60),
+        leadsConverted: monthLeadsConverted?.count ?? 0,
+        leadsAssigned,
+        leadsContacted,
+        leadsAssignedVsContactedRatio:
+          leadsAssigned > 0 ? Math.round((leadsContacted / leadsAssigned) * 100) : 0,
+        tasksCompleted: monthTasksCompleted?.count ?? 0,
+        tasksOverdue: monthTasksOverdue?.count ?? 0,
+        bestDay: bestDayRows[0] ? { date: bestDayRows[0].date, calls: bestDayRows[0].calls } : null,
+      },
+      callsLast7Days: callsLast7Days.map((row) => ({ date: row.date, count: row.count })),
+      leaderboard: {
+        rank: rankIndex >= 0 ? rankIndex + 1 : sortedRanks.length + 1,
+        totalAgents: sortedRanks.length,
+        metric: "callsThisMonth" as const,
+        entries: sortedRanks.slice(0, 10),
+      },
+    };
+  },
 };

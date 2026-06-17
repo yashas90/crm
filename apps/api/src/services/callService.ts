@@ -1,5 +1,6 @@
 import { callRecords, leadActivities, leads, users } from "@propninja/db";
 import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import { createCallFollowUpTask } from "../lib/callFollowUpTask.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
@@ -130,6 +131,8 @@ export const callService = {
       })
       .returning();
 
+    let followUpTask = null;
+
     if (resolvedLeadId) {
       await Promise.all([
         db
@@ -154,9 +157,18 @@ export const callService = {
           },
         }),
       ]);
+
+      if (outcome) {
+        followUpTask = await createCallFollowUpTask({
+          userId,
+          leadId: resolvedLeadId,
+          outcome,
+          attemptedAt: endedAt,
+        });
+      }
     }
 
-    return record!;
+    return { ...record!, followUpTask };
   },
 
   async listCalls(params: ListCallsParams) {

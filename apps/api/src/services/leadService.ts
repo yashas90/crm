@@ -10,6 +10,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   ne,
   or,
@@ -19,10 +20,12 @@ import { adLeadsOnlyFilter } from "../lib/adLeadFilters.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
+import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.js";
 import { inferFollowupType } from "../lib/followupType.js";
 import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
+import { recordLeadAssignment } from "./leadAssignmentService.js";
 
 type LeadStatus = "new" | "contacted" | "qualified" | "negotiation" | "won" | "lost";
 type Temperature = "cold" | "warm" | "hot";
@@ -118,6 +121,8 @@ export interface UpdateLeadInput {
     estimatedValue: number | null;
     projectName: string;
     projectId: string | null;
+    assignedTo: string;
+    reason: string;
   }>;
 }
 
@@ -813,14 +818,34 @@ export const leadService = {
       update.projectName = payload.projectName;
       update.projectId = null;
     }
+    if (payload.assignedTo !== undefined) {
+      update.assignedTo = payload.assignedTo;
+    }
 
-    const [updated] = await db
-      .update(leads)
-      .set(update)
-      .where(
-        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
-      )
-      .returning();
+    const assignmentChanged =
+      payload.assignedTo !== undefined && payload.assignedTo !== existing.assignedTo;
+
+    const [updated] = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(leads)
+        .set(update)
+        .where(
+          and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
+        )
+        .returning();
+
+      if (row && assignmentChanged && payload.assignedTo) {
+        await recordLeadAssignment(tx, {
+          leadId,
+          fromAgentId: existing.assignedTo,
+          toAgentId: payload.assignedTo,
+          assignedBy: actingUserId,
+          reason: payload.reason,
+        });
+      }
+
+      return [row];
+    });
 
     if (updated && payload.leadStatus !== undefined && payload.leadStatus !== existing.leadStatus) {
       await db.insert(leadActivities).values({
@@ -838,6 +863,18 @@ export const leadService = {
   async assignLead(input: AssignLeadInput) {
     const { leadId, userId, actingUserId } = input;
 
+    const [existing] = await db
+      .select()
+      .from(leads)
+      .where(
+        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
+      )
+      .limit(1);
+
+    if (!existing) {
+      return null;
+    }
+
     const [assignee] = await db
       .select({ id: users.id })
       .from(users)
@@ -850,13 +887,26 @@ export const leadService = {
       return null;
     }
 
-    const [updated] = await db
-      .update(leads)
-      .set({ assignedTo: userId, updatedAt: new Date() })
-      .where(
-        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
-      )
-      .returning();
+    const [updated] = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(leads)
+        .set({ assignedTo: userId, updatedAt: new Date() })
+        .where(
+          and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
+        )
+        .returning();
+
+      if (row) {
+        await recordLeadAssignment(tx, {
+          leadId,
+          fromAgentId: existing.assignedTo,
+          toAgentId: userId,
+          assignedBy: actingUserId,
+        });
+      }
+
+      return [row];
+    });
 
     if (!updated) {
       return null;
@@ -990,5 +1040,201 @@ export const leadService = {
       leadId: row.leadId,
       leadName: `${row.leadFirstName} ${row.leadLastName}`.trim(),
     }));
+  },
+
+  async listOverdueLeads(assignedTo?: string) {
+    const now = new Date();
+    const filters = [
+      eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+      isNull(leads.deletedAt),
+      isNotNull(leads.nextFollowupAt),
+      lt(leads.nextFollowupAt, now),
+    ];
+    if (assignedTo) {
+      filters.push(eq(leads.assignedTo, assignedTo));
+    }
+
+    const rows = await db
+      .select({
+        lead: leads,
+        userName: users.name,
+        userId: users.id,
+        userEmail: users.email,
+      })
+      .from(leads)
+      .leftJoin(users, eq(leads.assignedTo, users.id))
+      .where(and(...filters))
+      .orderBy(asc(leads.nextFollowupAt))
+      .limit(100);
+
+    return rows.map(({ lead, userName, userId, userEmail }) => ({
+      ...lead,
+      assignedUser: userId ? { id: userId, name: userName ?? "", email: userEmail ?? "" } : null,
+      daysOverdue: daysOverdue(lead.nextFollowupAt!.toISOString(), now),
+      daysSinceContact: daysSinceContact(lead.lastContactedAt, lead.createdAt, now),
+      followUpCount: lead.followUpCount ?? 0,
+    }));
+  },
+
+  async listColdLeads(assignedTo?: string) {
+    const cutoff = coldCutoffDate();
+    const filters = [
+      eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+      isNull(leads.deletedAt),
+      sql`${leads.leadStatus} not in ('won', 'lost')`,
+      lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff),
+    ];
+    if (assignedTo) {
+      filters.push(eq(leads.assignedTo, assignedTo));
+    }
+
+    const now = new Date();
+    const rows = await db
+      .select({
+        lead: leads,
+        userName: users.name,
+        userId: users.id,
+        userEmail: users.email,
+      })
+      .from(leads)
+      .leftJoin(users, eq(leads.assignedTo, users.id))
+      .where(and(...filters))
+      .orderBy(asc(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`))
+      .limit(100);
+
+    return rows.map(({ lead, userName, userId, userEmail }) => ({
+      ...lead,
+      assignedUser: userId ? { id: userId, name: userName ?? "", email: userEmail ?? "" } : null,
+      daysSinceContact: daysSinceContact(lead.lastContactedAt, lead.createdAt, now),
+      daysOverdue: lead.nextFollowupAt ? daysOverdue(lead.nextFollowupAt.toISOString(), now) : 0,
+      followUpCount: lead.followUpCount ?? 0,
+    }));
+  },
+
+  async markColdLeads(now = new Date()) {
+    const cutoff = coldCutoffDate(now);
+
+    const coldFilter = and(
+      eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+      isNull(leads.deletedAt),
+      sql`${leads.leadStatus} not in ('won', 'lost')`,
+      lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff),
+    );
+
+    const [totalRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(coldFilter);
+
+    const markedRows = await db
+      .update(leads)
+      .set({ coldSince: now, updatedAt: now })
+      .where(and(coldFilter, isNull(leads.coldSince)))
+      .returning({ id: leads.id });
+
+    return { marked: markedRows.length, totalCold: totalRow?.count ?? 0 };
+  },
+
+  async updateFollowUp(input: {
+    leadId: string;
+    actingUserId: string;
+    nextFollowupAt: string;
+    markComplete?: boolean;
+  }) {
+    const [existing] = await db
+      .select()
+      .from(leads)
+      .where(
+        and(
+          eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+          eq(leads.id, input.leadId),
+          isNull(leads.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!existing) {
+      return null;
+    }
+
+    const nextFollowupAt = new Date(input.nextFollowupAt);
+    const update: Record<string, unknown> = {
+      nextFollowupAt,
+      updatedAt: new Date(),
+    };
+
+    if (input.markComplete) {
+      update.followUpCount = (existing.followUpCount ?? 0) + 1;
+    }
+
+    const [updated] = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(leads)
+        .set(update)
+        .where(eq(leads.id, input.leadId))
+        .returning();
+
+      if (row && input.markComplete) {
+        await tx.insert(leadActivities).values({
+          orgId: SINGLE_TENANT_ORG_ID,
+          leadId: input.leadId,
+          userId: input.actingUserId,
+          type: "follow_up",
+          metadata: {
+            nextFollowupAt: nextFollowupAt.toISOString(),
+            completedAt: new Date().toISOString(),
+          },
+        });
+      }
+
+      return [row];
+    });
+
+    return updated ?? null;
+  },
+
+  async getAgentDigestCounts(agentId: string, now = new Date()) {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    const cutoff = coldCutoffDate(now);
+
+    const agentFilter = eq(leads.assignedTo, agentId);
+    const base = and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt), agentFilter);
+
+    const [[followUpsDueToday], [overdueFollowUps], [coldLeads]] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            base,
+            isNotNull(leads.nextFollowupAt),
+            gte(leads.nextFollowupAt, start),
+            lte(leads.nextFollowupAt, end),
+          ),
+        ),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(and(base, isNotNull(leads.nextFollowupAt), lt(leads.nextFollowupAt, now))),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leads)
+        .where(
+          and(
+            base,
+            sql`${leads.leadStatus} not in ('won', 'lost')`,
+            lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff),
+          ),
+        ),
+    ]);
+
+    return {
+      followUpsDueToday: followUpsDueToday?.count ?? 0,
+      overdueFollowUps: overdueFollowUps?.count ?? 0,
+      coldLeads: coldLeads?.count ?? 0,
+    };
   },
 };

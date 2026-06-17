@@ -20,6 +20,7 @@ export type LeadRow = {
   notes: string | null;
   nextFollowupAt: string | null;
   lastContactedAt?: string | null;
+  score?: number;
 };
 
 export type LeadActivity = {
@@ -172,6 +173,19 @@ export function useUpdateLead() {
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
       await queryClient.invalidateQueries({ queryKey: ["leads", variables.leadId] });
+    },
+  });
+}
+
+export function useUpdateLeadFollowUp(leadId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { nextFollowupAt: string; markComplete?: boolean }) =>
+      apiPatch(`/api/leads/${leadId}/follow-up`, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
     },
   });
 }

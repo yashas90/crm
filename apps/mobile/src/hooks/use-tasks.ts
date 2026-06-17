@@ -89,6 +89,12 @@ export function useMyOpenTasks() {
   });
 }
 
+export function useOpenTaskCount() {
+  const { data } = useMyTasks();
+  const total = data?.total ?? 0;
+  return total > 0 ? total : undefined;
+}
+
 export function useTask(taskId: string) {
   const ready = useAuthReady();
   return useQuery({

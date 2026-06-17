@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import type { LeadDetail } from "@/hooks/use-leads";
 import { useLogCall } from "@/hooks/use-leads";
+import { callLogSuccessMessageWeb } from "@/lib/call-log-feedback";
 import { getErrorMessage } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { CALL_OUTCOMES, CALL_OUTCOME_LABELS, type CallOutcome } from "@propninja/types/enums";
@@ -59,7 +60,7 @@ export function LogCallDialog({ lead, open, onOpenChange, onLogged }: LogCallDia
       },
       {
         onSuccess: () => {
-          toast.success("Call logged");
+          toast.success(callLogSuccessMessageWeb(outcome));
           onOpenChange(false);
           onLogged?.();
         },

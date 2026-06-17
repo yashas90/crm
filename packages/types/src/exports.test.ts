@@ -20,7 +20,6 @@ function sampleOrganization(): Organization {
     name: "PropNinja Demo",
     slug: "propninja-demo",
     settings: { timezone: "Asia/Kolkata" },
-    subscriptionTier: "demo",
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
   };
 }
@@ -50,6 +49,9 @@ function sampleUser(): User {
     phone: null,
     passwordHash: null,
     isActive: true,
+    isFirstLogin: false,
+    sessionsRevokedAt: null,
+    reportEmailEnabled: true,
     expoPushToken: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
   };
@@ -77,6 +79,11 @@ function sampleLead(): Lead {
     customFields: null,
     lastContactedAt: null,
     nextFollowupAt: null,
+    followUpCount: 0,
+    coldSince: null,
+    score: 0,
+    scoreUpdatedAt: null,
+    whatsappRepliedAt: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     deletedAt: null,

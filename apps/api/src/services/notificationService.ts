@@ -7,7 +7,12 @@ import { sendPushNotification } from "../lib/pushNotifications.js";
 export const NOTIFICATION_TYPES = {
   LEAD_ASSIGNED: "lead_assigned",
   FOLLOWUP_DUE: "followup_due",
+  FOLLOWUP_REMINDER: "followup_reminder",
   TASK_ASSIGNED: "task_assigned",
+  CALL_FOLLOWUP_SET: "call_followup_set",
+  SITE_VISIT_REMINDER: "site_visit_reminder",
+  COLD_LEADS_ALERT: "cold_leads_alert",
+  DAILY_DIGEST: "daily_digest",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -43,6 +48,14 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
       return {
         title: "Task assigned",
         body: `You were assigned: ${taskTitle}`,
+      };
+    case NOTIFICATION_TYPES.CALL_FOLLOWUP_SET:
+      return {
+        title: "Follow-up scheduled",
+        body:
+          typeof payload.message === "string"
+            ? payload.message
+            : `Reminder set: Call back ${leadName}`,
       };
     default:
       return {
@@ -123,14 +136,19 @@ export function createNotificationService(db: Database) {
       return updated.length;
     },
 
-    async hasFollowupNotification(userId: string, leadId: string, nextFollowupAt: string) {
+    async hasFollowupNotification(
+      userId: string,
+      leadId: string,
+      nextFollowupAt: string,
+      type: NotificationType | string = NOTIFICATION_TYPES.FOLLOWUP_DUE,
+    ) {
       const [row] = await db
         .select({ id: notifications.id })
         .from(notifications)
         .where(
           and(
             eq(notifications.userId, userId),
-            eq(notifications.type, NOTIFICATION_TYPES.FOLLOWUP_DUE),
+            eq(notifications.type, type),
             sql`${notifications.payload}->>'leadId' = ${leadId}`,
             sql`${notifications.payload}->>'nextFollowupAt' = ${nextFollowupAt}`,
           ),

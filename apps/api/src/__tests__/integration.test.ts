@@ -285,6 +285,143 @@ describe("API integration", () => {
     expect(leadJson.data.lastContactedAt).not.toBeNull();
   });
 
+  describe("POST /api/calls/log follow-up tasks", () => {
+    async function createLeadForCall() {
+      const phone = `+9197${Date.now().toString().slice(-8)}`;
+      const createRes = await app.request("/api/leads", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ firstName: "Follow", lastName: "Up", phone }),
+      });
+      expect(createRes.status).toBe(201);
+      const created = (await createRes.json()) as { data: { id: string } };
+      return { leadId: created.data.id, phone };
+    }
+
+    async function logCallWithOutcome(
+      leadId: string,
+      phone: string,
+      outcome: string,
+      endedAt: Date,
+    ) {
+      const startedAt = new Date(endedAt.getTime() - 60_000);
+      return app.request("/api/calls/log", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lead_id: leadId,
+          phone_number: phone,
+          direction: "outgoing",
+          started_at: startedAt.toISOString(),
+          ended_at: endedAt.toISOString(),
+          duration_seconds: 60,
+          outcome,
+          source: "mobile-manual",
+        }),
+      });
+    }
+
+    async function tasksForLead(leadId: string) {
+      const res = await app.request(`/api/tasks?leadId=${leadId}&pageSize=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(res.status).toBe(200);
+      return (await res.json()) as {
+        data: {
+          items: Array<{
+            assignedTo: string | null;
+            leadId: string | null;
+            priority: string;
+            dueAt: string | null;
+          }>;
+        };
+      };
+    }
+
+    it("no_answer creates follow-up task due in 2 hours", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const adminId = await userIdForToken(token);
+      const { leadId, phone } = await createLeadForCall();
+      const endedAt = new Date("2026-06-16T14:30:00.000Z");
+
+      const logRes = await logCallWithOutcome(leadId, phone, "no_answer", endedAt);
+      expect(logRes.status).toBe(201);
+      const logJson = (await logRes.json()) as {
+        data: { followUpTask: { dueAt: string; followUpHours: number } | null };
+      };
+      expect(logJson.data.followUpTask).not.toBeNull();
+      expect(logJson.data.followUpTask!.followUpHours).toBe(2);
+
+      const tasksJson = await tasksForLead(leadId);
+      expect(tasksJson.data.items).toHaveLength(1);
+      const task = tasksJson.data.items[0]!;
+      expect(task.assignedTo).toBe(adminId);
+      expect(task.leadId).toBe(leadId);
+      expect(task.priority).toBe("high");
+      expect(new Date(task.dueAt!).toISOString()).toBe(
+        new Date(endedAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+      );
+    });
+
+    it("busy creates follow-up task", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const { leadId, phone } = await createLeadForCall();
+      const endedAt = new Date();
+
+      const logRes = await logCallWithOutcome(leadId, phone, "busy", endedAt);
+      expect(logRes.status).toBe(201);
+
+      const tasksJson = await tasksForLead(leadId);
+      expect(tasksJson.data.items).toHaveLength(1);
+      expect(tasksJson.data.items[0]!.priority).toBe("high");
+    });
+
+    it("left_voicemail creates follow-up task due in 24 hours", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const { leadId, phone } = await createLeadForCall();
+      const endedAt = new Date("2026-06-16T09:00:00.000Z");
+
+      const logRes = await logCallWithOutcome(leadId, phone, "left_voicemail", endedAt);
+      expect(logRes.status).toBe(201);
+      const logJson = (await logRes.json()) as {
+        data: { followUpTask: { followUpHours: number } | null };
+      };
+      expect(logJson.data.followUpTask!.followUpHours).toBe(24);
+
+      const tasksJson = await tasksForLead(leadId);
+      expect(tasksJson.data.items).toHaveLength(1);
+      const task = tasksJson.data.items[0]!;
+      expect(task.priority).toBe("medium");
+      expect(new Date(task.dueAt!).toISOString()).toBe(
+        new Date(endedAt.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      );
+    });
+
+    it("answered does not create follow-up task", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const { leadId, phone } = await createLeadForCall();
+      const endedAt = new Date();
+
+      const logRes = await logCallWithOutcome(leadId, phone, "answered", endedAt);
+      expect(logRes.status).toBe(201);
+      const logJson = (await logRes.json()) as { data: { followUpTask: unknown } };
+      expect(logJson.data.followUpTask).toBeNull();
+
+      const tasksJson = await tasksForLead(leadId);
+      expect(tasksJson.data.items).toHaveLength(0);
+    });
+  });
+
   describe("TCF lead authorization", () => {
     it("agent can access own lead consent but not another agent's", async ({ skip }) => {
       if (!hasDb) skip();

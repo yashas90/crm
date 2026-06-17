@@ -54,6 +54,7 @@ export function LoginScreen() {
             <Text style={styles.formTitle}>Sign in</Text>
             <TextField
               label="Email"
+              inputTestID="login-email"
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -63,6 +64,7 @@ export function LoginScreen() {
             />
             <TextField
               label="Password"
+              inputTestID="login-password"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -75,7 +77,12 @@ export function LoginScreen() {
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
-            <Button label="Sign in" onPress={() => void handleLogin()} loading={loading} />
+            <Button
+              label="Sign in"
+              testID="login-submit"
+              onPress={() => void handleLogin()}
+              loading={loading}
+            />
           </View>
 
           {__DEV__ ? <Text style={styles.hint}>Dev: agent1@demo.propninja / admin</Text> : null}

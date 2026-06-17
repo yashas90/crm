@@ -105,6 +105,8 @@ export function useLogCall() {
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["calls"] });
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
       if (variables.lead_id) {
         await queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] });
       }

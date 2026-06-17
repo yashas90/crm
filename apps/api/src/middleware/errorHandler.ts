@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import type { ErrorHandler } from "hono";
 import { ZodError } from "zod";
+import { env } from "../lib/env.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { jsonError } from "../lib/response.js";
@@ -24,7 +26,10 @@ export const errorHandler: ErrorHandler = (err, c) => {
     return jsonError(c, "HTTP_ERROR", err.message, status as 400);
   }
 
+  const requestId = c.get("requestId") ?? randomUUID();
+
   logger.error("Unhandled error", {
+    requestId,
     message: err.message,
     stack: err.stack,
     path: c.req.path,
@@ -33,5 +38,30 @@ export const errorHandler: ErrorHandler = (err, c) => {
 
   captureSentryRouteError(err, c);
 
-  return jsonError(c, "INTERNAL_ERROR", "Something went wrong", 500);
+  if (env.NODE_ENV === "production") {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Something went wrong",
+          requestId,
+        },
+      },
+      500,
+    );
+  }
+
+  return c.json(
+    {
+      ok: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: err.message,
+        stack: err.stack,
+        requestId,
+      },
+    },
+    500,
+  );
 };

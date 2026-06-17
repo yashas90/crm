@@ -35,12 +35,17 @@ vi.mock("@/hooks/use-leads", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/use-leads")>();
   return {
     ...actual,
-    useLead: () => ({ data: mockLead, isLoading: false, isError: false }),
-    useCalls: () => ({ data: { total: 4, items: [] } }),
+    useLead: () => ({ data: mockLead, isLoading: false, isError: false, refetch: vi.fn() }),
+    useLeadAssignments: () => ({ data: { items: [] }, isLoading: false }),
+    useCalls: () => ({ data: { total: 4, items: [] }, refetch: vi.fn() }),
     useAddLeadNote: () => ({ mutate: vi.fn(), isPending: false }),
     useUpdateLead: () => ({ mutate: vi.fn(), isPending: false }),
   };
 });
+
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ ready: true, canDeleteLead: true }),
+}));
 
 vi.mock("@/hooks/use-users", () => ({
   useUsers: () => ({ data: [] }),
@@ -73,6 +78,30 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/components/leads/lead-delete-dialog", () => ({
   LeadDeleteDialog: () => null,
+}));
+
+vi.mock("@/components/leads/lead-follow-up-panel", () => ({
+  LeadFollowUpPanel: () => null,
+}));
+
+vi.mock("@/components/leads/send-whatsapp-template-dialog", () => ({
+  SendWhatsAppTemplateDialog: () => null,
+}));
+
+vi.mock("@/components/leads/lead-site-visits-panel", () => ({
+  LeadSiteVisitsPanel: () => null,
+}));
+
+vi.mock("@/components/leads/lead-shared-documents-panel", () => ({
+  LeadSharedDocumentsPanel: () => null,
+}));
+
+vi.mock("@/components/leads/lead-whatsapp-panel", () => ({
+  LeadWhatsAppPanel: () => null,
+}));
+
+vi.mock("@/components/leads/lead-ownership-history", () => ({
+  LeadOwnershipHistory: () => null,
 }));
 
 describe("LeadDetailPage", () => {

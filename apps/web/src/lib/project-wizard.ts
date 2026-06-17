@@ -5,6 +5,7 @@ export const PROJECT_WIZARD_STEPS = [
   { id: "basic", label: "Basic Details" },
   { id: "units", label: "Units Info" },
   { id: "blocks", label: "Blocks Info" },
+  { id: "inventory", label: "Inventory" },
   { id: "amenities", label: "Amenities" },
   { id: "gallery", label: "Gallery" },
 ] as const;
@@ -15,6 +16,7 @@ export const PROJECT_WIZARD_STEP_ORDER: ProjectWizardStepId[] = [
   "basic",
   "units",
   "blocks",
+  "inventory",
   "amenities",
   "gallery",
 ];

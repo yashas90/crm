@@ -38,6 +38,8 @@ export type LeadDetail = LeadRow & {
   notes: string | null;
   state: string | null;
   tags?: string[] | null;
+  score?: number;
+  followUpCount?: number;
   activities: LeadActivity[];
   leadSummary?: {
     firstSeenAt: string;
@@ -56,6 +58,19 @@ export type LeadActivity = {
   metadata: Record<string, unknown> | null;
   createdAt: string;
   userName?: string | null;
+};
+
+export type LeadAssignment = {
+  id: string;
+  leadId: string;
+  fromAgentId: string | null;
+  fromAgentName: string | null;
+  toAgentId: string;
+  toAgentName: string;
+  assignedBy: string;
+  assignedByName: string;
+  reason: string | null;
+  assignedAt: string;
 };
 
 export type CallRecord = {
@@ -301,6 +316,7 @@ export function useLogCall() {
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["calls"] });
       await queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 }
@@ -326,6 +342,14 @@ export function useAddLeadNote(leadId: string) {
       await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
       toast.success("Note saved");
     },
+  });
+}
+
+export function useLeadAssignments(leadId: string) {
+  return useQuery({
+    queryKey: ["leads", leadId, "assignments"],
+    queryFn: () => apiGet<{ items: LeadAssignment[] }>(`/api/leads/${leadId}/assignments`),
+    enabled: Boolean(leadId),
   });
 }
 

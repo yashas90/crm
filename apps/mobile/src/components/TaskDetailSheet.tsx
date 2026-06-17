@@ -65,6 +65,7 @@ export function TaskDetailSheet({ taskId, visible, onClose, onViewLead }: TaskDe
               <View style={styles.actions}>
                 {!isDone ? (
                   <Pressable
+                    testID="task-mark-complete"
                     style={[styles.primaryBtn, completeTask.isPending && { opacity: 0.6 }]}
                     onPress={handleComplete}
                     disabled={completeTask.isPending}

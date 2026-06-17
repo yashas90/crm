@@ -116,3 +116,19 @@ export type OverviewReportQuery = z.infer<typeof overviewReportQuerySchema>;
 export type LeadsReportQuery = z.infer<typeof leadsReportQuerySchema>;
 export type SourcesReportQuery = z.infer<typeof sourcesReportQuerySchema>;
 export type CallsReportQuery = z.infer<typeof callsReportQuerySchema>;
+
+export const revenuePipelineQuerySchema = z
+  .object({
+    date_from: z.string().datetime({ offset: true }).optional(),
+    date_to: z.string().datetime({ offset: true }).optional(),
+    dateFrom: z.string().datetime({ offset: true }).optional(),
+    dateTo: z.string().datetime({ offset: true }).optional(),
+    project_id: z.string().uuid().optional(),
+    projectId: z.string().uuid().optional(),
+  })
+  .transform((value) => ({
+    ...defaultDashboardDateRange(value.date_from ?? value.dateFrom, value.date_to ?? value.dateTo),
+    projectId: value.project_id ?? value.projectId,
+  }));
+
+export type RevenuePipelineQuery = z.infer<typeof revenuePipelineQuerySchema>;

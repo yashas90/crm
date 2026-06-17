@@ -10,6 +10,7 @@ type ButtonProps = {
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
+  testID?: string;
 };
 
 const labelColors: Record<ButtonVariant, string> = {
@@ -26,11 +27,13 @@ export function Button({
   loading = false,
   disabled = false,
   style,
+  testID,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
 
   return (
     <Pressable
+      testID={testID}
       style={({ pressed }) => [
         styles.base,
         styles[variant],

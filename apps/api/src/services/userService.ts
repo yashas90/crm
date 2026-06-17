@@ -3,22 +3,37 @@ import { and, asc, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { toCsv } from "../lib/csv.js";
 import type { Database } from "../lib/db.js";
+import { deriveUsernameFromEmail } from "../lib/deriveUsername.js";
 import { conflict, forbidden, notFound } from "../lib/errors.js";
+import {
+  assertCanRemoveAdminPrivileges,
+  countActiveAdmins,
+  isLastActiveAdmin,
+} from "../lib/lastAdminGuard.js";
 import { hashPassword } from "../lib/password.js";
+import { validatePasswordPolicy } from "../lib/passwordPolicy.js";
 import { defaultRoleLabel } from "../lib/role-mapping.js";
 import type {
   CreateUserInput,
   ListUsersQuery,
+  ResetUserPasswordInput,
   UpdateUserInput,
   UserExportQuery,
   UserScopeCountsQuery,
 } from "../lib/validators/users.js";
+import type { AuthUser } from "../middleware/auth.js";
+import { setUserPassword } from "../services/passwordHistoryService.js";
+import { revokeAllUserSessions } from "../services/tokenRevocationService.js";
 
 type UserRow = typeof users.$inferSelect;
 
-function toPublicUser(row: UserRow) {
+function toPublicUser(row: UserRow, activeAdminCount?: number) {
   const { passwordHash: _passwordHash, ...publicUser } = row;
-  return publicUser;
+  return {
+    ...publicUser,
+    isLastAdmin:
+      activeAdminCount !== undefined ? isLastActiveAdmin(row, activeAdminCount) : undefined,
+  };
 }
 
 function resolveDisplayName(input: {
@@ -75,6 +90,7 @@ function applyUserStatusFilter(
 
 function buildUserListFilters(
   query: Pick<ListUsersQuery, "search" | "role" | "status" | "isActive">,
+  viewer?: AuthUser,
 ) {
   const filters = buildUserSearchFilters(query.search);
 
@@ -83,6 +99,16 @@ function buildUserListFilters(
   }
 
   applyUserStatusFilter(filters, query.status ?? "all", query.isActive);
+
+  if (viewer?.role === "manager") {
+    filters.push(
+      or(
+        eq(users.reportingToId, viewer.id),
+        eq(users.generalManagerId, viewer.id),
+        eq(users.id, viewer.id),
+      )!,
+    );
+  }
 
   return and(...filters);
 }
@@ -105,9 +131,10 @@ const USER_EXPORT_HEADERS = [
 
 export function createUserService(db: Database) {
   return {
-    async list(query: ListUsersQuery) {
-      const whereClause = buildUserListFilters(query);
+    async list(query: ListUsersQuery, viewer?: AuthUser) {
+      const whereClause = buildUserListFilters(query, viewer);
       const offset = (query.page - 1) * query.pageSize;
+      const activeAdminCount = await countActiveAdmins(db);
 
       const rows = await db
         .select()
@@ -123,15 +150,15 @@ export function createUserService(db: Database) {
         .where(whereClause);
 
       return {
-        items: rows.map(toPublicUser),
+        items: rows.map((row) => toPublicUser(row, activeAdminCount)),
         page: query.page,
         pageSize: query.pageSize,
         total: Number(count),
       };
     },
 
-    async exportCsv(query: UserExportQuery) {
-      const whereClause = buildUserListFilters(query);
+    async exportCsv(query: UserExportQuery, viewer?: AuthUser) {
+      const whereClause = buildUserListFilters(query, viewer);
 
       const rows = await db
         .select()
@@ -196,7 +223,8 @@ export function createUserService(db: Database) {
         throw notFound("User not found");
       }
 
-      return toPublicUser(row);
+      const activeAdminCount = await countActiveAdmins(db);
+      return toPublicUser(row, activeAdminCount);
     },
 
     async listRoles() {
@@ -205,7 +233,12 @@ export function createUserService(db: Database) {
 
     async create(payload: CreateUserInput) {
       const email = payload.email.toLowerCase();
-      const username = payload.username.toLowerCase();
+      let username = payload.username.toLowerCase();
+
+      const passwordPolicy = validatePasswordPolicy(payload.password);
+      if (!passwordPolicy.valid) {
+        throw conflict(passwordPolicy.errors[0] ?? "Invalid password", "VALIDATION_ERROR");
+      }
 
       const [existingEmail] = await db
         .select({ id: users.id })
@@ -214,17 +247,25 @@ export function createUserService(db: Database) {
         .limit(1);
 
       if (existingEmail) {
-        throw conflict("A user with this email already exists", "EMAIL_IN_USE");
+        throw conflict("Email already in use", "EMAIL_IN_USE");
       }
 
-      const [existingUsername] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.username, username))
-        .limit(1);
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const candidate = attempt === 0 ? username : `${username}${attempt}`;
+        const [existingUsername] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.username, candidate))
+          .limit(1);
 
-      if (existingUsername) {
-        throw conflict("This username is already taken", "USERNAME_IN_USE");
+        if (!existingUsername) {
+          username = candidate;
+          break;
+        }
+
+        if (attempt === 4) {
+          username = `${deriveUsernameFromEmail(email)}.${Date.now().toString(36)}`.slice(0, 50);
+        }
       }
 
       const passwordHash = await hashPassword(payload.password);
@@ -259,7 +300,8 @@ export function createUserService(db: Database) {
           role: payload.role,
           phone: trimOptional(payload.phone) ?? trimOptional(payload.workPhone) ?? null,
           passwordHash,
-          isActive: true,
+          isActive: payload.isActive ?? true,
+          isFirstLogin: true,
         })
         .returning();
 
@@ -312,6 +354,8 @@ export function createUserService(db: Database) {
         }
       }
 
+      await assertCanRemoveAdminPrivileges(db, existing, payload);
+
       const update: Partial<typeof users.$inferInsert> = {};
 
       if (payload.username !== undefined) update.username = payload.username.toLowerCase();
@@ -320,7 +364,6 @@ export function createUserService(db: Database) {
       if (payload.phone !== undefined) update.phone = trimOptional(payload.phone);
       if (payload.role !== undefined) update.role = payload.role;
       if (payload.isActive !== undefined) update.isActive = payload.isActive;
-      if (payload.password) update.passwordHash = await hashPassword(payload.password);
       if (payload.firstName !== undefined) update.firstName = trimOptional(payload.firstName);
       if (payload.lastName !== undefined) update.lastName = trimOptional(payload.lastName);
       if (payload.workEmail !== undefined) update.workEmail = trimOptional(payload.workEmail);
@@ -360,9 +403,34 @@ export function createUserService(db: Database) {
         });
       }
 
-      const [row] = await db.update(users).set(update).where(eq(users.id, id)).returning();
+      await db.update(users).set(update).where(eq(users.id, id));
 
-      return toPublicUser(row!);
+      if (payload.isActive === false && existing.isActive) {
+        await revokeAllUserSessions(id);
+      }
+
+      return this.getById(id);
+    },
+
+    async resetPassword(id: string, payload: ResetUserPasswordInput) {
+      const [existing] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.id, id), eq(users.orgId, SINGLE_TENANT_ORG_ID)))
+        .limit(1);
+
+      if (!existing) {
+        throw notFound("User not found");
+      }
+
+      const result = await setUserPassword(db, id, payload.newPassword, existing.passwordHash);
+      if (!result.valid) {
+        throw conflict(result.errors[0] ?? "Invalid password", "VALIDATION_ERROR");
+      }
+
+      await revokeAllUserSessions(id);
+
+      return this.getById(id);
     },
   };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { FirstLoginModal } from "@/components/auth/first-login-modal";
 import { AppErrorBoundary } from "@/components/common/app-error-boundary";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
@@ -20,6 +21,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-background to-teal-50/30 dark:from-slate-950 dark:via-background dark:to-teal-950/20">
+      <FirstLoginModal />
       <Sidebar />
       <div className="pl-64">
         <Topbar />

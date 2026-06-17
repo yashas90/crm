@@ -1,6 +1,7 @@
 "use client";
 
 import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-state";
+import { PropertyPortalsSection } from "@/components/settings/property-portals-section";
 import { Badge } from "@/components/ui/badge";
 import { useIntegrationsStatus } from "@/hooks/use-integrations-status";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -62,7 +63,7 @@ export default function IntegrationsSettingsPage() {
           </nav>
           <h1 className="mt-1 text-2xl font-bold tracking-tight">Integrations</h1>
           <p className="text-sm text-muted-foreground">
-            Read-only status for ad lead ingestion (Facebook and Google Ads).
+            Ad platform status and property portal webhook configuration.
           </p>
         </div>
         <Button
@@ -76,6 +77,8 @@ export default function IntegrationsSettingsPage() {
           Refresh
         </Button>
       </div>
+
+      <PropertyPortalsSection />
 
       {statusQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading integration status...</p>

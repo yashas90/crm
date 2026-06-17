@@ -6,10 +6,12 @@ import {
   dashboardReportQuerySchema,
   leadsReportQuerySchema,
   overviewReportQuerySchema,
+  revenuePipelineQuerySchema,
   sourcesReportQuerySchema,
 } from "../lib/validators/reports.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { reportService } from "../services/reportService.js";
+import { revenuePipelineService } from "../services/revenuePipelineService.js";
 
 export const reportsRoutes = new Hono();
 
@@ -456,6 +458,94 @@ reportsRoutes.get("/calls/analytics/export", async (c) => {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="calls-analytics-${date}.csv"`,
+    },
+  });
+});
+
+const agentStatsQuerySchema = z.object({
+  agentId: z.string().uuid().optional(),
+});
+
+reportsRoutes.get("/agent-stats", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const parsed = agentStatsQuerySchema.safeParse(c.req.query());
+
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const requestedAgentId = parsed.data.agentId;
+  if (requestedAgentId && authUser.role === "agent" && requestedAgentId !== authUser.id) {
+    return c.json(
+      { ok: false, error: { code: "FORBIDDEN", message: "Cannot view another agent's stats" } },
+      403,
+    );
+  }
+
+  const agentId = requestedAgentId ?? authUser.id;
+  const data = await reportService.getAgentStats(agentId);
+  return c.json({ ok: true, data });
+});
+
+reportsRoutes.get("/revenue-pipeline", async (c) => {
+  const denied = requireReportsAccess(c);
+  if (denied) return denied;
+
+  const parsed = revenuePipelineQuerySchema.safeParse(c.req.query());
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const data = await revenuePipelineService.getRevenuePipeline(parsed.data);
+  return c.json({ ok: true, data });
+});
+
+reportsRoutes.get("/revenue-pipeline/export", async (c) => {
+  const denied = requireReportsExportAccess(c);
+  if (denied) return denied;
+
+  const parsed = revenuePipelineQuerySchema.safeParse(c.req.query());
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const stream = await revenuePipelineService.exportCsv(parsed.data);
+  const date = new Date().toISOString().slice(0, 10);
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="revenue-pipeline-${date}.csv"`,
     },
   });
 });

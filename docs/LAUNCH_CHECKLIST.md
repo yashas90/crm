@@ -8,6 +8,8 @@ Related: [pre-launch-security.md](./pre-launch-security.md) · [DEPLOY.md](../DE
 
 ## 1. Credentials & access
 
+- [ ] **Admin creates all agent accounts** before go-live (Users → Add user — no invite flow)
+- [ ] **Each agent logs in and changes their password** on first login (welcome modal)
 - [ ] **Reset admin password** after seeding production DB:
   ```bash
   # Local with production DATABASE_URL, or on Railway:

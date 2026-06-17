@@ -195,7 +195,6 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
       id: SINGLE_TENANT_ORG_ID,
       name: DEMO_ORG_NAME,
       slug: DEMO_SLUG,
-      subscriptionTier: "demo",
     })
     .returning();
 
@@ -271,6 +270,8 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
         phone: "+919000000000",
         timeZone: "Asia/Kolkata",
         passwordHash,
+        isActive: true,
+        isFirstLogin: false,
       })),
     )
     .returning();
@@ -416,6 +417,40 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
   }
 
   await db.insert(leadActivities).values(activityValues);
+
+  const agentOne = seededUsers.find((user) => user.email === "agent1@demo.propninja");
+  const managerUser = seededUsers.find((user) => user.role === "manager");
+  if (agentOne && managerUser && seededLeads.length >= 2) {
+    const dueTomorrow = new Date();
+    dueTomorrow.setDate(dueTomorrow.getDate() + 1);
+    const dueNextWeek = new Date();
+    dueNextWeek.setDate(dueNextWeek.getDate() + 7);
+
+    await db.insert(tasks).values([
+      {
+        orgId: org!.id,
+        leadId: seededLeads[0]!.id,
+        assignedTo: agentOne.id,
+        createdBy: managerUser.id,
+        title: "E2E follow-up call",
+        dueAt: dueTomorrow,
+        priority: "high",
+        status: "pending",
+        taskType: "follow_up",
+      },
+      {
+        orgId: org!.id,
+        leadId: seededLeads[1]!.id,
+        assignedTo: agentOne.id,
+        createdBy: managerUser.id,
+        title: "E2E site visit",
+        dueAt: dueNextWeek,
+        priority: "medium",
+        status: "pending",
+        taskType: "site_visit",
+      },
+    ]);
+  }
 
   return {
     orgId: org!.id,

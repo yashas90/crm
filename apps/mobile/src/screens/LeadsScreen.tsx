@@ -215,6 +215,7 @@ export function LeadsScreen({ navigation }: Props) {
         style={[styles.fab, { bottom: fabBottom }]}
         onPress={() => navigation.navigate("LeadCreateScreen")}
         accessibilityLabel="Create new lead"
+        testID="create-lead-fab"
       >
         <Ionicons name="add" size={28} color="#fff" />
       </Pressable>

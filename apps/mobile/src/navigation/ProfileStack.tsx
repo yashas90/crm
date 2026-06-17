@@ -1,0 +1,71 @@
+import type { ProfileStackParamList } from "@/navigation/types";
+import { CallLogsScreen } from "@/screens/CallLogsScreen";
+import { ProfileScreen } from "@/screens/ProfileScreen";
+import { ProjectDetailScreen } from "@/screens/ProjectDetailScreen";
+import { ProjectUnitScreen } from "@/screens/ProjectUnitScreen";
+import { ProjectsScreen } from "@/screens/ProjectsScreen";
+import { UserManagementScreen } from "@/screens/UserManagementScreen";
+import { colors } from "@/theme";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Platform } from "react-native";
+
+const Stack = createNativeStackNavigator<ProfileStackParamList>();
+
+const detailScreenOptions = {
+  gestureEnabled: true,
+  fullScreenGestureEnabled: Platform.OS === "ios",
+};
+
+type ProfileStackProps = {
+  onLogout: () => void;
+};
+
+export function ProfileStack({ onLogout }: ProfileStackProps) {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: colors.backgroundDark },
+        headerTintColor: colors.textDark,
+        contentStyle: { backgroundColor: colors.backgroundDark },
+        gestureEnabled: true,
+        fullScreenGestureEnabled: Platform.OS === "ios",
+      }}
+    >
+      <Stack.Screen name="ProfileScreen" options={{ headerShown: false }}>
+        {({ navigation }) => (
+          <ProfileScreen
+            onLogout={onLogout}
+            onOpenCallLogs={(dateFilter) => navigation.navigate("CallLogsScreen", { dateFilter })}
+            onOpenUserManagement={() => navigation.navigate("UserManagementScreen")}
+            onOpenProjects={() => navigation.navigate("ProjectsScreen")}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen
+        name="CallLogsScreen"
+        component={CallLogsScreen}
+        options={{ title: "Call Logs", ...detailScreenOptions }}
+      />
+      <Stack.Screen
+        name="UserManagementScreen"
+        component={UserManagementScreen}
+        options={{ title: "Users", ...detailScreenOptions }}
+      />
+      <Stack.Screen
+        name="ProjectsScreen"
+        component={ProjectsScreen}
+        options={{ title: "Projects", ...detailScreenOptions }}
+      />
+      <Stack.Screen
+        name="ProjectDetailScreen"
+        component={ProjectDetailScreen}
+        options={{ title: "Units", ...detailScreenOptions }}
+      />
+      <Stack.Screen
+        name="ProjectUnitScreen"
+        component={ProjectUnitScreen}
+        options={{ title: "Unit", ...detailScreenOptions }}
+      />
+    </Stack.Navigator>
+  );
+}

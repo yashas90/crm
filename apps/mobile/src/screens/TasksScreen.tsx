@@ -54,7 +54,9 @@ export function TasksScreen({ navigation }: Props) {
   return (
     <View style={[styles.container, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My tasks</Text>
+        <Text style={styles.headerTitle} testID="tasks-screen-title">
+          My tasks
+        </Text>
         <Text style={styles.headerSubtitle}>{tasks.length} open · sorted by due date</Text>
       </View>
 

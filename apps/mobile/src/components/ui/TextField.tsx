@@ -4,13 +4,15 @@ import { StyleSheet, Text, TextInput, type TextInputProps, View } from "react-na
 type TextFieldProps = TextInputProps & {
   label?: string;
   hint?: string;
+  inputTestID?: string;
 };
 
-export function TextField({ label, hint, style, ...props }: TextFieldProps) {
+export function TextField({ label, hint, style, inputTestID, ...props }: TextFieldProps) {
   return (
     <View style={styles.wrap}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <TextInput
+        testID={inputTestID}
         style={[styles.input, style]}
         placeholderTextColor={colors.textMutedDark}
         {...props}

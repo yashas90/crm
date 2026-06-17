@@ -1,7 +1,9 @@
 import { useUnreadNotificationCount } from "@/hooks/use-notifications";
+import { useIsManager } from "@/hooks/use-role";
+import { useOpenTaskCount } from "@/hooks/use-tasks";
 import { LeadsStack } from "@/navigation/LeadsStack";
+import { TeamStack } from "@/navigation/TeamStack";
 import type { MainTabParamList } from "@/navigation/types";
-import { HomeScreen } from "@/screens/HomeScreen";
 import { NotificationsScreen } from "@/screens/NotificationsScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { TasksScreen } from "@/screens/TasksScreen";
@@ -34,8 +36,12 @@ type MainTabsProps = {
 export function MainTabs({ onLogout }: MainTabsProps) {
   const insets = useSafeAreaInsets();
   const tabBarHeight = TAB_BAR_HEIGHT + insets.bottom;
+  const isManager = useIsManager();
   const unreadCount = useUnreadNotificationCount();
+  const openTaskCount = useOpenTaskCount();
   const notificationBadge = unreadCount > 0 ? (unreadCount > 9 ? "9+" : unreadCount) : undefined;
+  const tasksBadge =
+    openTaskCount !== undefined ? (openTaskCount > 9 ? "9+" : openTaskCount) : undefined;
 
   return (
     <Tab.Navigator
@@ -61,14 +67,6 @@ export function MainTabs({ onLogout }: MainTabsProps) {
       }}
     >
       <Tab.Screen
-        name="HomeTab"
-        component={HomeScreen}
-        options={{
-          title: "Home",
-          tabBarIcon: ({ focused }) => tabIcon("home-outline", focused),
-        }}
-      />
-      <Tab.Screen
         name="LeadsTab"
         component={LeadsStack}
         options={{
@@ -76,24 +74,44 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           tabBarIcon: ({ focused }) => tabIcon("people-outline", focused),
         }}
       />
+      {isManager ? (
+        <Tab.Screen
+          name="TeamTab"
+          component={TeamStack}
+          options={{
+            title: "Team",
+            tabBarIcon: ({ focused }) => tabIcon("people-circle-outline", focused),
+            headerShown: false,
+          }}
+        />
+      ) : (
+        <Tab.Screen
+          name="TodayTab"
+          component={TodayScreen}
+          options={{
+            title: "Today",
+            tabBarIcon: ({ focused }) => tabIcon("calendar-outline", focused),
+            headerShown: true,
+            headerStyle: { backgroundColor: colors.backgroundDark },
+            headerTintColor: colors.textDark,
+          }}
+        />
+      )}
       <Tab.Screen
         name="TasksTab"
         component={TasksScreen}
         options={{
           title: "Tasks",
           tabBarIcon: ({ focused }) => tabIcon("checkbox-outline", focused),
+          tabBarBadge: tasksBadge,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.primaryLight,
+            color: colors.textDark,
+            fontSize: 10,
+            minWidth: 18,
+            lineHeight: 14,
+          },
           headerShown: false,
-        }}
-      />
-      <Tab.Screen
-        name="TodayTab"
-        component={TodayScreen}
-        options={{
-          title: "Today",
-          tabBarIcon: ({ focused }) => tabIcon("calendar-outline", focused),
-          headerShown: true,
-          headerStyle: { backgroundColor: colors.backgroundDark },
-          headerTintColor: colors.textDark,
         }}
       />
       <Tab.Screen

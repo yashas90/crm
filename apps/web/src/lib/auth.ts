@@ -5,6 +5,7 @@ export type SessionUser = {
   email: string;
   name: string;
   role: string;
+  isFirstLogin?: boolean;
 };
 
 /** Lightweight marker cookie for Next.js middleware (JWT remains in localStorage). */

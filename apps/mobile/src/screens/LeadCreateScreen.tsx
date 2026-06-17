@@ -102,6 +102,7 @@ export function LeadCreateScreen({ navigation }: Props) {
       <View style={styles.field}>
         <Text style={styles.label}>First name *</Text>
         <TextInput
+          testID="lead-first-name"
           style={styles.input}
           value={firstName}
           onChangeText={setFirstName}
@@ -122,6 +123,7 @@ export function LeadCreateScreen({ navigation }: Props) {
       <View style={styles.field}>
         <Text style={styles.label}>Phone *</Text>
         <TextInput
+          testID="lead-phone"
           style={[styles.input, dupMatches.length > 0 && styles.inputWarn]}
           value={phone}
           onChangeText={setPhone}
@@ -179,6 +181,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           {LEAD_SOURCE_OPTIONS.map((opt) => (
             <Pressable
               key={opt.value}
+              testID={`lead-source-${opt.value}`}
               style={[styles.chip, leadSource === opt.value && styles.chipActive]}
               onPress={() => setLeadSource(opt.value)}
             >
@@ -207,6 +210,7 @@ export function LeadCreateScreen({ navigation }: Props) {
       </View>
 
       <Pressable
+        testID="lead-create-submit"
         style={styles.button}
         onPress={() => {
           if (!firstName.trim() || !phone.trim()) {

@@ -74,7 +74,9 @@ export function CallLogModal({
         <SafeAreaView edges={["bottom"]} style={styles.sheetSafe}>
           <View style={styles.sheet}>
             <ScrollView contentContainerStyle={styles.content}>
-              <Text style={styles.title}>Log call outcome</Text>
+              <Text style={styles.title} testID="call-log-modal-title">
+                Log call outcome
+              </Text>
               {phoneNumber ? <Text style={styles.subtitle}>{phoneNumber}</Text> : null}
 
               <Text style={styles.label}>Outcome</Text>
@@ -163,6 +165,7 @@ export function CallLogModal({
                   <Text style={styles.secondaryButtonText}>Cancel</Text>
                 </Pressable>
                 <Pressable
+                  testID="call-log-save"
                   style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
                   onPress={() => handleSave(false)}
                   disabled={isSubmitting}

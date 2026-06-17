@@ -2,7 +2,7 @@
 
 import { ProjectWizard } from "@/components/projects/project-wizard";
 import { PROJECT_GALLERY_ENABLED, parseWizardStep } from "@/lib/project-wizard";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
 function EditProjectPageContent() {

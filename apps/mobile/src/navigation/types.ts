@@ -6,11 +6,16 @@ export type LeadsStackParamList = {
   LeadDetailScreen: { leadId: string };
 };
 
+export type TeamStackParamList = {
+  TeamHomeScreen: undefined;
+  TeamCallLogsScreen: undefined;
+};
+
 export type MainTabParamList = {
-  HomeTab: undefined;
   LeadsTab: NavigatorScreenParams<LeadsStackParamList> | undefined;
-  TasksTab: undefined;
   TodayTab: { focusQueue?: boolean } | undefined;
+  TeamTab: NavigatorScreenParams<TeamStackParamList> | undefined;
+  TasksTab: undefined;
   NotificationsTab: undefined;
   ProfileTab: undefined;
 };

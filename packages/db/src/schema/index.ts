@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   check,
   date,
@@ -20,7 +21,6 @@ export const organizations = pgTable("organizations", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
-  subscriptionTier: text("subscription_tier").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -58,6 +58,9 @@ export const users = pgTable(
     phone: text("phone"),
     passwordHash: text("password_hash"),
     isActive: boolean("is_active").notNull().default(true),
+    isFirstLogin: boolean("is_first_login").notNull().default(true),
+    sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
+    reportEmailEnabled: boolean("report_email_enabled").notNull().default(true),
     expoPushToken: text("expo_push_token"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -95,6 +98,11 @@ export const leads = pgTable(
     customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
     lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),
     nextFollowupAt: timestamp("next_followup_at", { withTimezone: true }),
+    followUpCount: integer("follow_up_count").notNull().default(0),
+    coldSince: timestamp("cold_since", { withTimezone: true }),
+    score: integer("score").notNull().default(0),
+    scoreUpdatedAt: timestamp("score_updated_at", { withTimezone: true }),
+    whatsappRepliedAt: timestamp("whatsapp_replied_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -336,6 +344,78 @@ export const tcfConsents = pgTable(
   ],
 );
 
+export const projectUnits = pgTable(
+  "project_units",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    unitNumber: text("unit_number").notNull(),
+    floor: integer("floor").notNull(),
+    bedrooms: integer("bedrooms").notNull(),
+    areaSqFt: numeric("area_sq_ft", { precision: 10, scale: 2 }).notNull(),
+    status: text("status").notNull().default("available"),
+    priceListedRs: bigint("price_listed_rs", { mode: "number" }).notNull(),
+    priceFinalRs: bigint("price_final_rs", { mode: "number" }),
+    assignedLeadId: uuid("assigned_lead_id").references(() => leads.id, { onDelete: "set null" }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "project_units_status_check",
+      sql`${table.status} in ('available', 'reserved', 'booked', 'sold')`,
+    ),
+    check("project_units_bedrooms_check", sql`${table.bedrooms} in (1, 2, 3, 4)`),
+    uniqueIndex("project_units_project_unit_number_idx").on(table.projectId, table.unitNumber),
+    index("project_units_project_id_idx").on(table.projectId),
+    index("project_units_status_idx").on(table.status),
+    index("project_units_assigned_lead_id_idx").on(table.assignedLeadId),
+  ],
+);
+
+export const bookingDocuments = pgTable(
+  "booking_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    unitId: uuid("unit_id")
+      .notNull()
+      .references(() => projectUnits.id, { onDelete: "cascade" }),
+    leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+    agentId: uuid("agent_id").references(() => users.id, { onDelete: "set null" }),
+    fileKey: text("file_key").notNull(),
+    fileUrl: text("file_url").notNull(),
+    bookingRef: text("booking_ref").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("booking_documents_unit_id_idx").on(table.unitId),
+    index("booking_documents_generated_at_idx").on(table.generatedAt),
+  ],
+);
+
+export const portalWebhooks = pgTable(
+  "portal_webhooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    portalName: text("portal_name").notNull(),
+    webhookToken: uuid("webhook_token").notNull().defaultRandom().unique(),
+    fieldMapping: jsonb("field_mapping").$type<Record<string, string>>().notNull().default({}),
+    isActive: boolean("is_active").notNull().default(true),
+    lastLeadReceivedAt: timestamp("last_lead_received_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "portal_webhooks_portal_name_check",
+      sql`${table.portalName} in ('99acres', 'magicbricks', 'housing', 'indiamrt', 'other')`,
+    ),
+    index("portal_webhooks_portal_name_idx").on(table.portalName),
+  ],
+);
+
 export const tasks = pgTable(
   "tasks",
   {
@@ -497,6 +577,255 @@ export const tcfConsentsRelations = relations(tcfConsents, ({ one }) => ({
     references: [leads.id],
   }),
 }));
+
+export const tokenBlocklist = pgTable(
+  "token_blocklist",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jti: uuid("jti").notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("token_blocklist_jti_idx").on(table.jti),
+    index("token_blocklist_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export const passwordHistory = pgTable(
+  "password_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    passwordHash: text("password_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("password_history_user_id_idx").on(table.userId, table.createdAt)],
+);
+
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: uuid("token").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("password_reset_tokens_token_unique").on(table.token),
+    index("password_reset_tokens_user_id_idx").on(table.userId),
+  ],
+);
+
+export const loginEvents = pgTable(
+  "login_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    device: text("device").notNull(),
+    locationCity: text("location_city"),
+    locationCountry: text("location_country"),
+    isNewDevice: boolean("is_new_device").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("login_events_user_id_idx").on(table.userId, table.createdAt)],
+);
+
+export const leadAssignments = pgTable(
+  "lead_assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    fromAgentId: uuid("from_agent_id").references(() => users.id, { onDelete: "set null" }),
+    toAgentId: uuid("to_agent_id")
+      .notNull()
+      .references(() => users.id),
+    assignedBy: uuid("assigned_by")
+      .notNull()
+      .references(() => users.id),
+    reason: text("reason"),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("lead_assignments_lead_id_idx").on(table.leadId),
+    index("lead_assignments_assigned_at_idx").on(table.assignedAt),
+  ],
+);
+
+export const siteVisits = pgTable(
+  "site_visits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id),
+    projectId: uuid("project_id").references(() => projects.id),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => users.id),
+    visitDate: date("visit_date").notNull(),
+    visitTime: text("visit_time").notNull(),
+    duration: integer("duration").notNull().default(60),
+    status: text("status").notNull().default("scheduled"),
+    notes: text("notes"),
+    propertyAddress: text("property_address"),
+    reminderSent: boolean("reminder_sent").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("site_visits_org_id_idx").on(table.orgId),
+    index("site_visits_lead_id_idx").on(table.leadId),
+    index("site_visits_agent_id_idx").on(table.agentId),
+    index("site_visits_visit_date_idx").on(table.visitDate),
+  ],
+);
+
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    projectId: uuid("project_id").references(() => projects.id),
+    uploadedBy: uuid("uploaded_by")
+      .notNull()
+      .references(() => users.id),
+    name: text("name").notNull(),
+    originalName: text("original_name"),
+    fileKey: text("file_key").notNull(),
+    fileType: text("file_type").notNull(),
+    fileSize: integer("file_size").notNull(),
+    isGlobal: boolean("is_global").notNull().default(false),
+    downloadCount: integer("download_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("documents_org_id_idx").on(table.orgId),
+    index("documents_project_id_idx").on(table.projectId),
+    index("documents_uploaded_by_idx").on(table.uploadedBy),
+  ],
+);
+
+export const leadDocumentShares = pgTable("lead_document_shares", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  documentId: uuid("document_id")
+    .notNull()
+    .references(() => documents.id),
+  leadId: uuid("lead_id")
+    .notNull()
+    .references(() => leads.id),
+  sharedBy: uuid("shared_by")
+    .notNull()
+    .references(() => users.id),
+  sharedVia: text("shared_via").notNull(),
+  shareToken: uuid("share_token").notNull(),
+  viewedAt: timestamp("viewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const documentAccessEvents = pgTable("document_access_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  documentId: uuid("document_id")
+    .notNull()
+    .references(() => documents.id, { onDelete: "cascade" }),
+  shareId: uuid("share_id").references(() => leadDocumentShares.id),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  accessedAt: timestamp("accessed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const whatsappTemplates = pgTable(
+  "whatsapp_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    templateName: text("template_name").notNull(),
+    language: text("language").notNull().default("en"),
+    category: text("category").notNull(),
+    variables: jsonb("variables").$type<string[]>().notNull().default([]),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("whatsapp_templates_org_template_lang_idx").on(
+      table.orgId,
+      table.templateName,
+      table.language,
+    ),
+    index("whatsapp_templates_org_id_idx").on(table.orgId),
+  ],
+);
+
+export const whatsappMessages = pgTable(
+  "whatsapp_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id),
+    sentBy: uuid("sent_by")
+      .notNull()
+      .references(() => users.id),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => whatsappTemplates.id),
+    variables: jsonb("variables").$type<Record<string, unknown>>().notNull().default({}),
+    waMessageId: text("wa_message_id"),
+    status: text("status").notNull().default("sent"),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    failedReason: text("failed_reason"),
+  },
+  (table) => [
+    index("whatsapp_messages_lead_id_idx").on(table.leadId),
+    index("whatsapp_messages_wa_message_id_idx").on(table.waMessageId),
+  ],
+);
+
+export const securityAlerts = pgTable(
+  "security_alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    alertType: text("alert_type").notNull(),
+    details: jsonb("details").notNull().default({}),
+    ipAddress: text("ip_address"),
+    resolved: boolean("resolved").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("security_alerts_unresolved_idx").on(table.resolved, table.createdAt),
+    index("security_alerts_user_id_idx").on(table.userId),
+  ],
+);
 
 export const tasksRelations = relations(tasks, ({ one }) => ({
   organization: one(organizations, {

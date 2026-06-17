@@ -14,6 +14,7 @@ import {
 import { writeRateLimit } from "../middleware/rateLimit.js";
 import { logAudit } from "../services/auditService.js";
 import { createProjectService } from "../services/projectService.js";
+import { projectUnitsRoutes } from "./projectUnits.js";
 
 export const projectsRoutes = new Hono();
 
@@ -157,3 +158,5 @@ projectsRoutes.post(
     return jsonOk(c, project);
   },
 );
+
+projectsRoutes.route("/:id/units", projectUnitsRoutes);

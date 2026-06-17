@@ -10,7 +10,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useReportFilters } from "@/hooks/use-report-filters";
+import { useSession } from "@/hooks/use-session";
 import {
   type TeamMemberStats,
   downloadTeamPerformanceCsv,
@@ -20,7 +22,8 @@ import {
 import { Button } from "@propninja/ui/button";
 import { Download } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 type SortKey = keyof Pick<
   TeamMemberStats,
@@ -28,10 +31,20 @@ type SortKey = keyof Pick<
 >;
 
 export default function TeamReportPage() {
+  const router = useRouter();
+  const { ready } = useSession();
+  const { canViewTeamReport, canExportReports } = usePermissions();
   const { filters, setFilters, labelFrom, labelTo } = useReportFilters();
   const [sortKey, setSortKey] = useState<SortKey>("callsMade");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (!canViewTeamReport) {
+      router.replace("/");
+    }
+  }, [ready, canViewTeamReport, router]);
 
   const report = useTeamReport({
     dateFrom: labelFrom,
@@ -64,6 +77,14 @@ export default function TeamReportPage() {
     }
   }
 
+  if (!ready) {
+    return <p className="text-muted-foreground">Loading team report...</p>;
+  }
+
+  if (!canViewTeamReport) {
+    return null;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -77,10 +98,12 @@ export default function TeamReportPage() {
           <Button variant="outline" asChild>
             <Link href="/reports">← Reports</Link>
           </Button>
-          <Button variant="outline" onClick={() => void handleExport()} disabled={isExporting}>
-            <Download className="mr-2 h-4 w-4" />
-            {isExporting ? "Exporting..." : "Export CSV"}
-          </Button>
+          {canExportReports ? (
+            <Button variant="outline" onClick={() => void handleExport()} disabled={isExporting}>
+              <Download className="mr-2 h-4 w-4" />
+              {isExporting ? "Exporting..." : "Export CSV"}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -125,7 +148,9 @@ export default function TeamReportPage() {
                 <TableCell>{user.leadsAssigned}</TableCell>
                 <TableCell>{user.callsMade}</TableCell>
                 <TableCell>{user.tasksCompleted}</TableCell>
-                <TableCell>{user.conversionRate.toFixed(2)}%</TableCell>
+                <TableCell>
+                  {Number.isFinite(user.conversionRate) ? user.conversionRate.toFixed(2) : "0.00"}%
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

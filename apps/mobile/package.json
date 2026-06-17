@@ -10,6 +10,7 @@
     "ios": "expo start --ios",
     "lint": "biome check .",
     "test": "jest --ci",
+    "test:maestro": "maestro test .maestro",
     "eas:login": "eas login",
     "eas:init": "eas init",
     "eas:build:android": "eas build --platform android --profile production",

@@ -1,11 +1,21 @@
 import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/components/CallLogModal";
 import { ComplianceChip } from "@/components/ComplianceChip";
+import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
 import { LeadContactActions } from "@/components/LeadContactActions";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { TasksSection } from "@/components/TasksSection";
+import { LeadDocumentsSection } from "@/components/documents/LeadDocumentsSection";
+import { ScheduleVisitSheet } from "@/components/site-visits/ScheduleVisitSheet";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCalls, useLogCall } from "@/hooks/use-calls";
-import { type LeadActivity, useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
+import {
+  type LeadActivity,
+  useAddLeadNote,
+  useLead,
+  useUpdateLead,
+  useUpdateLeadFollowUp,
+} from "@/hooks/use-leads";
+import { formatVisitTime, useLeadSiteVisits } from "@/hooks/use-site-visits";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import {
@@ -15,9 +25,11 @@ import {
   useUpsertTcfConsent,
 } from "@/hooks/useTcf";
 import { getCurrentUserId } from "@/lib/auth";
+import { callLogSuccessMessage } from "@/lib/call-log-feedback";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
+import { scoreBadgeStyle } from "@/lib/leadScore";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -57,12 +69,16 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const callConsent = getCallConsent(tcfData);
   const logCall = useLogCall();
   const updateLead = useUpdateLead();
+  const updateFollowUp = useUpdateLeadFollowUp(leadId);
+  const { data: visitsData, refetch: refetchVisits } = useLeadSiteVisits(leadId);
   const addNote = useAddLeadNote(leadId);
   const [logModalVisible, setLogModalVisible] = useState(false);
+  const [scheduleVisitVisible, setScheduleVisitVisible] = useState(false);
+  const [followUpAt, setFollowUpAt] = useState<string | null>(null);
   const [defaultLogDuration, setDefaultLogDuration] = useState(60);
-  const [callLoggedToast, setCallLoggedToast] = useState(false);
+  const [callLoggedToast, setCallLoggedToast] = useState<string | null>(null);
   const [editVisible, setEditVisible] = useState(false);
-  const [tab, setTab] = useState<"calls" | "notes" | "tasks">("calls");
+  const [tab, setTab] = useState<"calls" | "notes" | "tasks" | "visits" | "documents">("calls");
   const [noteText, setNoteText] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
   const insets = useSafeAreaInsets();
@@ -143,8 +159,8 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           await refetchCalls();
           void feedbackCallSaved();
           setLogModalVisible(false);
-          setCallLoggedToast(true);
-          setTimeout(() => setCallLoggedToast(false), 2500);
+          setCallLoggedToast(callLogSuccessMessage(payload.outcome));
+          setTimeout(() => setCallLoggedToast(null), 2500);
         },
         onError: (err) => {
           Alert.alert("Error", err instanceof Error ? err.message : "Failed to log call.");
@@ -172,6 +188,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   }
 
   const summary = lead.leadSummary;
+  const scoreStyle = typeof lead.score === "number" ? scoreBadgeStyle(lead.score) : null;
 
   return (
     <>
@@ -192,6 +209,13 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           {lead.temperature ? (
             <View style={styles.tempChip}>
               <Text style={styles.tempChipText}>{lead.temperature}</Text>
+            </View>
+          ) : null}
+          {scoreStyle ? (
+            <View style={[styles.scoreChip, { backgroundColor: scoreStyle.bg }]}>
+              <Text style={[styles.scoreChipText, { color: scoreStyle.text }]}>
+                {scoreStyle.label} · {lead.score}
+              </Text>
             </View>
           ) : null}
 
@@ -292,6 +316,26 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           />
         </View>
 
+        <View style={styles.followUpCard}>
+          <Text style={styles.followUpTitle}>Schedule follow-up</Text>
+          <FollowUpQuickPicker
+            value={followUpAt ?? lead.nextFollowupAt}
+            onChange={(iso) => {
+              setFollowUpAt(iso);
+              updateFollowUp.mutate(
+                { nextFollowupAt: iso },
+                {
+                  onError: (err) =>
+                    Alert.alert(
+                      "Error",
+                      err instanceof Error ? err.message : "Failed to update follow-up.",
+                    ),
+                },
+              );
+            }}
+          />
+        </View>
+
         <View style={styles.tabs}>
           <Pressable
             style={[styles.tab, tab === "calls" && styles.tabActive]}
@@ -310,6 +354,18 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             onPress={() => setTab("notes")}
           >
             <Text style={[styles.tabText, tab === "notes" && styles.tabTextActive]}>Notes</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tab, tab === "visits" && styles.tabActive]}
+            onPress={() => setTab("visits")}
+          >
+            <Text style={[styles.tabText, tab === "visits" && styles.tabTextActive]}>Visits</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tab, tab === "documents" && styles.tabActive]}
+            onPress={() => setTab("documents")}
+          >
+            <Text style={[styles.tabText, tab === "documents" && styles.tabTextActive]}>Docs</Text>
           </Pressable>
         </View>
 
@@ -336,7 +392,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               ))
             )}
           </View>
-        ) : (
+        ) : tab === "notes" ? (
           <View style={styles.panel}>
             <TextInput
               style={styles.noteInput}
@@ -396,7 +452,34 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               <Text style={styles.empty}>No notes yet.</Text>
             ) : null}
           </View>
-        )}
+        ) : tab === "visits" ? (
+          <View style={styles.panel}>
+            <Pressable
+              style={styles.scheduleVisitBtn}
+              onPress={() => setScheduleVisitVisible(true)}
+            >
+              <Text style={styles.scheduleVisitBtnText}>Schedule visit</Text>
+            </Pressable>
+            {(visitsData?.items ?? []).length === 0 ? (
+              <Text style={styles.empty}>No site visits scheduled.</Text>
+            ) : (
+              visitsData?.items.map((visit) => (
+                <View key={visit.id} style={styles.visitRow}>
+                  <Text style={styles.visitTitle}>
+                    {visit.visitDate} · {formatVisitTime(visit.visitTime)}
+                  </Text>
+                  <Text style={styles.visitMeta}>{visit.status}</Text>
+                </View>
+              ))
+            )}
+          </View>
+        ) : tab === "documents" ? (
+          <LeadDocumentsSection
+            leadId={leadId}
+            leadName={`${lead.firstName} ${lead.lastName}`}
+            leadPhone={lead.phone}
+          />
+        ) : null}
       </ScrollView>
 
       <CallLogModal
@@ -410,9 +493,22 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
       {callLoggedToast ? (
         <View style={[styles.callLoggedToast, { bottom: 24 + insets.bottom }]}>
-          <Text style={styles.callLoggedToastText}>Call logged ✓</Text>
+          <Text style={styles.callLoggedToastText} testID="call-logged-toast">
+            {callLoggedToast}
+          </Text>
         </View>
       ) : null}
+
+      <ScheduleVisitSheet
+        visible={scheduleVisitVisible}
+        leadId={leadId}
+        leadName={`${lead.firstName} ${lead.lastName}`}
+        leadPhone={lead.phone}
+        onClose={() => setScheduleVisitVisible(false)}
+        onScheduled={() => {
+          void refetchVisits();
+        }}
+      />
 
       <LeadEditModal
         visible={editVisible}
@@ -776,5 +872,48 @@ const styles = StyleSheet.create({
   },
   activityMeta: { color: colors.textMutedDark, fontSize: 12, marginBottom: 4 },
   activityText: { color: colors.textDark, fontSize: 14, lineHeight: 20 },
+  scoreChip: {
+    alignSelf: "flex-start",
+    borderRadius: radii.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: spacing.xs,
+  },
+  scoreChipText: { fontSize: 12, fontWeight: "700" },
+  followUpCard: {
+    backgroundColor: colors.cardDark,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    marginBottom: spacing.md,
+  },
+  followUpTitle: {
+    color: colors.textDark,
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: spacing.sm,
+  },
+  scheduleVisitBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  scheduleVisitBtnText: { color: "#fff", fontWeight: "700" },
+  visitRow: {
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderDark,
+  },
+  visitTitle: { color: colors.textDark, fontWeight: "600" },
+  visitMeta: {
+    color: colors.textMutedDark,
+    fontSize: 12,
+    marginTop: 2,
+    textTransform: "capitalize",
+  },
   errorText: { color: colors.danger },
 });

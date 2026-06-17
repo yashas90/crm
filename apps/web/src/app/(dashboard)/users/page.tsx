@@ -3,12 +3,15 @@
 import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-state";
 import { EmptyState } from "@/components/common/empty-state";
 import { QuickFilterTabs } from "@/components/common/quick-filter-tabs";
+import { UserCreateDialog } from "@/components/users/user-create-dialog";
+import { UserEditDialog } from "@/components/users/user-edit-dialog";
 import { UsersBulkActionsBar } from "@/components/users/users-bulk-actions-bar";
 import { UsersListToolbar } from "@/components/users/users-list-toolbar";
 import { UsersTable } from "@/components/users/users-table";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
   USERS_PAGE_SIZES,
+  type UserRow,
   type UserStatusFilter,
   type UsersPageSize,
   downloadUsersExport,
@@ -21,8 +24,6 @@ import { getQueryClient } from "@/lib/queryClient";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { AlertCircle, Download, UserPlus } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 const STATUS_TABS: { id: UserStatusFilter; label: string }[] = [
@@ -34,8 +35,7 @@ const STATUS_TABS: { id: UserStatusFilter; label: string }[] = [
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function UsersPage() {
-  const router = useRouter();
-  const { session, ready, canCreateUser, canUpdateUser, canViewUsers } = usePermissions();
+  const { session, ready, isAdmin, canUpdateUser, canViewUsers } = usePermissions();
   const listEnabled = ready && canViewUsers;
 
   const [status, setStatus] = useState<UserStatusFilter>("all");
@@ -45,6 +45,8 @@ export default function UsersPage() {
   const [pageSize, setPageSize] = useState<UsersPageSize>(10);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchDraft.trim()), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
@@ -136,12 +138,10 @@ export default function UsersPage() {
               {isExporting ? "Exporting..." : "Export"}
             </Button>
           ) : null}
-          {ready && canCreateUser ? (
-            <Button asChild>
-              <Link href="/users/new">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Add user
-              </Link>
+          {ready && isAdmin ? (
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add user
             </Button>
           ) : null}
         </div>
@@ -196,9 +196,20 @@ export default function UsersPage() {
           onPageChange={setPage}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
-          onAddUser={canCreateUser ? () => router.push("/users/new") : undefined}
+          onAddUser={isAdmin ? () => setCreateOpen(true) : undefined}
+          onEditUser={canUpdateUser ? (user) => setEditingUser(user) : undefined}
         />
       )}
+
+      <UserCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <UserEditDialog
+        user={editingUser}
+        open={Boolean(editingUser)}
+        onOpenChange={(open) => {
+          if (!open) setEditingUser(null);
+        }}
+        currentUserId={session?.id}
+      />
     </div>
   );
 }

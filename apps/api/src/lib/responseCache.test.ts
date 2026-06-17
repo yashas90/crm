@@ -1,0 +1,73 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  CACHE_TTL,
+  buildCacheKey,
+  clearAllResponseCaches,
+  clearAnalyticsCacheForUser,
+  clearOrgCache,
+  clearProjectsCache,
+  getCachedResponse,
+  resetResponseCacheForTests,
+  resolveTtlSeconds,
+  setCachedResponse,
+} from "./responseCache.js";
+
+describe("responseCache", () => {
+  beforeEach(() => {
+    resetResponseCacheForTests();
+  });
+
+  it("builds stable keys with route, scope, and query hash", () => {
+    const key = buildCacheKey("/api/org", "org-id", "foo=1");
+    expect(key.startsWith("/api/org#org-id#")).toBe(true);
+    expect(buildCacheKey("/api/org", "org-id", "foo=1")).toBe(key);
+  });
+
+  it("stores and retrieves cached payloads with TTL", () => {
+    const key = buildCacheKey("/api/reports/overview", "user-1", "");
+    setCachedResponse(key, { ok: true, data: { total: 1 } }, CACHE_TTL.reports);
+    expect(getCachedResponse(key)).toEqual({ ok: true, data: { total: 1 } });
+  });
+
+  it("resolves TTLs for cacheable routes", () => {
+    expect(resolveTtlSeconds("/api/analytics/overview")).toBe(300);
+    expect(resolveTtlSeconds("/api/reports/agent-stats")).toBe(600);
+    expect(resolveTtlSeconds("/api/projects")).toBe(600);
+    expect(resolveTtlSeconds("/api/org")).toBe(1800);
+    expect(resolveTtlSeconds("/api/leads")).toBeNull();
+    expect(resolveTtlSeconds("/api/calls")).toBeNull();
+    expect(resolveTtlSeconds("/api/notifications")).toBeNull();
+    expect(resolveTtlSeconds("/api/reports/calls/export")).toBeNull();
+  });
+
+  it("clears analytics cache scoped to a user", () => {
+    const userA = "00000000-0000-0000-0000-000000000002";
+    const userB = "00000000-0000-0000-0000-000000000003";
+    setCachedResponse(buildCacheKey("/api/analytics/overview", userA, ""), { a: 1 }, 300);
+    setCachedResponse(buildCacheKey("/api/analytics/overview", userB, ""), { b: 1 }, 300);
+
+    expect(clearAnalyticsCacheForUser(userA)).toBe(1);
+    expect(getCachedResponse(buildCacheKey("/api/analytics/overview", userA, ""))).toBeUndefined();
+    expect(getCachedResponse(buildCacheKey("/api/analytics/overview", userB, ""))).toEqual({
+      b: 1,
+    });
+  });
+
+  it("clears org and projects caches by route prefix", () => {
+    setCachedResponse(buildCacheKey("/api/org", "org", ""), { org: true }, 300);
+    setCachedResponse(buildCacheKey("/api/projects", "user", "page=1"), { projects: [] }, 600);
+
+    clearOrgCache();
+    expect(getCachedResponse(buildCacheKey("/api/org", "org", ""))).toBeUndefined();
+    expect(getCachedResponse(buildCacheKey("/api/projects", "user", "page=1"))).toBeDefined();
+
+    clearProjectsCache();
+    expect(getCachedResponse(buildCacheKey("/api/projects", "user", "page=1"))).toBeUndefined();
+  });
+
+  it("flushAll clears every entry", () => {
+    setCachedResponse(buildCacheKey("/api/documents", "user", ""), { items: [] }, 300);
+    expect(clearAllResponseCaches()).toBe(1);
+    expect(getCachedResponse(buildCacheKey("/api/documents", "user", ""))).toBeUndefined();
+  });
+});

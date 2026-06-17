@@ -5,6 +5,7 @@ import { ProjectAmenitiesStep } from "@/components/projects/project-amenities-st
 import { ProjectBasicDetailsForm } from "@/components/projects/project-basic-details-form";
 import { ProjectBlocksInfoStep } from "@/components/projects/project-blocks-info-step";
 import { ProjectGalleryStep } from "@/components/projects/project-gallery-step";
+import { ProjectInventoryStep } from "@/components/projects/project-inventory-step";
 import { ProjectUnitsInfoStep } from "@/components/projects/project-units-info-step";
 import { ProjectWizardSteps } from "@/components/projects/project-wizard-steps";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -124,6 +125,8 @@ export function ProjectWizard({
         return (
           <ProjectBlocksInfoStep project={project} readOnly={readOnly} onSaved={goToNextStep} />
         );
+      case "inventory":
+        return <ProjectInventoryStep projectId={project.id} readOnly={readOnly} />;
       case "amenities":
         return (
           <ProjectAmenitiesStep project={project} readOnly={readOnly} onSaved={goToNextStep} />

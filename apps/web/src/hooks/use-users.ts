@@ -1,6 +1,7 @@
 "use client";
 
 import { apiDownload, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { getErrorMessage } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 export { isForbiddenError } from "@/lib/query-errors";
@@ -27,6 +28,8 @@ export type UserRow = {
   role: string;
   phone: string | null;
   isActive: boolean;
+  isFirstLogin?: boolean;
+  isLastAdmin?: boolean;
   createdAt: string;
 };
 
@@ -57,15 +60,18 @@ export const USERS_PAGE_SIZES = [10, 25, 50] as const;
 export type UsersPageSize = (typeof USERS_PAGE_SIZES)[number];
 
 export type CreateUserInput = {
-  username: string;
+  name: string;
   email: string;
   password: string;
-  roleLabel: string;
-  name?: string;
+  role: "agent" | "manager" | "admin";
+  isActive?: boolean;
+  /** Legacy fields */
+  username?: string;
+  roleLabel?: string;
+  workEmail?: string;
+  phone?: string | null;
   firstName?: string | null;
   lastName?: string | null;
-  phone?: string | null;
-  workEmail?: string;
   workPhone?: string | null;
   personalPhone?: string | null;
   homeLocation?: string | null;
@@ -84,8 +90,8 @@ export type UpdateUserPayload = {
   email?: string;
   phone?: string | null;
   roleLabel?: string | null;
+  role?: string;
   isActive?: boolean;
-  password?: string;
   firstName?: string | null;
   lastName?: string | null;
   workEmail?: string | null;
@@ -176,9 +182,9 @@ export function useCreateUser() {
 
   return useMutation({
     mutationFn: (payload: CreateUserInput) => apiPost<UserRow>("/api/users", payload),
-    onSuccess: async () => {
+    onSuccess: async (user) => {
       await queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success("User created");
+      toast.success(`User ${user.name} created successfully`);
     },
   });
 }
@@ -214,6 +220,25 @@ export function useUpdateUser() {
       await queryClient.invalidateQueries({ queryKey: ["users"] });
       await queryClient.setQueryData(["users", "detail", user.id], user);
       toast.success("User updated");
+    },
+  });
+}
+
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: ({
+      userId,
+      newPassword,
+    }: {
+      userId: string;
+      newPassword: string;
+      userName?: string;
+    }) => apiPatch<UserRow>(`/api/users/${userId}/password`, { newPassword }),
+    onSuccess: (_user, variables) => {
+      toast.success(`Password updated for ${variables.userName ?? "user"}`);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to reset password"));
     },
   });
 }

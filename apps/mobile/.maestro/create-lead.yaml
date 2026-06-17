@@ -1,0 +1,24 @@
+appId: com.propninja.crm
+env:
+  LEAD_NAME: Maestro Test Lead
+  LEAD_PHONE: "9898989898"
+---
+- runFlow: login.yaml
+- tapOn: Leads
+- tapOn:
+    id: create-lead-fab
+- tapOn:
+    id: lead-first-name
+- inputText: ${LEAD_NAME}
+- tapOn:
+    id: lead-phone
+- inputText: ${LEAD_PHONE}
+- tapOn:
+    id: lead-source-referral
+- tapOn:
+    id: lead-create-submit
+- extendedWaitUntil:
+    visible: ${LEAD_NAME}
+    timeout: 20000
+- back
+- assertVisible: ${LEAD_NAME}

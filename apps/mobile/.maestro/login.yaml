@@ -1,0 +1,19 @@
+appId: com.propninja.crm
+env:
+  EMAIL: agent1@demo.propninja
+  PASSWORD: admin
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: login-email
+- inputText: ${EMAIL}
+- tapOn:
+    id: login-password
+- inputText: ${PASSWORD}
+- tapOn:
+    id: login-submit
+- extendedWaitUntil:
+    visible:
+      id: home-greeting
+    timeout: 30000

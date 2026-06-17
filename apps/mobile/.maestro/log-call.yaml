@@ -1,0 +1,26 @@
+appId: com.propninja.crm
+---
+- runFlow: login.yaml
+- tapOn: Leads
+- extendedWaitUntil:
+    visible:
+      text: Aarav
+    timeout: 20000
+- tapOn: Aarav
+- extendedWaitUntil:
+    visible:
+      id: lead-call-button
+    timeout: 15000
+- tapOn:
+    id: lead-call-button
+- back
+- extendedWaitUntil:
+    visible:
+      id: call-log-modal-title
+    timeout: 15000
+- tapOn:
+    id: call-log-save
+- extendedWaitUntil:
+    visible:
+      id: call-logged-toast
+    timeout: 15000

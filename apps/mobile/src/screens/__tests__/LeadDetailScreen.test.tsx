@@ -22,6 +22,21 @@ jest.mock("@/lib/feedback", () => ({
 jest.mock("@/lib/dialPhone", () => ({
   dialPhoneNumber: jest.fn().mockResolvedValue(true),
 }));
+jest.mock("@/providers/auth-provider", () => ({
+  useAuth: () => ({
+    user: { id: "u1", name: "Agent", email: "agent@test", role: "agent" },
+    isLoading: false,
+    signIn: jest.fn(),
+    signOut: jest.fn(),
+  }),
+}));
+jest.mock("@/hooks/use-site-visits", () => ({
+  useLeadSiteVisits: () => ({ data: { items: [] }, isLoading: false, refetch: jest.fn() }),
+  useCreateSiteVisit: () => ({ mutate: jest.fn(), isPending: false }),
+}));
+jest.mock("@/hooks/use-documents", () => ({
+  useLeadDocuments: () => ({ data: { items: [] }, isLoading: false, refetch: jest.fn() }),
+}));
 
 const mockUseLead = useLead as jest.MockedFunction<typeof useLead>;
 const mockUseTcfForLead = useTcfForLead as jest.MockedFunction<typeof useTcfForLead>;

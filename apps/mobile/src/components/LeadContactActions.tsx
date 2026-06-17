@@ -85,6 +85,7 @@ export function LeadContactActions({
         style={[styles.primaryBtn, (!hasPhone || disabled) && styles.disabledBtn]}
         onPress={() => void handleCall()}
         disabled={disabled || !hasPhone}
+        testID="lead-call-button"
       >
         <Ionicons name="call" size={20} color="#fff" />
         <Text style={styles.primaryBtnText}>Call</Text>

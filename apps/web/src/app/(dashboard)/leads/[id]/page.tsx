@@ -1,5 +1,6 @@
 "use client";
 
+import { LeadSharedDocumentsPanel } from "@/components/documents/lead-shared-documents-panel";
 import { InlineEstimatedValue } from "@/components/leads/inline-estimated-value";
 import { LeadActivityTimeline } from "@/components/leads/lead-activity-timeline";
 import { LeadAdInfoPanel } from "@/components/leads/lead-ad-info-panel";
@@ -7,12 +8,18 @@ import { LeadCallsPanel } from "@/components/leads/lead-calls-panel";
 import { ProjectChip, StatusChip, TemperatureChip } from "@/components/leads/lead-chips";
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
 import { LeadEditForm } from "@/components/leads/lead-edit-form";
+import { LeadFollowUpPanel } from "@/components/leads/lead-follow-up-panel";
+import { LeadOwnershipHistory } from "@/components/leads/lead-ownership-history";
+import { LeadScoreBadge, LeadScoreBreakdownTooltip } from "@/components/leads/lead-score-badge";
 import { LeadTagsEditor } from "@/components/leads/lead-tags-editor";
+import { LeadWhatsAppPanel } from "@/components/leads/lead-whatsapp-panel";
 import { LogCallDialog } from "@/components/leads/log-call-dialog";
+import { SendWhatsAppTemplateDialog } from "@/components/leads/send-whatsapp-template-dialog";
 import { ComplianceChip, TcfConsentPanel } from "@/components/leads/tcf-consent-panel";
+import { LeadSiteVisitsPanel } from "@/components/site-visits/lead-site-visits-panel";
 import { TasksPanel } from "@/components/tasks/tasks-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAddLeadNote, useCalls, useLead } from "@/hooks/use-leads";
+import { useAddLeadNote, useCalls, useLead, useLeadAssignments } from "@/hooks/use-leads";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useTcfConsent } from "@/hooks/use-tcf";
 import { useUsers } from "@/hooks/use-users";
@@ -59,6 +66,7 @@ export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const leadId = id ?? "";
   const { data: lead, isLoading, isError, refetch: refetchLead } = useLead(leadId);
+  const { data: assignmentsData, isLoading: assignmentsLoading } = useLeadAssignments(leadId);
   const { data: callsData, refetch: refetchCalls } = useCalls({
     lead_id: leadId,
     page: "1",
@@ -74,6 +82,7 @@ export default function LeadDetailPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showLogCall, setShowLogCall] = useState(false);
+  const [showWhatsAppSend, setShowWhatsAppSend] = useState(false);
 
   const { ready, canDeleteLead } = usePermissions();
   const callConsent = tcfData?.consents.call?.consented ?? null;
@@ -157,6 +166,11 @@ export default function LeadDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               <StatusChip status={lead.leadStatus} />
               <TemperatureChip temperature={lead.temperature} />
+              {typeof lead.score === "number" ? (
+                <LeadScoreBreakdownTooltip factors={[]} score={lead.score}>
+                  <LeadScoreBadge score={lead.score} showPoints />
+                </LeadScoreBreakdownTooltip>
+              ) : null}
               {lead.projectName ? <ProjectChip name={lead.projectName} /> : null}
               <ComplianceChip callConsent={callConsent} />
             </div>
@@ -332,6 +346,25 @@ export default function LeadDetailPage() {
             customFields={lead.customFields}
           />
 
+          <LeadFollowUpPanel
+            leadId={leadId}
+            lastContactedAt={lead.lastContactedAt}
+            nextFollowupAt={lead.nextFollowupAt ?? null}
+            followUpCount={lead.followUpCount ?? 0}
+          />
+
+          <Card className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
+            <CardHeader>
+              <CardTitle className="text-base">Ownership history</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LeadOwnershipHistory
+                assignments={assignmentsData?.items ?? []}
+                isLoading={assignmentsLoading}
+              />
+            </CardContent>
+          </Card>
+
           <Card className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
             <CardHeader>
               <CardTitle className="text-base">Lead info</CardTitle>
@@ -391,6 +424,9 @@ export default function LeadDetailPage() {
                   <TabsTrigger value="timeline">Timeline</TabsTrigger>
                   <TabsTrigger value="tasks">Tasks</TabsTrigger>
                   <TabsTrigger value="calls">Calls</TabsTrigger>
+                  <TabsTrigger value="site-visits">Site visits</TabsTrigger>
+                  <TabsTrigger value="documents">Documents</TabsTrigger>
+                  <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
                   <TabsTrigger value="activity">Activity chart</TabsTrigger>
                   <TabsTrigger value="compliance">Compliance</TabsTrigger>
                 </TabsList>
@@ -406,6 +442,24 @@ export default function LeadDetailPage() {
                   ) : (
                     <p className="text-sm text-muted-foreground">Loading calls...</p>
                   )}
+                </TabsContent>
+                <TabsContent value="site-visits" className="pt-4">
+                  <LeadSiteVisitsPanel leadId={leadId} />
+                </TabsContent>
+                <TabsContent value="documents" className="pt-4">
+                  <LeadSharedDocumentsPanel
+                    leadId={leadId}
+                    leadName={`${lead.firstName} ${lead.lastName}`}
+                    leadPhone={lead.phone}
+                  />
+                </TabsContent>
+                <TabsContent value="whatsapp" className="space-y-4 pt-4">
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => setShowWhatsAppSend(true)}>
+                      Send template
+                    </Button>
+                  </div>
+                  <LeadWhatsAppPanel leadId={leadId} />
                 </TabsContent>
                 <TabsContent value="activity">
                   {callsData ? (
@@ -444,6 +498,12 @@ export default function LeadDetailPage() {
           }}
         />
       ) : null}
+
+      <SendWhatsAppTemplateDialog
+        lead={lead}
+        open={showWhatsAppSend}
+        onOpenChange={setShowWhatsAppSend}
+      />
     </div>
   );
 }

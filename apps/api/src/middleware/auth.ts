@@ -4,6 +4,7 @@ import type { Context, Next } from "hono";
 import { jwtVerify } from "jose";
 import { getDb } from "../lib/db.js";
 import { getJwtSecret } from "../lib/jwt.js";
+import { isJtiBlocked, isUserSessionRevoked } from "../lib/tokenBlocklist.js";
 
 export type AuthUser = {
   id: string;
@@ -26,9 +27,17 @@ function bearerToken(c: Context) {
 }
 
 export const authMiddleware = async (c: Context, next: Next) => {
-  // Public routes: login and Meta Lead Ads webhook (verified via META_VERIFY_TOKEN).
   const path = new URL(c.req.url).pathname;
-  if (path === "/api/auth/login" || path.startsWith("/api/integrations/meta/")) {
+  if (
+    path === "/api/auth/login" ||
+    path === "/api/auth/forgot-password" ||
+    path === "/api/auth/reset-password" ||
+    path.startsWith("/api/auth/reset-password/") ||
+    path.startsWith("/api/integrations/meta/") ||
+    path.startsWith("/api/integrations/portal/") ||
+    path.startsWith("/api/integrations/whatsapp/") ||
+    /^\/api\/documents\/[^/]+\/view$/.test(path)
+  ) {
     c.set("db", getDb());
     await next();
     return;
@@ -45,10 +54,26 @@ export const authMiddleware = async (c: Context, next: Next) => {
   try {
     const { payload } = await jwtVerify(token, getJwtSecret());
     const sub = payload.sub;
+    const jti = typeof payload.jti === "string" ? payload.jti : null;
+    const iat = typeof payload.iat === "number" ? payload.iat : null;
 
     if (typeof sub !== "string") {
       return c.json(
         { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid token claims" } },
+        401,
+      );
+    }
+
+    if (jti && isJtiBlocked(jti)) {
+      return c.json(
+        { ok: false, error: { code: "UNAUTHORIZED", message: "Token has been revoked" } },
+        401,
+      );
+    }
+
+    if (iat !== null && isUserSessionRevoked(sub, iat)) {
+      return c.json(
+        { ok: false, error: { code: "UNAUTHORIZED", message: "Session has been revoked" } },
         401,
       );
     }

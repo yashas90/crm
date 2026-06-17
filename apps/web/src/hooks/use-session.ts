@@ -22,5 +22,6 @@ export function useSession() {
     isAdmin: session?.role === "admin",
     isManager: session?.role === "manager",
     isAgent: session?.role === "agent",
+    isFirstLogin: session?.isFirstLogin === true,
   };
 }

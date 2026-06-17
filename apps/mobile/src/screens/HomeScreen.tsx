@@ -9,7 +9,7 @@ import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { Ionicons } from "@expo/vector-icons";
-import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import {
   ActivityIndicator,
   Pressable,
@@ -21,7 +21,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Props = BottomTabScreenProps<MainTabParamList, "HomeTab">;
+type Props = { navigation: BottomTabNavigationProp<MainTabParamList> };
 
 function greeting() {
   const hour = new Date().getHours();
@@ -64,7 +64,7 @@ export function HomeScreen({ navigation }: Props) {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <View style={styles.heroText}>
-              <Text style={styles.greeting}>
+              <Text style={styles.greeting} testID="home-greeting">
                 {greeting()}, {firstName}
               </Text>
               <Text style={styles.heroSub}>Here is your pipeline at a glance</Text>

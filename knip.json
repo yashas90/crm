@@ -1,0 +1,25 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": [".claude/**", "scripts/**", "apps/mobile/plugins/**"],
+  "ignoreBinaries": ["check"],
+  "ignoreDependencies": [
+    "husky",
+    "@biomejs/biome",
+    "@babel/core",
+    "@types/bcryptjs",
+    "babel-preset-expo",
+    "babel-jest"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "workspaces": {
+    "apps/api": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"]
+    },
+    "apps/web": {
+      "entry": ["src/app/**/*.{tsx,ts}", "src/**/*.test.{tsx,ts}"]
+    },
+    "apps/mobile": {
+      "entry": ["App.tsx", "index.ts", "src/**/*.test.{tsx,ts}"]
+    }
+  }
+}

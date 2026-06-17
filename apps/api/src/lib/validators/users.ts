@@ -1,5 +1,6 @@
 import { USER_ROLES } from "@propninja/types/enums";
 import { z } from "zod";
+import { deriveUsernameFromEmail } from "../deriveUsername.js";
 import { mapRoleLabelToRole } from "../role-mapping.js";
 import { paginationSchema } from "./common.js";
 
@@ -58,27 +59,32 @@ export type UserExportQuery = z.infer<typeof userExportQuerySchema>;
 
 export const createUserSchema = z
   .object({
-    username: usernameSchema,
-    email: z.string().email("Valid email is required").optional(),
-    workEmail: z.string().email("Work email is required"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
-    /** Legacy clients may send role; roleLabel from the form is authoritative. */
+    name: z.string().trim().min(1, "Name is required"),
+    email: z.string().email("Valid email is required"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
     role: z.enum(USER_ROLES).optional(),
-    roleLabel: z.string().trim().min(1, "Role label is required"),
-    name: z.string().trim().min(1).optional(),
+    isActive: z.boolean().optional().default(true),
+    /** Legacy / extended fields */
+    username: usernameSchema.optional(),
+    workEmail: z.string().email().optional(),
+    roleLabel: z.string().trim().optional(),
     phone: z.string().trim().optional(),
     ...profileFieldsSchema,
   })
   .transform((value) => {
-    const roleLabel = value.roleLabel.trim();
-    const role = mapRoleLabelToRole(roleLabel);
+    const email = value.email.toLowerCase();
+    const roleLabel = value.roleLabel?.trim();
+    const role = value.role ?? (roleLabel ? mapRoleLabelToRole(roleLabel) : "agent");
 
     return {
       ...value,
-      email: (value.email ?? value.workEmail).toLowerCase(),
-      workEmail: value.workEmail.toLowerCase(),
-      roleLabel,
+      email,
+      workEmail: (value.workEmail ?? email).toLowerCase(),
+      username: (value.username ?? deriveUsernameFromEmail(email)).toLowerCase(),
       role,
+      roleLabel:
+        roleLabel || (role === "admin" ? "Admin" : role === "manager" ? "Manager" : "Basic"),
+      isActive: value.isActive ?? true,
     };
   });
 
@@ -92,7 +98,6 @@ export const updateUserSchema = z
     phone: z.string().trim().nullable().optional(),
     role: z.enum(USER_ROLES).optional(),
     isActive: z.boolean().optional(),
-    password: z.string().min(6).optional(),
     firstName: z.string().trim().nullable().optional(),
     lastName: z.string().trim().nullable().optional(),
     workEmail: z.string().email().nullable().optional(),
@@ -113,3 +118,20 @@ export const updateUserSchema = z
   });
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+
+export const resetUserPasswordSchema = z
+  .object({
+    newPassword: z.string().min(8, "Password must be at least 8 characters"),
+  })
+  .strip();
+
+export type ResetUserPasswordInput = z.infer<typeof resetUserPasswordSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: z.string().min(8, "Password must be at least 8 characters"),
+  })
+  .strip();
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

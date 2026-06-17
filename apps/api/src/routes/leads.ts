@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import {
   canAssignLead,
   canBulkUploadLeads,
@@ -23,8 +24,12 @@ import {
 import type { AuthUser } from "../middleware/auth.js";
 import { leadsCreateRateLimit, leadsPatchRateLimit } from "../middleware/rateLimit.js";
 import { logAudit } from "../services/auditService.js";
+import { documentService } from "../services/documentService.js";
+import { getAssignmentHistory } from "../services/leadAssignmentService.js";
+import { listHotLeads } from "../services/leadScoringService.js";
 import { LeadDuplicatePhoneError, leadService } from "../services/leadService.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
+import { whatsappService } from "../services/whatsappService.js";
 
 export const leadsRoute = new Hono();
 
@@ -231,6 +236,35 @@ leadsRoute.get("/", async (c) => {
   return c.json({ ok: true, data });
 });
 
+const followUpPatchSchema = z
+  .object({
+    nextFollowupAt: z.string().datetime({ offset: true }),
+    markComplete: z.boolean().optional(),
+  })
+  .strict();
+
+function scopedAgentId(authUser: AuthUser) {
+  return authUser.role === "agent" ? authUser.id : undefined;
+}
+
+leadsRoute.get("/overdue", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const items = await leadService.listOverdueLeads(scopedAgentId(authUser));
+  return c.json({ ok: true, data: { items, total: items.length } });
+});
+
+leadsRoute.get("/cold", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const items = await leadService.listColdLeads(scopedAgentId(authUser));
+  return c.json({ ok: true, data: { items, total: items.length } });
+});
+
+leadsRoute.get("/hot", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const items = await listHotLeads(scopedAgentId(authUser));
+  return c.json({ ok: true, data: { items, total: items.length } });
+});
+
 leadsRoute.post(
   "/bulk-import",
   leadsCreateRateLimit,
@@ -301,6 +335,88 @@ leadsRoute.get("/:id", async (c) => {
   }
 
   return c.json({ ok: true, data: lead });
+});
+
+leadsRoute.get("/:id/assignments", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const id = c.req.param("id");
+  const { lead, response } = await loadLeadOr404(c, id);
+  if (response) return response;
+
+  if (!canViewLead(authUser, { assignedTo: lead!.assignedTo })) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const items = await getAssignmentHistory(id);
+  return c.json({ ok: true, data: { items } });
+});
+
+leadsRoute.get("/:id/documents", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const id = c.req.param("id");
+  const { lead, response } = await loadLeadOr404(c, id);
+  if (response) return response;
+
+  if (!canViewLead(authUser, { assignedTo: lead!.assignedTo })) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const items = await documentService.listLeadDocuments(id);
+  return c.json({ ok: true, data: { items } });
+});
+
+leadsRoute.get("/:id/whatsapp-messages", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const id = c.req.param("id");
+  const { lead, response } = await loadLeadOr404(c, id);
+  if (response) return response;
+
+  if (!canViewLead(authUser, { assignedTo: lead!.assignedTo })) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const items = await whatsappService.listLeadMessages(id);
+  return c.json({ ok: true, data: { items } });
+});
+
+leadsRoute.patch("/:id/follow-up", leadsPatchRateLimit, async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const id = c.req.param("id");
+  const { lead, response } = await loadLeadOr404(c, id);
+  if (response) return response;
+
+  if (!canEditLead(authUser, { assignedTo: lead!.assignedTo })) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const body = await c.req.json();
+  const parsed = followUpPatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid body",
+          details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const updated = await leadService.updateFollowUp({
+    leadId: id,
+    actingUserId: authUser.id,
+    nextFollowupAt: parsed.data.nextFollowupAt,
+    markComplete: parsed.data.markComplete,
+  });
+
+  if (!updated) {
+    return c.json({ ok: false, error: { code: "NOT_FOUND", message: "Lead not found" } }, 404);
+  }
+
+  return c.json({ ok: true, data: updated });
 });
 
 // canEditLead: admin/manager — any lead; agent — own assigned leads only.

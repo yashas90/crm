@@ -59,6 +59,14 @@ const envSchema = z
     GOOGLE_ADS_LOOKBACK_MINUTES: z.coerce.number().int().positive().default(70),
     /** Overlap window when resuming from DB watermark (avoids missing edge submissions). */
     GOOGLE_ADS_SYNC_OVERLAP_MINUTES: z.coerce.number().int().nonnegative().default(5),
+    /** Cloudflare R2 — optional; required for document/booking PDF uploads. */
+    CLOUDFLARE_R2_ACCOUNT_ID: z.string().min(1).optional(),
+    CLOUDFLARE_R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    CLOUDFLARE_R2_BUCKET_NAME: z.string().min(1).optional(),
+    CLOUDFLARE_R2_PUBLIC_URL: z.string().url().optional(),
+    /** Public API base URL for generated webhook links (no trailing slash). */
+    PUBLIC_API_BASE_URL: z.string().url().optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.META_WEBHOOK_ENABLED) return;

@@ -168,3 +168,27 @@ export const metaWebhookRateLimit = createIpRateLimiter({
   bucket: "meta-webhook",
   methods: "all",
 });
+
+/** 20 uploads/minute per user — POST /api/documents/upload */
+export const documentUploadRateLimit = createUserRateLimiter({
+  limit: 20,
+  windowMs: ONE_MINUTE_MS,
+  bucket: "documents:upload",
+});
+
+/** 60 requests/minute per portal webhook token. */
+export function createPortalTokenRateLimiter(getToken: (c: Context) => string | undefined) {
+  return async (c: Context, next: Next) => {
+    const token = getToken(c);
+    if (!token) {
+      await next();
+      return;
+    }
+
+    const key = rateLimitKey(["portal-token", token]);
+    const limited = await enforceLimit(c, key, { limit: 60, windowMs: ONE_MINUTE_MS });
+    if (limited) return limited;
+
+    await next();
+  };
+}
