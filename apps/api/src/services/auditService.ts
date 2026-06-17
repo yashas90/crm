@@ -1,5 +1,7 @@
 import { auditLogs, users } from "@propninja/db";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
+import type { Context } from "hono";
+import { getClientIp } from "../lib/clientIp.js";
 import type { Database } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
 import type { ListAuditLogsQuery } from "../lib/validators/audit.js";
@@ -9,6 +11,7 @@ export type LogAuditInput = {
   action: string;
   entityType: string;
   entityId: string;
+  entityName?: string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -19,7 +22,33 @@ export async function logAudit(db: Database, input: LogAuditInput): Promise<void
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId,
+      entityName: input.entityName ?? null,
       metadata: input.metadata ?? {},
+    });
+  } catch (error) {
+    logger.error("Failed to write audit log", {
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function auditFromContext(
+  c: Context,
+  db: Database,
+  input: LogAuditInput,
+): Promise<void> {
+  try {
+    await db.insert(auditLogs).values({
+      userId: input.userId,
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      entityName: input.entityName ?? null,
+      metadata: input.metadata ?? {},
+      ipAddress: getClientIp(c),
     });
   } catch (error) {
     logger.error("Failed to write audit log", {

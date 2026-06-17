@@ -7,7 +7,7 @@ type SendPasswordResetEmailInput = {
 };
 
 export function buildPasswordResetUrl(token: string): string {
-  const base = env.WEB_APP_URL.replace(/\/$/, "");
+  const base = (env.WEB_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
   return `${base}/reset-password?token=${encodeURIComponent(token)}`;
 }
 

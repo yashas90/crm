@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
-import rateLimit from "express-rate-limit";
+import rateLimit, { MemoryStore } from "express-rate-limit";
 import type { Context, Next } from "hono";
 import { getClientIp } from "./clientIp.js";
 
 export const LOGIN_RATE_LIMIT_MESSAGE = "Too many login attempts. Try again in 15 minutes.";
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const EMAIL_MAX_ATTEMPTS = 10;
+
+const loginIpStore = new MemoryStore();
 
 type EmailAttemptBucket = { count: number; expiresAt: number };
 
@@ -21,6 +23,7 @@ export const loginIpRateLimiter = rateLimit({
   skipSuccessfulRequests: false,
   validate: { ip: false, trustProxy: false },
   keyGenerator: (req) => String(req.ip ?? req.socket?.remoteAddress ?? "anonymous"),
+  store: loginIpStore,
 });
 
 export function hashEmailForAudit(email: string): string {
@@ -80,6 +83,7 @@ export function clearEmailLoginAttempts(email: string): void {
 /** @internal Test helper */
 export function resetLoginBruteForceForTests(): void {
   emailAttempts.clear();
+  loginIpStore.resetAll();
 }
 
 function loginRateLimitResponse(c: Context): Response {
@@ -107,10 +111,11 @@ export function honoLoginIpRateLimit() {
         socket: { remoteAddress: ip },
       } as Parameters<typeof loginIpRateLimiter>[0];
 
+      let statusCode = 200;
       const res = {
-        statusCode: 200,
+        statusCode,
         status(code: number) {
-          this.statusCode = code;
+          statusCode = code;
           return this;
         },
         setHeader() {
@@ -120,17 +125,17 @@ export function honoLoginIpRateLimit() {
           return undefined;
         },
         json() {
-          if (this.statusCode === 429) limited = true;
+          if (statusCode === 429) limited = true;
           resolve();
         },
         send() {
-          if (this.statusCode === 429) limited = true;
+          if (statusCode === 429) limited = true;
           resolve();
         },
         end() {
           resolve();
         },
-      } as Parameters<typeof loginIpRateLimiter>[1];
+      } as unknown as Parameters<typeof loginIpRateLimiter>[1];
 
       loginIpRateLimiter(req, res, () => resolve());
     });

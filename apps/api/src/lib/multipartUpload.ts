@@ -85,6 +85,6 @@ export async function parseDocumentMultipart(
       resolve({ fields, file: fileData });
     });
 
-    Readable.fromWeb(req.body as ReadableStream<Uint8Array>).pipe(bb);
+    Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0]).pipe(bb);
   });
 }

@@ -35,10 +35,11 @@ export function UserCreateForm({ onSuccess }: UserCreateFormProps) {
     createUser.mutate(
       {
         username,
-        name: name || undefined,
+        name: name || username,
         email,
         workEmail: email,
         password,
+        role: roleLabel === "Manager" ? "manager" : "agent",
         roleLabel,
         phone: phone || undefined,
       },

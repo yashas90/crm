@@ -11,6 +11,8 @@ export type AuthUser = {
   role: "admin" | "manager" | "agent";
   email: string;
   name: string;
+  orgId: string;
+  isFirstLogin: boolean;
 };
 
 declare module "hono" {
@@ -96,7 +98,14 @@ export const authMiddleware = async (c: Context, next: Next) => {
       );
     }
 
-    c.set("authUser", { id: row.id, role, email: row.email, name: row.name });
+    c.set("authUser", {
+      id: row.id,
+      role,
+      email: row.email,
+      name: row.name,
+      orgId: row.orgId,
+      isFirstLogin: row.isFirstLogin,
+    });
     c.set("db", db);
     await next();
   } catch {

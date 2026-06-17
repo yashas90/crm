@@ -133,5 +133,6 @@ export const bulkImportLeadsBodySchema = z.object({
 });
 
 export type CreateLeadBody = z.infer<typeof createLeadBodySchema>;
+export type CreateLeadInput = CreateLeadBody;
 export type UpdateLeadBody = z.infer<typeof updateLeadBodySchema>;
 export type BulkImportLeadsBody = z.infer<typeof bulkImportLeadsBodySchema>;

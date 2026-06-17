@@ -1,5 +1,13 @@
-export function escapeCsvCell(value: string | number | boolean | null | undefined) {
+export function sanitiseCsvCell(value: string | number | boolean | null | undefined): string {
   const text = value === null || value === undefined ? "" : String(value);
+  if (text.length > 0 && /^[=+\-@]/.test(text)) {
+    return `'${text}`;
+  }
+  return text;
+}
+
+export function escapeCsvCell(value: string | number | boolean | null | undefined) {
+  const text = sanitiseCsvCell(value);
   if (text.includes(",") || text.includes('"') || text.includes("\n")) {
     return `"${text.replace(/"/g, '""')}"`;
   }

@@ -57,11 +57,7 @@ export function FirstLoginModal() {
     <div className="fixed inset-0 z-[9999]">
       <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" />
       <Dialog open onOpenChange={() => {}}>
-        <DialogContent
-          className="max-w-md"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-        >
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Welcome to PropNinja! Please set your password.</DialogTitle>
             <DialogDescription>

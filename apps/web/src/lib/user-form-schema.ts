@@ -181,6 +181,7 @@ export function createUserFormToPayload(values: CreateUserFormValues) {
   return {
     ...sharedPayloadFields(values),
     password: values.password,
+    role: roleNameToSystemRole(values.selectedRoleName),
   };
 }
 

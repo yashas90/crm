@@ -31,7 +31,10 @@ export function verifyReportUnsubscribeToken(token: string): string | null {
 }
 
 export function buildReportUnsubscribeUrl(userId: string): string {
-  const apiBase = (env.API_PUBLIC_URL ?? env.WEB_APP_URL).replace(/\/$/, "");
+  const apiBase = (env.API_PUBLIC_URL ?? env.WEB_APP_URL ?? "http://localhost:3000").replace(
+    /\/$/,
+    "",
+  );
   const token = createReportUnsubscribeToken(userId);
   return `${apiBase}/api/auth/unsubscribe-reports?token=${encodeURIComponent(token)}`;
 }

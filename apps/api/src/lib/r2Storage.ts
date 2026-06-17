@@ -18,12 +18,17 @@ let client: S3Client | null = null;
 
 function getClient(): S3Client {
   if (!client) {
+    const accessKeyId = env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    const secretAccessKey = env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+    if (!accessKeyId || !secretAccessKey) {
+      throw new Error("R2 credentials are not configured");
+    }
     client = new S3Client({
       region: "auto",
       endpoint: r2Endpoint(),
       credentials: {
-        accessKeyId: env.CLOUDFLARE_R2_ACCESS_KEY_ID,
-        secretAccessKey: env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
+        accessKeyId,
+        secretAccessKey,
       },
     });
   }
@@ -42,7 +47,7 @@ export function isR2Configured(): boolean {
 
 /** Public CDN URL — never exposes bucket name or account ID. */
 export function publicFileUrl(fileKey: string): string {
-  const base = env.CLOUDFLARE_R2_PUBLIC_URL.replace(/\/$/, "");
+  const base = (env.CLOUDFLARE_R2_PUBLIC_URL ?? "").replace(/\/$/, "");
   return `${base}/${fileKey}`;
 }
 

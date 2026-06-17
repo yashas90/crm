@@ -99,8 +99,8 @@ export function createBookingDocumentService(db: Database) {
         priceListedRs: Number(row.unit.priceListedRs),
         priceFinalRs: row.unit.priceFinalRs != null ? Number(row.unit.priceFinalRs) : null,
         leadName,
-        leadPhone: row.lead.phone,
-        agentName,
+        leadPhone: row.lead.phone ?? "",
+        agentName: agentName ?? "—",
       });
 
       await uploadToR2(fileKey, pdfBuffer, "application/pdf");

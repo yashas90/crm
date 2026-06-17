@@ -57,7 +57,7 @@ documentsRoutes.post(
     const authUser = c.get("authUser") as AuthUser;
 
     if (!canManageDocuments(authUser)) {
-      return forbiddenResponse(c);
+      return c.json(forbiddenResponse(), 403);
     }
 
     if (!isR2Configured()) {
@@ -154,7 +154,7 @@ documentsRoutes.post("/:id/share", validate("json", shareDocumentSchema), async 
     return jsonError(c, "NOT_FOUND", "Lead not found", 404);
   }
   if (!canViewLead(authUser, { assignedTo: lead.assignedTo })) {
-    return forbiddenResponse(c);
+    return c.json(forbiddenResponse(), 403);
   }
 
   const share = await documentService.share({
@@ -190,7 +190,7 @@ documentsRoutes.delete("/:id", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
 
   if (!canManageDocuments(authUser)) {
-    return forbiddenResponse(c);
+    return c.json(forbiddenResponse(), 403);
   }
 
   const deleted = await documentService.delete(c.req.param("id"));

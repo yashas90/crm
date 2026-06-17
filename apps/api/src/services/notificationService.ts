@@ -11,6 +11,7 @@ export const NOTIFICATION_TYPES = {
   TASK_ASSIGNED: "task_assigned",
   CALL_FOLLOWUP_SET: "call_followup_set",
   SITE_VISIT_REMINDER: "site_visit_reminder",
+  SITE_VISIT_SCHEDULED: "site_visit_scheduled",
   COLD_LEADS_ALERT: "cold_leads_alert",
   DAILY_DIGEST: "daily_digest",
 } as const;

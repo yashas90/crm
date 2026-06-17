@@ -253,7 +253,7 @@ export const leadActivities = pgTable(
   (table) => [
     check(
       "lead_activities_type_check",
-      sql`${table.type} in ('call', 'note', 'status_change', 'meeting', 'task')`,
+      sql`${table.type} in ('call', 'note', 'status_change', 'meeting', 'task', 'follow_up')`,
     ),
     index("lead_activities_lead_id_created_at_idx").on(table.leadId, table.createdAt.desc()),
   ],
@@ -305,7 +305,9 @@ export const auditLogs = pgTable(
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
+    entityName: text("entity_name"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    ipAddress: text("ip_address"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -705,54 +707,74 @@ export const documents = pgTable(
     orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    fileKey: text("file_key").notNull(),
+    fileUrl: text("file_url").notNull(),
+    fileType: text("file_type").notNull(),
+    fileSizeMb: numeric("file_size_mb", { precision: 10, scale: 3 }).notNull(),
     projectId: uuid("project_id").references(() => projects.id),
     uploadedBy: uuid("uploaded_by")
       .notNull()
       .references(() => users.id),
-    name: text("name").notNull(),
     originalName: text("original_name"),
-    fileKey: text("file_key").notNull(),
-    fileType: text("file_type").notNull(),
-    fileSize: integer("file_size").notNull(),
     isGlobal: boolean("is_global").notNull().default(false),
     downloadCount: integer("download_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check("documents_file_type_check", sql`${table.fileType} in ('pdf', 'image', 'other')`),
     index("documents_org_id_idx").on(table.orgId),
     index("documents_project_id_idx").on(table.projectId),
     index("documents_uploaded_by_idx").on(table.uploadedBy),
+    index("documents_is_global_idx").on(table.isGlobal),
   ],
 );
 
-export const leadDocumentShares = pgTable("lead_document_shares", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  documentId: uuid("document_id")
-    .notNull()
-    .references(() => documents.id),
-  leadId: uuid("lead_id")
-    .notNull()
-    .references(() => leads.id),
-  sharedBy: uuid("shared_by")
-    .notNull()
-    .references(() => users.id),
-  sharedVia: text("shared_via").notNull(),
-  shareToken: uuid("share_token").notNull(),
-  viewedAt: timestamp("viewed_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const leadDocumentShares = pgTable(
+  "lead_document_shares",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    leadId: uuid("lead_id")
+      .notNull()
+      .references(() => leads.id),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => documents.id),
+    sharedBy: uuid("shared_by")
+      .notNull()
+      .references(() => users.id),
+    sharedVia: text("shared_via").notNull(),
+    shareToken: text("share_token").notNull().unique(),
+    sharedAt: timestamp("shared_at", { withTimezone: true }).notNull().defaultNow(),
+    viewedAt: timestamp("viewed_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "lead_document_shares_shared_via_check",
+      sql`${table.sharedVia} in ('whatsapp', 'email', 'link')`,
+    ),
+    index("lead_document_shares_lead_id_idx").on(table.leadId),
+    index("lead_document_shares_document_id_idx").on(table.documentId),
+    index("lead_document_shares_share_token_idx").on(table.shareToken),
+  ],
+);
 
-export const documentAccessEvents = pgTable("document_access_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  documentId: uuid("document_id")
-    .notNull()
-    .references(() => documents.id, { onDelete: "cascade" }),
-  shareId: uuid("share_id").references(() => leadDocumentShares.id),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  accessedAt: timestamp("accessed_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const documentAccessEvents = pgTable(
+  "document_access_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    accessedAt: timestamp("accessed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("document_access_events_doc_time_idx").on(table.documentId, table.accessedAt)],
+);
 
 export const whatsappTemplates = pgTable(
   "whatsapp_templates",

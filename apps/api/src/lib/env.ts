@@ -67,6 +67,17 @@ const envSchema = z
     CLOUDFLARE_R2_PUBLIC_URL: z.string().url().optional(),
     /** Public API base URL for generated webhook links (no trailing slash). */
     PUBLIC_API_BASE_URL: z.string().url().optional(),
+    API_PUBLIC_URL: z.string().url().optional(),
+    WEB_APP_URL: z.string().url().optional(),
+    RESEND_API_KEY: z.string().min(1).optional(),
+    RESEND_FROM_EMAIL: z.string().email().optional(),
+    REPORT_EMAIL_UNSUBSCRIBE_SECRET: z.string().min(1).optional(),
+    WHATSAPP_API_TOKEN: z.string().min(1).optional(),
+    WHATSAPP_PHONE_NUMBER_ID: z.string().min(1).optional(),
+    WHATSAPP_VERIFY_TOKEN: z.string().min(1).optional(),
+    /** Optional — Expo push notification access token. */
+    EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
+    CORS_ORIGINS: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.META_WEBHOOK_ENABLED) return;

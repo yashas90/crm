@@ -249,14 +249,18 @@ siteVisitsRoutes.patch(
 
 siteVisitsRoutes.delete("/:id", writeRateLimit, async (c) => {
   const authUser = c.get("authUser") as AuthUser;
-  const existing = await siteVisitService.getById(c.req.param("id"));
+  const visitId = c.req.param("id");
+  if (!visitId) {
+    return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
+  }
+  const existing = await siteVisitService.getById(visitId);
 
   if (!existing) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
   if (authUser.role === "agent" && existing.agentId !== authUser.id) {
     return jsonError(c, "FORBIDDEN", "Not allowed to cancel this visit", 403);
   }
 
-  const visit = await siteVisitService.cancel(c.req.param("id"));
+  const visit = await siteVisitService.cancel(visitId);
 
   const leadName = existing.lead
     ? `${existing.lead.firstName} ${existing.lead.lastName}`.trim()

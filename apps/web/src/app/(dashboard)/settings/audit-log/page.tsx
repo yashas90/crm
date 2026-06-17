@@ -24,7 +24,7 @@ function formatMetadata(metadata: Record<string, unknown>): string {
 
 export default function AuditLogPage() {
   const { ready, isAdmin } = useSession();
-  const auditQuery = useAuditLogs({ limit: 50 }, ready && isAdmin);
+  const auditQuery = useAuditLogs({ pageSize: 50 }, ready && isAdmin);
 
   if (ready && !isAdmin) {
     return (

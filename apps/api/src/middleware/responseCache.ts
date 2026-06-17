@@ -38,7 +38,7 @@ export async function responseCacheMiddleware(c: Context, next: Next) {
       } else if (headerType === "report") {
         headers["Cache-Control"] = "private, max-age=300, stale-while-revalidate=60";
       }
-      return c.json(cached, 200, { headers });
+      return c.json(cached, 200, headers);
     }
   }
 
@@ -63,7 +63,7 @@ export async function responseCacheMiddleware(c: Context, next: Next) {
     } else if (headerType === "report") {
       headers["Cache-Control"] = "private, max-age=300, stale-while-revalidate=60";
     }
-    return c.json(body, 200, { headers });
+    return c.json(body, 200, headers);
   } catch {
     // Ignore non-JSON or unreadable bodies.
   }

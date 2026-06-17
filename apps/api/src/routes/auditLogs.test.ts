@@ -22,7 +22,14 @@ vi.mock("../middleware/auth.js", () => ({
     c: { set: (k: string, v: unknown) => void },
     next: () => Promise<void>,
   ) => {
-    c.set("authUser", { id: "user-1", role: "agent", email: "a@test.com", name: "Agent" });
+    c.set("authUser", {
+      id: "user-1",
+      role: "agent",
+      email: "a@test.com",
+      name: "Agent",
+      orgId: "00000000-0000-0000-0000-0000000000aa",
+      isFirstLogin: false,
+    });
     await next();
   },
 }));
@@ -30,7 +37,7 @@ vi.mock("../middleware/auth.js", () => ({
 describe("GET /api/audit-logs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.list.mockResolvedValue({ items: [], page: 1, pageSize: 50, total: 0 });
+    mocks.list.mockResolvedValue([]);
   });
 
   async function appWithRoutes() {
@@ -39,7 +46,14 @@ describe("GET /api/audit-logs", () => {
     const app = new Hono();
     app.use("*", async (c, next) => {
       c.set("db", {});
-      c.set("authUser", { id: "user-1", role: "agent", email: "a@test.com", name: "Agent" });
+      c.set("authUser", {
+        id: "user-1",
+        role: "agent",
+        email: "a@test.com",
+        name: "Agent",
+        orgId: "00000000-0000-0000-0000-0000000000aa",
+        isFirstLogin: false,
+      });
       await next();
     });
     app.route("/api/audit-logs", auditLogsRoutes);
@@ -56,34 +70,26 @@ describe("GET /api/audit-logs", () => {
 
   it("returns audit log data for admins", async () => {
     mocks.isAdmin.mockReturnValue(true);
-    mocks.list.mockResolvedValue({
-      items: [
-        {
-          id: "log-1",
-          userId: "admin-1",
-          userName: "Admin",
-          userEmail: "admin@test.com",
-          action: "LEAD_CREATED",
-          entityType: "lead",
-          entityId: "lead-1",
-          entityName: "Ravi Kumar",
-          metadata: {},
-          ipAddress: "127.0.0.1",
-          createdAt: new Date().toISOString(),
-          entityExists: true,
-        },
-      ],
-      page: 1,
-      pageSize: 50,
-      total: 1,
-    });
+    mocks.list.mockResolvedValue([
+      {
+        id: "log-1",
+        userId: "admin-1",
+        userName: "Admin",
+        userEmail: "admin@test.com",
+        action: "LEAD_CREATED",
+        entityType: "lead",
+        entityId: "lead-1",
+        metadata: {},
+        createdAt: new Date().toISOString(),
+      },
+    ]);
 
     const app = await appWithRoutes();
     const res = await app.request("/api/audit-logs?page=1&pageSize=50");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; data: { total: number } };
+    const body = (await res.json()) as { ok: boolean; data: { items: unknown[] } };
     expect(body.ok).toBe(true);
-    expect(body.data.total).toBe(1);
+    expect(body.data.items).toHaveLength(1);
     expect(mocks.list).toHaveBeenCalledOnce();
   });
 });

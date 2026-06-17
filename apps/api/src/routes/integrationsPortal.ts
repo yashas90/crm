@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { jsonError, jsonOk } from "../lib/response.js";
@@ -20,6 +21,9 @@ function resolveClientIp(c: { req: { header: (name: string) => string | undefine
 
 portalIntegrationsRoute.post("/:token", portalTokenRateLimit, async (c) => {
   const token = c.req.param("token");
+  if (!token) {
+    return jsonError(c, "FORBIDDEN", "Invalid webhook token", 403);
+  }
 
   try {
     const webhook = await portalWebhookService.getByToken(token);
@@ -41,7 +45,13 @@ portalIntegrationsRoute.post("/:token", portalTokenRateLimit, async (c) => {
     return jsonOk(c, { received: result.received });
   } catch (error) {
     if (error instanceof AppError) {
-      return jsonError(c, error.code, error.message, error.status, error.details);
+      return jsonError(
+        c,
+        error.code,
+        error.message,
+        error.status as ContentfulStatusCode,
+        error.details,
+      );
     }
 
     logger.error("Portal webhook ingest failed", {

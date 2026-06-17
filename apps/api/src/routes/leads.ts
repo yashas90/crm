@@ -406,7 +406,7 @@ leadsRoute.patch("/:id/follow-up", leadsPatchRateLimit, async (c) => {
   }
 
   const updated = await leadService.updateFollowUp({
-    leadId: id,
+    leadId: lead!.id,
     actingUserId: authUser.id,
     nextFollowupAt: parsed.data.nextFollowupAt,
     markComplete: parsed.data.markComplete,

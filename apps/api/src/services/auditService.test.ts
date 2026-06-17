@@ -22,6 +22,7 @@ describe("logAudit", () => {
       action: "LEAD_DELETED",
       entityType: "lead",
       entityId: "00000000-0000-0000-0000-0000000000aa",
+      entityName: null,
       metadata: { name: "Test Lead" },
     });
   });

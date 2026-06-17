@@ -45,7 +45,7 @@ export const ipBlocklistMiddleware = async (c: Context, next: Next) => {
   }
 
   const ip = getClientIp(c);
-  if (isIpBlocked(ip)) {
+  if (ip && isIpBlocked(ip)) {
     return c.json(
       { ok: false, error: { code: "IP_BLOCKED", message: "Too many requests. Try again later." } },
       429,
@@ -61,7 +61,7 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
   const method = c.req.method;
 
   if (method === "GET" && path.startsWith("/api/leads")) {
-    const ip = getClientIp(c);
+    const ip = getClientIp(c) ?? "unknown";
     const ipWindow = getIpWindow(ip);
     ipWindow.hits += 1;
 
