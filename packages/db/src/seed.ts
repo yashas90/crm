@@ -15,7 +15,7 @@ import {
   users,
 } from "@propninja/db";
 import bcrypt from "bcryptjs";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 
 const DEMO_SLUG = "propninja-demo";
@@ -460,16 +460,68 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
   };
 }
 
+export async function checkSeedState(connectionString = process.env.DATABASE_URL) {
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is required to check seed state");
+  }
+
+  const db = createDb(connectionString);
+
+  const [org] = await db
+    .select({ id: organizations.id, name: organizations.name, slug: organizations.slug })
+    .from(organizations)
+    .where(eq(organizations.id, SINGLE_TENANT_ORG_ID))
+    .limit(1);
+
+  if (!org) {
+    throw new Error(`Organization ${SINGLE_TENANT_ORG_ID} not found — run db:seed after migrate`);
+  }
+
+  const [admin] = await db
+    .select({ id: users.id, email: users.email, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, ADMIN_USER_ID))
+    .limit(1);
+
+  if (!admin?.isActive) {
+    throw new Error(`Admin user ${ADMIN_USER_ID} not found or inactive`);
+  }
+
+  const [{ count: userCount }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(users)
+    .where(eq(users.orgId, org.id));
+
+  const leadRows = await db
+    .select({ id: leads.id })
+    .from(leads)
+    .where(eq(leads.orgId, org.id))
+    .limit(1);
+
+  return {
+    ok: true as const,
+    orgId: org.id,
+    orgName: org.name,
+    orgSlug: org.slug,
+    adminEmail: admin.email,
+    hasUsers: Number(userCount) > 0,
+    hasLeads: leadRows.length > 0,
+  };
+}
+
 const isDirectRun = process.argv[1]?.includes("seed");
+const isCheckMode = process.argv.includes("--check");
 
 if (isDirectRun) {
-  seedDemoData()
+  const run = isCheckMode ? checkSeedState : seedDemoData;
+
+  run()
     .then((result) => {
-      console.log("Demo data seeded:", result);
+      console.log(isCheckMode ? "Seed check passed:" : "Demo data seeded:", result);
       process.exit(0);
     })
     .catch((error) => {
-      console.error("Seed failed:", error);
+      console.error(isCheckMode ? "Seed check failed:" : "Seed failed:", error);
       process.exit(1);
     });
 }

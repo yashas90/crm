@@ -1,9 +1,16 @@
 import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/components/CallLogModal";
 import { LeadContactActions } from "@/components/LeadContactActions";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { ListSkeleton } from "@/components/ui/Skeleton";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
 import { type LeadRow, useTodayQueue } from "@/hooks/use-leads";
+import {
+  type SiteVisit,
+  formatVisitTime,
+  useTodaySiteVisits,
+  useUpdateSiteVisit,
+} from "@/hooks/use-site-visits";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import { callLogSuccessMessage } from "@/lib/call-log-feedback";
@@ -13,6 +20,7 @@ import { feedbackCallSaved } from "@/lib/feedback";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -73,6 +81,118 @@ function isPlannedToday(nextFollowupAt: string | null) {
 
 type Props = BottomTabScreenProps<MainTabParamList, "TodayTab">;
 
+function visitLeadName(visit: SiteVisit) {
+  if (visit.lead) {
+    return `${visit.lead.firstName} ${visit.lead.lastName}`.trim();
+  }
+  return "Lead";
+}
+
+function visitLocation(visit: SiteVisit) {
+  return visit.project?.name ?? visit.propertyAddress ?? visit.propertyLabel ?? "—";
+}
+
+function visitStatusStyle(status: SiteVisit["status"]) {
+  if (status === "scheduled") {
+    return {
+      badge: styles.visitBadgeScheduled,
+      text: styles.visitBadgeTextScheduled,
+      label: "Scheduled",
+    };
+  }
+  if (status === "completed") {
+    return {
+      badge: styles.visitBadgeCompleted,
+      text: styles.visitBadgeTextCompleted,
+      label: "Completed",
+    };
+  }
+  return {
+    badge: styles.visitBadgeMuted,
+    text: styles.visitBadgeTextMuted,
+    label: status.replace(/_/g, " "),
+  };
+}
+
+type TodayVisitsSectionProps = {
+  visits: SiteVisit[];
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+  onViewLead: (leadId: string) => void;
+  onMarkComplete: (visitId: string) => void;
+  completingVisitId: string | null;
+};
+
+function TodayVisitsSection({
+  visits,
+  isLoading,
+  isError,
+  onRetry,
+  onViewLead,
+  onMarkComplete,
+  completingVisitId,
+}: TodayVisitsSectionProps) {
+  return (
+    <View style={styles.visitsSection}>
+      <Text style={styles.sectionTitle}>Today's Visits</Text>
+      {isLoading ? (
+        <ListSkeleton rows={2} />
+      ) : isError ? (
+        <View style={styles.visitsEmpty}>
+          <Text style={styles.visitsEmptyText}>Could not load visits</Text>
+          <Pressable style={styles.visitsRetryBtn} onPress={onRetry}>
+            <Text style={styles.visitsRetryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : visits.length === 0 ? (
+        <View style={styles.visitsEmpty}>
+          <Ionicons name="calendar-outline" size={28} color={colors.textMutedDark} />
+          <Text style={styles.visitsEmptyText}>No site visits scheduled today</Text>
+        </View>
+      ) : (
+        visits.map((visit) => {
+          const status = visitStatusStyle(visit.status);
+          return (
+            <View key={visit.id} style={styles.visitCard}>
+              <View style={styles.visitCardHeader}>
+                <View style={styles.visitCardBody}>
+                  <Text style={styles.visitLeadName}>{visitLeadName(visit)}</Text>
+                  <Text style={styles.visitMeta}>
+                    {formatVisitTime(visit.visitTime)} · {visitLocation(visit)}
+                  </Text>
+                </View>
+                <View style={[styles.visitBadge, status.badge]}>
+                  <Text style={[styles.visitBadgeText, status.text]}>{status.label}</Text>
+                </View>
+              </View>
+              <View style={styles.visitActions}>
+                {visit.status === "scheduled" ? (
+                  <Pressable
+                    style={[styles.visitActionBtn, styles.visitCompleteBtn]}
+                    onPress={() => onMarkComplete(visit.id)}
+                    disabled={completingVisitId === visit.id}
+                  >
+                    <Text style={styles.visitCompleteBtnText}>
+                      {completingVisitId === visit.id ? "Saving…" : "Mark Complete"}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  style={[styles.visitActionBtn, styles.visitViewBtn]}
+                  onPress={() => onViewLead(visit.leadId)}
+                >
+                  <Text style={styles.visitViewBtnText}>View Lead</Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
 export function TodayScreen({ route, navigation }: Props) {
   const focusQueue = route.params?.focusQueue;
   const { data: currentUser } = useCurrentUser();
@@ -80,7 +200,10 @@ export function TodayScreen({ route, navigation }: Props) {
   const queue = useTodayQueue();
   const calls = useTodayCalls();
   const summary = useTodayCallSummary();
+  const todayVisits = useTodaySiteVisits();
+  const updateVisit = useUpdateSiteVisit();
   const logCall = useLogCall();
+  const [completingVisitId, setCompletingVisitId] = useState<string | null>(null);
 
   const queueItems = queue.data?.items ?? [];
   const recentCalls = (calls.data?.items ?? []).slice(0, 3);
@@ -120,6 +243,27 @@ export function TodayScreen({ route, navigation }: Props) {
       screen: "LeadDetailScreen",
       params: { leadId: lead.id },
     });
+  }
+
+  function openLeadById(leadId: string) {
+    navigation.navigate("LeadsTab", {
+      screen: "LeadDetailScreen",
+      params: { leadId },
+    });
+  }
+
+  function handleMarkVisitComplete(visitId: string) {
+    setCompletingVisitId(visitId);
+    updateVisit.mutate(
+      { id: visitId, payload: { status: "completed" } },
+      {
+        onSuccess: () => void todayVisits.refetch(),
+        onError: (err) => {
+          Alert.alert("Error", err instanceof Error ? err.message : "Could not update visit.");
+        },
+        onSettled: () => setCompletingVisitId(null),
+      },
+    );
   }
 
   async function handleCall(lead: LeadRow) {
@@ -176,9 +320,13 @@ export function TodayScreen({ route, navigation }: Props) {
   }
 
   const refreshAll = useCallback(
-    () => Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]),
-    [queue, calls, summary],
+    () => Promise.all([queue.refetch(), calls.refetch(), summary.refetch(), todayVisits.refetch()]),
+    [queue, calls, summary, todayVisits],
   );
+
+  const visitItems = todayVisits.data?.items ?? [];
+  const isRefreshing =
+    queue.isRefetching || calls.isRefetching || summary.isRefetching || todayVisits.isRefetching;
 
   useRefreshOnFocus(refreshAll);
 
@@ -208,7 +356,7 @@ export function TodayScreen({ route, navigation }: Props) {
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl
-            refreshing={queue.isRefetching}
+            refreshing={isRefreshing}
             onRefresh={refreshAll}
             tintColor={colors.primaryLight}
           />
@@ -275,30 +423,41 @@ export function TodayScreen({ route, navigation }: Props) {
           </View>
         )}
         ListFooterComponent={
-          recentCalls.length > 0 ? (
-            <View style={styles.recentSection}>
-              <Text style={styles.sectionTitle}>Recent calls</Text>
-              {recentCalls.map((call) => (
-                <View key={call.id} style={styles.recentCard}>
-                  <Text style={styles.recentStatus}>
-                    {call.status === "completed" ? "✓" : "○"} {call.status}
-                  </Text>
-                  <Text style={styles.recentMeta}>
-                    {formatDuration(call.durationSeconds)}
-                    {call.disposition ? ` · ${call.disposition}` : ""}
-                  </Text>
-                  <Text style={styles.recentTime}>
-                    {new Date(call.startedAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={{ height: 80 }} />
-          )
+          <>
+            <TodayVisitsSection
+              visits={visitItems}
+              isLoading={todayVisits.isLoading && !todayVisits.data}
+              isError={todayVisits.isError && !todayVisits.data}
+              onRetry={() => void todayVisits.refetch()}
+              onViewLead={openLeadById}
+              onMarkComplete={handleMarkVisitComplete}
+              completingVisitId={completingVisitId}
+            />
+            {recentCalls.length > 0 ? (
+              <View style={styles.recentSection}>
+                <Text style={styles.sectionTitle}>Recent calls</Text>
+                {recentCalls.map((call) => (
+                  <View key={call.id} style={styles.recentCard}>
+                    <Text style={styles.recentStatus}>
+                      {call.status === "completed" ? "✓" : "○"} {call.status}
+                    </Text>
+                    <Text style={styles.recentMeta}>
+                      {formatDuration(call.durationSeconds)}
+                      {call.disposition ? ` · ${call.disposition}` : ""}
+                    </Text>
+                    <Text style={styles.recentTime}>
+                      {new Date(call.startedAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={{ height: 80 }} />
+            )}
+          </>
         }
       />
 
@@ -423,4 +582,73 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   callLoggedToastText: { color: "#ffffff", fontWeight: "600", fontSize: 14 },
+  visitsSection: { marginTop: spacing.lg },
+  visitsEmpty: {
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.cardDark,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  visitsEmptyText: { color: colors.textMutedDark, textAlign: "center", fontSize: 14 },
+  visitsRetryBtn: {
+    marginTop: spacing.xs,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primary,
+  },
+  visitsRetryText: { color: "#fff", fontWeight: "600", fontSize: 13 },
+  visitCard: {
+    backgroundColor: colors.cardDark,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+  },
+  visitCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+  },
+  visitCardBody: { flex: 1, minWidth: 0 },
+  visitLeadName: { color: colors.textDark, fontSize: 16, fontWeight: "700" },
+  visitMeta: { color: colors.textMutedDark, fontSize: 13, marginTop: 4 },
+  visitBadge: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  visitBadgeScheduled: { backgroundColor: "rgba(37, 99, 235, 0.2)" },
+  visitBadgeCompleted: { backgroundColor: "rgba(22, 163, 74, 0.2)" },
+  visitBadgeMuted: { backgroundColor: "rgba(148, 163, 184, 0.15)" },
+  visitBadgeText: { fontSize: 11, fontWeight: "700", textTransform: "capitalize" },
+  visitBadgeTextScheduled: { color: "#93c5fd" },
+  visitBadgeTextCompleted: { color: "#86efac" },
+  visitBadgeTextMuted: { color: colors.textMutedDark },
+  visitActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  visitActionBtn: {
+    borderRadius: radii.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minWidth: 120,
+    alignItems: "center",
+  },
+  visitCompleteBtn: { backgroundColor: colors.primary },
+  visitCompleteBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  visitViewBtn: {
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    backgroundColor: colors.backgroundDark,
+  },
+  visitViewBtnText: { color: colors.textDark, fontWeight: "600", fontSize: 13 },
 });
