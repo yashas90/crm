@@ -1,5 +1,5 @@
 import { users } from "@propninja/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getDb } from "../lib/db.js";
@@ -53,7 +53,12 @@ authRoutes.post("/login", loginRateLimit, honoLoginIpRateLimit(), async (c) => {
 
   const { email, password } = parsed.data;
   const db = getDb();
-  const [row] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+  const normalizedEmail = email.trim().toLowerCase();
+  const [row] = await db
+    .select()
+    .from(users)
+    .where(sql`lower(${users.email}) = ${normalizedEmail}`)
+    .limit(1);
 
   if (!row?.isActive || !row.passwordHash) {
     return c.json(
