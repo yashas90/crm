@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "pnpm install && pnpm railway:build"
+buildCommand = "pnpm install --prod=false && pnpm railway:build"
 
 [deploy]
 startCommand = "pnpm railway:start"

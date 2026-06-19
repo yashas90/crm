@@ -1,8 +1,22 @@
-# Region migration — US → Mumbai (India)
+# Region migration — US → APAC (Singapore)
 
-PropNinja CRM's primary users are in **Bengaluru, India**. The production API on Railway US (`sfo` / US West) adds **~200–280 ms round-trip** per request before Postgres or application code runs.
+> **Migration status (2026-06-19):** `propninja-crm-mumbai` is live in **Southeast Asia (Singapore)** — Railway CLI `southeast-asia`, region `asia-southeast1-eqsg3a`. Railway does **not** offer Mumbai / `ap-south-1`; Singapore is the closest APAC region (~60–80 ms from India vs ~200–280 ms from US West).
+>
+> | Check | Status |
+> |-------|--------|
+> | Postgres region | ✅ Southeast Asia |
+> | CRM API region | ✅ Southeast Asia |
+> | DB restore (129 leads, 5 users) | ✅ Matches US |
+> | `/health` + `db: ok` | ✅ |
+> | Protected routes (401) | ✅ |
+> | Vercel `NEXT_PUBLIC_API_URL` cutover | ⏳ Manual — set to `https://crm-production-e81d.up.railway.app` |
+> | Mobile EAS rebuild | ⏳ `eas.json` updated; rebuild + distribute APK |
+> | UptimeRobot / Meta webhook | ⏳ Manual dashboard updates |
+> | US project rollback window | 🔄 Keep `propninja-crm` running 24 h — **do not delete yet** |
 
-Moving **Railway (API + Postgres)** to **Mumbai (`ap-south-1`)** and **Vercel serverless functions** to **`bom1`** cuts that overhead to roughly **30–60 ms** from Indian networks.
+PropNinja CRM's primary users are in **Bengaluru, India**. The production API on Railway US (`us-west` / US West) adds **~200–280 ms round-trip** per request before Postgres or application code runs.
+
+Moving **Railway (API + Postgres)** to **Southeast Asia (Singapore)** and **Vercel serverless functions** to **`bom1`** cuts that overhead to roughly **60–80 ms** from Indian networks (Vercel static assets already edge-cached in India).
 
 Related: [ENV_VARS.md](./ENV_VARS.md) · [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md) · [DEPLOY.md](../DEPLOY.md) · [BACKUP_SETUP.md](./BACKUP_SETUP.md)
 
@@ -12,8 +26,8 @@ Related: [ENV_VARS.md](./ENV_VARS.md) · [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIS
 
 | Component | Region | Identifier |
 |-----------|--------|------------|
-| Railway API | **Mumbai (India)** | `ap-south-1` (dashboard may show **India**) |
-| Railway Postgres | **Same project / Mumbai** | API ↔ DB must stay in-region (internal `DATABASE_URL`) |
+| Railway API | **Southeast Asia (Singapore)** | `asia-southeast1-eqsg3a` / CLI `southeast-asia` |
+| Railway Postgres | **Same project / Singapore** | API ↔ DB must stay in-region (internal `DATABASE_URL`) |
 | Vercel functions | **Mumbai (`bom1`)** | Next.js middleware / server routes |
 | Vercel static assets | Edge (automatic) | CDN PoPs in India — no change needed |
 | Cloudflare R2 | **`apac` location hint** | Document uploads/downloads closer to India |
@@ -23,19 +37,19 @@ Related: [ENV_VARS.md](./ENV_VARS.md) · [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIS
 
 | Metric | Target | Acceptable | Action if exceeded |
 |--------|--------|------------|-------------------|
-| `/health` total time | **< 50 ms** | 50–100 ms | Check Railway region is Mumbai, not US/Singapore |
-| `/health` total time | — | **> 100 ms** | Check [Railway status](https://status.railway.app); verify region in dashboard |
+| `/health` total time | **< 100 ms** | 100–150 ms | Check Railway region is Singapore, not US West |
+| `/health` total time | — | **> 200 ms** | Check [Railway status](https://status.railway.app); verify both CRM **and** Postgres are in Singapore |
 
 ---
 
-## Production URLs (update after cutover)
+## Production URLs (confirmed 2026-06-19)
 
 | Role | URL |
 |------|-----|
 | **Old (US)** | `https://crm-production-6cfe.up.railway.app` |
-| **New (Mumbai)** | `https://crm-production-e81d.up.railway.app` *(project: `propninja-crm-mumbai`)* |
+| **New (APAC)** | `https://crm-production-e81d.up.railway.app` *(project: `propninja-crm-mumbai`)* |
 
-> **Region check:** After creating services, open Railway → each service → **Settings → Deploy → Region** and confirm **India / Mumbai (`ap-south-1`)**. If services show `sfo` or `us-west`, change region **before** loading production data (Postgres volume migration causes downtime).
+> **Region check:** Railway → each service → **Settings → Deploy → Region** must show **Southeast Asia / Singapore** for both **crm** and **Postgres**. CLI: `railway service scale southeast-asia=1 us-west=0` on each service.
 
 ---
 

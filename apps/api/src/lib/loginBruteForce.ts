@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import rateLimit, { MemoryStore } from "express-rate-limit";
+import rateLimit, { ipKeyGenerator, MemoryStore } from "express-rate-limit";
 import type { Context, Next } from "hono";
 import { getClientIp } from "./clientIp.js";
 
@@ -22,7 +22,8 @@ export const loginIpRateLimiter = rateLimit({
   message: LOGIN_RATE_LIMIT_MESSAGE,
   skipSuccessfulRequests: false,
   validate: { ip: false, trustProxy: false },
-  keyGenerator: (req) => String(req.ip ?? req.socket?.remoteAddress ?? "anonymous"),
+  keyGenerator: (req) =>
+    ipKeyGenerator(String(req.ip ?? req.socket?.remoteAddress ?? "127.0.0.1")),
   store: loginIpStore,
 });
 

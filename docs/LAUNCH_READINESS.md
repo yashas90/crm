@@ -306,6 +306,7 @@ Still requires: production deploy verification, Railway migration on live DB, an
 - `GET /health` with DB check (`health.ts`)
 - `docs/ENV_VARS.md` present
 - R2 client code (`r2Storage.ts`)
+- **Railway APAC region (Singapore)** ✅ — `propninja-crm-mumbai` CRM + Postgres in `southeast-asia`; DB restored (129 leads / 5 users match US); `/health` + protected routes verified **2026-06-19**. Latency from India: measure on mobile network (Windows test ~900 ms — not representative). Vercel cutover + EAS rebuild + webhooks pending.
 
 ---
 
