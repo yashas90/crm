@@ -84,6 +84,15 @@ vi.mock("@/components/leads/lead-follow-up-panel", () => ({
   LeadFollowUpPanel: () => null,
 }));
 
+vi.mock("@/hooks/use-message-templates", () => ({
+  useMessageTemplates: () => ({ data: { items: [] }, isLoading: false }),
+  useLeadLinkedUnit: () => ({ data: null }),
+}));
+
+vi.mock("@/components/leads/whatsapp-message-picker-dialog", () => ({
+  WhatsAppMessagePickerDialog: () => null,
+}));
+
 vi.mock("@/components/leads/send-whatsapp-template-dialog", () => ({
   SendWhatsAppTemplateDialog: () => null,
 }));

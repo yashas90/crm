@@ -30,6 +30,10 @@ jest.mock("@/providers/auth-provider", () => ({
     signOut: jest.fn(),
   }),
 }));
+jest.mock("@/hooks/use-message-templates", () => ({
+  useMessageTemplates: () => ({ data: { items: [] }, isLoading: false }),
+  useLeadLinkedUnit: () => ({ data: null }),
+}));
 jest.mock("@/hooks/use-site-visits", () => ({
   useLeadSiteVisits: () => ({ data: { items: [] }, isLoading: false, refetch: jest.fn() }),
   useCreateSiteVisit: () => ({ mutate: jest.fn(), isPending: false }),

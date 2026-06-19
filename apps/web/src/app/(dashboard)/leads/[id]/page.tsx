@@ -16,11 +16,14 @@ import { LeadWhatsAppPanel } from "@/components/leads/lead-whatsapp-panel";
 import { LogCallDialog } from "@/components/leads/log-call-dialog";
 import { SendWhatsAppTemplateDialog } from "@/components/leads/send-whatsapp-template-dialog";
 import { ComplianceChip, TcfConsentPanel } from "@/components/leads/tcf-consent-panel";
+import { WhatsAppMessagePickerDialog } from "@/components/leads/whatsapp-message-picker-dialog";
 import { LeadSiteVisitsPanel } from "@/components/site-visits/lead-site-visits-panel";
 import { TasksPanel } from "@/components/tasks/tasks-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAddLeadNote, useCalls, useLead, useLeadAssignments } from "@/hooks/use-leads";
+import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useSession } from "@/hooks/use-session";
 import { useTcfConsent } from "@/hooks/use-tcf";
 import { useUsers } from "@/hooks/use-users";
 import { apiPost } from "@/lib/apiClient";
@@ -83,6 +86,10 @@ export default function LeadDetailPage() {
   const [showDelete, setShowDelete] = useState(false);
   const [showLogCall, setShowLogCall] = useState(false);
   const [showWhatsAppSend, setShowWhatsAppSend] = useState(false);
+  const [whatsappPickerPhone, setWhatsappPickerPhone] = useState<string | null>(null);
+  const { session } = useSession();
+  const messageTemplates = useMessageTemplates({ enabled: Boolean(whatsappPickerPhone) });
+  const { data: linkedUnit } = useLeadLinkedUnit(leadId, { enabled: Boolean(whatsappPickerPhone) });
 
   const { ready, canDeleteLead } = usePermissions();
   const callConsent = tcfData?.consents.call?.consented ?? null;
@@ -309,8 +316,7 @@ export default function LeadDetailPage() {
                   label="Primary phone"
                   value={lead.phone}
                   onCopy={() => copyText(lead.phone!, "Phone")}
-                  whatsapp={lead.phone}
-                  leadFirstName={lead.firstName}
+                  onWhatsApp={() => setWhatsappPickerPhone(lead.phone!)}
                 />
               ) : null}
               {lead.secondaryPhone ? (
@@ -319,8 +325,7 @@ export default function LeadDetailPage() {
                   label="Secondary phone"
                   value={lead.secondaryPhone}
                   onCopy={() => copyText(lead.secondaryPhone!, "Secondary phone")}
-                  whatsapp={lead.secondaryPhone}
-                  leadFirstName={lead.firstName}
+                  onWhatsApp={() => setWhatsappPickerPhone(lead.secondaryPhone!)}
                 />
               ) : null}
               {lead.email ? (
@@ -504,16 +509,24 @@ export default function LeadDetailPage() {
         open={showWhatsAppSend}
         onOpenChange={setShowWhatsAppSend}
       />
+
+      {whatsappPickerPhone && lead ? (
+        <WhatsAppMessagePickerDialog
+          open={Boolean(whatsappPickerPhone)}
+          phone={whatsappPickerPhone}
+          leadName={`${lead.firstName} ${lead.lastName}`.trim()}
+          agentName={session?.name ?? "PropNinja"}
+          projectName={lead.projectName}
+          linkedUnit={linkedUnit}
+          templates={messageTemplates.data?.items ?? []}
+          isLoading={messageTemplates.isLoading}
+          onOpenChange={(open) => {
+            if (!open) setWhatsappPickerPhone(null);
+          }}
+        />
+      ) : null}
     </div>
   );
-}
-
-function buildWhatsAppUrl(phone: string, firstName: string) {
-  const digits = phone.replace(/\D/g, "");
-  const normalized =
-    digits.startsWith("91") && digits.length === 12 ? digits : `91${digits.slice(-10)}`;
-  const greeting = encodeURIComponent(`Hi ${firstName}`);
-  return `https://wa.me/${normalized}?text=${greeting}`;
 }
 
 function ContactRow({
@@ -521,15 +534,13 @@ function ContactRow({
   label,
   value,
   onCopy,
-  whatsapp,
-  leadFirstName,
+  onWhatsApp,
 }: {
   icon: typeof Phone;
   label?: string;
   value: string;
   onCopy: () => void;
-  whatsapp?: string;
-  leadFirstName?: string;
+  onWhatsApp?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-xl bg-muted/30 px-3 py-2 text-sm">
@@ -541,16 +552,15 @@ function ContactRow({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        {whatsapp ? (
-          <a
-            href={buildWhatsAppUrl(whatsapp, leadFirstName ?? "there")}
-            target="_blank"
-            rel="noopener noreferrer"
+        {onWhatsApp ? (
+          <button
+            type="button"
             className="rounded-lg p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
-            title="Open WhatsApp"
+            title="Send via WhatsApp"
+            onClick={onWhatsApp}
           >
             <MessageCircle className="h-4 w-4" />
-          </a>
+          </button>
         ) : null}
         <button
           type="button"

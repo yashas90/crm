@@ -7,6 +7,7 @@ import {
   integrationSyncState,
   leadActivities,
   leads,
+  messageTemplates,
   notifications,
   organizations,
   projects,
@@ -450,6 +451,57 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
         taskType: "site_visit",
       },
     ]);
+  }
+
+  const existingTemplates = await db
+    .select({ id: messageTemplates.id })
+    .from(messageTemplates)
+    .where(eq(messageTemplates.orgId, org!.id))
+    .limit(1);
+
+  if (existingTemplates.length === 0) {
+    const templateDefaults = [
+      {
+        name: "Greeting",
+        category: "greeting" as const,
+        content:
+          "Hi {{leadName}}, this is {{agentName}} from PropNinja. Thank you for your interest! How can I help you today?",
+      },
+      {
+        name: "Project Details",
+        category: "project_details" as const,
+        content:
+          "Hi {{leadName}}, here are the details for {{projectName}}:\nUnit: {{unitNumber}}\nPrice: ₹{{priceListedRs}}\nLet me know if you'd like to schedule a site visit!",
+      },
+      {
+        name: "Site Visit Reminder",
+        category: "site_visit" as const,
+        content:
+          "Hi {{leadName}}, just confirming your site visit for {{projectName}} tomorrow. Looking forward to seeing you!",
+      },
+      {
+        name: "Follow Up",
+        category: "follow_up" as const,
+        content:
+          "Hi {{leadName}}, just checking in regarding {{projectName}}. Are you still interested? Happy to answer any questions.",
+      },
+      {
+        name: "Thank You",
+        category: "custom" as const,
+        content:
+          "Thank you {{leadName}} for visiting {{projectName}} today! Let me know if you have any questions or would like to proceed further.",
+      },
+    ];
+
+    await db.insert(messageTemplates).values(
+      templateDefaults.map((template) => ({
+        orgId: org!.id,
+        name: template.name,
+        content: template.content,
+        category: template.category,
+        createdBy: ADMIN_USER_ID,
+      })),
+    );
   }
 
   return {

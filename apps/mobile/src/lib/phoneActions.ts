@@ -1,3 +1,7 @@
+import {
+  buildWhatsAppUrlCandidates,
+  formatWhatsAppPhone,
+} from "@propninja/types/message-templates";
 import { Alert, Linking } from "react-native";
 
 /** Strip formatting; keep leading + for tel: URLs. */
@@ -12,15 +16,7 @@ export function normalizeTelPhone(phone: string): string {
 
 /** WhatsApp expects country code + number, digits only (no +). */
 export function toWhatsAppDigits(phone: string): string {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.length === 10) {
-    digits = `91${digits}`;
-  } else if (digits.length === 11 && digits.startsWith("0")) {
-    digits = `91${digits.slice(1)}`;
-  } else if (digits.length === 12 && digits.startsWith("91")) {
-    // already fine
-  }
-  return digits;
+  return formatWhatsAppPhone(phone);
 }
 
 /**
@@ -68,13 +64,14 @@ export async function openWhatsAppChat(
       ? `Hi ${options.leadName}, I'm reaching out from PropNinja regarding your property inquiry.`
       : undefined;
   const message = options?.message ?? defaultMessage;
-  const textParam = message ? `?text=${encodeURIComponent(message)}` : "";
 
-  const candidates = [
-    `whatsapp://send?phone=${digits}${message ? `&text=${encodeURIComponent(message)}` : ""}`,
-    `https://wa.me/${digits}${textParam}`,
-    `https://api.whatsapp.com/send?phone=${digits}${message ? `&text=${encodeURIComponent(message)}` : ""}`,
-  ];
+  const candidates = message
+    ? buildWhatsAppUrlCandidates(phone, message)
+    : [
+        `whatsapp://send?phone=${digits}`,
+        `https://wa.me/${digits}`,
+        `https://api.whatsapp.com/send?phone=${digits}`,
+      ];
 
   for (const url of candidates) {
     try {

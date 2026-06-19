@@ -4,6 +4,7 @@ import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
 import { LeadContactActions } from "@/components/LeadContactActions";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { TasksSection } from "@/components/TasksSection";
+import { WhatsAppTemplateSheet } from "@/components/WhatsAppTemplateSheet";
 import { LeadDocumentsSection } from "@/components/documents/LeadDocumentsSection";
 import { ScheduleVisitSheet } from "@/components/site-visits/ScheduleVisitSheet";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -15,6 +16,7 @@ import {
   useUpdateLead,
   useUpdateLeadFollowUp,
 } from "@/hooks/use-leads";
+import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
 import { formatVisitTime, useLeadSiteVisits } from "@/hooks/use-site-visits";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
@@ -24,7 +26,7 @@ import {
   useTcfForLead,
   useUpsertTcfConsent,
 } from "@/hooks/useTcf";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId, getUser } from "@/lib/auth";
 import { callLogSuccessMessage } from "@/lib/call-log-feedback";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
@@ -78,9 +80,13 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const [defaultLogDuration, setDefaultLogDuration] = useState(60);
   const [callLoggedToast, setCallLoggedToast] = useState<string | null>(null);
   const [editVisible, setEditVisible] = useState(false);
+  const [whatsappSheetVisible, setWhatsappSheetVisible] = useState(false);
   const [tab, setTab] = useState<"calls" | "notes" | "tasks" | "visits" | "documents">("calls");
   const [noteText, setNoteText] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
+  const { data: linkedUnit } = useLeadLinkedUnit(leadId);
+  const messageTemplates = useMessageTemplates({ enabled: whatsappSheetVisible });
+  const sessionUser = getUser();
   const insets = useSafeAreaInsets();
 
   const handleReturnFromDialer = useCallback((elapsedSeconds: number) => {
@@ -292,6 +298,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             }
             await dialWithConsentCheck(lead.phone);
           }}
+          onWhatsAppPress={() => setWhatsappSheetVisible(true)}
           onLogPress={() => setLogModalVisible(true)}
         />
         <Text style={styles.callHint}>
@@ -509,6 +516,21 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           void refetchVisits();
         }}
       />
+
+      {lead.phone ? (
+        <WhatsAppTemplateSheet
+          visible={whatsappSheetVisible}
+          phone={lead.phone}
+          leadName={`${lead.firstName} ${lead.lastName}`.trim()}
+          agentName={sessionUser?.name ?? "PropNinja"}
+          projectName={linkedUnit?.projectName ?? lead.projectName}
+          unitNumber={linkedUnit?.unitNumber}
+          priceListedRs={linkedUnit?.priceListedRs}
+          templates={messageTemplates.data?.items ?? []}
+          isLoading={messageTemplates.isLoading}
+          onClose={() => setWhatsappSheetVisible(false)}
+        />
+      ) : null}
 
       <LeadEditModal
         visible={editVisible}

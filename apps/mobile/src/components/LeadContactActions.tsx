@@ -10,6 +10,8 @@ type LeadContactActionsProps = {
   onCallStarted?: () => void;
   /** Override default SIM dial (e.g. DNC consent check on lead detail). */
   onCallPress?: () => void | Promise<void>;
+  /** Opens template picker instead of direct WhatsApp link. */
+  onWhatsAppPress?: () => void | Promise<void>;
   onLogPress?: () => void;
   /** Compact vertical stack for list rows (Today queue). */
   variant?: "row" | "stack";
@@ -21,6 +23,7 @@ export function LeadContactActions({
   leadName,
   onCallStarted,
   onCallPress,
+  onWhatsAppPress,
   onLogPress,
   variant = "row",
   disabled = false,
@@ -43,6 +46,10 @@ export function LeadContactActions({
   async function handleWhatsApp() {
     if (!phone) {
       Alert.alert("No phone", "This lead has no phone number.");
+      return;
+    }
+    if (onWhatsAppPress) {
+      await onWhatsAppPress();
       return;
     }
     await openWhatsAppChat(phone, { leadName });

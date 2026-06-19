@@ -32,6 +32,7 @@ import { metaIntegrationsRoute } from "./routes/integrationsMeta.js";
 import { portalIntegrationsRoute } from "./routes/integrationsPortal.js";
 import { whatsappIntegrationsRoute } from "./routes/integrationsWhatsApp.js";
 import { leadsRoute } from "./routes/leads.js";
+import { messageTemplatesRoutes } from "./routes/messageTemplates.js";
 import { notificationsRoutes } from "./routes/notifications.js";
 import { orgRoutes } from "./routes/org.js";
 import { projectsRoutes } from "./routes/projects.js";
@@ -94,6 +95,7 @@ app.route("/api/admin", adminRoutes);
 app.route("/api/site-visits", siteVisitsRoutes);
 app.route("/api/documents", documentsRoutes);
 app.route("/api/whatsapp", whatsappRoute);
+app.route("/api/message-templates", messageTemplatesRoutes);
 app.route("/api/security", securityRoutes);
 
 app.notFound((c) => jsonError(c, "NOT_FOUND", "Route not found", 404));

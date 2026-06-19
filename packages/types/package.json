@@ -31,6 +31,10 @@
     "./permissions": {
       "types": "./src/permissions.ts",
       "default": "./src/permissions.ts"
+    },
+    "./message-templates": {
+      "types": "./src/messageTemplates.ts",
+      "default": "./src/messageTemplates.ts"
     }
   },
   "scripts": {

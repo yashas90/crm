@@ -253,6 +253,13 @@
       "when": 1780632546724,
       "tag": "0035_portal_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1780632546725,
+      "tag": "0036_message_templates",
+      "breakpoints": true
     }
   ]
 }

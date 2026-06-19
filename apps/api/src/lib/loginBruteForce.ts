@@ -22,8 +22,7 @@ export const loginIpRateLimiter = rateLimit({
   message: LOGIN_RATE_LIMIT_MESSAGE,
   skipSuccessfulRequests: false,
   validate: { ip: false, trustProxy: false },
-  keyGenerator: (req) =>
-    ipKeyGenerator(String(req.ip ?? req.socket?.remoteAddress ?? "127.0.0.1")),
+  keyGenerator: (req) => ipKeyGenerator(String(req.ip ?? req.socket?.remoteAddress ?? "127.0.0.1")),
   store: loginIpStore,
 });
 

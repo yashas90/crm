@@ -29,6 +29,7 @@ import { getAssignmentHistory } from "../services/leadAssignmentService.js";
 import { listHotLeads } from "../services/leadScoringService.js";
 import { LeadDuplicatePhoneError, leadService } from "../services/leadService.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
+import { createProjectUnitService } from "../services/projectUnitService.js";
 import { whatsappService } from "../services/whatsappService.js";
 
 export const leadsRoute = new Hono();
@@ -363,6 +364,21 @@ leadsRoute.get("/:id/documents", async (c) => {
 
   const items = await documentService.listLeadDocuments(id);
   return c.json({ ok: true, data: { items } });
+});
+
+leadsRoute.get("/:id/linked-unit", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const id = c.req.param("id");
+  const { lead, response } = await loadLeadOr404(c, id);
+  if (response) return response;
+
+  if (!canViewLead(authUser, { assignedTo: lead!.assignedTo })) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const unitService = createProjectUnitService(c.get("db"));
+  const linked = await unitService.getInterestedUnitForLead(id);
+  return c.json({ ok: true, data: linked });
 });
 
 leadsRoute.get("/:id/whatsapp-messages", async (c) => {

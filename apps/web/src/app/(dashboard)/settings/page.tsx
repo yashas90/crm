@@ -194,6 +194,22 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {ready && (isAdmin || session?.role === "manager") ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Message templates</CardTitle>
+            <CardDescription>
+              WhatsApp message presets for agents (client-side wa.me links, not Meta API).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/message-templates">Manage message templates</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {ready && isAdmin ? (
         <Card>
           <CardHeader>

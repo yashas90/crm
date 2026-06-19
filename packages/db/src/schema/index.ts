@@ -832,6 +832,33 @@ export const whatsappMessages = pgTable(
   ],
 );
 
+export const messageTemplates = pgTable(
+  "message_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    content: text("content").notNull(),
+    category: text("category").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("message_templates_org_id_idx").on(table.orgId),
+    index("message_templates_org_active_idx").on(table.orgId, table.isActive),
+    check(
+      "message_templates_category_check",
+      sql`${table.category} in ('greeting', 'project_details', 'follow_up', 'site_visit', 'custom')`,
+    ),
+  ],
+);
+
 export const securityAlerts = pgTable(
   "security_alerts",
   {

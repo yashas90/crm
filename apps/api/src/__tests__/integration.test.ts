@@ -796,4 +796,91 @@ describe("API integration", () => {
     const bulkJson = (await bulkRes.json()) as { data: { succeeded: string[] } };
     expect(bulkJson.data.succeeded).toContain(taskId);
   });
+
+  describe("message templates", () => {
+    it("lists active templates for any authenticated user", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const agentLogin = await loginToken("agent1@demo.propninja", "admin");
+      expect(agentLogin.status).toBe(200);
+
+      const res = await app.request("/api/message-templates", {
+        headers: { Authorization: `Bearer ${agentLogin.token}` },
+      });
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { data: { items: Array<{ name: string }> } };
+      expect(Array.isArray(json.data.items)).toBe(true);
+    });
+
+    it("enforces admin/manager for create and patch, admin for delete", async ({ skip }) => {
+      if (!hasDb) skip();
+
+      const agentLogin = await loginToken("agent1@demo.propninja", "admin");
+      const managerLogin = await loginToken("manager@demo.propninja", "admin");
+      expect(agentLogin.status).toBe(200);
+      expect(managerLogin.status).toBe(200);
+
+      const body = {
+        name: `Test Template ${Date.now()}`,
+        content: "Hi {{leadName}} from {{agentName}}",
+        category: "custom",
+      };
+
+      const agentCreate = await app.request("/api/message-templates", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${agentLogin.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      expect(agentCreate.status).toBe(403);
+
+      const managerCreate = await app.request("/api/message-templates", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${managerLogin.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      expect(managerCreate.status).toBe(201);
+      const created = (await managerCreate.json()) as { data: { id: string; name: string } };
+      const templateId = created.data.id;
+
+      const agentPatch = await app.request(`/api/message-templates/${templateId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${agentLogin.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: "Updated by agent" }),
+      });
+      expect(agentPatch.status).toBe(403);
+
+      const managerPatch = await app.request(`/api/message-templates/${templateId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${managerLogin.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: `${created.data.name} (edited)` }),
+      });
+      expect(managerPatch.status).toBe(200);
+
+      const managerDelete = await app.request(`/api/message-templates/${templateId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${managerLogin.token}` },
+      });
+      expect(managerDelete.status).toBe(403);
+
+      const adminDelete = await app.request(`/api/message-templates/${templateId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(adminDelete.status).toBe(200);
+      const deleted = (await adminDelete.json()) as { data: { isActive: boolean } };
+      expect(deleted.data.isActive).toBe(false);
+    });
+  });
 });
