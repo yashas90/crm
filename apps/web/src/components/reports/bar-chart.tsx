@@ -34,7 +34,7 @@ export function BarChart({
               </div>
               <div className="h-2 rounded-full bg-muted">
                 <div
-                  className="h-2 rounded-full bg-primary"
+                  className="h-2 rounded-full bg-[#204060]"
                   style={{ width: `${(item.value / max) * 100}%` }}
                 />
               </div>

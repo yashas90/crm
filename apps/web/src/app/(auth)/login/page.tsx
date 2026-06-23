@@ -39,7 +39,8 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md overflow-hidden rounded-2xl border-slate-200/60 bg-white/80 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+      <div className="h-1 w-full bg-gradient-to-r from-[#204060] to-[#2d5a8a]" />
       <CardHeader>
         <CardTitle>Sign In</CardTitle>
         <CardDescription>Use your organization credentials.</CardDescription>

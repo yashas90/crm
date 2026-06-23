@@ -70,7 +70,7 @@ function ActionIconButton({ icon, label, className, onClick, disabled }: ActionI
         onClick?.();
       }}
       className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-md text-white shadow-[2px_2px_0_0_#000] transition-opacity",
+        "flex h-8 w-8 items-center justify-center rounded-md text-white shadow-sm transition-opacity",
         className,
         disabled ? "cursor-not-allowed opacity-45" : "hover:opacity-90",
       )}
@@ -94,7 +94,7 @@ function LeadsTableBodySkeleton({
       {Array.from({ length: rows }, (_, rowIndex) => (
         <TableRow
           key={`lead-skeleton-${rowIndex}`}
-          className={rowIndex % 2 === 1 ? "bg-muted/15" : "bg-background"}
+          className={rowIndex % 2 === 1 ? "bg-slate-50/60" : "bg-white"}
         >
           {Array.from({ length: colCount }, (__, cellIndex) => (
             <TableCell key={`lead-skeleton-${rowIndex}-${cellIndex}`}>

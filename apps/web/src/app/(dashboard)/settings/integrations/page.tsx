@@ -86,7 +86,8 @@ export default function IntegrationsSettingsPage() {
         <p className="text-sm text-destructive">Unable to load integration status.</p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="">
+          <Card className="overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-blue-500 to-blue-600" />
             <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
               <div className="space-y-1">
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -149,7 +150,8 @@ export default function IntegrationsSettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="">
+          <Card className="overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-emerald-500 to-emerald-600" />
             <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
               <div className="space-y-1">
                 <CardTitle className="flex items-center gap-2 text-base">

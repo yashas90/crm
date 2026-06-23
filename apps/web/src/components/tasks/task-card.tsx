@@ -37,8 +37,9 @@ function formatDue(dueAt: string | null) {
   const d = new Date(dueAt);
   const now = new Date();
   const overdue = d < now;
+  const today = !overdue && d.toDateString() === now.toDateString();
   const str = d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
-  return { str, overdue };
+  return { str, overdue, today };
 }
 
 export function TaskCard({
@@ -68,8 +69,10 @@ export function TaskCard({
     <div
       className={cn(
         "group flex items-start gap-3 rounded-xl border p-3 transition-all duration-200",
-        selected ? "border-primary bg-primary/5" : "border-black bg-card",
-        isDone ? "opacity-60" : "hover:border-border hover:shadow-[2px_2px_0_0_#000]",
+        selected
+          ? "border-[#204060]/40 bg-[#204060]/5"
+          : "border-slate-200 bg-white dark:border-white/10 dark:bg-white/5",
+        isDone ? "opacity-60" : "hover:border-slate-300 hover:shadow-md hover:-translate-y-px",
         compact && "p-2",
       )}
     >
@@ -126,10 +129,11 @@ export function TaskCard({
               className={cn(
                 "flex items-center gap-1",
                 due.overdue && !isDone && "font-semibold text-rose-600",
+                due.today && !isDone && "font-semibold text-amber-600",
               )}
             >
               <CalendarClock className="h-3 w-3" />
-              {due.overdue && !isDone ? "Overdue · " : ""}
+              {due.overdue && !isDone ? "Overdue · " : due.today && !isDone ? "Today · " : ""}
               {due.str}
             </span>
           ) : null}

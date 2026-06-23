@@ -82,12 +82,8 @@ export function LineAreaChart({
                   </g>
                 );
               })}
-              {areaPath ? (
-                <path d={areaPath} fill="hsl(var(--primary) / 0.15)" stroke="none" />
-              ) : null}
-              {linePath ? (
-                <path d={linePath} fill="none" stroke="hsl(var(--primary))" strokeWidth={2} />
-              ) : null}
+              {areaPath ? <path d={areaPath} fill="rgba(32,64,96,0.12)" stroke="none" /> : null}
+              {linePath ? <path d={linePath} fill="none" stroke="#204060" strokeWidth={2} /> : null}
               {coords.map((point) => {
                 const selected = selectedLabel === point.label;
                 return (
@@ -108,7 +104,7 @@ export function LineAreaChart({
                       cx={point.x}
                       cy={point.y}
                       r={selected ? 7 : 5}
-                      fill={selected ? "hsl(var(--primary))" : "hsl(var(--primary) / 0.8)"}
+                      fill={selected ? "#204060" : "rgba(32,64,96,0.8)"}
                       stroke={selected ? "hsl(var(--foreground))" : "none"}
                       strokeWidth={2}
                     />

@@ -5,7 +5,7 @@ import { apiPatch } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
 import { cn } from "@propninja/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Flame, Phone, User } from "lucide-react";
+import { CalendarClock, Flame, Phone, Snowflake, Sun, User } from "lucide-react";
 import Link from "next/link";
 
 const STAGES = [
@@ -25,7 +25,11 @@ const STAGES = [
   { key: "lost", label: "Lost", color: "bg-rose-50 border-rose-200 dark:bg-rose-900/20" },
 ] as const;
 
-const TEMP_ICONS: Record<string, string> = { hot: "🔥", warm: "☀️", cold: "❄️" };
+const TEMP_ICONS: Record<string, { icon: typeof Flame; className: string }> = {
+  hot: { icon: Flame, className: "text-rose-500" },
+  warm: { icon: Sun, className: "text-amber-500" },
+  cold: { icon: Snowflake, className: "text-sky-400" },
+};
 
 function LeadCard({
   lead,
@@ -37,7 +41,7 @@ function LeadCard({
   const isOverdue = lead.nextFollowupAt ? new Date(lead.nextFollowupAt) < new Date() : false;
 
   return (
-    <div className="group border-2 border-black bg-card p-3 shadow-[2px_2px_0_0_#000] transition-all hover:border-border hover:shadow-md">
+    <div className="group rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:-translate-y-px hover:shadow-md dark:border-white/10 dark:bg-white/5">
       <div className="flex items-start justify-between gap-2">
         <Link
           href={`/leads/${lead.id}`}
@@ -45,11 +49,17 @@ function LeadCard({
         >
           {lead.firstName} {lead.lastName}
         </Link>
-        {lead.temperature ? (
-          <span className="shrink-0 text-base" title={lead.temperature}>
-            {TEMP_ICONS[lead.temperature] ?? ""}
-          </span>
-        ) : null}
+        {lead.temperature && TEMP_ICONS[lead.temperature]
+          ? (() => {
+              const { icon: TempIcon, className } = TEMP_ICONS[lead.temperature]!;
+              return (
+                <TempIcon
+                  className={cn("h-3.5 w-3.5 shrink-0", className)}
+                  title={lead.temperature}
+                />
+              );
+            })()
+          : null}
       </div>
 
       {lead.phone ? (

@@ -63,7 +63,7 @@ function ActionIconButton({ icon, label, className, onClick, disabled }: ActionI
         onClick?.();
       }}
       className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-md text-white shadow-[2px_2px_0_0_#000] transition-opacity",
+        "flex h-8 w-8 items-center justify-center rounded-md text-white shadow-sm transition-opacity",
         className,
         disabled ? "cursor-not-allowed opacity-45" : "hover:opacity-90",
       )}
@@ -132,10 +132,10 @@ const ProjectTableRow = memo(function ProjectTableRow({
   return (
     <TableRow
       className={cn(
-        "border-b transition-colors",
-        index % 2 === 1 ? "bg-muted/15" : "bg-background",
-        "hover:bg-primary/5",
-        isSelected && "bg-primary/10",
+        "cursor-pointer border-b transition-all duration-150",
+        index % 2 === 1 ? "bg-slate-50/60" : "bg-white",
+        "hover:bg-[#204060]/5 hover:shadow-sm",
+        isSelected && "bg-[#204060]/10",
       )}
     >
       <TableCell>

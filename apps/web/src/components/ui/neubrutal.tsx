@@ -30,7 +30,7 @@ export const NeuButton = forwardRef<HTMLButtonElement, NeuButtonProps>(
       default:
         "border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15",
       primary:
-        "bg-[#204060] text-white shadow-sm hover:bg-[#1a3550] dark:bg-red-600 dark:hover:bg-red-700",
+        "bg-[#204060] text-white shadow-sm hover:bg-[#1a3550] dark:bg-[#204060] dark:hover:bg-[#1a3550]",
       hot: "bg-[#C02020] text-white shadow-sm hover:bg-[#9a1818] dark:bg-red-600 dark:hover:bg-red-700",
     };
 
@@ -60,9 +60,7 @@ export function NeuSectionHeading({
 }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <h2 className="text-lg font-semibold text-slate-900 md:text-xl dark:text-[var(--gold)] dark:font-serif">
-        {title}
-      </h2>
+      <h2 className="text-lg font-semibold text-slate-900 md:text-xl dark:text-white">{title}</h2>
       <div className="h-px flex-grow bg-slate-200 dark:bg-white/10" />
     </div>
   );
@@ -140,7 +138,7 @@ export function PageHeader({
   return (
     <header className={cn("mb-8 flex flex-wrap items-end justify-between gap-4", className)}>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl dark:text-white dark:font-serif dark:text-[var(--gold)]">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl dark:text-white">
           {title}
         </h1>
         {description ? (

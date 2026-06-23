@@ -89,17 +89,33 @@ export default function AuditLogPage() {
               </TableHeader>
               <TableBody>
                 {auditQuery.data.items.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="whitespace-nowrap text-sm">
+                  <TableRow key={row.id} className="transition-colors hover:bg-[#204060]/5">
+                    <TableCell className="whitespace-nowrap text-xs text-slate-500">
                       {new Date(row.createdAt).toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-sm">
-                      <div className="font-medium">{row.userName}</div>
-                      <div className="text-xs text-muted-foreground">{row.userEmail}</div>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#204060] to-[#2d5a8a] text-[10px] font-bold text-white">
+                          {row.userName
+                            .split(" ")
+                            .map((p: string) => p[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">{row.userName}</div>
+                          <div className="text-xs text-muted-foreground">{row.userEmail}</div>
+                        </div>
+                      </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{row.action}</TableCell>
+                    <TableCell>
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                        {row.action}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-sm">
-                      <div>{row.entityType}</div>
+                      <div className="font-medium">{row.entityType}</div>
                       <div className="font-mono text-xs text-muted-foreground">{row.entityId}</div>
                     </TableCell>
                     <TableCell className="max-w-xs truncate font-mono text-xs text-muted-foreground">
