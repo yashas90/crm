@@ -9,8 +9,9 @@ export function NeuCard({ className, hover = true, ...props }: NeuCardProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200 dark:border-white/10 dark:bg-white/5 dark:backdrop-blur-md dark:shadow-none",
-        hover && "hover:shadow-md",
+        "rounded-xl border border-slate-200/80 bg-white shadow-sm transition-all duration-200 dark:border-white/10 dark:bg-white/5 dark:backdrop-blur-md dark:shadow-none",
+        hover &&
+          "hover:-translate-y-0.5 hover:shadow-md hover:border-slate-300/80 dark:hover:border-white/20",
         className,
       )}
       {...props}

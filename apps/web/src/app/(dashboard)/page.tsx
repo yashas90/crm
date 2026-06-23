@@ -17,46 +17,70 @@ import { CalendarClock, Flame, Phone, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useMemo } from "react";
 
+const STAT_VARIANTS = {
+  default: {
+    iconBg: "bg-[#204060]/10 text-[#204060]",
+    accent: "from-[#204060]/15 via-[#204060]/5 to-transparent",
+    bar: "bg-[#204060]",
+  },
+  hot: {
+    iconBg: "bg-rose-500/10 text-rose-600",
+    accent: "from-rose-500/15 via-rose-500/5 to-transparent",
+    bar: "bg-rose-500",
+  },
+  followup: {
+    iconBg: "bg-amber-500/10 text-amber-600",
+    accent: "from-amber-500/15 via-amber-500/5 to-transparent",
+    bar: "bg-amber-500",
+  },
+};
+
 function StatCard({
   label,
   value,
   loading,
   variant = "default",
   icon: Icon,
+  animClass,
 }: {
   label: string;
   value: string | number;
   loading?: boolean;
   variant?: "default" | "hot" | "followup";
   icon: typeof Users;
+  animClass?: string;
 }) {
-  const iconBg =
-    variant === "hot"
-      ? "bg-rose-500/15 text-rose-600"
-      : variant === "followup"
-        ? "bg-amber-500/15 text-amber-600"
-        : "bg-[#204060]/10 text-[#204060]";
+  const styles = STAT_VARIANTS[variant];
 
   return (
-    <NeuCard className="overflow-hidden p-0">
-      <div className="flex items-start gap-4 p-5">
+    <NeuCard className={cn("overflow-hidden p-0", animClass)}>
+      <div className={cn("h-1 w-full", styles.bar)} />
+      <div className="relative p-5">
         <div
           className={cn(
-            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-            iconBg,
+            "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-60",
+            styles.accent,
           )}
-        >
-          <Icon className="h-6 w-6" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          {loading ? (
-            <Skeleton className="mt-2 h-9 w-16" />
-          ) : (
-            <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
-              {typeof value === "number" ? value.toLocaleString() : value}
-            </p>
-          )}
+        />
+        <div className="relative flex items-start gap-4">
+          <div
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+              styles.iconBg,
+            )}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+            {loading ? (
+              <Skeleton className="mt-2 h-8 w-16" />
+            ) : (
+              <p className="mt-0.5 text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                {typeof value === "number" ? value.toLocaleString() : value}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </NeuCard>
@@ -85,8 +109,10 @@ function AgentDashboard() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">My Dashboard</h1>
+      <header className="animate-fade-up">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl dark:text-white">
+          My Dashboard
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
           Track leads, follow-ups, and calls — all in one place.
         </p>
@@ -110,6 +136,7 @@ function AgentDashboard() {
                   value={myLeads.data?.total ?? 0}
                   loading={myLeads.isLoading}
                   icon={Users}
+                  animClass="animate-fade-up-1"
                 />
                 <StatCard
                   label="Hot Leads"
@@ -117,6 +144,7 @@ function AgentDashboard() {
                   loading={myLeads.isLoading}
                   variant="hot"
                   icon={Flame}
+                  animClass="animate-fade-up-2"
                 />
                 <StatCard
                   label="Follow-ups Due"
@@ -124,6 +152,7 @@ function AgentDashboard() {
                   loading={myLeads.isLoading}
                   variant="followup"
                   icon={CalendarClock}
+                  animClass="animate-fade-up-3"
                 />
               </section>
 
