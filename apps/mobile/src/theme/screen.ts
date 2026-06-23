@@ -1,5 +1,5 @@
 import { colors, shadows, spacing, typography } from "@/theme";
-import { neuCard, neuSticky } from "@/theme/neubrutal";
+import { proCard, proSticky } from "@/theme/neubrutal";
 import { StyleSheet } from "react-native";
 
 export const screenStyles = StyleSheet.create({
@@ -10,28 +10,27 @@ export const screenStyles = StyleSheet.create({
   sectionTitle: {
     ...typography.subheading,
     color: colors.text,
-    fontSize: 14,
+    fontSize: 15,
     marginBottom: spacing.sm,
     marginTop: spacing.md,
   },
   statCard: {
     flex: 1,
     alignItems: "center",
-    padding: spacing.sm,
-    ...neuCard,
+    padding: spacing.md,
+    ...proCard,
   },
   statValue: {
     color: colors.primary,
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 24,
+    fontWeight: "700",
   },
   statLabel: {
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: 11,
     marginTop: 4,
     textAlign: "center",
-    fontWeight: "700",
-    textTransform: "uppercase",
+    fontWeight: "500",
   },
   listRow: {
     flexDirection: "row",
@@ -39,12 +38,12 @@ export const screenStyles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    ...neuCard,
+    ...proCard,
   },
   profileHeader: {
     alignItems: "center",
     paddingVertical: spacing.lg,
     marginBottom: spacing.md,
-    ...neuSticky,
+    ...proSticky,
   },
 });

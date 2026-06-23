@@ -18,7 +18,7 @@ const labelColors: Record<ButtonVariant, string> = {
   primary: "#ffffff",
   secondary: colors.text,
   danger: "#ffffff",
-  ghost: colors.text,
+  ghost: colors.primary,
 };
 
 export function Button({
@@ -59,24 +59,23 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: radii.pill,
-    borderWidth: 2,
-    borderColor: colors.border,
+    borderRadius: radii.sm,
     paddingVertical: 14,
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 48,
-    ...shadows.neuSm,
+    ...shadows.cardSm,
   },
-  primary: { backgroundColor: colors.hot },
-  secondary: { backgroundColor: colors.card },
+  primary: { backgroundColor: colors.primary },
+  secondary: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   danger: { backgroundColor: colors.danger },
-  ghost: { backgroundColor: colors.sticky },
-  pressed: {
-    transform: [{ translateX: 1 }, { translateY: 1 }],
-    shadowOffset: { width: 1, height: 1 },
-  },
+  ghost: { backgroundColor: "transparent", shadowOpacity: 0, elevation: 0 },
+  pressed: { opacity: 0.92 },
   disabled: { opacity: 0.5 },
-  label: { fontSize: 15, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  label: { fontSize: 15, fontWeight: "600" },
 });

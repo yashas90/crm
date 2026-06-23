@@ -1,18 +1,18 @@
 export const colors = {
   primary: "#204060",
-  primaryLight: "#204060",
+  primaryLight: "#2d5a87",
   primaryDark: "#1a3550",
   accent: "#C02020",
-  background: "#FFFBF2",
-  backgroundDark: "#FFFBF2",
+  background: "#F4F7FB",
+  backgroundDark: "#F4F7FB",
   card: "#ffffff",
   cardDark: "#ffffff",
-  text: "#000000",
-  textMuted: "#525252",
-  textDark: "#000000",
-  textMutedDark: "#525252",
-  border: "#000000",
-  borderDark: "#000000",
+  text: "#0f172a",
+  textMuted: "#64748b",
+  textDark: "#0f172a",
+  textMutedDark: "#64748b",
+  border: "#e2e8f0",
+  borderDark: "#e2e8f0",
   sticky: "#FEF08A",
   hot: "#C02020",
   success: "#16a34a",
@@ -22,19 +22,17 @@ export const colors = {
 
 export const typography = {
   heading: {
-    fontSize: 26,
-    fontWeight: "800" as const,
-    textTransform: "uppercase" as const,
-    letterSpacing: -0.5,
+    fontSize: 22,
+    fontWeight: "700" as const,
+    letterSpacing: -0.3,
   },
   subheading: {
-    fontSize: 18,
-    fontWeight: "700" as const,
-    textTransform: "uppercase" as const,
-    letterSpacing: 0.5,
+    fontSize: 16,
+    fontWeight: "600" as const,
+    letterSpacing: 0,
   },
   body: { fontSize: 15, fontWeight: "400" as const },
-  caption: { fontSize: 13, fontWeight: "600" as const },
+  caption: { fontSize: 13, fontWeight: "500" as const },
 };
 
 export const spacing = {
@@ -46,36 +44,43 @@ export const spacing = {
 };
 
 export const radii = {
-  sm: 4,
-  md: 8,
-  lg: 12,
+  sm: 8,
+  md: 12,
+  lg: 16,
   pill: 999,
 };
 
 export const shadows = {
-  neu: {
-    shadowColor: "#204060",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
-  },
-  neuSm: {
-    shadowColor: "#204060",
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+  card: {
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     elevation: 2,
+  },
+  cardSm: {
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  /** @deprecated use card */
+  get neu() {
+    return shadows.card;
+  },
+  /** @deprecated use cardSm */
+  get neuSm() {
+    return shadows.cardSm;
   },
 };
 
 export const navigationTheme = {
-  headerStyle: { backgroundColor: colors.background },
+  headerStyle: { backgroundColor: colors.card },
   headerTintColor: colors.text,
   headerTitleStyle: {
-    fontWeight: "800" as const,
-    textTransform: "uppercase" as const,
-    letterSpacing: 0.5,
+    fontWeight: "600" as const,
   },
+  headerShadowVisible: false,
   contentStyle: { backgroundColor: colors.background },
 };

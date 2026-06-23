@@ -26,11 +26,9 @@ export function TextField({ label, hint, style, inputTestID, ...props }: TextFie
 const styles = StyleSheet.create({
   wrap: { marginBottom: spacing.sm },
   label: {
-    color: colors.text,
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "600",
     marginBottom: 6,
   },
   input: {

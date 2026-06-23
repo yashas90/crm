@@ -19,15 +19,15 @@ const styles = StyleSheet.create({
   badge: {
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
     backgroundColor: colors.card,
   },
   text: {
     color: colors.text,
-    fontSize: 10,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
 });

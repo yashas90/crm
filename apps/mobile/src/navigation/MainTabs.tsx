@@ -51,11 +51,11 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           position: "absolute",
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          borderTopWidth: 2,
-          elevation: 0,
-          shadowColor: "#000",
-          shadowOpacity: 1,
-          shadowRadius: 0,
+          borderTopWidth: 1,
+          elevation: 8,
+          shadowColor: "#0f172a",
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
           shadowOffset: { width: 0, height: -4 },
           height: tabBarHeight,
           paddingBottom: Math.max(insets.bottom, 8),
@@ -63,7 +63,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "800", textTransform: "uppercase" },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}
     >
       <Tab.Screen
