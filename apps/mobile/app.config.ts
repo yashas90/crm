@@ -15,13 +15,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "PropNinja CRM for real estate agents — manage leads, follow-ups, and log SIM calls from your phone.",
   orientation: "portrait",
   scheme: "propninja",
-  userInterfaceStyle: "automatic",
-  newArchEnabled: true,
+  userInterfaceStyle: "light",
+  newArchEnabled: false,
   icon: "./assets/icon.png",
   splash: {
     image: "./assets/splash-icon.png",
     resizeMode: "contain",
-    backgroundColor: "#0f172a",
+    backgroundColor: "#FFFBF2",
   },
   ios: {
     supportsTablet: true,
@@ -39,7 +39,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: BUNDLE_ID,
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
-      backgroundColor: "#0f172a",
+      backgroundColor: "#204060",
     },
     permissions: [
       "INTERNET",
@@ -54,7 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-notifications",
       {
-        color: "#14b8a6",
+        color: "#204060",
         defaultChannel: "default",
         enableBackgroundRemoteNotifications: false,
       },
