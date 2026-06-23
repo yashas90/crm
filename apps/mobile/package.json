@@ -16,6 +16,9 @@
     "eas:build:android": "pnpm dlx eas-cli build --platform android --profile production",
     "eas:build:ios": "pnpm dlx eas-cli build --platform ios --profile production",
     "eas:build:preview:android": "pnpm dlx eas-cli build --platform android --profile preview",
+    "android:prebuild": "pnpm exec expo prebuild --platform android --no-install && node scripts/patch-android-for-monorepo.mjs",
+    "android:assemble:debug": "node scripts/patch-android-for-monorepo.mjs && cd android && gradlew.bat assembleDebug",
+    "android:assemble:release": "node scripts/patch-android-for-monorepo.mjs && cd android && gradlew.bat assembleRelease",
     "eas:submit:android": "pnpm dlx eas-cli submit --platform android --profile production --latest",
     "eas:submit:ios": "pnpm dlx eas-cli submit --platform ios --profile production --latest",
     "eas-build-pre-install": "corepack enable"
