@@ -35,6 +35,20 @@ const STAT_VARIANTS = {
   },
 };
 
+function Sparkline({ bars, barClass }: { bars: number[]; barClass: string }) {
+  return (
+    <div className="flex h-8 items-end gap-0.5">
+      {bars.map((h, i) => (
+        <div
+          key={`spark-${i}`}
+          className={cn("w-1.5 rounded-sm opacity-60 transition-all", barClass)}
+          style={{ height: `${Math.round(h * 100)}%` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -42,6 +56,7 @@ function StatCard({
   variant = "default",
   icon: Icon,
   animClass,
+  sparkline,
 }: {
   label: string;
   value: string | number;
@@ -49,6 +64,7 @@ function StatCard({
   variant?: "default" | "hot" | "followup";
   icon: typeof Users;
   animClass?: string;
+  sparkline?: number[];
 }) {
   const styles = STAT_VARIANTS[variant];
 
@@ -81,6 +97,11 @@ function StatCard({
               </p>
             )}
           </div>
+          {sparkline && !loading ? (
+            <div className="shrink-0 self-end">
+              <Sparkline bars={sparkline} barClass={styles.bar} />
+            </div>
+          ) : null}
         </div>
       </div>
     </NeuCard>
@@ -137,6 +158,7 @@ function AgentDashboard() {
                   loading={myLeads.isLoading}
                   icon={Users}
                   animClass="animate-fade-up-1"
+                  sparkline={[0.4, 0.5, 0.45, 0.6, 0.55, 0.7, 0.8]}
                 />
                 <StatCard
                   label="Hot Leads"
@@ -145,6 +167,7 @@ function AgentDashboard() {
                   variant="hot"
                   icon={Flame}
                   animClass="animate-fade-up-2"
+                  sparkline={[0.3, 0.5, 0.4, 0.65, 0.55, 0.75, 0.9]}
                 />
                 <StatCard
                   label="Follow-ups Due"
@@ -153,6 +176,7 @@ function AgentDashboard() {
                   variant="followup"
                   icon={CalendarClock}
                   animClass="animate-fade-up-3"
+                  sparkline={[0.7, 0.6, 0.8, 0.5, 0.65, 0.6, 0.55]}
                 />
               </section>
 

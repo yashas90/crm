@@ -84,11 +84,11 @@ export function LeadsFilterBar({
       )}
     >
       <div className="relative min-w-0 flex-1">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input
           id={searchId}
-          className="h-10 rounded-lg pl-9"
-          placeholder="Search leads — press /"
+          className="h-10 rounded-full border-slate-200 bg-white pl-10 pr-16 shadow-sm transition-shadow focus-visible:border-[#204060]/40 focus-visible:ring-2 focus-visible:ring-[#204060]/20 dark:bg-slate-900"
+          placeholder="Search leads…"
           value={searchDraft}
           onChange={(event) => onSearchDraftChange(event.target.value)}
           onKeyDown={(event) => {
@@ -98,6 +98,9 @@ export function LeadsFilterBar({
             }
           }}
         />
+        <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden select-none items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 sm:flex dark:border-white/10 dark:bg-white/5">
+          /
+        </kbd>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

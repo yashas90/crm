@@ -134,10 +134,10 @@ const LeadsTableRow = memo(function LeadsTableRow({
   return (
     <TableRow
       className={cn(
-        "cursor-pointer border-b transition-colors",
-        index % 2 === 1 ? "bg-muted/15" : "bg-background",
-        "hover:bg-primary/5",
-        isSelected && "bg-primary/10",
+        "cursor-pointer border-b transition-all duration-150",
+        index % 2 === 1 ? "bg-slate-50/60" : "bg-white",
+        "hover:bg-[#204060]/5 hover:shadow-sm",
+        isSelected && "bg-[#204060]/10",
       )}
       onClick={() => onView(lead.id)}
     >
@@ -153,13 +153,23 @@ const LeadsTableRow = memo(function LeadsTableRow({
 
       {columnsToShow.name ? (
         <TableCell>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{fullName}</span>
-            {lead.leadStatus === "new" ? (
-              <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
-                New
-              </span>
-            ) : null}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#204060] to-[#2d5a8a] text-[11px] font-bold text-white shadow-sm">
+              {fullName
+                .split(" ")
+                .map((p) => p[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase()}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-medium text-slate-800 dark:text-white">{fullName}</span>
+              {lead.leadStatus === "new" ? (
+                <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                  New
+                </span>
+              ) : null}
+            </div>
           </div>
         </TableCell>
       ) : null}
