@@ -3,6 +3,7 @@
 import { NeuButton, NeuCard, NeuStickyNote } from "@/components/ui/neubrutal";
 import type { FollowupReminderType, UpcomingFollowup } from "@/hooks/use-upcoming-followups";
 import { useUpcomingFollowups } from "@/hooks/use-upcoming-followups";
+import { IST_TIMEZONE, getIstDateKey } from "@propninja/types/ist";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
 import { BellRing, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
@@ -15,31 +16,28 @@ const TYPE_LABELS: Record<FollowupReminderType, string> = {
   site_visit: "Site visit",
 };
 
-function toLocalDateKey(iso: string) {
-  const date = new Date(iso);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-IN", {
+    timeZone: IST_TIMEZONE,
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function formatDayLabel(dateKey: string) {
-  const date = new Date(`${dateKey}T12:00:00`);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const todayKey = toLocalDateKey(today.toISOString());
-  const tomorrowKey = toLocalDateKey(tomorrow.toISOString());
+  const date = new Date(`${dateKey}T12:00:00+05:30`);
+  const todayKey = getIstDateKey();
+  const tomorrowKey = getIstDateKey(new Date(Date.now() + 86_400_000));
 
   if (dateKey === todayKey) return "Today";
   if (dateKey === tomorrowKey) return "Tomorrow";
 
-  return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-IN", {
+    timeZone: IST_TIMEZONE,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function dueLabel(iso: string) {
@@ -72,7 +70,7 @@ function buildMonthGrid(year: number, month: number) {
 function groupByDate(items: UpcomingFollowup[]) {
   const map = new Map<string, UpcomingFollowup[]>();
   for (const item of items) {
-    const key = toLocalDateKey(item.nextFollowupAt);
+    const key = getIstDateKey(item.nextFollowupAt);
     const list = map.get(key) ?? [];
     list.push(item);
     map.set(key, list);
@@ -133,7 +131,7 @@ export function RemindersPanel({
     return [...items].sort((a, b) => a.nextFollowupAt.localeCompare(b.nextFollowupAt)).slice(0, 5);
   }, [followups.data]);
 
-  const todayKey = toLocalDateKey(now.toISOString());
+  const todayKey = getIstDateKey(now);
 
   const calendarContent = (
     <>

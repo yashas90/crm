@@ -1,13 +1,7 @@
-export function todayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
+import { formatDateTimeIst, todayRangeIst } from "@propninja/types/ist";
 
-  return {
-    dateFrom: start.toISOString(),
-    dateTo: end.toISOString(),
-  };
+export function todayRange() {
+  return todayRangeIst();
 }
 
 export function formatDuration(seconds: number) {
@@ -31,7 +25,5 @@ export function formatRelativeTime(value: string | null | undefined) {
 }
 
 export function formatDateTime(value: string | null | undefined) {
-  if (!value) return "—";
-  const date = new Date(value);
-  return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  return formatDateTimeIst(value);
 }

@@ -5,6 +5,7 @@ import {
   siteVisitToMobileCalendarInput,
 } from "@/lib/addVisitToCalendar";
 import { colors, radii, spacing, typography } from "@/theme";
+import { getIstDateKey } from "@propninja/types/ist";
 import { useState } from "react";
 import {
   Alert,
@@ -37,7 +38,7 @@ export function ScheduleVisitSheet({
   onScheduled,
 }: ScheduleVisitSheetProps) {
   const createVisit = useCreateSiteVisit();
-  const [visitDate, setVisitDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [visitDate, setVisitDate] = useState(() => getIstDateKey());
   const [visitTime, setVisitTime] = useState("10:00");
   const [duration, setDuration] = useState("60");
   const [notes, setNotes] = useState("");
@@ -47,7 +48,7 @@ export function ScheduleVisitSheet({
   const [addingToCalendar, setAddingToCalendar] = useState(false);
 
   function resetForm() {
-    setVisitDate(new Date().toISOString().slice(0, 10));
+    setVisitDate(getIstDateKey());
     setVisitTime("10:00");
     setDuration("60");
     setNotes("");

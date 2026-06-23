@@ -1,16 +1,14 @@
 import { colors, radii, spacing } from "@/theme";
+import { followUpAtIstDaysFromNow, formatDateTimeIst } from "@propninja/types/ist";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 export function followUpDaysFromNow(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  date.setHours(9, 0, 0, 0);
-  return date.toISOString();
+  return followUpAtIstDaysFromNow(days);
 }
 
 export function formatFollowUpLabel(iso: string | null): string {
   if (!iso) return "Not set";
-  return new Date(iso).toLocaleString([], {
+  return formatDateTimeIst(iso, {
     weekday: "short",
     month: "short",
     day: "numeric",

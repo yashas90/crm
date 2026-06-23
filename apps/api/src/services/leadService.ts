@@ -1,4 +1,5 @@
 import { callRecords, leadActivities, leads, projects, users } from "@propninja/db";
+import { getIstDayBounds } from "@propninja/types/ist";
 import {
   and,
   asc,
@@ -16,7 +17,6 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import { getIstDayBounds } from "@propninja/types/ist";
 import { adLeadsOnlyFilter } from "../lib/adLeadFilters.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";

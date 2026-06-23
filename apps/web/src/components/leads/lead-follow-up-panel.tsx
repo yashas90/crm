@@ -2,6 +2,11 @@
 
 import { useLeadFollowUpHistory, useUpdateLeadFollowUp } from "@/hooks/use-follow-ups";
 import { formatRelativeTime } from "@/lib/relative-time";
+import {
+  formatDateTimeIst,
+  parseDatetimeLocalAsIst,
+  toDatetimeLocalIst,
+} from "@propninja/types/ist";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
@@ -14,13 +19,6 @@ type LeadFollowUpPanelProps = {
   followUpCount?: number;
 };
 
-function toDatetimeLocal(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 export function LeadFollowUpPanel({
   leadId,
   lastContactedAt,
@@ -29,12 +27,12 @@ export function LeadFollowUpPanel({
 }: LeadFollowUpPanelProps) {
   const updateFollowUp = useUpdateLeadFollowUp(leadId);
   const { data: history } = useLeadFollowUpHistory(leadId);
-  const [nextAt, setNextAt] = useState(toDatetimeLocal(nextFollowupAt));
+  const [nextAt, setNextAt] = useState(toDatetimeLocalIst(nextFollowupAt));
 
   async function saveFollowUp(markComplete: boolean) {
     if (!nextAt) return;
     await updateFollowUp.mutateAsync({
-      nextFollowupAt: new Date(nextAt).toISOString(),
+      nextFollowupAt: parseDatetimeLocalAsIst(nextAt),
       markComplete,
     });
   }
@@ -59,10 +57,7 @@ export function LeadFollowUpPanel({
           <p className="text-xs font-medium text-muted-foreground">Next follow-up</p>
           <p className="text-sm">
             {nextFollowupAt
-              ? new Date(nextFollowupAt).toLocaleString("en-IN", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })
+              ? formatDateTimeIst(nextFollowupAt, { dateStyle: "medium", timeStyle: "short" })
               : "Not set"}
           </p>
         </div>
@@ -98,10 +93,7 @@ export function LeadFollowUpPanel({
             {history.map((item) => (
               <li key={item.id} className="rounded-lg bg-muted/30 px-3 py-2">
                 <p className="font-medium">
-                  {new Date(item.createdAt).toLocaleString("en-IN", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
+                  {formatDateTimeIst(item.createdAt, { dateStyle: "medium", timeStyle: "short" })}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {item.userName ?? "Agent"}

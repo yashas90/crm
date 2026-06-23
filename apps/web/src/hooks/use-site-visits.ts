@@ -2,6 +2,7 @@
 
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
+import { formatVisitTimeIst } from "@propninja/types/ist";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type SiteVisitStatus = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -157,8 +158,5 @@ export function visitStatusColor(status: SiteVisitStatus) {
 }
 
 export function formatVisitTime(visitTime: string) {
-  const [h, m] = visitTime.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h ?? 0, m ?? 0, 0, 0);
-  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  return formatVisitTimeIst(visitTime);
 }

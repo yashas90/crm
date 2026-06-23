@@ -26,6 +26,13 @@ import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { neuCard, neuSticky } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  formatDateTimeIst,
+  getIstDayBounds,
+  getIstHourMinute,
+  isBeforeIstDayStart,
+  isSameIstCalendarDay,
+} from "@propninja/types/ist";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -41,7 +48,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function greeting() {
-  const hour = new Date().getHours();
+  const { hour } = getIstHourMinute();
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
@@ -55,33 +62,24 @@ function followUpLabel(nextFollowupAt: string | null) {
   if (!nextFollowupAt) return "No follow-up set";
   const date = new Date(nextFollowupAt);
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+  const { start: todayStart } = getIstDayBounds(0, now);
 
   if (date < todayStart) {
     const hours = Math.floor((todayStart.getTime() - date.getTime()) / 3_600_000);
     return hours < 24 ? `Overdue by ${hours}h` : `Overdue by ${Math.floor(hours / 24)}d`;
   }
 
-  return `Follow-up at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  return `Follow-up at ${formatDateTimeIst(nextFollowupAt, { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function isOverdue(nextFollowupAt: string | null) {
   if (!nextFollowupAt) return false;
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  return new Date(nextFollowupAt) < todayStart;
+  return isBeforeIstDayStart(nextFollowupAt);
 }
 
 function isPlannedToday(nextFollowupAt: string | null) {
   if (!nextFollowupAt) return false;
-  const date = new Date(nextFollowupAt);
-  const now = new Date();
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
+  return isSameIstCalendarDay(nextFollowupAt, new Date());
 }
 
 type Props = BottomTabScreenProps<MainTabParamList, "TodayTab">;

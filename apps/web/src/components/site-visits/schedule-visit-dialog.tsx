@@ -21,6 +21,7 @@ import {
   useCreateSiteVisit,
 } from "@/hooks/use-site-visits";
 import { useUsers } from "@/hooks/use-users";
+import { getIstDateKey } from "@propninja/types/ist";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
@@ -51,7 +52,7 @@ export function ScheduleVisitDialog({
   const [leadId, setLeadId] = useState(defaultLeadId ?? "");
   const [projectId, setProjectId] = useState("");
   const [agentId, setAgentId] = useState(defaultAgentId ?? session?.id ?? "");
-  const [visitDate, setVisitDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [visitDate, setVisitDate] = useState(() => getIstDateKey());
   const [visitTime, setVisitTime] = useState("10:00");
   const [duration, setDuration] = useState("60");
   const [notes, setNotes] = useState("");

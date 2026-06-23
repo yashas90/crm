@@ -1,3 +1,5 @@
+import { isFollowUpDueTodayIst } from "@propninja/types/ist";
+
 export const COLD_LEAD_DAYS = 7;
 export const FOLLOWUP_REMINDER_MINUTES = 30;
 
@@ -35,13 +37,7 @@ export function isFollowUpDueToday(
   nextFollowupAt: Date | string | null | undefined,
   now = new Date(),
 ) {
-  if (!nextFollowupAt) return false;
-  const date = new Date(nextFollowupAt);
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setHours(23, 59, 59, 999);
-  return date >= start && date <= end;
+  return isFollowUpDueTodayIst(nextFollowupAt ? String(nextFollowupAt) : null, now);
 }
 
 export function daysOverdue(nextFollowupAt: Date | string, now = new Date()): number {

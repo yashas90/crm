@@ -1,4 +1,5 @@
 import { leads, projects, siteVisits, users } from "@propninja/db";
+import { getIstDateKey } from "@propninja/types/ist";
 import { and, asc, count, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
@@ -219,7 +220,7 @@ export const siteVisitService = {
   },
 
   async listToday(agentId: string) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getIstDateKey();
     return this.list({
       agentId,
       date: today,
@@ -320,7 +321,7 @@ export const siteVisitService = {
   },
 
   async countToday(agentId?: string) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getIstDateKey();
     const conditions = [
       eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
       eq(siteVisits.visitDate, today),

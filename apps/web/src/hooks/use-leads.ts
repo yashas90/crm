@@ -3,6 +3,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import type { LeadScopeCounts } from "@/lib/leads-scope";
 import { toast } from "@/lib/toast";
+import { getIstDayBounds } from "@propninja/types/ist";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type LeadsListData = {
@@ -356,10 +357,7 @@ export function useLeadAssignments(leadId: string) {
 /** Build API query params for follow-up filter chips. */
 export function followUpQueryParams(filter: "" | "due_today" | "overdue" | "upcoming") {
   if (!filter) return {};
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
+  const { start, end } = getIstDayBounds(0);
 
   if (filter === "due_today") {
     return { followUpDueBefore: end.toISOString(), orderByFollowUp: "true" };
@@ -371,13 +369,12 @@ export function followUpQueryParams(filter: "" | "due_today" | "overdue" | "upco
     };
   }
   // Upcoming: fetch ordered queue for next 30 days; page filters to after today.
-  const horizon = new Date();
+  const horizon = new Date(end);
   horizon.setDate(horizon.getDate() + 30);
   return { followUpDueBefore: horizon.toISOString(), orderByFollowUp: "true" };
 }
 
 export function filterUpcomingLeads(items: LeadRow[]) {
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
+  const { end } = getIstDayBounds(0);
   return items.filter((lead) => lead.nextFollowupAt && new Date(lead.nextFollowupAt) > end);
 }

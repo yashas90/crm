@@ -1,3 +1,4 @@
+import { getIstDateKey } from "@propninja/types/ist";
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -114,7 +115,7 @@ siteVisitsRoutes.get("/calendar", async (c) => {
 siteVisitsRoutes.get("/today", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const queryAgentId = c.req.query("agentId");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getIstDateKey();
 
   if (authUser.role === "agent") {
     const data = await siteVisitService.listToday(authUser.id);

@@ -11,6 +11,7 @@ import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT } from "@/theme/layout";
+import { getIstDateKey, getIstWeekBounds } from "@propninja/types/ist";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -19,15 +20,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 type Props = BottomTabScreenProps<MainTabParamList, "VisitsTab">;
 
 function weekRange() {
-  const now = new Date();
-  const day = now.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const start = new Date(now);
-  start.setDate(now.getDate() + mondayOffset);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { dateFrom: fmt(start), dateTo: fmt(end) };
+  const { start, end } = getIstWeekBounds();
+  return { dateFrom: getIstDateKey(start), dateTo: getIstDateKey(end) };
 }
 
 export function SiteVisitsCalendarScreen(_props: Props) {
