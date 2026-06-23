@@ -24,6 +24,8 @@ export type LeadsUrlFilters = {
   datePreset: LeadsDatePreset;
   dateFrom?: string;
   dateTo?: string;
+  importBatchId: string;
+  importBatchLabel: string;
 };
 
 export const defaultLeadsUrlFilters = (): LeadsUrlFilters => ({
@@ -38,6 +40,8 @@ export const defaultLeadsUrlFilters = (): LeadsUrlFilters => ({
   activeOnly: false,
   followUpFilter: "",
   datePreset: "all",
+  importBatchId: "",
+  importBatchLabel: "",
 });
 
 /** Normalize comma-separated tag filter for URL/API (trim, dedupe order preserved). */
@@ -80,6 +84,8 @@ export function parseLeadsSearchParams(params: URLSearchParams): LeadsUrlFilters
     datePreset: inferDatePresetFromRange(dateFrom, dateTo),
     dateFrom,
     dateTo,
+    importBatchId: params.get("import_batch") ?? "",
+    importBatchLabel: params.get("import_batch_label") ?? "",
   };
 }
 
@@ -130,6 +136,13 @@ export function buildLeadsSearchParams(
     params.set("to", filters.dateTo);
   }
 
+  if (filters.importBatchId) {
+    params.set("import_batch", filters.importBatchId);
+    if (filters.importBatchLabel.trim()) {
+      params.set("import_batch_label", filters.importBatchLabel.trim());
+    }
+  }
+
   return params.toString();
 }
 
@@ -140,6 +153,7 @@ export function countAdvancedLeadsFilters(filters: LeadsUrlFilters) {
   if (filters.temperature) count += 1;
   if (filters.followUpFilter) count += 1;
   if (tagsFilterToApiParam(filters.tags)) count += 1;
+  if (filters.importBatchId) count += 1;
   return count;
 }
 
@@ -188,6 +202,7 @@ export function leadsSharedFiltersToQuery(filters: LeadsUrlFilters) {
         : undefined,
     adLeads: filters.adLeadsOnly ? ("true" as const) : undefined,
     tags: tagsFilterToApiParam(filters.tags),
+    importBatchId: filters.importBatchId || undefined,
     dateFrom: dateRange.dateFrom,
     dateTo: dateRange.dateTo,
   };
@@ -223,6 +238,7 @@ export function leadsBaseFiltersToQuery(
     duplicatesOnly: assignment.duplicatesOnly,
     excludeDuplicates: assignment.excludeDuplicates,
     naLeadsOnly: assignment.naLeadsOnly,
+    importBatchId: filters.importBatchId || undefined,
     dateFrom: dateRange.dateFrom,
     dateTo: dateRange.dateTo,
   };

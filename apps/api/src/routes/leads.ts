@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { notifyLeadAssigned } from "../lib/leadAssignmentNotifications.js";
+import { normalizeStoredPhone } from "../lib/leadPhone.js";
+import { listPaginationSchema } from "../lib/pagination.js";
 import {
   canAssignLead,
   canBulkUploadLeads,
@@ -10,8 +12,6 @@ import {
   forbiddenResponse,
 } from "../lib/permissions.js";
 import { validate } from "../lib/validate.js";
-import { normalizeStoredPhone } from "../lib/leadPhone.js";
-import { listPaginationSchema } from "../lib/pagination.js";
 import {
   type ListLeadsQuery,
   addNoteBodySchema,
@@ -128,6 +128,7 @@ leadsRoute.get("/scope-counts", async (c) => {
     {
       search: query.search,
       projectId: query.projectId,
+      importBatchId: query.importBatchId,
       temperature: query.temperature,
       source: query.source,
       adLeadsOnly: query.adLeads,
@@ -176,6 +177,7 @@ leadsRoute.get("/stage-counts", async (c) => {
     assignedTo,
     teamLeadsExcludingUser,
     projectId: query.projectId,
+    importBatchId: query.importBatchId,
     temperature: query.temperature,
     source: query.source,
     adLeadsOnly: query.adLeads,
@@ -224,6 +226,7 @@ leadsRoute.get("/", async (c) => {
     assignedTo,
     teamLeadsExcludingUser,
     projectId: query.projectId,
+    importBatchId: query.importBatchId,
     temperature: query.temperature,
     source: query.source,
     adLeadsOnly: query.adLeads,
@@ -273,23 +276,19 @@ leadsRoute.get("/hot", async (c) => {
   return c.json({ ok: true, data: { items, total: items.length } });
 });
 
-leadsRoute.get(
-  "/import-batches",
-  validate("query", listPaginationSchema),
-  async (c) => {
-    const authUser = c.get("authUser") as AuthUser;
-    if (!canBulkUploadLeads(authUser)) {
-      return c.json(forbiddenResponse(), 403);
-    }
+leadsRoute.get("/import-batches", validate("query", listPaginationSchema), async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  if (!canBulkUploadLeads(authUser)) {
+    return c.json(forbiddenResponse(), 403);
+  }
 
-    const query = c.req.valid("query");
-    const result = await leadImportService.listBatches({
-      page: query.page,
-      pageSize: query.pageSize,
-    });
-    return c.json({ ok: true, data: result });
-  },
-);
+  const query = c.req.valid("query");
+  const result = await leadImportService.listBatches({
+    page: query.page,
+    pageSize: query.pageSize,
+  });
+  return c.json({ ok: true, data: result });
+});
 
 leadsRoute.get("/import-batches/:id/report", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
@@ -300,7 +299,10 @@ leadsRoute.get("/import-batches/:id/report", async (c) => {
   const batchId = c.req.param("id");
   const report = await leadImportService.getBatchReportCsv(batchId);
   if (!report) {
-    return c.json({ ok: false, error: { code: "NOT_FOUND", message: "Import batch not found" } }, 404);
+    return c.json(
+      { ok: false, error: { code: "NOT_FOUND", message: "Import batch not found" } },
+      404,
+    );
   }
 
   return c.body(report.content, 200, {

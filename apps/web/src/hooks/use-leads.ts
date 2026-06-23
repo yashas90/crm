@@ -101,6 +101,7 @@ export type LeadsQueryParams = {
   source?: string;
   adLeads?: string;
   tags?: string;
+  importBatchId?: string;
   dateFrom?: string;
   dateTo?: string;
   unassigned?: string;
@@ -147,6 +148,7 @@ export function leadsListQueryKey(params: LeadsQueryParams) {
     params.source ?? null,
     params.adLeads ?? null,
     params.tags ?? null,
+    params.importBatchId ?? null,
     params.dateFrom ?? null,
     params.dateTo ?? null,
     params.unassigned ?? null,
@@ -176,6 +178,7 @@ function sharedCountsQueryKey(
     params.source ?? null,
     params.adLeads ?? null,
     params.tags ?? null,
+    params.importBatchId ?? null,
     params.dateFrom ?? null,
     params.dateTo ?? null,
     params.assignedTo ?? null,

@@ -12,6 +12,7 @@ export const listLeadsQuerySchema = z.object({
   pageSize: z.coerce.number().min(1).max(500).default(20),
   assignedTo: z.string().uuid().optional(),
   projectId: z.string().uuid().optional(),
+  importBatchId: z.string().uuid().optional(),
   temperature: temperatureSchema.optional(),
   source: z.string().optional(),
   dateFrom: z.string().datetime({ offset: true }).optional(),

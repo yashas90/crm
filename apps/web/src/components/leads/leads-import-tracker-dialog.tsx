@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -12,10 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  useDownloadLeadImportReport,
-  useLeadImportBatches,
-} from "@/hooks/use-bulk-leads";
+import { useDownloadLeadImportReport, useLeadImportBatches } from "@/hooks/use-bulk-leads";
 import { Button } from "@propninja/ui/button";
 import { cn } from "@propninja/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Download, RefreshCw } from "lucide-react";
@@ -24,6 +18,7 @@ import { useState } from "react";
 type LeadsImportTrackerDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onViewBatch?: (batch: { id: string; fileName: string | null; createdAt: string }) => void;
 };
 
 function formatUploadTime(iso: string) {
@@ -53,6 +48,7 @@ function statusClass(status: string) {
 export function LeadsImportTrackerDialog({
   open,
   onOpenChange,
+  onViewBatch,
 }: LeadsImportTrackerDialogProps) {
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -107,7 +103,7 @@ export function LeadsImportTrackerDialog({
                   <TableHead className="text-right">Dropped</TableHead>
                   <TableHead className="text-right">Not Interested</TableHead>
                   <TableHead>File Name</TableHead>
-                  <TableHead>Report</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -125,7 +121,9 @@ export function LeadsImportTrackerDialog({
                     <TableCell className="text-right tabular-nums">{batch.totalCount}</TableCell>
                     <TableCell className="text-right tabular-nums">{batch.uniqueCount}</TableCell>
                     <TableCell className="text-right tabular-nums">{batch.totalUploaded}</TableCell>
-                    <TableCell className="text-right tabular-nums">{batch.duplicateCount}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {batch.duplicateCount}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{batch.invalidCount}</TableCell>
                     <TableCell className="text-right tabular-nums">{batch.visitsBooked}</TableCell>
                     <TableCell className="text-right tabular-nums">{batch.hotCount}</TableCell>
@@ -138,26 +136,46 @@ export function LeadsImportTrackerDialog({
                       {batch.fileName ?? "—"}
                     </TableCell>
                     <TableCell>
-                      {batch.status === "completed" ? (
-                        <Button
-                          type="button"
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0"
-                          disabled={downloadReport.isPending}
-                          onClick={() =>
-                            void downloadReport.mutateAsync({
-                              batchId: batch.id,
-                              fileName: `${batch.fileName?.replace(/\.[^.]+$/, "") ?? "lead-import"}-report.csv`,
-                            })
-                          }
-                        >
-                          <Download className="mr-1 h-3.5 w-3.5" />
-                          Download
-                        </Button>
-                      ) : (
-                        "—"
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {onViewBatch ? (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            className="h-auto justify-start p-0"
+                            onClick={() => {
+                              onViewBatch({
+                                id: batch.id,
+                                fileName: batch.fileName,
+                                createdAt: batch.createdAt,
+                              });
+                              onOpenChange(false);
+                            }}
+                          >
+                            View leads
+                          </Button>
+                        ) : null}
+                        {batch.status === "completed" ? (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            className="h-auto justify-start p-0"
+                            disabled={downloadReport.isPending}
+                            onClick={() =>
+                              void downloadReport.mutateAsync({
+                                batchId: batch.id,
+                                fileName: `${batch.fileName?.replace(/\.[^.]+$/, "") ?? "lead-import"}-report.csv`,
+                              })
+                            }
+                          >
+                            <Download className="mr-1 inline h-3.5 w-3.5" />
+                            Download report
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

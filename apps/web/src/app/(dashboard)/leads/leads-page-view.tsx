@@ -276,8 +276,25 @@ export function LeadsPageView() {
 
       {filters.adLeadsOnly ||
       filters.source ||
+      filters.importBatchId ||
       (filters.datePreset !== "all" && filters.dateFrom) ? (
         <div className="flex flex-wrap gap-2 text-xs">
+          {filters.importBatchId ? (
+            <button
+              type="button"
+              className="rounded-full bg-indigo-500/10 px-2.5 py-1 font-medium text-indigo-800 dark:text-indigo-300"
+              onClick={() =>
+                setFilters((current) => ({
+                  ...current,
+                  importBatchId: "",
+                  importBatchLabel: "",
+                }))
+              }
+              title="Clear upload batch filter"
+            >
+              CSV upload: {filters.importBatchLabel || "selected batch"} ×
+            </button>
+          ) : null}
           {filters.adLeadsOnly ? (
             <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-800 dark:text-emerald-300">
               Ad Leads
@@ -384,7 +401,26 @@ export function LeadsPageView() {
         }}
       />
 
-      <LeadsImportTrackerDialog open={showImportTracker} onOpenChange={setShowImportTracker} />
+      <LeadsImportTrackerDialog
+        open={showImportTracker}
+        onOpenChange={setShowImportTracker}
+        onViewBatch={(batch) => {
+          setPage(1);
+          setScope("all");
+          setStage("active");
+          setFilters((current) => ({
+            ...current,
+            importBatchId: batch.id,
+            importBatchLabel:
+              batch.fileName ??
+              `Upload ${new Date(batch.createdAt).toLocaleString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}`,
+          }));
+        }}
+      />
     </div>
   );
 }

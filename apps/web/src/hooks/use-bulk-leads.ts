@@ -109,6 +109,15 @@ export function useLeadImportBatches(page: number, pageSize = 10) {
   });
 }
 
+export function useLeadImportBatchOptions(enabled = true) {
+  return useQuery({
+    queryKey: ["leads", "import-batches", "options"],
+    queryFn: () => fetchLeadImportBatches({ page: 1, pageSize: 100 }),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 export function useDownloadLeadImportReport() {
   return useMutation({
     mutationFn: ({ batchId, fileName }: { batchId: string; fileName: string }) =>

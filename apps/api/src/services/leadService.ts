@@ -1,4 +1,11 @@
-import { callRecords, leadActivities, leads, projects, users } from "@propninja/db";
+import {
+  callRecords,
+  leadActivities,
+  leadImportBatchItems,
+  leads,
+  projects,
+  users,
+} from "@propninja/db";
 import { getIstDayBounds } from "@propninja/types/ist";
 import {
   and,
@@ -48,6 +55,7 @@ export interface ListLeadsParams {
   pageSize?: number;
   assignedTo?: string;
   projectId?: string;
+  importBatchId?: string;
   temperature?: Temperature;
   source?: string;
   dateFrom?: string;
@@ -270,6 +278,17 @@ function buildListWhere(params: ListLeadsParams) {
 
   if (params.projectId) {
     whereClauses.push(eq(leads.projectId, params.projectId));
+  }
+
+  if (params.importBatchId) {
+    whereClauses.push(
+      sql`EXISTS (
+        SELECT 1 FROM ${leadImportBatchItems} libi
+        WHERE libi.lead_id = ${leads.id}
+          AND libi.batch_id = ${params.importBatchId}
+          AND libi.outcome IN ('created', 'updated')
+      )`,
+    );
   }
 
   if (params.temperature) {

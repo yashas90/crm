@@ -1,5 +1,7 @@
 "use client";
 
+import { useLeadImportBatchOptions } from "@/hooks/use-bulk-leads";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   AD_LEADS_FILTER_VALUE,
   AD_PLATFORM_SOURCE_OPTIONS,
@@ -47,6 +49,18 @@ const TEMP_CHIP: Record<string, string> = {
 const selectClass =
   "flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
+function formatBatchDate(iso?: string) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 type LeadsAdvancedFiltersSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +76,9 @@ export function LeadsAdvancedFiltersSheet({
   onApply,
   onStageChange,
 }: LeadsAdvancedFiltersSheetProps) {
+  const { canBulkUploadLeads } = usePermissions();
+  const importBatches = useLeadImportBatchOptions(open && canBulkUploadLeads);
+
   useEffect(() => {
     if (!open) return;
 
@@ -102,6 +119,8 @@ export function LeadsAdvancedFiltersSheet({
       followUpFilter: "",
       tags: "",
       activeOnly: false,
+      importBatchId: "",
+      importBatchLabel: "",
     });
     onStageChange("active");
   }
@@ -227,6 +246,42 @@ export function LeadsAdvancedFiltersSheet({
               ))}
             </div>
           </div>
+
+          {canBulkUploadLeads ? (
+            <div className="space-y-2">
+              <Label htmlFor="adv-import-batch">CSV upload batch</Label>
+              <select
+                id="adv-import-batch"
+                className={selectClass}
+                value={filters.importBatchId}
+                onChange={(event) => {
+                  const batchId = event.target.value;
+                  if (!batchId) {
+                    onApply({ ...filters, importBatchId: "", importBatchLabel: "" });
+                    return;
+                  }
+                  const batch = importBatches.data?.items.find((item) => item.id === batchId);
+                  const label = batch?.fileName ?? `Upload ${formatBatchDate(batch?.createdAt)}`;
+                  onApply({
+                    ...filters,
+                    importBatchId: batchId,
+                    importBatchLabel: label,
+                  });
+                }}
+              >
+                <option value="">All uploads</option>
+                {(importBatches.data?.items ?? []).map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {batch.fileName ?? "Untitled"} · {formatBatchDate(batch.createdAt)} ·{" "}
+                    {batch.totalUploaded} leads
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Show only leads created or updated from a specific CSV import.
+              </p>
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor="adv-tags">Tags</Label>
