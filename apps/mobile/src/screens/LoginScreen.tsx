@@ -46,7 +46,7 @@ export function LoginScreen() {
         >
           <View style={styles.brandBlock}>
             <Image
-              source={require("../../assets/logo.png")}
+              source={require("../../assets/logo.jpg")}
               style={styles.logo}
               contentFit="contain"
             />

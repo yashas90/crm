@@ -14,7 +14,8 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://crm-production-e81d.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://crm-production-e81d.up.railway.app",
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
       },
       "android": {
         "buildType": "apk"
@@ -24,7 +25,8 @@
       "autoIncrement": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://crm-production-e81d.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://crm-production-e81d.up.railway.app",
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
       },
       "android": {
         "buildType": "apk"
