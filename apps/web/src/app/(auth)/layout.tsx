@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-neu-cream p-6 transition-colors duration-300 dark:bg-[#0A0F1C]">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-[#F4F7FB] p-6 transition-colors duration-300 dark:bg-[#0A0F1C]">
       <div className="pointer-events-none absolute inset-0 hidden dark:block">
         <img
           src="https://images.unsplash.com/photo-1515703944563-dbcfbf121b3d?auto=format&w=1440&q=80&fit=crop"

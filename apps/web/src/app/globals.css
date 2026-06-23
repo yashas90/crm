@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    --background: 43 100% 97%;
-    --foreground: 0 0% 0%;
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%;
+    --card-foreground: 222 47% 11%;
     --primary: 210 50% 25%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 43 60% 94%;
-    --secondary-foreground: 0 0% 0%;
-    --muted: 43 40% 92%;
-    --muted-foreground: 0 0% 40%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
     --accent: 0 71% 44%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 71% 44%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 0%;
-    --input: 0 0% 85%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
     --ring: 210 50% 25%;
-    --radius: 0.5rem;
-    --neu-cream: #fffbf2;
+    --radius: 0.75rem;
+    --neu-cream: #f4f7fb;
     --neu-hot: #c02020;
     --neu-blue: #204060;
     --neu-sticky: #fef08a;
@@ -30,21 +30,25 @@
 
   textarea,
   select {
-    @apply border-2 border-black bg-white font-medium shadow-[2px_2px_0_0_#000];
+    @apply rounded-lg border border-slate-200 bg-white text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]/30;
   }
 }
 
 @layer components {
   .neubrutal-table th {
-    @apply border border-black bg-[#204060] px-4 py-3 text-left font-heading text-xs font-bold uppercase tracking-wider text-white;
+    @apply border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
   }
 
   .neubrutal-table td {
-    @apply border border-black px-4 py-3 text-sm;
+    @apply border-b border-slate-100 px-4 py-3.5 text-sm text-slate-700;
   }
 
   .neubrutal-table tr:hover td {
-    @apply bg-slate-50;
+    @apply bg-slate-50/80;
+  }
+
+  .neubrutal-table tbody tr:last-child td {
+    @apply border-b-0;
   }
 
   .font-heading {
@@ -52,19 +56,14 @@
   }
 
   .neu-panel {
-    @apply border-2 border-black bg-white shadow-[4px_4px_0_0_#000];
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
   }
 
   .neu-chip {
-    @apply inline-flex items-center border border-black px-2.5 py-0.5 text-xs font-bold uppercase;
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
 
   main h1 {
-    @apply font-heading text-3xl font-bold uppercase italic tracking-tighter md:text-4xl;
-  }
-
-  main h2.text-lg.font-semibold,
-  main h3.text-lg.font-semibold {
-    @apply font-heading text-xl font-bold uppercase italic tracking-tight;
+    @apply text-2xl font-bold tracking-tight text-slate-900 md:text-3xl;
   }
 }

@@ -12,7 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLeads } from "@/hooks/use-leads";
 import { useRecentActivities } from "@/hooks/use-reports";
 import { useSession } from "@/hooks/use-session";
-import { Flame, Phone, Users } from "lucide-react";
+import { cn } from "@propninja/ui/lib/utils";
+import { CalendarClock, Flame, Phone, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useMemo } from "react";
 
@@ -21,29 +22,43 @@ function StatCard({
   value,
   loading,
   variant = "default",
+  icon: Icon,
 }: {
   label: string;
   value: string | number;
   loading?: boolean;
-  variant?: "default" | "hot";
+  variant?: "default" | "hot" | "followup";
+  icon: typeof Users;
 }) {
+  const iconBg =
+    variant === "hot"
+      ? "bg-rose-500/15 text-rose-600"
+      : variant === "followup"
+        ? "bg-amber-500/15 text-amber-600"
+        : "bg-[#204060]/10 text-[#204060]";
+
   return (
-    <NeuCard
-      className={`flex aspect-square flex-col justify-between p-6 ${
-        variant === "hot" ? "bg-[#C02020] text-white" : ""
-      }`}
-    >
-      <div className="flex items-start justify-between">
-        <span className="font-heading text-lg font-bold uppercase">{label}</span>
-        {variant === "hot" ? <Flame className="h-8 w-8" /> : null}
-      </div>
-      {loading ? (
-        <Skeleton className="h-16 w-24 bg-black/10" />
-      ) : (
-        <div className="text-6xl font-bold tracking-tighter md:text-7xl">
-          {String(value).padStart(2, "0")}
+    <NeuCard className="overflow-hidden p-0">
+      <div className="flex items-start gap-4 p-5">
+        <div
+          className={cn(
+            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+            iconBg,
+          )}
+        >
+          <Icon className="h-6 w-6" />
         </div>
-      )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-slate-500">{label}</p>
+          {loading ? (
+            <Skeleton className="mt-2 h-9 w-16" />
+          ) : (
+            <p className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
+              {typeof value === "number" ? value.toLocaleString() : value}
+            </p>
+          )}
+        </div>
+      </div>
     </NeuCard>
   );
 }
@@ -69,18 +84,16 @@ function AgentDashboard() {
   }, [myLeads.data]);
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
       <header>
-        <h1 className="font-heading text-4xl font-bold uppercase italic tracking-tighter md:text-6xl">
-          My Dashboard
-        </h1>
-        <p className="mt-2 text-lg font-medium text-neutral-600">
-          Real estate hustle, simplified. Track your leads and close deals.
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">My Dashboard</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Track leads, follow-ups, and calls — all in one place.
         </p>
       </header>
 
-      <div className="lg:grid lg:grid-cols-12 lg:gap-12">
-        <main className="space-y-12 lg:col-span-9">
+      <div className="lg:grid lg:grid-cols-12 lg:gap-8">
+        <main className="space-y-8 lg:col-span-9">
           {myLeads.isError ? (
             <EmptyState
               title="Couldn't load your leads"
@@ -91,22 +104,30 @@ function AgentDashboard() {
             />
           ) : (
             <>
-              <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <StatCard
                   label="My Leads"
                   value={myLeads.data?.total ?? 0}
                   loading={myLeads.isLoading}
+                  icon={Users}
                 />
                 <StatCard
                   label="Hot Leads"
                   value={hotLeads.length}
                   loading={myLeads.isLoading}
                   variant="hot"
+                  icon={Flame}
                 />
-                <StatCard label="Follow-ups Due" value={followUpsDue} loading={myLeads.isLoading} />
+                <StatCard
+                  label="Follow-ups Due"
+                  value={followUpsDue}
+                  loading={myLeads.isLoading}
+                  variant="followup"
+                  icon={CalendarClock}
+                />
               </section>
 
-              <MyTasksDueTodayWidget variant="neubrutal" />
+              <MyTasksDueTodayWidget />
             </>
           )}
 
@@ -124,17 +145,16 @@ function AgentDashboard() {
               </NeuButton>
             </Link>
             <div className="flex-grow" />
-            <NeuCard hover={false} className="flex items-center gap-3 bg-white px-4 py-2">
-              <span className="h-3 w-3 animate-pulse rounded-full border border-black bg-green-500" />
-              <span className="font-heading text-sm font-bold uppercase">Live activity</span>
+            <NeuCard hover={false} className="flex items-center gap-2 px-4 py-2">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+              <span className="text-sm font-medium text-slate-600">Live activity</span>
             </NeuCard>
           </section>
 
           {hotLeads.length > 0 ? (
             <section className="space-y-4">
-              <NeuSectionHeading title="Hot Leads Ledger" />
+              <NeuSectionHeading title="Hot Leads" />
               <HotLeadsTable
-                variant="neubrutal"
                 leads={hotLeads.map((lead) => ({
                   id: lead.id,
                   name: `${lead.firstName} ${lead.lastName}`.trim(),
@@ -160,18 +180,18 @@ function AgentDashboard() {
                 className="py-8"
               />
             ) : (
-              <RecentActivityFeed variant="neubrutal" activities={recentActivities.data ?? []} />
+              <RecentActivityFeed activities={recentActivities.data ?? []} />
             )}
           </section>
         </main>
 
         <aside className="mt-12 hidden lg:col-span-3 lg:mt-0 lg:block">
-          <RemindersPanel variant="neubrutal" />
+          <RemindersPanel />
         </aside>
       </div>
 
       <div className="lg:hidden">
-        <RemindersPanel variant="neubrutal" collapsible />
+        <RemindersPanel collapsible />
       </div>
     </div>
   );
@@ -185,9 +205,9 @@ export default function DashboardPage() {
   if (!ready) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-12 w-64 border-2 border-black" />
-        <Skeleton className="h-4 w-72 border-2 border-black" />
-        <Skeleton className="h-48 w-full border-2 border-black" />
+        <Skeleton className="h-12 w-64" />
+        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-48 w-full" />
       </div>
     );
   }

@@ -9,8 +9,8 @@ export function NeuCard({ className, hover = true, ...props }: NeuCardProps) {
   return (
     <div
       className={cn(
-        "border-2 border-black bg-white shadow-[4px_4px_0_0_#000] transition-all duration-300 dark:border-white/10 dark:bg-white/5 dark:backdrop-blur-md dark:shadow-none dark:hover:shadow-none dark:hover:translate-x-0 dark:hover:translate-y-0",
-        hover && "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_0_#000]",
+        "rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200 dark:border-white/10 dark:bg-white/5 dark:backdrop-blur-md dark:shadow-none",
+        hover && "hover:shadow-md",
         className,
       )}
       {...props}
@@ -26,16 +26,18 @@ type NeuButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 export const NeuButton = forwardRef<HTMLButtonElement, NeuButtonProps>(
   ({ className, variant = "default", children, ...props }, ref) => {
     const variants = {
-      default: "bg-white text-black dark:bg-white/10 dark:text-white dark:hover:bg-white/15",
-      primary: "bg-[#C02020] text-white dark:bg-red-600 dark:hover:bg-red-700",
-      hot: "bg-[#C02020] text-white dark:bg-red-600 dark:hover:bg-red-700",
+      default:
+        "border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15",
+      primary:
+        "bg-[#204060] text-white shadow-sm hover:bg-[#1a3550] dark:bg-red-600 dark:hover:bg-red-700",
+      hot: "bg-[#C02020] text-white shadow-sm hover:bg-[#9a1818] dark:bg-red-600 dark:hover:bg-red-700",
     };
 
     return (
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center gap-2 rounded-full border-2 border-black px-6 py-3 text-sm font-bold shadow-[2px_2px_0_0_#000] transition-all duration-100 active:translate-x-px active:translate-y-px active:shadow-[1px_1px_0_0_#000] dark:border-white/15 dark:shadow-none dark:active:translate-x-0 dark:active:translate-y-0 dark:active:shadow-none",
+          "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]/30 dark:focus-visible:ring-[var(--gold)]",
           variants[variant],
           className,
         )}
@@ -57,10 +59,10 @@ export function NeuSectionHeading({
 }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <h2 className="font-heading text-2xl font-bold uppercase italic tracking-tight md:text-3xl dark:text-[var(--gold)] dark:font-serif">
+      <h2 className="text-lg font-semibold text-slate-900 md:text-xl dark:text-[var(--gold)] dark:font-serif">
         {title}
       </h2>
-      <div className="h-1 flex-grow bg-black dark:bg-white/10" />
+      <div className="h-px flex-grow bg-slate-200 dark:bg-white/10" />
     </div>
   );
 }
@@ -69,7 +71,7 @@ export function NeuStickyNote({ className, ...props }: HTMLAttributes<HTMLDivEle
   return (
     <div
       className={cn(
-        "border-2 border-black bg-[#FEF08A] p-6 shadow-[4px_4px_0_0_#000] dark:border-[var(--cyan)]/20 dark:bg-cyan-500/10 dark:shadow-none dark:text-cyan-100",
+        "rounded-xl border border-amber-200 bg-amber-50 p-6 shadow-sm dark:border-[var(--cyan)]/20 dark:bg-cyan-500/10 dark:text-cyan-100",
         className,
       )}
       {...props}
@@ -89,10 +91,10 @@ export function NeuBadge({
   return (
     <span
       className={cn(
-        "inline-block border border-black px-3 py-1 text-xs font-bold uppercase",
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
         variant === "hot"
-          ? "bg-[#C02020] text-white dark:bg-red-600/30 dark:text-red-400 dark:border-red-600/30"
-          : "bg-white text-black dark:bg-white/10 dark:text-white dark:border-white/10",
+          ? "bg-rose-100 text-rose-700 dark:bg-red-600/30 dark:text-red-400"
+          : "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-white",
         className,
       )}
     >
@@ -113,7 +115,7 @@ export function NeuPolaroid({
   return (
     <div
       className={cn(
-        "border-2 border-black bg-white p-4 pb-8 shadow-[4px_4px_0_0_#000] dark:border-white/10 dark:bg-white/5 dark:shadow-none dark:backdrop-blur-md",
+        "rounded-xl border border-slate-200 bg-white p-4 pb-8 shadow-sm dark:border-white/10 dark:bg-white/5 dark:backdrop-blur-md",
         tilt === "left" ? "-rotate-1" : "rotate-[1.5deg]",
         className,
       )}
@@ -137,13 +139,11 @@ export function PageHeader({
   return (
     <header className={cn("mb-8 flex flex-wrap items-end justify-between gap-4", className)}>
       <div>
-        <h1 className="font-heading text-3xl font-bold uppercase italic tracking-tighter md:text-4xl dark:text-white dark:font-serif dark:text-[var(--gold)]">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl dark:text-white dark:font-serif dark:text-[var(--gold)]">
           {title}
         </h1>
         {description ? (
-          <p className="mt-2 text-base font-medium text-neutral-600 dark:text-slate-400">
-            {description}
-          </p>
+          <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">{description}</p>
         ) : null}
       </div>
       {children ? <div className="flex flex-wrap items-center gap-2">{children}</div> : null}
@@ -155,7 +155,7 @@ export function NeuInput({ className, ...props }: React.InputHTMLAttributes<HTML
   return (
     <input
       className={cn(
-        "flex h-10 w-full border-2 border-black bg-white px-3 py-2 text-sm font-medium shadow-[2px_2px_0_0_#000] placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060] dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:shadow-none dark:focus-visible:ring-[var(--gold)]",
+        "flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]/30 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus-visible:ring-[var(--gold)]",
         className,
       )}
       {...props}
@@ -171,7 +171,7 @@ export function NeuSelect({
   return (
     <select
       className={cn(
-        "flex h-10 w-full border-2 border-black bg-white px-3 py-2 text-sm font-medium shadow-[2px_2px_0_0_#000] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060] dark:border-white/10 dark:bg-[#0A0F1C] dark:text-white dark:shadow-none dark:focus-visible:ring-[var(--gold)]",
+        "flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]/30 dark:border-white/10 dark:bg-[#0A0F1C] dark:text-white dark:focus-visible:ring-[var(--gold)]",
         className,
       )}
       {...props}
@@ -188,7 +188,7 @@ export function NeuTextarea({
   return (
     <textarea
       className={cn(
-        "min-h-[100px] w-full border-2 border-black bg-white px-3 py-2 text-sm font-medium shadow-[2px_2px_0_0_#000] placeholder:text-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060] dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:shadow-none dark:focus-visible:ring-[var(--gold)]",
+        "min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]/30 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus-visible:ring-[var(--gold)]",
         className,
       )}
       {...props}

@@ -48,7 +48,6 @@ const navItems: NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings, roles: ["admin", "manager", "agent"] },
 ];
 
-/** Nav visibility uses JWT `users.role` (admin/manager/agent), not display roleLabel. */
 function roleFromSession(role: string | undefined): UserRole | null {
   if (role === "admin" || role === "manager" || role === "agent") {
     return role;
@@ -67,16 +66,16 @@ export function Sidebar() {
     ready && role ? navItems.filter((item) => item.roles.includes(role)) : DEFAULT_NAV;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r-2 border-black bg-white shadow-[4px_0_0_0_#000] transition-all duration-300 dark:border-r dark:border-white/10 dark:bg-black/30 dark:backdrop-blur-md dark:shadow-none">
-      <div className="border-b-2 border-black px-5 py-5 dark:border-b dark:border-white/10">
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-slate-200 bg-white shadow-sm transition-all duration-300 dark:border-white/10 dark:bg-black/30 dark:backdrop-blur-md dark:shadow-none">
+      <div className="border-b border-slate-200 px-5 py-5 dark:border-white/10">
         <AppLogo />
-        <p className="mt-2 font-heading text-xs font-bold uppercase tracking-wide text-neutral-600 dark:text-slate-400">
+        <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">
           Real estate CRM
         </p>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           {visibleItems.map(({ href, label, icon: Icon }) => {
             const active =
               href === "/"
@@ -88,13 +87,13 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 rounded-full border-2 px-3 py-2.5 text-sm font-bold transition-all",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   active
-                    ? "border-black bg-[#204060] text-white shadow-[2px_2px_0_0_#000] dark:border-white/15 dark:bg-white/10 dark:text-[var(--gold)] dark:shadow-none"
-                    : "border-transparent text-neutral-600 hover:border-black hover:bg-white hover:shadow-[2px_2px_0_0_#000] dark:text-slate-400 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white dark:hover:shadow-none",
+                    ? "bg-[#204060]/10 text-[#204060] dark:bg-white/10 dark:text-[var(--gold)]"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white",
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className={cn("h-4 w-4", active && "text-[#204060] dark:text-[var(--gold)]")} />
                 {label}
               </Link>
             );
@@ -102,7 +101,7 @@ export function Sidebar() {
         </div>
       </nav>
 
-      <div className="border-t-2 border-black p-4 text-xs font-medium leading-relaxed text-neutral-600 dark:border-t dark:border-white/10 dark:text-slate-500">
+      <div className="border-t border-slate-200 p-4 text-xs leading-relaxed text-slate-500 dark:border-white/10 dark:text-slate-500">
         View & manage only — no outbound calling on web.
       </div>
     </aside>

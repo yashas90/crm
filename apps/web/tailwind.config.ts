@@ -12,7 +12,7 @@ const config: Config = {
       },
       colors: {
         neu: {
-          cream: "#FFFBF2",
+          cream: "#F4F7FB",
           hot: "#C02020",
           blue: "#204060",
           sticky: "#FEF08A",
