@@ -26,15 +26,15 @@ export type CallSummary = {
 export type LogCallInput = {
   lead_id?: string;
   phone_number: string;
-  direction: "incoming" | "outgoing";
-  status: "completed" | "missed" | "rejected" | "failed";
+  direction?: "incoming" | "outgoing";
+  status?: "completed" | "missed" | "rejected" | "failed";
   started_at: string;
   ended_at: string;
   duration_seconds: number;
   outcome: "answered" | "no_answer" | "busy" | "left_voicemail";
   disposition?: string;
   notes?: string;
-  source: "mobile-manual";
+  source: "mobile-manual" | "mobile-auto" | "web-manual";
 };
 
 function useAuthReady() {

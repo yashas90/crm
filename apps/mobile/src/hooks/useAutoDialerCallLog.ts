@@ -4,17 +4,20 @@ import {
   type CallSessionContext,
   useCallDurationTracking,
 } from "@/hooks/useCallDurationTracking";
+import type { CallOutcome } from "@propninja/types/enums";
 import { useCallback, useRef, useState } from "react";
 
 type UseAutoDialerCallLogOptions = {
   logCall: (payload: LogCallInput) => Promise<unknown>;
-  onLogged?: () => void;
+  onLogged?: (outcome: CallOutcome) => void;
   onLogError?: (error: unknown) => void;
 };
 
-export type DialerReviewState = {
+export type PendingAutoLog = {
   durationSeconds: number;
   phoneNumber: string;
+  leadId: string;
+  calledAt: string;
 };
 
 function elapsedSeconds(info: CallReturnInfo): number {
@@ -26,8 +29,10 @@ function elapsedSeconds(info: CallReturnInfo): number {
 }
 
 /**
- * Tracks native dialer sessions (AppState) and auto-logs calls when the agent returns.
- * Opens a review sheet so agents can confirm without re-submitting (avoids duplicates).
+ * Tracks native dialer sessions (AppState). When the agent returns from the dialer,
+ * sets a pending log state — the actual API call is deferred until confirmLog() so
+ * the agent can set the correct outcome (or it auto-submits as "answered" after a
+ * short countdown in the UI). This prevents every call being logged as "answered".
  */
 export function useAutoDialerCallLog({
   logCall,
@@ -35,64 +40,85 @@ export function useAutoDialerCallLog({
   onLogError,
 }: UseAutoDialerCallLogOptions) {
   const sessionRef = useRef<CallSessionContext | null>(null);
-  const [review, setReview] = useState<DialerReviewState | null>(null);
+  const [pendingLog, setPendingLog] = useState<PendingAutoLog | null>(null);
   const loggingRef = useRef(false);
 
-  const handleReturn = useCallback(
-    async (info: CallReturnInfo) => {
-      const context = sessionRef.current;
-      if (!context || loggingRef.current) return;
+  const handleReturn = useCallback((info: CallReturnInfo) => {
+    const context = sessionRef.current;
+    if (!context) return;
 
-      const durationSeconds = elapsedSeconds(info);
-      const endedAt = new Date();
-      const startedAt = new Date(info.calledAt);
-
-      loggingRef.current = true;
-      try {
-        await logCall({
-          lead_id: context.leadId,
-          phone_number: context.phoneNumber,
-          direction: "outgoing",
-          duration_seconds: durationSeconds,
-          started_at: startedAt.toISOString(),
-          ended_at: endedAt.toISOString(),
-          outcome: "answered",
-          source: "mobile-auto",
-        });
-        onLogged?.();
-        setReview({ durationSeconds, phoneNumber: context.phoneNumber });
-      } catch (error) {
-        onLogError?.(error);
-      } finally {
-        loggingRef.current = false;
-        sessionRef.current = null;
-      }
-    },
-    [logCall, onLogged, onLogError],
-  );
+    const durationSeconds = elapsedSeconds(info);
+    setPendingLog({
+      durationSeconds,
+      phoneNumber: context.phoneNumber,
+      leadId: context.leadId,
+      calledAt: info.calledAt,
+    });
+    sessionRef.current = null;
+  }, []);
 
   const { beginCall: trackCall, clearCallSession } = useCallDurationTracking({
-    onReturn: (info) => void handleReturn(info),
+    onReturn: handleReturn,
   });
 
   const beginCall = useCallback(
     (context: CallSessionContext) => {
       sessionRef.current = context;
-      setReview(null);
+      setPendingLog(null);
       trackCall(context);
     },
     [trackCall],
   );
 
-  const dismissReview = useCallback(() => {
-    setReview(null);
+  /** Called by the UI when the agent confirms (or auto-timer fires). */
+  const confirmLog = useCallback(
+    async (outcome: CallOutcome, notes?: string) => {
+      const pending = pendingLog;
+      if (!pending || loggingRef.current) return;
+
+      loggingRef.current = true;
+      try {
+        const endedAt = new Date();
+        const startedAt = new Date(pending.calledAt);
+        await logCall({
+          lead_id: pending.leadId,
+          phone_number: pending.phoneNumber,
+          direction: "outgoing",
+          duration_seconds: pending.durationSeconds,
+          started_at: startedAt.toISOString(),
+          ended_at: endedAt.toISOString(),
+          outcome,
+          notes,
+          source: "mobile-auto",
+        });
+        setPendingLog(null);
+        onLogged?.(outcome);
+      } catch (error) {
+        onLogError?.(error);
+      } finally {
+        loggingRef.current = false;
+      }
+    },
+    [pendingLog, logCall, onLogged, onLogError],
+  );
+
+  const dismissPending = useCallback(() => {
+    setPendingLog(null);
     clearCallSession();
   }, [clearCallSession]);
 
   return {
     beginCall,
-    review,
-    dismissReview,
-    isReviewOpen: review !== null,
+    pendingLog,
+    isPendingLog: pendingLog !== null,
+    confirmLog,
+    dismissPending,
+    isLogging: loggingRef.current,
+    // Legacy aliases kept for any existing callers
+    review: pendingLog
+      ? { durationSeconds: pendingLog.durationSeconds, phoneNumber: pendingLog.phoneNumber }
+      : null,
+    dismissReview: dismissPending,
+    isReviewOpen: pendingLog !== null,
   };
 }

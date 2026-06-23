@@ -92,10 +92,10 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
-    onLogged: async () => {
+    onLogged: async (outcome) => {
       await refetchCalls();
       void feedbackCallSaved();
-      setCallLoggedToast(callLogSuccessMessage("answered"));
+      setCallLoggedToast(callLogSuccessMessage(outcome));
       setTimeout(() => setCallLoggedToast(null), 2500);
     },
     onLogError: (err) => {
@@ -507,11 +507,15 @@ export function LeadDetailScreen({ route, navigation }: Props) {
       </ScrollView>
 
       <CallLogModal
-        visible={dialerLog.isReviewOpen}
-        phoneNumber={dialerLog.review?.phoneNumber ?? lead.phone ?? undefined}
+        visible={dialerLog.isPendingLog}
+        phoneNumber={dialerLog.pendingLog?.phoneNumber ?? lead.phone ?? undefined}
+        defaultDurationSeconds={dialerLog.pendingLog?.durationSeconds ?? 60}
         reviewOnly
-        onClose={dialerLog.dismissReview}
-        onSubmit={() => {}}
+        isSubmitting={logCall.isPending}
+        onClose={dialerLog.dismissPending}
+        onSubmit={(payload) => {
+          void dialerLog.confirmLog(payload.outcome, payload.notes);
+        }}
       />
 
       <CallLogModal
