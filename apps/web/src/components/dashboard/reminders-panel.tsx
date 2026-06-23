@@ -1,10 +1,11 @@
 "use client";
 
+import { NeuButton, NeuCard, NeuStickyNote } from "@/components/ui/neubrutal";
 import type { FollowupReminderType, UpcomingFollowup } from "@/hooks/use-upcoming-followups";
 import { useUpcomingFollowups } from "@/hooks/use-upcoming-followups";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
-import { CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
+import { BellRing, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -39,6 +40,15 @@ function formatDayLabel(dateKey: string) {
   if (dateKey === tomorrowKey) return "Tomorrow";
 
   return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function dueLabel(iso: string) {
+  const diff = new Date(iso).getTime() - Date.now();
+  const hours = Math.floor(diff / 3_600_000);
+  if (hours < 1) return "Due soon";
+  if (hours < 24) return `Due in ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `Due in ${days}d`;
 }
 
 function buildMonthGrid(year: number, month: number) {
@@ -92,12 +102,18 @@ function summaryText(counts: { callback: number; meeting: number; site_visit: nu
 type RemindersPanelProps = {
   collapsible?: boolean;
   className?: string;
+  variant?: "default" | "neubrutal";
 };
 
-export function RemindersPanel({ collapsible = false, className }: RemindersPanelProps) {
+export function RemindersPanel({
+  collapsible = false,
+  className,
+  variant = "default",
+}: RemindersPanelProps) {
   const followups = useUpcomingFollowups(14);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(!collapsible);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
 
   const now = new Date();
   const monthLabel = now.toLocaleDateString([], { month: "long", year: "numeric" });
@@ -112,9 +128,14 @@ export function RemindersPanel({ collapsible = false, className }: RemindersPane
     [byDate],
   );
 
+  const upcomingItems = useMemo(() => {
+    const items = followups.data ?? [];
+    return [...items].sort((a, b) => a.nextFollowupAt.localeCompare(b.nextFollowupAt)).slice(0, 5);
+  }, [followups.data]);
+
   const todayKey = toLocalDateKey(now.toISOString());
 
-  const content = (
+  const calendarContent = (
     <>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -187,7 +208,7 @@ export function RemindersPanel({ collapsible = false, className }: RemindersPane
                   <li key={item.id}>
                     <Link
                       href={`/leads/${item.id}`}
-                      className="block rounded-lg border border-border/60 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40"
+                      className="block border-2 border-black bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40"
                     >
                       <p className="truncate text-sm font-medium">{item.leadName}</p>
                       <p className="text-xs text-muted-foreground">
@@ -213,7 +234,7 @@ export function RemindersPanel({ collapsible = false, className }: RemindersPane
                   <button
                     type="button"
                     onClick={() => setSelectedDate(dateKey)}
-                    className="w-full rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                    className="w-full border-2 border-black bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/40"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium">{formatDayLabel(dateKey)}</span>
@@ -230,8 +251,90 @@ export function RemindersPanel({ collapsible = false, className }: RemindersPane
     </>
   );
 
+  if (variant === "neubrutal") {
+    const panel = (
+      <div className={cn("sticky top-24 space-y-8", className)}>
+        <NeuStickyNote>
+          <div className="mb-4 flex items-center gap-2">
+            <BellRing className="h-6 w-6" />
+            <h3 className="font-heading text-xl font-bold uppercase tracking-tight">Reminders</h3>
+          </div>
+
+          {followups.isLoading ? (
+            <p className="text-sm font-medium">Loading reminders...</p>
+          ) : followups.isError ? (
+            <p className="text-sm font-medium">Unable to load reminders.</p>
+          ) : upcomingItems.length === 0 ? (
+            <p className="text-sm font-medium">No upcoming follow-ups in the next 14 days.</p>
+          ) : (
+            <ul className="space-y-4">
+              {upcomingItems.map((item) => (
+                <li key={item.id} className="flex gap-3">
+                  <input
+                    type="checkbox"
+                    checked={checked.has(item.id)}
+                    onChange={() =>
+                      setChecked((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(item.id)) next.delete(item.id);
+                        else next.add(item.id);
+                        return next;
+                      })
+                    }
+                    className="mt-1 h-5 w-5 border-2 border-black accent-black"
+                  />
+                  <div>
+                    <Link
+                      href={`/leads/${item.id}`}
+                      className="font-bold leading-tight hover:underline"
+                    >
+                      {item.leadName}
+                    </Link>
+                    <p className="mt-1 text-xs font-medium uppercase">
+                      {TYPE_LABELS[item.type]} · {dueLabel(item.nextFollowupAt)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <NeuButton className="mt-6 w-full py-2 text-sm uppercase" variant="default">
+            Add Note
+          </NeuButton>
+        </NeuStickyNote>
+
+        <NeuCard className="bg-[#204060] p-6 text-white" hover={false}>
+          <h4 className="mb-2 font-heading font-bold uppercase">Pro Tip</h4>
+          <p className="text-sm italic opacity-90">
+            &ldquo;The best time to call a lead is within 5 minutes of their inquiry. Strike while
+            the iron is hot!&rdquo;
+          </p>
+        </NeuCard>
+      </div>
+    );
+
+    if (collapsible) {
+      return (
+        <div className={className}>
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="mb-3 flex w-full items-center justify-between font-heading text-lg font-bold uppercase"
+          >
+            Reminders
+            {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </button>
+          {expanded ? panel : null}
+        </div>
+      );
+    }
+
+    return panel;
+  }
+
   return (
-    <Card className={cn("border-border/60 shadow-sm", className)}>
+    <Card className={cn("", className)}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -250,7 +353,9 @@ export function RemindersPanel({ collapsible = false, className }: RemindersPane
           ) : null}
         </div>
       </CardHeader>
-      {(!collapsible || expanded) && <CardContent className="space-y-5">{content}</CardContent>}
+      {(!collapsible || expanded) && (
+        <CardContent className="space-y-5">{calendarContent}</CardContent>
+      )}
     </Card>
   );
 }

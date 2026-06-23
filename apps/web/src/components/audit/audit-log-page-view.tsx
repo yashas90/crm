@@ -114,7 +114,7 @@ export function AuditLogPageView() {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-border/60 bg-muted/20 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 border-2 border-black bg-muted/20 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <FilterField label="From">
           <Input
             type="date"
@@ -204,7 +204,7 @@ export function AuditLogPageView() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border/60">
+      <div className="overflow-x-auto border-2 border-black">
         {auditQuery.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading audit log…</p>
         ) : auditQuery.isError ? (
@@ -345,7 +345,7 @@ function AuditLogRowView({
       {expanded ? (
         <TableRow>
           <TableCell colSpan={6} className="bg-muted/30">
-            <pre className="overflow-x-auto rounded-md border border-border/60 bg-background p-3 text-xs">
+            <pre className="overflow-x-auto rounded-md border border-black bg-background p-3 text-xs">
               {JSON.stringify(row.metadata, null, 2)}
             </pre>
           </TableCell>

@@ -148,9 +148,9 @@ export function ProjectInventoryStep({ projectId, readOnly = false }: ProjectInv
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border/60">
+      <div className="overflow-x-auto border-2 border-black">
         <table className="w-full min-w-[720px] text-sm">
-          <thead className="border-b border-border/60 bg-muted/40 text-left text-muted-foreground">
+          <thead className="border-b border-black bg-muted/40 text-left text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-medium">Unit</th>
               <th className="px-4 py-3 font-medium">Floor</th>
@@ -248,7 +248,7 @@ function SummaryBar({
   ];
 
   return (
-    <div className="flex flex-wrap gap-4 rounded-xl border border-border/60 bg-muted/20 px-5 py-4">
+    <div className="flex flex-wrap gap-4 border-2 border-black bg-muted/20 px-5 py-4">
       {items.map((item) => (
         <div key={item.label} className="text-center">
           <div className={cn("text-2xl font-bold tabular-nums", item.className)}>{item.count}</div>
@@ -468,7 +468,7 @@ function UnitDetailSlideOver({
                   </p>
                 ) : null}
                 {leadOptions.length > 0 ? (
-                  <ul className="max-h-40 overflow-y-auto rounded-md border border-border/60">
+                  <ul className="max-h-40 overflow-y-auto rounded-md border border-black">
                     {leadOptions.map((lead) => (
                       <li key={lead.id}>
                         <button
@@ -542,7 +542,7 @@ function BulkAddModal({
         aria-label="Close"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-background p-6 shadow-xl">
+      <div className="relative z-10 w-full max-w-md border-2 border-black bg-background p-6 shadow-xl">
         <h3 className="text-lg font-semibold">Add units in bulk</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Create a range of units with shared floor, BHK, area, and price.

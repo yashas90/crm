@@ -144,10 +144,10 @@ export default function LeadDetailPage() {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
               {menuOpen ? (
-                <div className="absolute right-0 z-10 mt-1 min-w-[160px] rounded-lg border border-border bg-card py-1 shadow-md">
+                <div className="absolute right-0 z-10 mt-1 min-w-[160px] border-2 border-black bg-white py-1 shadow-[4px_4px_0_0_#000]">
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-muted"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm font-bold text-[#C02020] hover:bg-neutral-50"
                     onClick={() => {
                       setMenuOpen(false);
                       setShowDelete(true);
@@ -164,10 +164,10 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Hero header */}
-      <Card className="overflow-hidden rounded-2xl border-border/60 bg-gradient-to-br from-emerald-500/10 via-card to-indigo-500/10 shadow-md dark:from-emerald-500/15 dark:to-indigo-500/15">
-        <CardContent className="flex flex-col gap-6 p-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="overflow-hidden border-2 border-black bg-[#FEF08A] shadow-[6px_6px_0_0_#000]">
+        <div className="flex flex-col gap-6 bg-white p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h1 className="font-heading text-3xl font-bold uppercase italic tracking-tighter">
               {lead.firstName} {lead.lastName}
             </h1>
             <div className="flex flex-wrap items-center gap-2">
@@ -203,38 +203,33 @@ export default function LeadDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-3 lg:justify-end">
-            <div className="min-w-[120px] rounded-xl border border-border/60 bg-card/80 px-4 py-3 shadow-sm backdrop-blur-sm transition-all duration-200 hover:shadow-md">
-              <p className="text-2xl font-bold">{totalCalls}</p>
-              <p className="text-xs text-muted-foreground">Total calls</p>
+            <div className="min-w-[120px] border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0_0_#000]">
+              <p className="font-heading text-2xl font-bold">{totalCalls}</p>
+              <p className="text-xs font-bold uppercase text-neutral-600">Total calls</p>
             </div>
-            <div className="min-w-[140px] rounded-xl border border-border/60 bg-card/80 px-4 py-3 shadow-sm backdrop-blur-sm transition-all duration-200 hover:shadow-md">
-              <p className="text-lg font-bold">
+            <div className="min-w-[140px] border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0_0_#000]">
+              <p className="font-heading text-lg font-bold">
                 {lead.estimatedValue ? (
                   <>₹{Number(lead.estimatedValue).toLocaleString("en-IN")}</>
                 ) : (
-                  <span className="text-muted-foreground">Not set</span>
+                  <span className="text-neutral-500">Not set</span>
                 )}
               </p>
-              <p className="text-xs text-muted-foreground">Estimated value</p>
+              <p className="text-xs font-bold uppercase text-neutral-600">Estimated value</p>
             </div>
             <div
               className={cn(
-                "min-w-[160px] rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm transition-all duration-200 hover:shadow-md",
+                "min-w-[160px] border-2 border-black px-4 py-3 shadow-[3px_3px_0_0_#000]",
                 lead.nextFollowupAt && isOverdue(lead.nextFollowupAt)
-                  ? "border-rose-500/40 bg-rose-500/10"
-                  : "border-border/60 bg-card/80",
+                  ? "bg-[#C02020] text-white"
+                  : "bg-white",
               )}
             >
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase opacity-80">
                 <CalendarClock className="h-3.5 w-3.5" />
                 Next follow-up
               </div>
-              <p
-                className={cn(
-                  "mt-1 text-sm font-semibold",
-                  lead.nextFollowupAt && isOverdue(lead.nextFollowupAt) && "text-rose-600",
-                )}
-              >
+              <p className="mt-1 text-sm font-bold">
                 {lead.nextFollowupAt
                   ? new Date(lead.nextFollowupAt).toLocaleString("en-IN", {
                       dateStyle: "medium",
@@ -244,11 +239,11 @@ export default function LeadDetailPage() {
               </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {showEdit ? (
-        <Card className="rounded-xl border-border/60 shadow-sm">
+        <Card className="rounded-xl ">
           <CardHeader>
             <CardTitle className="text-base">Edit lead</CardTitle>
           </CardHeader>
@@ -259,7 +254,7 @@ export default function LeadDetailPage() {
       ) : null}
 
       {showAssign ? (
-        <Card className="rounded-xl border-border/60 shadow-sm">
+        <Card className="rounded-xl ">
           <CardHeader>
             <CardTitle className="text-base">Assign lead</CardTitle>
           </CardHeader>
@@ -300,7 +295,7 @@ export default function LeadDetailPage() {
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Left column ~40% */}
         <div className="space-y-4 lg:col-span-2">
-          <Card className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
+          <Card className="rounded-xl  transition-all duration-200 hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-base">Contact details</CardTitle>
               {lead.phone ? (
@@ -358,7 +353,7 @@ export default function LeadDetailPage() {
             followUpCount={lead.followUpCount ?? 0}
           />
 
-          <Card className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
+          <Card className="rounded-xl  transition-all duration-200 hover:shadow-md">
             <CardHeader>
               <CardTitle className="text-base">Ownership history</CardTitle>
             </CardHeader>
@@ -370,7 +365,7 @@ export default function LeadDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
+          <Card className="rounded-xl  transition-all duration-200 hover:shadow-md">
             <CardHeader>
               <CardTitle className="text-base">Lead info</CardTitle>
             </CardHeader>
@@ -396,7 +391,7 @@ export default function LeadDetailPage() {
 
           <Card
             id="notes"
-            className="rounded-xl border-border/60 shadow-sm transition-all duration-200 hover:shadow-md scroll-mt-24"
+            className="rounded-xl  transition-all duration-200 hover:shadow-md scroll-mt-24"
           >
             <CardHeader>
               <CardTitle className="text-base">Notes</CardTitle>
@@ -422,7 +417,7 @@ export default function LeadDetailPage() {
 
         {/* Right column ~60% */}
         <div className="lg:col-span-3">
-          <Card className="rounded-xl border-border/60 shadow-sm">
+          <Card className="rounded-xl ">
             <CardContent className="p-4">
               <Tabs defaultValue="timeline">
                 <TabsList>

@@ -64,13 +64,13 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
               style={styles.actionRow}
               onPress={() => void dialPhoneNumber(visit.lead!.phone!)}
             >
-              <Ionicons name="call" size={18} color={colors.primaryLight} />
+              <Ionicons name="call" size={18} color={colors.primary} />
               <Text style={styles.actionText}>{visit.lead.phone}</Text>
             </Pressable>
           ) : null}
 
           <Pressable style={styles.actionRow} onPress={() => void openMaps()}>
-            <Ionicons name="map-outline" size={18} color={colors.primaryLight} />
+            <Ionicons name="map-outline" size={18} color={colors.primary} />
             <Text style={styles.actionText}>Open in Google Maps</Text>
           </Pressable>
 
@@ -81,14 +81,14 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
             <TextInput
               style={styles.input}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               value={rescheduleDate}
               onChangeText={setRescheduleDate}
             />
             <TextInput
               style={styles.input}
               placeholder="HH:MM (24h)"
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               value={rescheduleTime}
               onChangeText={setRescheduleTime}
             />
@@ -133,30 +133,30 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
   sheet: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     padding: spacing.lg,
     gap: spacing.sm,
   },
-  title: { ...typography.subheading, color: colors.textDark },
-  subtitle: { color: colors.textMutedDark, fontSize: 13 },
-  property: { color: colors.textDark, fontSize: 15, fontWeight: "600" },
+  title: { ...typography.subheading, color: colors.text },
+  subtitle: { color: colors.textMuted, fontSize: 13 },
+  property: { color: colors.text, fontSize: 15, fontWeight: "600" },
   actionRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
-  actionText: { color: colors.primaryLight, fontWeight: "600" },
-  notes: { color: colors.textMutedDark, fontSize: 14, marginTop: spacing.sm },
+  actionText: { color: colors.primary, fontWeight: "600" },
+  notes: { color: colors.textMuted, fontSize: 14, marginTop: spacing.sm },
   sectionLabel: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "700",
     marginTop: spacing.sm,
   },
   input: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    color: colors.textDark,
+    borderColor: colors.border,
+    color: colors.text,
     padding: spacing.sm,
     marginTop: spacing.xs,
   },
@@ -171,12 +171,12 @@ const styles = StyleSheet.create({
   secondaryBtn: {
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     paddingVertical: 12,
     alignItems: "center",
   },
-  secondaryBtnText: { color: colors.textDark, fontWeight: "600" },
+  secondaryBtnText: { color: colors.text, fontWeight: "600" },
   reschedule: { marginTop: spacing.sm },
   close: { alignItems: "center", paddingVertical: spacing.sm },
-  closeText: { color: colors.textMutedDark },
+  closeText: { color: colors.textMuted },
 });

@@ -1,7 +1,7 @@
 import type { TeamStackParamList } from "@/navigation/types";
 import { ManagerHomeScreen } from "@/screens/ManagerHomeScreen";
 import { TeamCallLogsScreen } from "@/screens/TeamCallLogsScreen";
-import { colors } from "@/theme";
+import { navigationTheme } from "@/theme";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Platform } from "react-native";
 
@@ -16,9 +16,7 @@ export function TeamStack() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: colors.backgroundDark },
-        headerTintColor: colors.textDark,
-        contentStyle: { backgroundColor: colors.backgroundDark },
+        ...navigationTheme,
         gestureEnabled: true,
         fullScreenGestureEnabled: Platform.OS === "ios",
       }}

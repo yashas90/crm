@@ -23,7 +23,7 @@ export function ProjectWizardSteps({
     <div className="space-y-2">
       <nav
         aria-label="Project wizard steps"
-        className="overflow-x-auto rounded-lg border border-border/60 bg-muted/20 p-1"
+        className="overflow-x-auto border-2 border-black bg-muted/20 p-1"
       >
         <ol className="flex min-w-max items-center gap-1">
           {visibleWizardSteps().map((step, index) => {
@@ -44,7 +44,7 @@ export function ProjectWizardSteps({
                   className={cn(
                     "rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
+                      ? "bg-primary text-primary-foreground shadow-[2px_2px_0_0_#000]"
                       : isDisabled
                         ? "cursor-not-allowed text-muted-foreground/60"
                         : "text-muted-foreground hover:bg-background hover:text-foreground",

@@ -2,24 +2,24 @@ import { colors } from "@/theme";
 
 export function statusStyle(status: string) {
   const map: Record<string, { bg: string; text: string }> = {
-    new: { bg: "rgba(59, 130, 246, 0.18)", text: "#60a5fa" },
-    contacted: { bg: "rgba(20, 184, 166, 0.18)", text: colors.primaryLight },
-    qualified: { bg: "rgba(99, 102, 241, 0.18)", text: "#a5b4fc" },
-    negotiation: { bg: "rgba(245, 158, 11, 0.18)", text: "#fbbf24" },
-    won: { bg: "rgba(16, 185, 129, 0.18)", text: "#34d399" },
-    lost: { bg: "rgba(239, 68, 68, 0.18)", text: "#f87171" },
+    new: { bg: "#dbeafe", text: "#1a3550" },
+    contacted: { bg: "#fef08a", text: "#000000" },
+    qualified: { bg: "#bfdbfe", text: "#1e40af" },
+    negotiation: { bg: "#fde68a", text: "#92400e" },
+    won: { bg: "#bbf7d0", text: "#166534" },
+    lost: { bg: "#fecaca", text: "#991b1b" },
   };
-  return map[status] ?? { bg: "rgba(148, 163, 184, 0.15)", text: colors.textMutedDark };
+  return map[status] ?? { bg: colors.card, text: colors.textMuted };
 }
 
 export function temperatureStyle(temp: string | null | undefined) {
   const map: Record<string, { bg: string; text: string }> = {
-    hot: { bg: "rgba(239, 68, 68, 0.18)", text: "#f87171" },
-    warm: { bg: "rgba(245, 158, 11, 0.18)", text: "#fbbf24" },
-    cold: { bg: "rgba(59, 130, 246, 0.18)", text: "#60a5fa" },
+    hot: { bg: colors.hot, text: "#ffffff" },
+    warm: { bg: "#fde68a", text: "#92400e" },
+    cold: { bg: "#dbeafe", text: "#1a3550" },
   };
   if (!temp) return null;
-  return map[temp] ?? { bg: "rgba(148, 163, 184, 0.15)", text: colors.textMutedDark };
+  return map[temp] ?? { bg: colors.card, text: colors.textMuted };
 }
 
 export function formatStatusLabel(status: string) {

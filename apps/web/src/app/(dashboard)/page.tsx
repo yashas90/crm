@@ -7,15 +7,46 @@ import { HotLeadsTable } from "@/components/dashboard/hot-leads-table";
 import { MyTasksDueTodayWidget } from "@/components/dashboard/my-tasks-due-today-widget";
 import { RecentActivityFeed } from "@/components/dashboard/recent-activity-feed";
 import { RemindersPanel } from "@/components/dashboard/reminders-panel";
+import { NeuButton, NeuCard, NeuSectionHeading } from "@/components/ui/neubrutal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLeads } from "@/hooks/use-leads";
 import { useRecentActivities } from "@/hooks/use-reports";
 import { useSession } from "@/hooks/use-session";
-import { Button } from "@propninja/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
-import { Phone, Users } from "lucide-react";
+import { Flame, Phone, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useMemo } from "react";
+
+function StatCard({
+  label,
+  value,
+  loading,
+  variant = "default",
+}: {
+  label: string;
+  value: string | number;
+  loading?: boolean;
+  variant?: "default" | "hot";
+}) {
+  return (
+    <NeuCard
+      className={`flex aspect-square flex-col justify-between p-6 ${
+        variant === "hot" ? "bg-[#C02020] text-white" : ""
+      }`}
+    >
+      <div className="flex items-start justify-between">
+        <span className="font-heading text-lg font-bold uppercase">{label}</span>
+        {variant === "hot" ? <Flame className="h-8 w-8" /> : null}
+      </div>
+      {loading ? (
+        <Skeleton className="h-16 w-24 bg-black/10" />
+      ) : (
+        <div className="text-6xl font-bold tracking-tighter md:text-7xl">
+          {String(value).padStart(2, "0")}
+        </div>
+      )}
+    </NeuCard>
+  );
+}
 
 function AgentDashboard() {
   const { session, ready } = useSession();
@@ -38,14 +69,18 @@ function AgentDashboard() {
   }, [myLeads.data]);
 
   return (
-    <div className="space-y-6">
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start lg:gap-6">
-        <div className="min-w-0 space-y-10">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">My dashboard</h2>
-            <p className="text-muted-foreground">Your assigned leads and recent activity.</p>
-          </div>
+    <div className="space-y-12">
+      <header>
+        <h1 className="font-heading text-4xl font-bold uppercase italic tracking-tighter md:text-6xl">
+          My Dashboard
+        </h1>
+        <p className="mt-2 text-lg font-medium text-neutral-600">
+          Real estate hustle, simplified. Track your leads and close deals.
+        </p>
+      </header>
 
+      <div className="lg:grid lg:grid-cols-12 lg:gap-12">
+        <main className="space-y-12 lg:col-span-9">
           {myLeads.isError ? (
             <EmptyState
               title="Couldn't load your leads"
@@ -56,77 +91,50 @@ function AgentDashboard() {
             />
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card className="border-border/60 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      My leads
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {myLeads.isLoading ? (
-                      <Skeleton className="h-9 w-16" />
-                    ) : (
-                      <p className="text-3xl font-bold">{myLeads.data?.total ?? "—"}</p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card className="border-border/60 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Hot leads
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {myLeads.isLoading ? (
-                      <Skeleton className="h-9 w-16" />
-                    ) : (
-                      <p className="text-3xl font-bold">{hotLeads.length}</p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card className="border-border/60 shadow-sm">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Follow-ups due
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {myLeads.isLoading ? (
-                      <Skeleton className="h-9 w-16" />
-                    ) : (
-                      <p className="text-3xl font-bold">{followUpsDue}</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+              <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <StatCard
+                  label="My Leads"
+                  value={myLeads.data?.total ?? 0}
+                  loading={myLeads.isLoading}
+                />
+                <StatCard
+                  label="Hot Leads"
+                  value={hotLeads.length}
+                  loading={myLeads.isLoading}
+                  variant="hot"
+                />
+                <StatCard label="Follow-ups Due" value={followUpsDue} loading={myLeads.isLoading} />
+              </section>
 
-              <MyTasksDueTodayWidget />
+              <MyTasksDueTodayWidget variant="neubrutal" />
             </>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <Link href="/leads">
-                <Users className="mr-2 h-4 w-4" />
+          <section className="flex flex-wrap items-center gap-4">
+            <Link href="/leads">
+              <NeuButton variant="primary">
+                <Users className="h-5 w-5" />
                 View my leads
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/reports/calls">
-                <Phone className="mr-2 h-4 w-4" />
+              </NeuButton>
+            </Link>
+            <Link href="/reports/calls">
+              <NeuButton>
+                <Phone className="h-5 w-5" />
                 My calls
-              </Link>
-            </Button>
-          </div>
+              </NeuButton>
+            </Link>
+            <div className="flex-grow" />
+            <NeuCard hover={false} className="flex items-center gap-3 bg-white px-4 py-2">
+              <span className="h-3 w-3 animate-pulse rounded-full border border-black bg-green-500" />
+              <span className="font-heading text-sm font-bold uppercase">Live activity</span>
+            </NeuCard>
+          </section>
 
           {hotLeads.length > 0 ? (
             <section className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold">Hot leads</h3>
-                <p className="text-sm text-muted-foreground">Leads that need attention soon.</p>
-              </div>
+              <NeuSectionHeading title="Hot Leads Ledger" />
               <HotLeadsTable
+                variant="neubrutal"
                 leads={hotLeads.map((lead) => ({
                   id: lead.id,
                   name: `${lead.firstName} ${lead.lastName}`.trim(),
@@ -140,15 +148,9 @@ function AgentDashboard() {
             </section>
           ) : null}
 
-          <section className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold">Recent activity</h3>
-              <p className="text-sm text-muted-foreground">
-                Latest notes, calls, and status changes.
-              </p>
-            </div>
+          <section>
             {recentActivities.isLoading ? (
-              <Skeleton className="h-40 w-full rounded-xl" />
+              <Skeleton className="h-40 w-full rounded-none border-2 border-black" />
             ) : recentActivities.isError ? (
               <EmptyState
                 title="Couldn't load activity"
@@ -158,18 +160,18 @@ function AgentDashboard() {
                 className="py-8"
               />
             ) : (
-              <RecentActivityFeed activities={recentActivities.data ?? []} />
+              <RecentActivityFeed variant="neubrutal" activities={recentActivities.data ?? []} />
             )}
           </section>
-        </div>
+        </main>
 
-        <aside className="hidden lg:block">
-          <RemindersPanel className="sticky top-24" />
+        <aside className="mt-12 hidden lg:col-span-3 lg:mt-0 lg:block">
+          <RemindersPanel variant="neubrutal" />
         </aside>
       </div>
 
       <div className="lg:hidden">
-        <RemindersPanel collapsible />
+        <RemindersPanel variant="neubrutal" collapsible />
       </div>
     </div>
   );
@@ -183,9 +185,9 @@ export default function DashboardPage() {
   if (!ready) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-72" />
-        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-12 w-64 border-2 border-black" />
+        <Skeleton className="h-4 w-72 border-2 border-black" />
+        <Skeleton className="h-48 w-full border-2 border-black" />
       </div>
     );
   }

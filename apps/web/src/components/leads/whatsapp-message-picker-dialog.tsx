@@ -92,7 +92,7 @@ export function WhatsAppMessagePickerDialog({
         onClick={() => onOpenChange(false)}
       />
       <div className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-border bg-background shadow-xl">
-        <div className="border-b border-border/60 px-6 py-4">
+        <div className="border-b border-black px-6 py-4">
           <h2 className="text-lg font-semibold">Send via WhatsApp</h2>
           <p className="text-sm text-muted-foreground">
             Pick a template or write a custom message.
@@ -128,9 +128,7 @@ export function WhatsAppMessagePickerDialog({
                       key={template.id}
                       type="button"
                       className={`w-full rounded-xl border p-3 text-left transition-colors ${
-                        active
-                          ? "border-primary bg-primary/5"
-                          : "border-border/60 hover:border-border"
+                        active ? "border-primary bg-primary/5" : "border-black hover:border-border"
                       }`}
                       onClick={() => setSelectedId(template.id)}
                     >
@@ -161,7 +159,7 @@ export function WhatsAppMessagePickerDialog({
           ) : null}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border/60 px-6 py-4">
+        <div className="flex items-center justify-end gap-2 border-t border-black px-6 py-4">
           {customMode ? (
             <Button type="button" variant="outline" onClick={() => setCustomMode(false)}>
               Back

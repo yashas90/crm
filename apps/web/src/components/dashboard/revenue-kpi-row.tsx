@@ -33,7 +33,7 @@ export function RevenueKpiRow({ revenue }: RevenueKpiRowProps) {
       {items.map((item) => {
         const Icon = item.icon;
         return (
-          <Card key={item.title} className="border-border/60 shadow-sm">
+          <Card key={item.title} className="">
             <CardContent className="flex items-start gap-4 p-5">
               <div
                 className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${item.iconBg}`}

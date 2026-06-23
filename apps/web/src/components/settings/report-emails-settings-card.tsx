@@ -80,7 +80,7 @@ export function ReportEmailsSettingsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <label className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-3 text-sm">
+        <label className="flex items-center justify-between border-2 border-black bg-muted/20 px-3 py-3 text-sm">
           <div>
             <Label htmlFor="report-emails-enabled" className="font-medium">
               Send daily summary email to all managers and admins
@@ -103,7 +103,7 @@ export function ReportEmailsSettingsCard({
           />
         </label>
 
-        <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/10 p-3 text-sm">
+        <div className="grid gap-2 border-2 border-black bg-muted/10 p-3 text-sm">
           <p>
             <span className="text-muted-foreground">Last daily email:</span>{" "}
             {lastDaily ? new Date(lastDaily).toLocaleString() : "Never"}

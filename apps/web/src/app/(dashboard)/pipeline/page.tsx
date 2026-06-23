@@ -37,7 +37,7 @@ function LeadCard({
   const isOverdue = lead.nextFollowupAt ? new Date(lead.nextFollowupAt) < new Date() : false;
 
   return (
-    <div className="group rounded-xl border border-border/60 bg-card p-3 shadow-sm transition-all hover:border-border hover:shadow-md">
+    <div className="group border-2 border-black bg-card p-3 shadow-[2px_2px_0_0_#000] transition-all hover:border-border hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
         <Link
           href={`/leads/${lead.id}`}

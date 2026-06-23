@@ -8,7 +8,7 @@ import { NotificationsScreen } from "@/screens/NotificationsScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { TasksScreen } from "@/screens/TasksScreen";
 import { TodayScreen } from "@/screens/TodayScreen";
-import { colors } from "@/theme";
+import { colors, navigationTheme } from "@/theme";
 import { TAB_BAR_HEIGHT } from "@/theme/layout";
 import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -24,7 +24,7 @@ function tabIcon(name: IoniconName, focused: boolean) {
     <Ionicons
       name={name}
       size={focused ? 26 : 22}
-      color={focused ? colors.primaryLight : colors.textMutedDark}
+      color={focused ? colors.primary : colors.textMuted}
     />
   );
 }
@@ -49,21 +49,21 @@ export function MainTabs({ onLogout }: MainTabsProps) {
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: colors.cardDark,
-          borderTopColor: colors.borderDark,
-          borderTopWidth: 1,
-          elevation: 16,
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          borderTopWidth: 2,
+          elevation: 0,
           shadowColor: "#000",
-          shadowOpacity: 0.25,
-          shadowRadius: 12,
+          shadowOpacity: 1,
+          shadowRadius: 0,
           shadowOffset: { width: 0, height: -4 },
           height: tabBarHeight,
           paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
         },
-        tabBarActiveTintColor: colors.primaryLight,
-        tabBarInactiveTintColor: colors.textMutedDark,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "800", textTransform: "uppercase" },
       }}
     >
       <Tab.Screen
@@ -92,8 +92,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             title: "Today",
             tabBarIcon: ({ focused }) => tabIcon("calendar-outline", focused),
             headerShown: true,
-            headerStyle: { backgroundColor: colors.backgroundDark },
-            headerTintColor: colors.textDark,
+            ...navigationTheme,
           }}
         />
       )}
@@ -105,11 +104,13 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           tabBarIcon: ({ focused }) => tabIcon("checkbox-outline", focused),
           tabBarBadge: tasksBadge,
           tabBarBadgeStyle: {
-            backgroundColor: colors.primaryLight,
-            color: colors.textDark,
+            backgroundColor: colors.hot,
+            color: "#ffffff",
             fontSize: 10,
             minWidth: 18,
             lineHeight: 14,
+            borderWidth: 1,
+            borderColor: colors.border,
           },
           headerShown: false,
         }}
@@ -123,7 +124,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           tabBarBadge: notificationBadge,
           tabBarBadgeStyle: {
             backgroundColor: colors.danger,
-            color: colors.textDark,
+            color: colors.text,
             fontSize: 10,
             minWidth: 18,
             lineHeight: 14,
@@ -137,8 +138,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           title: "Profile",
           tabBarIcon: ({ focused }) => tabIcon("person-circle-outline", focused),
           headerShown: true,
-          headerStyle: { backgroundColor: colors.backgroundDark },
-          headerTintColor: colors.textDark,
+          ...navigationTheme,
         }}
       >
         {() => <ProfileScreen onLogout={onLogout} />}

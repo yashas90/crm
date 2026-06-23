@@ -26,7 +26,7 @@ export function LeadWhatsAppPanel({ leadId }: LeadWhatsAppPanelProps) {
   const items = messages.data?.items ?? [];
 
   return (
-    <Card className="rounded-xl border-border/60 shadow-sm">
+    <Card className="rounded-xl ">
       <CardHeader>
         <CardTitle className="text-base">WhatsApp messages</CardTitle>
       </CardHeader>
@@ -38,10 +38,7 @@ export function LeadWhatsAppPanel({ leadId }: LeadWhatsAppPanelProps) {
         ) : (
           <ul className="space-y-2">
             {items.map((message) => (
-              <li
-                key={message.id}
-                className="rounded-lg border border-border/60 bg-muted/15 px-3 py-2 text-sm"
-              >
+              <li key={message.id} className="border-2 border-black bg-muted/15 px-3 py-2 text-sm">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{message.template.name}</span>
                   <span

@@ -28,7 +28,7 @@ const TASK_TYPES: { value: TaskType; label: string; icon: keyof typeof Ionicons.
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {
-  urgent: "#ef4444",
+  urgent: "#9a1818",
   high: "#f97316",
   medium: "#f59e0b",
   low: "#64748b",
@@ -37,7 +37,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 function TaskRow({ task, onComplete }: { task: Task; onComplete: (id: string) => void }) {
   const isDone = task.status === "completed" || task.status === "cancelled";
   const isOverdue = !isDone && task.dueAt && new Date(task.dueAt) < new Date();
-  const priorityColor = PRIORITY_COLORS[task.priority] ?? colors.textMutedDark;
+  const priorityColor = PRIORITY_COLORS[task.priority] ?? colors.textMuted;
 
   return (
     <View style={[styles.taskRow, isDone && styles.taskRowDone]}>
@@ -101,7 +101,7 @@ function CreateTaskForm({ leadId, onDone }: CreateTaskFormProps) {
       <TextInput
         style={styles.createInput}
         placeholder="Task title..."
-        placeholderTextColor={colors.textMutedDark}
+        placeholderTextColor={colors.textMuted}
         value={title}
         onChangeText={setTitle}
       />
@@ -115,7 +115,7 @@ function CreateTaskForm({ leadId, onDone }: CreateTaskFormProps) {
             <Ionicons
               name={t.icon}
               size={12}
-              color={taskType === t.value ? "#fff" : colors.textMutedDark}
+              color={taskType === t.value ? "#fff" : colors.textMuted}
             />
             <Text style={[styles.typeChipText, taskType === t.value && styles.typeChipTextActive]}>
               {t.label}
@@ -168,7 +168,7 @@ export function TasksSection({ leadId }: { leadId: string }) {
           {active.length > 0 ? <Text style={styles.badge}> {active.length}</Text> : null}
         </Text>
         <Pressable style={styles.addBtn} onPress={() => setShowCreate((v) => !v)}>
-          <Ionicons name={showCreate ? "close" : "add"} size={18} color={colors.primaryLight} />
+          <Ionicons name={showCreate ? "close" : "add"} size={18} color={colors.primary} />
           <Text style={styles.addBtnText}>{showCreate ? "Cancel" : "Add task"}</Text>
         </Pressable>
       </View>
@@ -176,7 +176,7 @@ export function TasksSection({ leadId }: { leadId: string }) {
       {showCreate ? <CreateTaskForm leadId={leadId} onDone={() => setShowCreate(false)} /> : null}
 
       {isLoading ? (
-        <ActivityIndicator color={colors.primaryLight} style={{ marginVertical: spacing.sm }} />
+        <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.sm }} />
       ) : active.length === 0 && !showCreate ? (
         <Text style={styles.empty}>No open tasks. Add one to stay on track.</Text>
       ) : (
@@ -197,11 +197,11 @@ export function TasksSection({ leadId }: { leadId: string }) {
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   header: {
     flexDirection: "row",
@@ -209,8 +209,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
-  headerText: { ...typography.caption, color: colors.textDark, fontWeight: "700" },
-  badge: { color: colors.primaryLight },
+  headerText: { ...typography.caption, color: colors.text, fontWeight: "700" },
+  badge: { color: colors.primary },
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -219,16 +219,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.primaryLight,
+    borderColor: colors.primary,
   },
-  addBtnText: { color: colors.primaryLight, fontSize: 12, fontWeight: "600" },
+  addBtnText: { color: colors.primary, fontSize: 12, fontWeight: "600" },
   taskRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.sm,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
+    borderTopColor: colors.border,
   },
   taskRowDone: { opacity: 0.5 },
   checkbox: {
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 1,
@@ -244,39 +244,39 @@ const styles = StyleSheet.create({
   },
   checkboxDone: { borderColor: colors.success, backgroundColor: "rgba(16,185,129,0.1)" },
   taskBody: { flex: 1 },
-  taskTitle: { color: colors.textDark, fontSize: 14, fontWeight: "600" },
-  taskTitleDone: { textDecorationLine: "line-through", color: colors.textMutedDark },
+  taskTitle: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  taskTitleDone: { textDecorationLine: "line-through", color: colors.textMuted },
   taskMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 },
   priorityDot: { width: 6, height: 6, borderRadius: 3 },
   taskMetaText: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     textTransform: "capitalize",
   },
-  overdue: { color: "#ef4444" },
+  overdue: { color: "#9a1818" },
   doneSection: { marginTop: spacing.sm },
   doneSectionLabel: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-  empty: { color: colors.textMutedDark, fontSize: 13, textAlign: "center", paddingVertical: 8 },
+  empty: { color: colors.textMuted, fontSize: 13, textAlign: "center", paddingVertical: 8 },
   createForm: {
     borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
+    borderTopColor: colors.border,
     paddingTop: spacing.sm,
     marginBottom: spacing.sm,
     gap: spacing.sm,
   },
   createInput: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    color: colors.textDark,
+    borderColor: colors.border,
+    color: colors.text,
     padding: spacing.sm,
     fontSize: 14,
   },
@@ -289,22 +289,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    backgroundColor: colors.backgroundDark,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
   },
   typeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  typeChipText: { color: colors.textMutedDark, fontSize: 11, fontWeight: "600" },
+  typeChipText: { color: colors.textMuted, fontSize: 11, fontWeight: "600" },
   typeChipTextActive: { color: "#fff" },
   createActions: { flexDirection: "row", gap: spacing.sm },
   cancelBtn: {
     flex: 1,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     paddingVertical: 10,
     alignItems: "center",
   },
-  cancelText: { color: colors.textDark, fontWeight: "600", fontSize: 13 },
+  cancelText: { color: colors.text, fontWeight: "600", fontSize: 13 },
   saveBtn: {
     flex: 1,
     borderRadius: radii.md,

@@ -67,14 +67,16 @@ export function Sidebar() {
     ready && role ? navItems.filter((item) => item.roles.includes(role)) : DEFAULT_NAV;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-border/60 bg-gradient-to-b from-card/95 via-card/90 to-emerald-500/5 backdrop-blur-xl dark:to-emerald-500/10">
-      <div className="border-b border-border/60 px-5 py-5">
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r-2 border-black bg-white shadow-[4px_0_0_0_#000]">
+      <div className="border-b-2 border-black px-5 py-5">
         <AppLogo />
-        <p className="mt-2 text-xs text-muted-foreground">Real estate CRM</p>
+        <p className="mt-2 font-heading text-xs font-bold uppercase tracking-wide text-neutral-600">
+          Real estate CRM
+        </p>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3">
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           {visibleItems.map(({ href, label, icon: Icon }) => {
             const active =
               href === "/"
@@ -86,10 +88,10 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                  "flex items-center gap-3 rounded-full border-2 px-3 py-2.5 text-sm font-bold transition-all",
                   active
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    ? "border-black bg-[#204060] text-white shadow-[2px_2px_0_0_#000]"
+                    : "border-transparent text-neutral-600 hover:border-black hover:bg-white hover:shadow-[2px_2px_0_0_#000]",
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -100,7 +102,7 @@ export function Sidebar() {
         </div>
       </nav>
 
-      <div className="border-t border-border/60 p-4 text-xs leading-relaxed text-muted-foreground">
+      <div className="border-t-2 border-black p-4 text-xs font-medium leading-relaxed text-neutral-600">
         View & manage only — no outbound calling on web.
       </div>
     </aside>

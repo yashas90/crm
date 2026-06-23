@@ -44,7 +44,7 @@ export function LeadScoreBreakdownTooltip({
       {children}
       <span
         role="tooltip"
-        className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden min-w-[220px] rounded-lg border border-border bg-popover p-3 text-xs shadow-lg group-hover:block"
+        className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden min-w-[220px] rounded-lg border border-border bg-popover p-3 text-xs shadow-[4px_4px_0_0_#000] group-hover:block"
       >
         <p className="mb-2 font-semibold">Score: {score}</p>
         {factors.length > 0 ? (

@@ -106,7 +106,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           style={styles.input}
           value={firstName}
           onChangeText={setFirstName}
-          placeholderTextColor={colors.textMutedDark}
+          placeholderTextColor={colors.textMuted}
         />
       </View>
 
@@ -116,7 +116,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           style={styles.input}
           value={lastName}
           onChangeText={setLastName}
-          placeholderTextColor={colors.textMutedDark}
+          placeholderTextColor={colors.textMuted}
         />
       </View>
 
@@ -128,7 +128,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
-          placeholderTextColor={colors.textMutedDark}
+          placeholderTextColor={colors.textMuted}
         />
         {dupMatches.length > 0 ? (
           <View style={styles.dupWarn}>
@@ -151,7 +151,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
-          placeholderTextColor={colors.textMutedDark}
+          placeholderTextColor={colors.textMuted}
         />
       </View>
 
@@ -161,7 +161,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           style={styles.input}
           value={city}
           onChangeText={setCity}
-          placeholderTextColor={colors.textMutedDark}
+          placeholderTextColor={colors.textMuted}
         />
       </View>
 
@@ -171,7 +171,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           style={styles.input}
           value={state}
           onChangeText={setState}
-          placeholderTextColor={colors.textMutedDark}
+          placeholderTextColor={colors.textMuted}
         />
       </View>
 
@@ -200,7 +200,7 @@ export function LeadCreateScreen({ navigation }: Props) {
           value={tags}
           onChangeText={setTags}
           placeholder="comma, separated"
-          placeholderTextColor={colors.textMutedDark}
+          placeholderTextColor={colors.textMuted}
         />
       </View>
 
@@ -232,17 +232,17 @@ export function LeadCreateScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, paddingBottom: spacing.xl },
-  heading: { ...typography.subheading, color: colors.textDark, marginBottom: spacing.md },
+  heading: { ...typography.subheading, color: colors.text, marginBottom: spacing.md },
   field: { marginBottom: spacing.sm },
-  label: { color: colors.textMutedDark, marginBottom: 4, fontSize: 12, fontWeight: "600" },
+  label: { color: colors.textMuted, marginBottom: 4, fontSize: 12, fontWeight: "600" },
   input: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    color: colors.textDark,
+    borderColor: colors.border,
+    color: colors.text,
     padding: spacing.sm,
   },
   inputWarn: {
@@ -257,18 +257,18 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
   },
   dupWarnTitle: { color: "#f59e0b", fontSize: 12, fontWeight: "700", marginBottom: 4 },
-  dupWarnRow: { color: colors.textMutedDark, fontSize: 12, marginTop: 2 },
+  dupWarnRow: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
+  chipText: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
   chipTextActive: { color: "#fff" },
   button: {
     backgroundColor: colors.primary,

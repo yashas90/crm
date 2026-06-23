@@ -49,6 +49,6 @@
   }
 
   body {
-    @apply bg-gradient-to-br from-slate-50 to-slate-100 text-foreground antialiased dark:from-slate-950 dark:to-slate-900;
+    @apply bg-[#FFFBF2] text-foreground antialiased;
   }
 }

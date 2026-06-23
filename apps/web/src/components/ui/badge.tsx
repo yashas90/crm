@@ -1,11 +1,11 @@
 import { cn } from "@propninja/ui/lib/utils";
 
 const variants = {
-  default: "border-transparent bg-primary text-primary-foreground",
-  secondary: "border-transparent bg-secondary text-secondary-foreground",
-  outline: "text-foreground border-border",
-  success: "border-transparent bg-emerald-100 text-emerald-800",
-  warning: "border-transparent bg-amber-100 text-amber-800",
+  default: "bg-[#204060] text-white",
+  secondary: "bg-[#FEF08A] text-black",
+  outline: "bg-white text-black",
+  success: "bg-green-100 text-green-900",
+  warning: "bg-amber-100 text-amber-900",
 } as const;
 
 export function Badge({
@@ -16,7 +16,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+        "inline-flex items-center border border-black px-2.5 py-0.5 text-xs font-bold uppercase",
         variants[variant],
         className,
       )}

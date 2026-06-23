@@ -54,12 +54,12 @@ export function LeadOwnershipHistory({ assignments, isLoading }: LeadOwnershipHi
             <div key={assignment.id} className="relative flex gap-4 pb-6 last:pb-0">
               <div
                 className={cn(
-                  "relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-violet-500/30 bg-card text-violet-600 shadow-sm",
+                  "relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-violet-500/30 bg-card text-violet-600 shadow-[2px_2px_0_0_#000]",
                 )}
               >
                 <ArrowRightLeft className="h-4 w-4" />
               </div>
-              <div className="min-w-0 flex-1 rounded-xl border border-border/60 bg-muted/20 p-3">
+              <div className="min-w-0 flex-1 border-2 border-black bg-muted/20 p-3">
                 <p className="text-sm font-semibold">{formatOwnershipEntry(assignment)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {fromLabel} → {assignment.toAgentName}

@@ -30,14 +30,14 @@ function outcomeStyle(outcome: string | null) {
     return {
       label: "Unknown",
       backgroundColor: "rgba(148, 163, 184, 0.15)",
-      color: colors.textMutedDark,
+      color: colors.textMuted,
     };
   }
   return (
     OUTCOME_STYLES[outcome] ?? {
       label: outcome.replace(/_/g, " "),
       backgroundColor: "rgba(148, 163, 184, 0.15)",
-      color: colors.textMutedDark,
+      color: colors.textMuted,
     }
   );
 }
@@ -87,7 +87,7 @@ export function TeamCallLogListItem({ item, expanded, onToggle, onViewLead }: Pr
         <Ionicons
           name={expanded ? "chevron-up" : "chevron-down"}
           size={20}
-          color={colors.textMutedDark}
+          color={colors.textMuted}
         />
       </Pressable>
 
@@ -113,10 +113,10 @@ export function TeamCallLogListItem({ item, expanded, onToggle, onViewLead }: Pr
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     marginBottom: spacing.sm,
     overflow: "hidden",
   },
@@ -124,12 +124,12 @@ const styles = StyleSheet.create({
   headerPressed: { opacity: 0.85 },
   headerMain: { flex: 1, gap: 4 },
   agentName: {
-    color: colors.primaryLight,
+    color: colors.primary,
     fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
   },
-  leadName: { color: colors.textDark, fontSize: 16, fontWeight: "700" },
+  leadName: { color: colors.text, fontSize: 16, fontWeight: "700" },
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -137,23 +137,23 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.xs,
   },
-  metaText: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
+  metaText: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
   body: {
     borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
+    borderTopColor: colors.border,
     padding: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.xs,
   },
   detailLabel: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.6,
     marginTop: spacing.xs,
   },
-  detailValue: { color: colors.textDark, fontSize: 14 },
-  notes: { color: colors.textDark, fontSize: 14, lineHeight: 20 },
+  detailValue: { color: colors.text, fontSize: 14 },
+  notes: { color: colors.text, fontSize: 14, lineHeight: 20 },
   viewLeadBtn: { marginTop: spacing.sm },
 });

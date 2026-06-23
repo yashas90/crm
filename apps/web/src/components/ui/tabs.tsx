@@ -29,7 +29,7 @@ export function TabsList({ children, className }: { children: ReactNode; classNa
   return (
     <div
       className={cn(
-        "inline-flex h-11 w-full items-center gap-1 rounded-xl bg-muted/50 p-1",
+        "inline-flex h-12 w-full items-center gap-2 border-2 border-black bg-white p-1 shadow-[4px_4px_0_0_#000]",
         className,
       )}
     >
@@ -56,10 +56,10 @@ export function TabsTrigger({ value, children, className }: TabsTriggerProps) {
       aria-selected={active}
       onClick={() => ctx.setValue(value)}
       className={cn(
-        "flex-1 rounded-lg px-3 py-2 text-sm font-medium capitalize transition-all duration-200",
+        "flex-1 rounded-full px-3 py-2 font-heading text-sm font-bold uppercase transition-all duration-200",
         active
-          ? "bg-card text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
+          ? "border-2 border-black bg-[#204060] text-white shadow-[2px_2px_0_0_#000]"
+          : "text-neutral-600 hover:bg-neutral-50",
         className,
       )}
     >

@@ -81,7 +81,7 @@ export function DocumentsLibraryScreen() {
             disabled={uploading}
           >
             {uploading ? (
-              <ActivityIndicator color={colors.textDark} size="small" />
+              <ActivityIndicator color={colors.text} size="small" />
             ) : (
               <Text style={styles.uploadBtnText}>Upload</Text>
             )}
@@ -92,18 +92,18 @@ export function DocumentsLibraryScreen() {
       <TextInput
         style={styles.search}
         placeholder="Search library…"
-        placeholderTextColor={colors.textMutedDark}
+        placeholderTextColor={colors.textMuted}
         value={search}
         onChangeText={setSearch}
       />
 
       {isLoading ? (
-        <ActivityIndicator color={colors.primaryLight} style={{ marginTop: spacing.lg }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
       ) : isError ? (
         <View style={styles.empty}>
           <Text style={styles.empty}>Failed to load documents.</Text>
           <Pressable onPress={() => void refetch()}>
-            <Text style={[styles.rowTitle, { color: colors.primaryLight }]}>Retry</Text>
+            <Text style={[styles.rowTitle, { color: colors.primary }]}>Retry</Text>
           </Pressable>
         </View>
       ) : (
@@ -126,7 +126,7 @@ export function DocumentsLibraryScreen() {
                   style={styles.thumb}
                 />
               ) : (
-                <Ionicons name={fileIcon(item.fileType)} size={24} color={colors.primaryLight} />
+                <Ionicons name={fileIcon(item.fileType)} size={24} color={colors.primary} />
               )}
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>{item.name}</Text>
@@ -162,7 +162,7 @@ export function DocumentsLibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
   },
   header: {
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.md,
   },
-  title: { ...typography.h2, color: colors.textDark },
+  title: { ...typography.h2, color: colors.text },
   uploadBtn: {
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
@@ -180,14 +180,14 @@ const styles = StyleSheet.create({
     minWidth: 72,
     alignItems: "center",
   },
-  uploadBtnText: { ...typography.caption, color: colors.textDark, fontWeight: "700" },
+  uploadBtnText: { ...typography.caption, color: colors.text, fontWeight: "700" },
   search: {
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    color: colors.textDark,
+    color: colors.text,
     marginBottom: spacing.md,
   },
   row: {
@@ -196,20 +196,20 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
   thumb: {
     width: 40,
     height: 40,
     borderRadius: radii.sm,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
   },
   rowText: { flex: 1 },
-  rowTitle: { ...typography.body, color: colors.textDark, fontWeight: "600" },
-  rowMeta: { ...typography.caption, color: colors.textMutedDark },
+  rowTitle: { ...typography.body, color: colors.text, fontWeight: "600" },
+  rowMeta: { ...typography.caption, color: colors.textMuted },
   empty: {
     ...typography.body,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: spacing.xl,
   },

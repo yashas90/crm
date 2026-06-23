@@ -61,7 +61,7 @@ function ActionIconButton({ icon, label, className, onClick, disabled }: ActionI
         onClick?.();
       }}
       className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-md text-white shadow-sm transition-opacity",
+        "flex h-8 w-8 items-center justify-center rounded-md text-white shadow-[2px_2px_0_0_#000] transition-opacity",
         className,
         disabled ? "cursor-not-allowed opacity-45" : "hover:opacity-90",
       )}
@@ -275,7 +275,7 @@ export const UsersTable = memo(function UsersTable({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-xl border border-border/60">
+      <div className="overflow-hidden border-2 border-black">
         <div className="max-h-[calc(100vh-16rem)] overflow-auto">
           <Table aria-busy={isLoading} aria-label="Users">
             <TableHeader className="sticky top-0 z-10">

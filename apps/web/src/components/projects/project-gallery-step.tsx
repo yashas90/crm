@@ -20,7 +20,7 @@ export function ProjectGalleryStep({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-border/60 bg-card p-8 shadow-sm">
+      <section className="border-2 border-black bg-card p-8 shadow-[2px_2px_0_0_#000]">
         <div className="flex flex-col items-center text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
             <ImageOff className="h-7 w-7 text-muted-foreground" />

@@ -242,7 +242,7 @@ export function CallsFilterDrawer({
               </div>
             </div>
 
-            <div className="space-y-3 rounded-lg border border-border/60 bg-muted/10 p-4">
+            <div className="space-y-3 border-2 border-black bg-muted/10 p-4">
               <Label>Date filters</Label>
               <div className="flex flex-wrap gap-2">
                 {DATE_PRESETS.map((preset) => {
@@ -255,7 +255,7 @@ export function CallsFilterDrawer({
                       className={cn(
                         "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                         active
-                          ? "bg-primary text-primary-foreground shadow-sm"
+                          ? "bg-primary text-primary-foreground shadow-[2px_2px_0_0_#000]"
                           : "border border-input bg-background text-muted-foreground hover:bg-muted/80 hover:text-foreground",
                       )}
                     >
@@ -294,7 +294,7 @@ export function CallsFilterDrawer({
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-border/60 pt-4">
+          <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-black pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

@@ -70,7 +70,7 @@ function ActionIconButton({ icon, label, className, onClick, disabled }: ActionI
         onClick?.();
       }}
       className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-md text-white shadow-sm transition-opacity",
+        "flex h-8 w-8 items-center justify-center rounded-md text-white shadow-[2px_2px_0_0_#000] transition-opacity",
         className,
         disabled ? "cursor-not-allowed opacity-45" : "hover:opacity-90",
       )}
@@ -350,7 +350,7 @@ export const LeadsTable = memo(function LeadsTable({
 
   return (
     <>
-      <div className="overflow-hidden rounded-xl border border-border/60">
+      <div className="overflow-hidden border-2 border-black">
         <div className="max-h-[calc(100vh-14rem)] overflow-auto">
           <Table aria-busy={isLoading} aria-label="Leads">
             <LeadsTableHeader
@@ -381,7 +381,7 @@ export const LeadsTable = memo(function LeadsTable({
         </div>
 
         {onPageChange ? (
-          <div className="border-t border-border/60 bg-muted/10 px-4 py-3">
+          <div className="border-t border-black bg-muted/10 px-4 py-3">
             <LeadsTablePagination
               page={page}
               pageSize={pageSize}

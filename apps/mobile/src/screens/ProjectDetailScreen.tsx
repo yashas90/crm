@@ -40,7 +40,7 @@ export function ProjectDetailScreen({ route, navigation }: Props) {
   if (isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primaryLight} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -114,13 +114,13 @@ function UnitRow({ unit, onPress }: { unit: ProjectUnitRow; onPress: () => void 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   filters: {
     paddingHorizontal: spacing.md,
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radii.full,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     marginRight: spacing.xs,
   },
   chipActive: {
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textTransform: "capitalize",
   },
   chipTextActive: {
@@ -155,22 +155,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
   rowPressed: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
   },
   rowMain: {
     flex: 1,
   },
   unitNumber: {
     ...typography.body,
-    color: colors.textDark,
+    color: colors.text,
     fontWeight: "600",
   },
   unitMeta: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     marginTop: 2,
   },
   rowEnd: {
@@ -178,18 +178,18 @@ const styles = StyleSheet.create({
   },
   price: {
     ...typography.caption,
-    color: colors.textDark,
+    color: colors.text,
     fontWeight: "600",
   },
   status: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textTransform: "capitalize",
     marginTop: 2,
   },
   empty: {
     ...typography.body,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: spacing.xl,
   },

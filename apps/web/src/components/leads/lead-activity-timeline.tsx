@@ -70,7 +70,7 @@ export function LeadActivityTimeline({ activities }: LeadActivityTimelineProps) 
           <div key={activity.id} className="relative flex gap-4 pb-6 last:pb-0">
             <div
               className={cn(
-                "relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-card shadow-sm",
+                "relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-card shadow-[2px_2px_0_0_#000]",
                 activity.type === "call" && "border-emerald-500/30 text-emerald-600",
                 activity.type === "note" && "border-indigo-500/30 text-indigo-600",
                 activity.type === "status_change" && "border-amber-500/30 text-amber-600",
@@ -78,7 +78,7 @@ export function LeadActivityTimeline({ activities }: LeadActivityTimelineProps) 
             >
               <Icon className="h-4 w-4" />
             </div>
-            <div className="min-w-0 flex-1 rounded-xl border border-border/60 bg-muted/20 p-3 transition-all duration-200 hover:shadow-sm">
+            <div className="min-w-0 flex-1 border-2 border-black bg-muted/20 p-3 transition-all duration-200 hover:shadow-[2px_2px_0_0_#000]">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <p className="text-sm font-semibold">{title}</p>
                 <span className="text-xs text-muted-foreground">

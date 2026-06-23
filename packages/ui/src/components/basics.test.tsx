@@ -16,7 +16,7 @@ describe("Button", () => {
         Outline
       </Button>,
     );
-    expect(screen.getByRole("button", { name: "Outline" })).toHaveClass("border");
+    expect(screen.getByRole("button", { name: "Outline" })).toHaveClass("border-black");
   });
 });
 

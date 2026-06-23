@@ -14,7 +14,7 @@ export function AccessDenied({
 }: AccessDeniedProps) {
   return (
     <View style={styles.wrap}>
-      <Ionicons name="lock-closed-outline" size={48} color={colors.textMutedDark} />
+      <Ionicons name="lock-closed-outline" size={48} color={colors.textMuted} />
       <Text style={styles.title}>Access denied</Text>
       <Text style={styles.message}>{message}</Text>
       {onGoBack ? (
@@ -27,14 +27,14 @@ export function AccessDenied({
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.lg,
   },
-  title: { ...typography.subheading, color: colors.textDark, marginTop: spacing.md },
+  title: { ...typography.subheading, color: colors.text, marginTop: spacing.md },
   message: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: spacing.sm,
     lineHeight: 22,

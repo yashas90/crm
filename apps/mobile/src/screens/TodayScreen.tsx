@@ -18,8 +18,9 @@ import { formatDuration } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
 import type { MainTabParamList } from "@/navigation/types";
-import { colors, radii, spacing, typography } from "@/theme";
+import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { neuCard, neuSticky } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -147,7 +148,7 @@ function TodayVisitsSection({
         </View>
       ) : visits.length === 0 ? (
         <View style={styles.visitsEmpty}>
-          <Ionicons name="calendar-outline" size={28} color={colors.textMutedDark} />
+          <Ionicons name="calendar-outline" size={28} color={colors.textMuted} />
           <Text style={styles.visitsEmptyText}>No site visits scheduled today</Text>
         </View>
       ) : (
@@ -335,7 +336,7 @@ export function TodayScreen({ route, navigation }: Props) {
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.primaryLight} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -358,7 +359,7 @@ export function TodayScreen({ route, navigation }: Props) {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={refreshAll}
-            tintColor={colors.primaryLight}
+            tintColor={colors.primary}
           />
         }
         contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
@@ -481,10 +482,10 @@ export function TodayScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   center: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -492,50 +493,53 @@ const styles = StyleSheet.create({
   hero: {
     marginTop: spacing.md,
     marginBottom: spacing.lg,
-    borderRadius: radii.lg,
     padding: spacing.lg,
-    backgroundColor: colors.primaryDark,
-    borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.3)",
+    ...neuSticky,
   },
   heroGreeting: {
     ...typography.heading,
-    color: colors.textDark,
-    fontSize: 26,
+    color: colors.text,
+    fontSize: 24,
   },
   heroSub: {
     ...typography.body,
-    color: "rgba(248, 250, 252, 0.85)",
+    color: colors.textMuted,
     marginTop: spacing.sm,
+    fontWeight: "500",
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
   chip: {
     borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    ...shadows.neuSm,
   },
-  chipDanger: { backgroundColor: "rgba(239, 68, 68, 0.2)" },
-  chipText: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
-  chipTextDanger: { color: "#fca5a5" },
+  chipDanger: { backgroundColor: "rgba(255, 107, 107, 0.25)" },
+  chipText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  chipTextDanger: { color: colors.hot },
   sectionTitle: {
     ...typography.subheading,
-    color: colors.textDark,
+    color: colors.text,
     marginBottom: spacing.sm,
   },
   sectionTitleFocused: {
-    color: colors.primaryLight,
+    color: colors.primary,
   },
   queueCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    ...neuCard,
   },
   queueMain: {
     flex: 1,
@@ -551,27 +555,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.border,
   },
   avatarText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   queueBody: { flex: 1, minWidth: 0 },
-  name: { color: colors.textDark, fontSize: 16, fontWeight: "700" },
-  subline: { color: colors.textMutedDark, fontSize: 13, marginTop: 2 },
-  followUp: { color: colors.textMutedDark, fontSize: 12, marginTop: 4 },
+  name: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  subline: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
+  followUp: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
   followUpOverdue: { color: colors.danger, fontWeight: "600" },
-  empty: { color: colors.textMutedDark, textAlign: "center", marginTop: 24 },
+  empty: { color: colors.textMuted, textAlign: "center", marginTop: 24 },
   recentSection: { marginTop: spacing.lg },
   recentCard: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.sm,
     padding: spacing.sm,
     marginBottom: spacing.sm,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+    ...neuCard,
   },
-  recentStatus: { color: colors.textDark, fontSize: 13, fontWeight: "600", width: 90 },
-  recentMeta: { flex: 1, color: colors.textMutedDark, fontSize: 12, textTransform: "capitalize" },
-  recentTime: { color: colors.textMutedDark, fontSize: 12 },
+  recentStatus: { color: colors.text, fontSize: 13, fontWeight: "600", width: 90 },
+  recentMeta: { flex: 1, color: colors.textMuted, fontSize: 12, textTransform: "capitalize" },
+  recentTime: { color: colors.textMuted, fontSize: 12 },
   callLoggedToast: {
     position: "absolute",
     alignSelf: "center",
@@ -588,12 +593,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    ...neuCard,
   },
-  visitsEmptyText: { color: colors.textMutedDark, textAlign: "center", fontSize: 14 },
+  visitsEmptyText: { color: colors.textMuted, textAlign: "center", fontSize: 14 },
   visitsRetryBtn: {
     marginTop: spacing.xs,
     paddingHorizontal: 14,
@@ -603,12 +605,9 @@ const styles = StyleSheet.create({
   },
   visitsRetryText: { color: "#fff", fontWeight: "600", fontSize: 13 },
   visitCard: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    ...neuCard,
   },
   visitCardHeader: {
     flexDirection: "row",
@@ -616,20 +615,20 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   visitCardBody: { flex: 1, minWidth: 0 },
-  visitLeadName: { color: colors.textDark, fontSize: 16, fontWeight: "700" },
-  visitMeta: { color: colors.textMutedDark, fontSize: 13, marginTop: 4 },
+  visitLeadName: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  visitMeta: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
   visitBadge: {
     borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  visitBadgeScheduled: { backgroundColor: "rgba(37, 99, 235, 0.2)" },
-  visitBadgeCompleted: { backgroundColor: "rgba(22, 163, 74, 0.2)" },
-  visitBadgeMuted: { backgroundColor: "rgba(148, 163, 184, 0.15)" },
-  visitBadgeText: { fontSize: 11, fontWeight: "700", textTransform: "capitalize" },
-  visitBadgeTextScheduled: { color: "#93c5fd" },
-  visitBadgeTextCompleted: { color: "#86efac" },
-  visitBadgeTextMuted: { color: colors.textMutedDark },
+  visitBadgeScheduled: { backgroundColor: "#dbeafe" },
+  visitBadgeCompleted: { backgroundColor: "#bbf7d0" },
+  visitBadgeMuted: { backgroundColor: "#f5f5f5" },
+  visitBadgeText: { fontSize: 10, fontWeight: "800", textTransform: "uppercase" },
+  visitBadgeTextScheduled: { color: "#1a3550" },
+  visitBadgeTextCompleted: { color: "#166534" },
+  visitBadgeTextMuted: { color: colors.textMuted },
   visitActions: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -646,9 +645,9 @@ const styles = StyleSheet.create({
   visitCompleteBtn: { backgroundColor: colors.primary },
   visitCompleteBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   visitViewBtn: {
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    backgroundColor: colors.backgroundDark,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
-  visitViewBtnText: { color: colors.textDark, fontWeight: "600", fontSize: 13 },
+  visitViewBtnText: { color: colors.text, fontWeight: "600", fontSize: 13 },
 });

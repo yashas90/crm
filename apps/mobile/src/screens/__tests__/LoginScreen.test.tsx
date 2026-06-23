@@ -28,7 +28,7 @@ describe("LoginScreen", () => {
   it("renders sign-in form", () => {
     render(<LoginScreen />);
 
-    expect(screen.getByText("PropNinja")).toBeTruthy();
+    expect(screen.getByText(/Prop.*Ninja/)).toBeTruthy();
     expect(screen.getAllByText("Sign in").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByPlaceholderText("you@company.com")).toBeTruthy();
     expect(screen.getByPlaceholderText("••••••••")).toBeTruthy();

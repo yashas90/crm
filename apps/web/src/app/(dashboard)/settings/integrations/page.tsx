@@ -86,7 +86,7 @@ export default function IntegrationsSettingsPage() {
         <p className="text-sm text-destructive">Unable to load integration status.</p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="border-border/60 shadow-sm">
+          <Card className="">
             <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
               <div className="space-y-1">
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -149,7 +149,7 @@ export default function IntegrationsSettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/60 shadow-sm">
+          <Card className="">
             <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
               <div className="space-y-1">
                 <CardTitle className="flex items-center gap-2 text-base">

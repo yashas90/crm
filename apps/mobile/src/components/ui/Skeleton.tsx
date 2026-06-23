@@ -1,4 +1,5 @@
-import { colors, radii, spacing } from "@/theme";
+import { colors, radii, shadows, spacing } from "@/theme";
+import { neuCard } from "@/theme/neubrutal";
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 
@@ -50,7 +51,9 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
 
 const styles = StyleSheet.create({
   box: {
-    backgroundColor: colors.borderDark,
+    backgroundColor: "#e5e5e5",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   list: {
     padding: spacing.md,
@@ -60,11 +63,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.lg,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    ...neuCard,
   },
   rowBody: {
     flex: 1,

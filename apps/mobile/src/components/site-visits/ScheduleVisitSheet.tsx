@@ -166,7 +166,7 @@ export function ScheduleVisitSheet({
                 style={styles.input}
                 value={visitDate}
                 onChangeText={setVisitDate}
-                placeholderTextColor={colors.textMutedDark}
+                placeholderTextColor={colors.textMuted}
               />
 
               <Text style={styles.label}>Time (HH:MM)</Text>
@@ -175,7 +175,7 @@ export function ScheduleVisitSheet({
                 value={visitTime}
                 onChangeText={setVisitTime}
                 placeholder="10:00"
-                placeholderTextColor={colors.textMutedDark}
+                placeholderTextColor={colors.textMuted}
               />
 
               <Text style={styles.label}>Duration (minutes)</Text>
@@ -184,7 +184,7 @@ export function ScheduleVisitSheet({
                 value={duration}
                 onChangeText={setDuration}
                 keyboardType="number-pad"
-                placeholderTextColor={colors.textMutedDark}
+                placeholderTextColor={colors.textMuted}
               />
 
               <Text style={styles.label}>Property address</Text>
@@ -193,7 +193,7 @@ export function ScheduleVisitSheet({
                 value={propertyAddress}
                 onChangeText={setPropertyAddress}
                 placeholder="Site / project address"
-                placeholderTextColor={colors.textMutedDark}
+                placeholderTextColor={colors.textMuted}
               />
 
               <Text style={styles.label}>Notes</Text>
@@ -202,7 +202,7 @@ export function ScheduleVisitSheet({
                 value={notes}
                 onChangeText={setNotes}
                 multiline
-                placeholderTextColor={colors.textMutedDark}
+                placeholderTextColor={colors.textMuted}
               />
 
               <Pressable
@@ -228,27 +228,27 @@ export function ScheduleVisitSheet({
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
   sheet: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     padding: spacing.lg,
     gap: spacing.xs,
   },
-  title: { ...typography.subheading, color: colors.textDark },
-  subtitle: { color: colors.textMutedDark, marginBottom: spacing.sm },
+  title: { ...typography.subheading, color: colors.text },
+  subtitle: { color: colors.textMuted, marginBottom: spacing.sm },
   confirmProperty: {
-    color: colors.textDark,
+    color: colors.text,
     fontSize: 15,
     fontWeight: "600",
     marginBottom: spacing.sm,
   },
-  label: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600", marginTop: spacing.sm },
+  label: { color: colors.textMuted, fontSize: 12, fontWeight: "600", marginTop: spacing.sm },
   input: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    color: colors.textDark,
+    borderColor: colors.border,
+    color: colors.text,
     padding: spacing.sm,
   },
   notes: { minHeight: 72, textAlignVertical: "top" },
@@ -262,12 +262,12 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.6 },
   primaryBtnText: { color: "#fff", fontWeight: "700" },
   successToast: {
-    color: colors.primaryLight,
+    color: colors.primary,
     textAlign: "center",
     fontWeight: "600",
     marginTop: spacing.sm,
   },
   doneBtn: { alignItems: "center", paddingVertical: spacing.md },
-  doneBtnText: { color: colors.textMutedDark, fontWeight: "600" },
-  cancel: { color: colors.textMutedDark, textAlign: "center", paddingVertical: spacing.md },
+  doneBtnText: { color: colors.textMuted, fontWeight: "600" },
+  cancel: { color: colors.textMuted, textAlign: "center", paddingVertical: spacing.md },
 });

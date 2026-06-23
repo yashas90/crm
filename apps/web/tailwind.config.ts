@@ -6,7 +6,17 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}", "../../packages/ui/src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        heading: ["var(--font-heading)", "system-ui", "sans-serif"],
+      },
       colors: {
+        neu: {
+          cream: "#FFFBF2",
+          hot: "#C02020",
+          blue: "#204060",
+          sticky: "#FEF08A",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

@@ -19,7 +19,7 @@ export function AnalyticsBookedUnits({ dateFrom, dateTo }: AnalyticsBookedUnitsP
   const items = booked.data?.items ?? [];
 
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className="">
       <CardHeader>
         <CardTitle className="text-lg">Booked units this month</CardTitle>
       </CardHeader>

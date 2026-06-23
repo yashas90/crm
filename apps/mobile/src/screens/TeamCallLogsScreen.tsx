@@ -102,10 +102,10 @@ function TeamCallLogsContent({ navigation }: Props) {
         <Pressable style={styles.agentPicker} onPress={() => setAgentPickerOpen(true)}>
           <Text style={styles.agentPickerLabel}>Agent</Text>
           <Text style={styles.agentPickerValue}>{selectedAgentLabel}</Text>
-          <Ionicons name="chevron-down" size={16} color={colors.textMutedDark} />
+          <Ionicons name="chevron-down" size={16} color={colors.textMuted} />
         </Pressable>
         <Pressable style={styles.exportBtn} onPress={handleExport}>
-          <Ionicons name="download-outline" size={18} color={colors.primaryLight} />
+          <Ionicons name="download-outline" size={18} color={colors.primary} />
           <Text style={styles.exportText}>Export</Text>
         </Pressable>
       </View>
@@ -164,7 +164,7 @@ function TeamCallLogsContent({ navigation }: Props) {
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
           logs.isLoading ? (
-            <ActivityIndicator color={colors.primaryLight} style={styles.loader} />
+            <ActivityIndicator color={colors.primary} style={styles.loader} />
           ) : (
             <EmptyState
               title="No team calls"
@@ -174,7 +174,7 @@ function TeamCallLogsContent({ navigation }: Props) {
         }
         ListFooterComponent={
           logs.isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primaryLight} style={styles.footerLoader} />
+            <ActivityIndicator color={colors.primary} style={styles.footerLoader} />
           ) : null
         }
         onEndReached={() => {
@@ -185,7 +185,7 @@ function TeamCallLogsContent({ navigation }: Props) {
           <RefreshControl
             refreshing={logs.isRefetching && !logs.isFetchingNextPage}
             onRefresh={() => void refetchAll()}
-            tintColor={colors.primaryLight}
+            tintColor={colors.primary}
           />
         }
       />
@@ -237,7 +237,7 @@ export function TeamCallLogsScreen(props: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md },
   emptyContent: { flexGrow: 1 },
   toolbar: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
@@ -246,14 +246,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     padding: spacing.md,
   },
-  agentPickerLabel: { color: colors.textMutedDark, fontSize: 11, fontWeight: "700" },
-  agentPickerValue: { flex: 1, color: colors.textDark, fontSize: 14, fontWeight: "600" },
+  agentPickerLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  agentPickerValue: { flex: 1, color: colors.text, fontSize: 14, fontWeight: "600" },
   exportBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -261,13 +261,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    backgroundColor: colors.cardDark,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
-  exportText: { color: colors.primaryLight, fontWeight: "600", fontSize: 13 },
+  exportText: { color: colors.primary, fontWeight: "600", fontSize: 13 },
   filterHeading: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: spacing.xs,
@@ -277,13 +277,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
-  chipActive: { backgroundColor: "rgba(20, 184, 166, 0.15)", borderColor: colors.primaryLight },
-  chipText: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
-  chipTextActive: { color: colors.primaryLight },
+  chipActive: { backgroundColor: "#dbeafe", borderColor: colors.primary },
+  chipText: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
+  chipTextActive: { color: colors.primary },
   loader: { marginTop: spacing.xl },
   footerLoader: { marginVertical: spacing.md },
   modalBackdrop: {
@@ -292,28 +292,28 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     padding: spacing.lg,
     maxHeight: "60%",
   },
-  modalTitle: { color: colors.textDark, fontSize: 18, fontWeight: "700", marginBottom: spacing.md },
+  modalTitle: { color: colors.text, fontSize: 18, fontWeight: "700", marginBottom: spacing.md },
   modalOption: {
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
-  modalOptionText: { color: colors.textDark, fontSize: 16 },
+  modalOptionText: { color: colors.text, fontSize: 16 },
   toast: {
     position: "absolute",
     left: spacing.md,
     right: spacing.md,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.primaryLight,
+    borderColor: colors.primary,
   },
-  toastText: { color: colors.textDark, textAlign: "center", fontWeight: "600" },
+  toastText: { color: colors.text, textAlign: "center", fontWeight: "600" },
 });

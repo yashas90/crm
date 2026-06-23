@@ -1,0 +1,10 @@
+{
+  "name": "@propninja/brand",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/colors.ts",
+  "types": "./src/colors.ts",
+  "exports": {
+    ".": "./src/colors.ts"
+  }
+}

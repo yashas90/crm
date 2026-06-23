@@ -146,7 +146,7 @@ export function visitStatusColor(status: SiteVisitStatus) {
     case "scheduled":
       return "#16a34a";
     case "completed":
-      return "#2563eb";
+      return "#204060";
     case "cancelled":
       return "#dc2626";
     case "no_show":

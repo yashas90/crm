@@ -41,7 +41,7 @@ export default function App() {
           <RootNavigator />
           <InAppNotificationBanner onNavigateToLead={handleNavigateToLead} />
         </NavigationContainer>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
       </Providers>
     </SafeAreaProvider>
   );

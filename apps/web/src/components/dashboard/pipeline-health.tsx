@@ -58,7 +58,7 @@ export function PipelineHealth({ leadsByStatus, activityLast7Days }: PipelineHea
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <Card className="border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card className=" transition-all duration-200 hover:shadow-md">
         <CardHeader>
           <CardTitle className="text-base">Pipeline by stage</CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -99,7 +99,7 @@ export function PipelineHealth({ leadsByStatus, activityLast7Days }: PipelineHea
         </CardContent>
       </Card>
 
-      <Card className="border-border/60 shadow-sm transition-all duration-200 hover:shadow-md">
+      <Card className=" transition-all duration-200 hover:shadow-md">
         <CardHeader>
           <CardTitle className="text-base">Calls vs leads (last 7 days)</CardTitle>
           <p className="text-sm text-muted-foreground">

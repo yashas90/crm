@@ -96,19 +96,19 @@ export function DocumentActionSheet({
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.title}>{document.name}</Text>
           {busy ? (
-            <ActivityIndicator color={colors.primaryLight} />
+            <ActivityIndicator color={colors.primary} />
           ) : (
             <>
               <Pressable style={styles.action} onPress={() => void shareWhatsApp()}>
-                <Ionicons name="logo-whatsapp" size={20} color={colors.primaryLight} />
+                <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
                 <Text style={styles.actionText}>Share via WhatsApp</Text>
               </Pressable>
               <Pressable style={styles.action} onPress={() => void copyLink()}>
-                <Ionicons name="link-outline" size={20} color={colors.primaryLight} />
+                <Ionicons name="link-outline" size={20} color={colors.primary} />
                 <Text style={styles.actionText}>Copy link</Text>
               </Pressable>
               <Pressable style={styles.action} onPress={() => void preview()}>
-                <Ionicons name="eye-outline" size={20} color={colors.primaryLight} />
+                <Ionicons name="eye-outline" size={20} color={colors.primary} />
                 <Text style={styles.actionText}>Preview</Text>
               </Pressable>
             </>
@@ -149,7 +149,7 @@ export function LeadDocumentsSection({ leadId, leadName, leadPhone }: LeadDocume
       </View>
 
       {isLoading ? (
-        <ActivityIndicator color={colors.primaryLight} />
+        <ActivityIndicator color={colors.primary} />
       ) : items.length === 0 ? (
         <Text style={styles.empty}>No documents shared yet.</Text>
       ) : (
@@ -209,45 +209,45 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
     padding: spacing.lg,
     gap: spacing.sm,
   },
-  title: { ...typography.h3, color: colors.textDark, marginBottom: spacing.sm },
+  title: { ...typography.h3, color: colors.text, marginBottom: spacing.sm },
   action: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     paddingVertical: spacing.md,
   },
-  actionText: { ...typography.body, color: colors.textDark },
+  actionText: { ...typography.body, color: colors.text },
   section: { gap: spacing.md },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  sectionTitle: { ...typography.h3, color: colors.textDark },
+  sectionTitle: { ...typography.h3, color: colors.text },
   shareBtn: {
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radii.md,
   },
-  shareBtnText: { ...typography.caption, color: colors.textDark, fontWeight: "700" },
-  empty: { ...typography.body, color: colors.textMutedDark },
+  shareBtnText: { ...typography.caption, color: colors.text, fontWeight: "700" },
+  empty: { ...typography.body, color: colors.textMuted },
   shareRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
-  shareName: { ...typography.body, color: colors.textDark, fontWeight: "600" },
-  shareMeta: { ...typography.caption, color: colors.textMutedDark },
+  shareName: { ...typography.body, color: colors.text, fontWeight: "600" },
+  shareMeta: { ...typography.caption, color: colors.textMuted },
   viewedBadge: {
     backgroundColor: "#059669",
     paddingHorizontal: spacing.sm,

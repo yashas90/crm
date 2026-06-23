@@ -41,7 +41,7 @@ export function PipelineLeadCard({
         <Badge
           label={lead.leadSource}
           backgroundColor="rgba(148, 163, 184, 0.15)"
-          color={colors.textMutedDark}
+          color={colors.textMuted}
         />
       ) : null}
       <Text style={styles.activity}>
@@ -58,10 +58,10 @@ export function PipelineLeadCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     padding: spacing.sm,
     marginBottom: spacing.sm,
     gap: 4,
@@ -75,8 +75,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(239, 68, 68, 0.35)",
   },
   cardPressed: { opacity: 0.88 },
-  name: { color: colors.textDark, fontSize: 15, fontWeight: "700" },
-  phone: { color: colors.textMutedDark, fontSize: 13 },
-  activity: { color: colors.textMutedDark, fontSize: 11, marginTop: 2 },
-  assignee: { color: colors.primaryLight, fontSize: 11, fontWeight: "600" },
+  name: { color: colors.text, fontSize: 15, fontWeight: "700" },
+  phone: { color: colors.textMuted, fontSize: 13 },
+  activity: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+  assignee: { color: colors.primary, fontSize: 11, fontWeight: "600" },
 });

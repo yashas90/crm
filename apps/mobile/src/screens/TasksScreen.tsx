@@ -1,8 +1,9 @@
 import { TaskDetailSheet, isTaskOverdue } from "@/components/TaskDetailSheet";
 import { type Task, useMyOpenTasks } from "@/hooks/use-tasks";
 import type { LeadsStackParamList, MainTabParamList } from "@/navigation/types";
-import { colors, radii, spacing, typography } from "@/theme";
+import { colors, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT } from "@/theme/layout";
+import { screenStyles } from "@/theme/screen";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { CompositeScreenProps } from "@react-navigation/native";
@@ -20,7 +21,7 @@ function TaskListRow({ task, onPress }: { task: Task; onPress: () => void }) {
   const overdue = isTaskOverdue(task);
 
   return (
-    <Pressable style={[styles.row, overdue && styles.rowOverdue]} onPress={onPress}>
+    <Pressable style={[screenStyles.listRow, overdue && styles.rowOverdue]} onPress={onPress}>
       <View style={styles.rowBody}>
         <Text style={[styles.rowTitle, overdue && styles.overdueText]}>{task.title}</Text>
         <Text style={[styles.rowMeta, overdue && styles.overdueText]}>
@@ -38,7 +39,7 @@ function TaskListRow({ task, onPress }: { task: Task; onPress: () => void }) {
       <Ionicons
         name="chevron-forward"
         size={18}
-        color={overdue ? colors.danger : colors.textMutedDark}
+        color={overdue ? colors.danger : colors.textMuted}
       />
     </Pressable>
   );
@@ -61,10 +62,10 @@ export function TasksScreen({ navigation }: Props) {
       </View>
 
       {isLoading ? (
-        <ActivityIndicator color={colors.primaryLight} style={{ marginTop: spacing.lg }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
       ) : tasks.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="checkmark-done-outline" size={48} color={colors.textMutedDark} />
+          <Ionicons name="checkmark-done-outline" size={48} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>All caught up</Text>
           <Text style={styles.emptyText}>No open tasks assigned to you.</Text>
         </View>
@@ -97,40 +98,31 @@ export function TasksScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.sticky,
   },
-  headerTitle: { ...typography.heading, color: colors.textDark, fontSize: 22 },
-  headerSubtitle: { color: colors.textMutedDark, fontSize: 13, marginTop: 4 },
+  headerTitle: { ...typography.heading, color: colors.text, fontSize: 22 },
+  headerSubtitle: { color: colors.textMuted, fontSize: 13, marginTop: 4, fontWeight: "600" },
   list: { padding: spacing.md, gap: spacing.sm },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    marginBottom: spacing.sm,
-  },
   rowOverdue: {
     borderColor: colors.danger,
-    backgroundColor: "rgba(239,68,68,0.08)",
+    backgroundColor: "rgba(255, 107, 107, 0.12)",
   },
   rowBody: { flex: 1 },
-  rowTitle: { color: colors.textDark, fontSize: 15, fontWeight: "600" },
+  rowTitle: { color: colors.text, fontSize: 15, fontWeight: "700" },
   rowMeta: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 4,
     textTransform: "capitalize",
   },
-  rowLead: { color: colors.primaryLight, fontSize: 12, marginTop: 4 },
+  rowLead: { color: colors.primary, fontSize: 12, marginTop: 4, fontWeight: "600" },
   overdueText: { color: colors.danger },
   empty: {
     flex: 1,
@@ -139,6 +131,6 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.sm,
   },
-  emptyTitle: { color: colors.textDark, fontSize: 18, fontWeight: "700" },
-  emptyText: { color: colors.textMutedDark, fontSize: 14, textAlign: "center" },
+  emptyTitle: { color: colors.text, fontSize: 18, fontWeight: "800", textTransform: "uppercase" },
+  emptyText: { color: colors.textMuted, fontSize: 14, textAlign: "center" },
 });

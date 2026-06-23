@@ -71,7 +71,7 @@ function UserManagementContent({ navigation: _navigation }: Props) {
           <RefreshControl
             refreshing={users.isRefetching}
             onRefresh={() => void users.refetch()}
-            tintColor={colors.primaryLight}
+            tintColor={colors.primary}
           />
         }
         ListHeaderComponent={
@@ -80,9 +80,7 @@ function UserManagementContent({ navigation: _navigation }: Props) {
             <Text style={styles.subtitle}>{users.data?.total ?? 0} users</Text>
           </View>
         }
-        ListEmptyComponent={
-          users.isLoading ? <ActivityIndicator color={colors.primaryLight} /> : null
-        }
+        ListEmptyComponent={users.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
         renderItem={({ item }) => (
           <Pressable style={styles.row} onPress={() => openEdit(item)}>
             <View style={styles.rowBody}>
@@ -121,7 +119,7 @@ function UserManagementContent({ navigation: _navigation }: Props) {
               <Switch
                 value={editActive}
                 onValueChange={setEditActive}
-                trackColor={{ true: colors.primaryLight, false: colors.borderDark }}
+                trackColor={{ true: colors.primary, false: colors.border }}
               />
             </View>
             <View style={styles.modalActions}>
@@ -144,37 +142,37 @@ export function UserManagementScreen(props: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   header: { padding: spacing.md },
-  title: { ...typography.heading, color: colors.textDark, fontSize: 22 },
-  subtitle: { color: colors.textMutedDark, marginTop: 4 },
+  title: { ...typography.heading, color: colors.text, fontSize: 22 },
+  subtitle: { color: colors.textMuted, marginTop: 4 },
   row: {
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
     padding: spacing.md,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   rowBody: { marginBottom: 4 },
-  rowName: { color: colors.textDark, fontSize: 16, fontWeight: "700" },
-  rowMeta: { color: colors.primaryLight, fontSize: 12, textTransform: "capitalize" },
-  rowEmail: { color: colors.textMutedDark, fontSize: 13 },
+  rowName: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  rowMeta: { color: colors.primary, fontSize: 12, textTransform: "capitalize" },
+  rowEmail: { color: colors.textMuted, fontSize: 13 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     padding: spacing.lg,
   },
-  modalTitle: { color: colors.textDark, fontSize: 20, fontWeight: "700", marginBottom: spacing.md },
+  modalTitle: { color: colors.text, fontSize: 20, fontWeight: "700", marginBottom: spacing.md },
   modalLabel: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "700",
     marginBottom: spacing.xs,
@@ -185,11 +183,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
-  roleChipActive: { borderColor: colors.primaryLight, backgroundColor: "rgba(20,184,166,0.15)" },
-  roleChipText: { color: colors.textMutedDark, textTransform: "capitalize" },
-  roleChipTextActive: { color: colors.primaryLight, fontWeight: "700" },
+  roleChipActive: { borderColor: colors.primary, backgroundColor: "#dbeafe" },
+  roleChipText: { color: colors.textMuted, textTransform: "capitalize" },
+  roleChipTextActive: { color: colors.primary, fontWeight: "700" },
   switchRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -6,8 +6,9 @@ import { useLeadScopeCounts, useTodayQueue } from "@/hooks/use-leads";
 import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { MainTabParamList } from "@/navigation/types";
-import { colors, radii, spacing, typography } from "@/theme";
+import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { neuSticky } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import {
@@ -57,7 +58,7 @@ export function HomeScreen({ navigation }: Props) {
           <RefreshControl
             refreshing={queue.isRefetching || summary.isRefetching}
             onRefresh={refreshAll}
-            tintColor={colors.primaryLight}
+            tintColor={colors.primary}
           />
         }
       >
@@ -74,7 +75,7 @@ export function HomeScreen({ navigation }: Props) {
               onPress={() => navigation.navigate("NotificationsTab")}
               accessibilityLabel="Notifications"
             >
-              <Ionicons name="notifications-outline" size={24} color={colors.textDark} />
+              <Ionicons name="notifications-outline" size={24} color={colors.text} />
               {unreadNotifications > 0 ? (
                 <View style={styles.bellBadge}>
                   <Text style={styles.bellBadgeText}>
@@ -87,14 +88,14 @@ export function HomeScreen({ navigation }: Props) {
         </View>
 
         {isLoading ? (
-          <ActivityIndicator color={colors.primaryLight} style={{ marginVertical: spacing.xl }} />
+          <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.xl }} />
         ) : (
           <View style={styles.statsGrid}>
             <StatCard
               icon="calendar-outline"
               value={String(queue.data?.total ?? queue.data?.items.length ?? 0)}
               label="Follow-ups due"
-              accent={colors.primaryLight}
+              accent={colors.primary}
               onPress={() => navigation.navigate("TodayTab", { focusQueue: true })}
             />
             <StatCard
@@ -184,23 +185,20 @@ function ActionTile({
 }) {
   return (
     <Card onPress={onPress} style={styles.actionTile}>
-      <Ionicons name={icon} size={24} color={colors.primaryLight} />
+      <Ionicons name={icon} size={24} color={colors.primary} />
       <Text style={styles.actionLabel}>{label}</Text>
-      <Ionicons name="chevron-forward" size={18} color={colors.textMutedDark} />
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.backgroundDark },
+  safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md },
   hero: {
     marginBottom: spacing.lg,
     padding: spacing.lg,
-    borderRadius: radii.lg,
-    backgroundColor: colors.primaryDark,
-    borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.35)",
+    ...neuSticky,
   },
   heroTop: {
     flexDirection: "row",
@@ -212,12 +210,13 @@ const styles = StyleSheet.create({
   bellButton: {
     width: 44,
     height: 44,
-    borderRadius: radii.md,
+    borderRadius: radii.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.35)",
-    borderWidth: 1,
-    borderColor: "rgba(248, 250, 252, 0.12)",
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    ...shadows.neuSm,
   },
   bellBadge: {
     position: "absolute",
@@ -232,12 +231,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   bellBadgeText: {
-    color: colors.textDark,
+    color: colors.text,
     fontSize: 10,
     fontWeight: "800",
   },
-  greeting: { ...typography.heading, color: colors.textDark, fontSize: 26 },
-  heroSub: { color: "rgba(248, 250, 252, 0.8)", marginTop: 6, fontSize: 15 },
+  greeting: { ...typography.heading, color: colors.text, fontSize: 24 },
+  heroSub: { color: colors.textMuted, marginTop: 6, fontSize: 15, fontWeight: "500" },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -247,22 +246,33 @@ const styles = StyleSheet.create({
   statCard: {
     width: "48%",
     flexGrow: 1,
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.lg,
+    backgroundColor: colors.card,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderWidth: 2,
+    borderColor: colors.border,
     minWidth: "46%",
+    ...shadows.neu,
   },
   pressed: { opacity: 0.88 },
   statValue: { fontSize: 28, fontWeight: "800", marginTop: 8 },
-  statLabel: { color: colors.textMutedDark, fontSize: 13, marginTop: 4 },
-  sectionTitle: { ...typography.subheading, color: colors.textDark, marginBottom: spacing.sm },
+  statLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  sectionTitle: {
+    ...typography.subheading,
+    color: colors.text,
+    marginBottom: spacing.sm,
+    fontSize: 16,
+  },
   actions: { gap: spacing.sm },
   actionTile: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
   },
-  actionLabel: { flex: 1, color: colors.textDark, fontSize: 16, fontWeight: "600" },
+  actionLabel: { flex: 1, color: colors.text, fontSize: 15, fontWeight: "700" },
 });

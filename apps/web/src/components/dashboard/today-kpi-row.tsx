@@ -83,7 +83,7 @@ export function TodayKpiRow({ kpis }: TodayKpiRowProps) {
         return (
           <Card
             key={item.title}
-            className="overflow-hidden border-border/60 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+            className="overflow-hidden  transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
           >
             <CardContent className="flex items-start gap-4 p-5">
               <div

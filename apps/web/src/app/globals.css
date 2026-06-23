@@ -1,3 +1,70 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 43 100% 97%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+    --primary: 210 50% 25%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 43 60% 94%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 43 40% 92%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 71% 44%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 71% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 0%;
+    --input: 0 0% 85%;
+    --ring: 210 50% 25%;
+    --radius: 0.5rem;
+    --neu-cream: #fffbf2;
+    --neu-hot: #c02020;
+    --neu-blue: #204060;
+    --neu-sticky: #fef08a;
+  }
+
+  textarea,
+  select {
+    @apply border-2 border-black bg-white font-medium shadow-[2px_2px_0_0_#000];
+  }
+}
+
+@layer components {
+  .neubrutal-table th {
+    @apply border border-black bg-[#204060] px-4 py-3 text-left font-heading text-xs font-bold uppercase tracking-wider text-white;
+  }
+
+  .neubrutal-table td {
+    @apply border border-black px-4 py-3 text-sm;
+  }
+
+  .neubrutal-table tr:hover td {
+    @apply bg-slate-50;
+  }
+
+  .font-heading {
+    font-family: var(--font-heading), system-ui, sans-serif;
+  }
+
+  .neu-panel {
+    @apply border-2 border-black bg-white shadow-[4px_4px_0_0_#000];
+  }
+
+  .neu-chip {
+    @apply inline-flex items-center border border-black px-2.5 py-0.5 text-xs font-bold uppercase;
+  }
+
+  main h1 {
+    @apply font-heading text-3xl font-bold uppercase italic tracking-tighter md:text-4xl;
+  }
+
+  main h2.text-lg.font-semibold,
+  main h3.text-lg.font-semibold {
+    @apply font-heading text-xl font-bold uppercase italic tracking-tight;
+  }
+}

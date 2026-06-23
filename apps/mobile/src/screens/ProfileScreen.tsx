@@ -5,8 +5,9 @@ import { useTodayCallSummary } from "@/hooks/use-calls";
 import { useLeadScopeCounts } from "@/hooks/use-leads";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { getApiUrl } from "@/lib/apiClient";
-import { colors, radii, spacing, typography } from "@/theme";
+import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { screenStyles } from "@/theme/screen";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useState } from "react";
@@ -57,11 +58,11 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
         <RefreshControl
           refreshing={isRefetching}
           onRefresh={handleRefresh}
-          tintColor={colors.primaryLight}
+          tintColor={colors.primary}
         />
       }
     >
-      <View style={styles.profileHeader}>
+      <View style={screenStyles.profileHeader}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
             {(user?.name ?? "A")
@@ -76,26 +77,26 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
         <Text style={styles.role}>{user?.role ?? "agent"}</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Today's performance</Text>
+      <Text style={screenStyles.sectionTitle}>Today's performance</Text>
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{callSummary?.total_calls ?? "—"}</Text>
-          <Text style={styles.statLabel}>Calls today</Text>
+        <View style={screenStyles.statCard}>
+          <Text style={screenStyles.statValue}>{callSummary?.total_calls ?? "—"}</Text>
+          <Text style={screenStyles.statLabel}>Calls today</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{scopeCounts?.my ?? "—"}</Text>
-          <Text style={styles.statLabel}>My leads</Text>
+        <View style={screenStyles.statCard}>
+          <Text style={screenStyles.statValue}>{scopeCounts?.my ?? "—"}</Text>
+          <Text style={screenStyles.statLabel}>My leads</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{myTasks?.total ?? "—"}</Text>
-          <Text style={styles.statLabel}>Open tasks</Text>
+        <View style={screenStyles.statCard}>
+          <Text style={screenStyles.statValue}>{myTasks?.total ?? "—"}</Text>
+          <Text style={screenStyles.statLabel}>Open tasks</Text>
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>Account</Text>
+      <Text style={screenStyles.sectionTitle}>Account</Text>
       <Card>
         {isLoading && !user ? (
-          <ActivityIndicator color={colors.primaryLight} />
+          <ActivityIndicator color={colors.primary} />
         ) : (
           <>
             <InfoRow icon="mail-outline" label="Email" value={user?.email ?? "—"} />
@@ -154,7 +155,7 @@ function InfoRow({
   return (
     <View style={styles.row}>
       <View style={styles.rowLabel}>
-        <Ionicons name={icon} size={18} color={colors.primaryLight} />
+        <Ionicons name={icon} size={18} color={colors.primary} />
         <Text style={styles.label}>{label}</Text>
       </View>
       <Text style={[styles.value, mono && styles.mono]} selectable>
@@ -165,9 +166,8 @@ function InfoRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md },
-  profileHeader: { alignItems: "center", marginBottom: spacing.lg, marginTop: spacing.sm },
   avatar: {
     width: 80,
     height: 80,
@@ -176,59 +176,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+    ...shadows.neuSm,
   },
   avatarText: { color: "#fff", fontSize: 28, fontWeight: "800" },
-  name: { ...typography.heading, color: colors.textDark, fontSize: 22 },
+  name: { ...typography.heading, color: colors.text, fontSize: 22 },
   role: {
-    color: colors.primaryLight,
+    color: colors.primary,
     textTransform: "capitalize",
-    fontWeight: "600",
+    fontWeight: "700",
     marginTop: 4,
     fontSize: 14,
   },
-  sectionTitle: {
-    color: colors.textMutedDark,
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  row: { gap: 6, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.borderDark },
+  row: { gap: 6, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
   rowLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
-  label: { color: colors.textMutedDark, fontSize: 13, fontWeight: "600" },
-  value: { color: colors.textDark, fontSize: 15 },
+  label: { color: colors.textMuted, fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  value: { color: colors.text, fontSize: 15, fontWeight: "600" },
   mono: { fontSize: 12, lineHeight: 18 },
   statsRow: {
     flexDirection: "row",
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
-    padding: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    alignItems: "center",
-  },
-  statValue: {
-    color: colors.primaryLight,
-    fontSize: 22,
-    fontWeight: "800",
-  },
-  statLabel: {
-    color: colors.textMutedDark,
-    fontSize: 11,
-    marginTop: 4,
-    textAlign: "center",
-  },
   logoutBtn: { marginTop: spacing.lg },
   linkBtn: { marginTop: spacing.sm },
   footer: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
     marginTop: spacing.md,

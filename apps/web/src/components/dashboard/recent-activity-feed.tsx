@@ -1,45 +1,116 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { NeuPolaroid } from "@/components/ui/neubrutal";
+import { NeuSectionHeading } from "@/components/ui/neubrutal";
 import type { RecentActivity } from "@/hooks/use-reports";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
-import { MessageSquare, Phone, RefreshCw } from "lucide-react";
+import { Check, MessageSquare, Phone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
 function activityIcon(type: string) {
   if (type === "call") return Phone;
   if (type === "note") return MessageSquare;
+  if (type === "status_change") return Check;
   return RefreshCw;
 }
 
-function activityLabel(activity: RecentActivity) {
+function activityIconBg(type: string) {
+  if (type === "call") return "bg-blue-100";
+  if (type === "status_change") return "bg-green-100";
+  return "bg-amber-100";
+}
+
+function activityTitle(activity: RecentActivity) {
   const meta = activity.metadata ?? {};
   if (activity.type === "call") {
     const status = typeof meta.status === "string" ? meta.status : "call";
-    return `logged a ${status} call`;
+    return `Call with ${activity.leadName}`;
   }
-  if (activity.type === "note") return "added a note";
+  if (activity.type === "note") return `Note on ${activity.leadName}`;
+  if (activity.type === "status_change") {
+    const to = typeof meta.to === "string" ? meta.to : "updated";
+    return `Status update: ${activity.leadName}`;
+  }
+  return `${activity.type.replace("_", " ")}: ${activity.leadName}`;
+}
+
+function activityDescription(activity: RecentActivity) {
+  const meta = activity.metadata ?? {};
+  if (activity.type === "call") {
+    const status = typeof meta.status === "string" ? meta.status : "logged";
+    return `${activity.userName ?? "Agent"} logged a ${status} call.`;
+  }
+  if (activity.type === "note") {
+    return `${activity.userName ?? "Agent"} added a note on this lead.`;
+  }
   if (activity.type === "status_change") {
     const from = typeof meta.from === "string" ? meta.from : "?";
     const to = typeof meta.to === "string" ? meta.to : "?";
-    return `changed status ${from} → ${to}`;
+    return `Changed from "${from}" to "${to}" by ${activity.userName ?? "agent"}.`;
   }
-  return activity.type.replace("_", " ");
+  return `${activity.userName ?? "Someone"} updated this lead.`;
 }
 
 function relativeTime(value: string) {
-  const diff = Date.now() - new Date(value).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  const date = new Date(value);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (isToday) return `Today, ${time}`;
+  return date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
-export function RecentActivityFeed({ activities }: { activities: RecentActivity[] }) {
+type RecentActivityFeedProps = {
+  activities: RecentActivity[];
+  variant?: "default" | "neubrutal";
+};
+
+export function RecentActivityFeed({ activities, variant = "default" }: RecentActivityFeedProps) {
+  if (variant === "neubrutal") {
+    if (activities.length === 0) {
+      return <p className="text-sm text-neutral-600">No recent activity yet.</p>;
+    }
+
+    return (
+      <div className="space-y-6">
+        <NeuSectionHeading title="Activity Stream" />
+        <div className="grid grid-cols-1 gap-8 pt-2 md:grid-cols-2">
+          {activities.slice(0, 4).map((activity, index) => {
+            const Icon = activityIcon(activity.type);
+            return (
+              <NeuPolaroid key={activity.id} tilt={index % 2 === 0 ? "left" : "right"}>
+                <div
+                  className={`mb-4 flex aspect-video items-center justify-center border border-black ${activityIconBg(activity.type)}`}
+                >
+                  <Icon className="h-10 w-10" />
+                </div>
+                <p className="mb-1 font-bold">
+                  <Link href={`/leads/${activity.leadId}`} className="hover:underline">
+                    {activityTitle(activity)}
+                  </Link>
+                </p>
+                <p className="mb-4 text-sm italic text-neutral-600">
+                  {activityDescription(activity)}
+                </p>
+                <span className="font-heading text-xs font-bold uppercase text-neutral-400">
+                  {relativeTime(activity.createdAt)}
+                </span>
+              </NeuPolaroid>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className="">
       <CardHeader>
         <CardTitle className="text-base">Recent activity</CardTitle>
       </CardHeader>
@@ -53,13 +124,13 @@ export function RecentActivityFeed({ activities }: { activities: RecentActivity[
               const Icon = activityIcon(activity.type);
               return (
                 <div key={activity.id} className="relative flex gap-4 pb-6 last:pb-0">
-                  <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-card text-primary shadow-sm">
+                  <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-card text-primary shadow-[2px_2px_0_0_#000]">
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5">
                     <p className="text-sm">
                       <span className="font-medium">{activity.userName ?? "Someone"}</span>{" "}
-                      {activityLabel(activity)} on{" "}
+                      {activityDescription(activity)} on{" "}
                       <Link
                         href={`/leads/${activity.leadId}`}
                         className="font-medium text-primary hover:underline"

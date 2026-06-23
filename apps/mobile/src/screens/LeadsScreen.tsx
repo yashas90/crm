@@ -5,8 +5,9 @@ import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-lea
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
 import type { LeadsStackParamList } from "@/navigation/types";
-import { colors, radii, spacing, typography } from "@/theme";
+import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT, TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { neuCard } from "@/theme/neubrutal";
 import { formatStatusLabel, statusStyle, temperatureStyle } from "@/theme/status";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -73,7 +74,7 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
           ) : null}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.textMutedDark} />
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
     </Pressable>
   );
 }
@@ -123,7 +124,7 @@ export function LeadsScreen({ navigation }: Props) {
   if (isLoading && !data) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primaryLight} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -147,11 +148,11 @@ export function LeadsScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={colors.textMutedDark} style={styles.searchIcon} />
+        <Ionicons name="search" size={18} color={colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search name or phone"
-          placeholderTextColor={colors.textMutedDark}
+          placeholderTextColor={colors.textMuted}
           value={search}
           onChangeText={setSearch}
         />
@@ -180,7 +181,7 @@ export function LeadsScreen({ navigation }: Props) {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={refetch}
-            tintColor={colors.primaryLight}
+            tintColor={colors.primary}
           />
         }
         ListEmptyComponent={
@@ -206,7 +207,7 @@ export function LeadsScreen({ navigation }: Props) {
         onEndReachedThreshold={0.4}
         ListFooterComponent={
           isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primaryLight} style={{ marginVertical: spacing.md }} />
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
           ) : null
         }
       />
@@ -224,30 +225,31 @@ export function LeadsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
   },
-  headerTitle: { ...typography.heading, color: colors.textDark },
-  headerSub: { color: colors.textMutedDark, fontSize: 13, marginTop: 2 },
+  headerTitle: { ...typography.heading, color: colors.text },
+  headerSub: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderWidth: 2,
+    borderColor: colors.border,
     paddingHorizontal: spacing.md,
+    ...shadows.neuSm,
   },
   searchIcon: { marginRight: 8 },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
-    color: colors.textDark,
+    color: colors.text,
     fontSize: 15,
   },
   chipsRow: {
@@ -261,25 +263,28 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: colors.cardDark,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    ...shadows.neuSm,
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { color: colors.textMutedDark, fontSize: 13, fontWeight: "600" },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.border },
+  chipText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
   chipTextActive: { color: "#fff" },
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.md, paddingTop: 0 },
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
     gap: spacing.sm,
+    ...neuCard,
   },
   cardPressed: { opacity: 0.88 },
   avatar: {
@@ -293,13 +298,13 @@ const styles = StyleSheet.create({
   avatarText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   cardBody: { flex: 1, minWidth: 0 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  name: { color: colors.textDark, fontSize: 16, fontWeight: "700", flex: 1 },
-  subline: { color: colors.textMutedDark, fontSize: 13, marginBottom: 6 },
+  name: { color: colors.text, fontSize: 16, fontWeight: "700", flex: 1 },
+  subline: { color: colors.textMuted, fontSize: 13, marginBottom: 6 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  contactLine: { color: colors.textMutedDark, fontSize: 12 },
+  contactLine: { color: colors.textMuted, fontSize: 12 },
   center: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -312,10 +317,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    borderWidth: 2,
+    borderColor: colors.border,
+    ...shadows.neu,
   },
 });

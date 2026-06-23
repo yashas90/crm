@@ -160,7 +160,7 @@ export function WhatsAppTemplateSheet({
                 value={customText}
                 onChangeText={setCustomText}
                 placeholder="Type your message..."
-                placeholderTextColor={colors.textMutedDark}
+                placeholderTextColor={colors.textMuted}
                 multiline
               />
               <View style={styles.customActions}>
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     maxHeight: "78%",
   },
   sheet: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     paddingHorizontal: spacing.md,
@@ -232,12 +232,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.borderDark,
+    backgroundColor: colors.border,
     marginVertical: spacing.sm,
   },
   title: {
     ...typography.subheading,
-    color: colors.textDark,
+    color: colors.text,
     marginBottom: spacing.sm,
   },
   list: { maxHeight: 480 },
@@ -245,28 +245,28 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 12,
     fontWeight: "700",
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: spacing.xs,
   },
   card: {
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: colors.textDark,
+    color: colors.text,
     marginBottom: 4,
   },
   cardPreview: {
     fontSize: 13,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     lineHeight: 18,
   },
   customCard: {
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   emptyText: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textAlign: "center",
     marginVertical: spacing.md,
   },
@@ -294,13 +294,13 @@ const styles = StyleSheet.create({
   customInput: {
     minHeight: 120,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     borderRadius: radii.md,
     padding: spacing.md,
-    color: colors.textDark,
+    color: colors.text,
     fontSize: 15,
     textAlignVertical: "top",
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   customActions: {
     flexDirection: "row",
@@ -319,9 +319,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     justifyContent: "center",
   },
-  secondaryBtnText: { color: colors.textDark, fontWeight: "600" },
+  secondaryBtnText: { color: colors.text, fontWeight: "600" },
   disabledBtn: { opacity: 0.6 },
 });

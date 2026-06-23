@@ -40,7 +40,7 @@ export function TeamPerformanceTable({ team }: TeamPerformanceTableProps) {
   const ninja = pickNinja(team);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/60">
+    <div className="overflow-hidden border-2 border-black">
       <Table>
         <TableHeader>
           <TableRow>

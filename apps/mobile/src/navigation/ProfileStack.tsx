@@ -5,7 +5,7 @@ import { ProjectDetailScreen } from "@/screens/ProjectDetailScreen";
 import { ProjectUnitScreen } from "@/screens/ProjectUnitScreen";
 import { ProjectsScreen } from "@/screens/ProjectsScreen";
 import { UserManagementScreen } from "@/screens/UserManagementScreen";
-import { colors } from "@/theme";
+import { navigationTheme } from "@/theme";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Platform } from "react-native";
 
@@ -24,9 +24,7 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: colors.backgroundDark },
-        headerTintColor: colors.textDark,
-        contentStyle: { backgroundColor: colors.backgroundDark },
+        ...navigationTheme,
         gestureEnabled: true,
         fullScreenGestureEnabled: Platform.OS === "ios",
       }}

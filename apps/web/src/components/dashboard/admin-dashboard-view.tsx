@@ -20,6 +20,7 @@ import { RevenueKpiRow } from "@/components/dashboard/revenue-kpi-row";
 import { StatusKpiRow } from "@/components/dashboard/status-kpi-row";
 import { TeamPerformanceTable } from "@/components/dashboard/team-performance-table";
 import { TodayKpiRow } from "@/components/dashboard/today-kpi-row";
+import { NeuSectionHeading } from "@/components/ui/neubrutal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardReports } from "@/hooks/use-dashboard-reports";
 import { isForbiddenError, useRecentActivities } from "@/hooks/use-reports";
@@ -91,18 +92,20 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
   const rangeLabelLower = reportParams.rangeLabel.toLowerCase();
 
   return (
-    <div className="space-y-6">
-      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_17rem]">
-        <div className="min-w-0 space-y-10">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
-            <p className="text-muted-foreground">
+    <div className="space-y-12">
+      <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-12">
+        <div className="min-w-0 space-y-12 lg:col-span-9">
+          <header>
+            <h1 className="font-heading text-4xl font-bold uppercase italic tracking-tighter md:text-5xl">
+              Command Centre
+            </h1>
+            <p className="mt-2 text-lg font-medium text-neutral-600">
               Funnel performance for {rangeLabelLower}.
               {overview.isFetching && overviewData ? (
-                <span className="ml-2 text-xs text-muted-foreground">Updating…</span>
+                <span className="ml-2 text-sm">Updating…</span>
               ) : null}
             </p>
-          </div>
+          </header>
 
           <DashboardFilterBar value={dashboardFilters} onChange={setDashboardFilters} />
 
@@ -255,11 +258,8 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
               </section>
 
               <section className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold">Hot leads</h3>
-                  <p className="text-sm text-muted-foreground">Leads that need attention soon.</p>
-                </div>
-                <HotLeadsTable leads={overviewData.hot_leads_list ?? []} />
+                <NeuSectionHeading title="Hot Leads Ledger" />
+                <HotLeadsTable variant="neubrutal" leads={overviewData.hot_leads_list ?? []} />
               </section>
 
               <section className="space-y-4">
@@ -273,7 +273,7 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
                     for stand-up metrics.
                   </p>
                 </div>
-                <Card className="border-border/60 shadow-sm">
+                <Card className="">
                   <CardHeader className="pb-0">
                     <CardTitle className="text-base">By agent</CardTitle>
                   </CardHeader>
@@ -285,15 +285,9 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
             </>
           ) : null}
 
-          <section className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold">Recent activity</h3>
-              <p className="text-sm text-muted-foreground">
-                Latest notes, calls, and status changes.
-              </p>
-            </div>
+          <section>
             {recentActivities.isLoading ? (
-              <Skeleton className="h-40 w-full rounded-xl" />
+              <Skeleton className="h-40 w-full border-2 border-black" />
             ) : recentActivities.isError ? (
               <EmptyState
                 title="Couldn't load activity"
@@ -302,18 +296,18 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
                 onActionClick={() => void recentActivities.refetch()}
               />
             ) : (
-              <RecentActivityFeed activities={recentActivities.data ?? []} />
+              <RecentActivityFeed variant="neubrutal" activities={recentActivities.data ?? []} />
             )}
           </section>
         </div>
 
-        <aside className="hidden lg:block">
-          <RemindersPanel className="sticky top-24" />
+        <aside className="hidden lg:col-span-3 lg:block">
+          <RemindersPanel variant="neubrutal" className="sticky top-24" />
         </aside>
       </div>
 
       <div className="lg:hidden">
-        <RemindersPanel collapsible />
+        <RemindersPanel variant="neubrutal" collapsible />
       </div>
     </div>
   );

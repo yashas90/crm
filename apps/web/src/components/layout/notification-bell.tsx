@@ -80,9 +80,9 @@ export function NotificationBell() {
       </Button>
 
       {open ? (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-border/60 bg-card shadow-lg">
-          <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
-            <p className="text-sm font-semibold">Notifications</p>
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden border-2 border-black bg-white shadow-[4px_4px_0_0_#000]">
+          <div className="flex items-center justify-between border-b-2 border-black px-4 py-3">
+            <p className="font-heading text-sm font-bold uppercase">Notifications</p>
             {unreadCount > 0 ? (
               <Badge variant="secondary" className="text-xs">
                 {unreadCount} unread

@@ -104,28 +104,28 @@ export function SiteVisitsCalendarScreen(_props: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
-  title: { ...typography.heading, color: colors.textDark, fontSize: 22 },
-  subtitle: { color: colors.textMutedDark, fontSize: 13, marginTop: 4 },
+  title: { ...typography.heading, color: colors.text, fontSize: 22 },
+  subtitle: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
   content: { padding: spacing.md, gap: spacing.md },
   dayBlock: { gap: spacing.sm },
-  dayTitle: { color: colors.primaryLight, fontWeight: "700", fontSize: 14 },
+  dayTitle: { color: colors.primary, fontWeight: "700", fontSize: 14 },
   card: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     borderLeftWidth: 4,
   },
-  cardTime: { color: colors.textDark, fontWeight: "700" },
-  cardLead: { color: colors.textDark, fontSize: 15, marginTop: 2 },
-  cardMeta: { color: colors.textMutedDark, fontSize: 12, marginTop: 4 },
+  cardTime: { color: colors.text, fontWeight: "700" },
+  cardLead: { color: colors.text, fontSize: 15, marginTop: 2 },
+  cardMeta: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
 });

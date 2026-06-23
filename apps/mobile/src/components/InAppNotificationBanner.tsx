@@ -77,7 +77,7 @@ export function InAppNotificationBanner({ onNavigateToLead }: InAppNotificationB
         onPress={banner.leadId ? handlePress : dismiss}
       >
         <View style={styles.iconWrap}>
-          <Ionicons name="notifications" size={20} color={colors.primaryLight} />
+          <Ionicons name="notifications" size={20} color={colors.primary} />
         </View>
         <View style={styles.textWrap}>
           <Text style={styles.title} numberOfLines={1}>
@@ -88,7 +88,7 @@ export function InAppNotificationBanner({ onNavigateToLead }: InAppNotificationB
           </Text>
         </View>
         <Pressable onPress={dismiss} hitSlop={12} accessibilityLabel="Dismiss notification">
-          <Ionicons name="close" size={18} color={colors.textMutedDark} />
+          <Ionicons name="close" size={18} color={colors.textMuted} />
         </Pressable>
       </Pressable>
     </Animated.View>
@@ -107,10 +107,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.sm,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     padding: spacing.md,
     shadowColor: "#000",
     shadowOpacity: 0.25,
@@ -122,11 +122,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: radii.md,
-    backgroundColor: "rgba(20, 184, 166, 0.15)",
+    backgroundColor: "#dbeafe",
     alignItems: "center",
     justifyContent: "center",
   },
   textWrap: { flex: 1, gap: 2 },
-  title: { ...typography.subheading, color: colors.textDark },
-  body: { ...typography.caption, color: colors.textMutedDark, fontWeight: "400" },
+  title: { ...typography.subheading, color: colors.text },
+  body: { ...typography.caption, color: colors.textMuted, fontWeight: "400" },
 });

@@ -2,7 +2,6 @@
 
 import type { OverviewLeadStrip } from "@/hooks/use-reports";
 import { drillDownRoutes } from "@/lib/drill-down-routes";
-import { Card, CardContent } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
 import { useRouter } from "next/navigation";
 import { memo } from "react";
@@ -10,8 +9,7 @@ import { memo } from "react";
 type KpiItem = {
   label: string;
   value: number;
-  accent: string;
-  pill: string;
+  accentBg: string;
   href?: string;
 };
 
@@ -20,73 +18,62 @@ function buildItems(strip: OverviewLeadStrip): KpiItem[] {
     {
       label: "Total Leads",
       value: strip.total_leads,
-      accent: "border-l-sky-400",
-      pill: "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300",
+      accentBg: "bg-[#dbeafe]",
       href: drillDownRoutes.totalLeads(),
     },
     {
       label: "Active",
       value: strip.active_leads,
-      accent: "border-l-emerald-400",
-      pill: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+      accentBg: "bg-[#bbf7d0]",
       href: drillDownRoutes.activeLeads(),
     },
     {
       label: "Unassigned",
       value: strip.unassigned_leads,
-      accent: "border-l-amber-400",
-      pill: "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
+      accentBg: "bg-[#FEF08A]",
       href: drillDownRoutes.unassignedLeads(),
     },
     {
       label: "Deleted",
       value: strip.deleted_leads,
-      accent: "border-l-slate-400",
-      pill: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300",
+      accentBg: "bg-neutral-100",
     },
     {
       label: "Booked",
       value: strip.booked_count,
-      accent: "border-l-emerald-400",
-      pill: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+      accentBg: "bg-[#bbf7d0]",
       href: drillDownRoutes.leadsByStatus("won"),
     },
     {
       label: "Not Interested",
       value: strip.not_interested_count,
-      accent: "border-l-rose-400",
-      pill: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
+      accentBg: "bg-[#fecaca]",
     },
     {
       label: "Dropped (30d)",
       value: strip.dropped_count,
-      accent: "border-l-orange-400",
-      pill: "bg-orange-100 text-orange-900 dark:bg-orange-950/50 dark:text-orange-300",
+      accentBg: "bg-[#fed7aa]",
     },
     {
       label: "Today New",
       value: strip.today_new_leads,
-      accent: "border-l-violet-400",
-      pill: "bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300",
+      accentBg: "bg-[#e9d5ff]",
     },
     {
       label: "Today Calls",
       value: strip.today_calls,
-      accent: "border-l-teal-400",
-      pill: "bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300",
+      accentBg: "bg-[#bfdbfe]",
       href: drillDownRoutes.todayCalls(),
     },
     {
       label: "Callbacks",
       value: strip.pending_callbacks_count,
-      accent: "border-l-indigo-400",
-      pill: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300",
+      accentBg: "bg-[#c7d2fe]",
     },
     {
       label: "Meetings",
       value: strip.today_meetings_count,
-      accent: "border-l-purple-400",
-      pill: "bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300",
+      accentBg: "bg-[#ddd6fe]",
     },
   ];
 }
@@ -107,13 +94,12 @@ export const OverviewKpiStrip = memo(function OverviewKpiStrip({ strip }: Overvi
       )}
     >
       {items.map((item) => (
-        <Card
+        <div
           key={item.label}
           className={cn(
-            "min-w-[9.5rem] shrink-0 border-border/60 border-l-4 shadow-sm",
-            "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
-            item.accent,
-            item.href && "cursor-pointer hover:border-primary/40",
+            "min-w-[9.5rem] shrink-0 border-2 border-black bg-white p-4 shadow-[4px_4px_0_0_#000]",
+            "transition-all duration-200 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_0_#000]",
+            item.href && "cursor-pointer",
           )}
           role={item.href ? "link" : undefined}
           tabIndex={item.href ? 0 : undefined}
@@ -129,18 +115,18 @@ export const OverviewKpiStrip = memo(function OverviewKpiStrip({ strip }: Overvi
               : undefined
           }
         >
-          <CardContent className="p-4">
-            <span
-              className={cn(
-                "mb-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                item.pill,
-              )}
-            >
-              {item.label}
-            </span>
-            <p className="text-3xl font-bold tracking-tight tabular-nums">{item.value}</p>
-          </CardContent>
-        </Card>
+          <span
+            className={cn(
+              "mb-2 inline-block border border-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+              item.accentBg,
+            )}
+          >
+            {item.label}
+          </span>
+          <p className="font-heading text-3xl font-bold tracking-tighter tabular-nums">
+            {item.value}
+          </p>
+        </div>
       ))}
     </div>
   );

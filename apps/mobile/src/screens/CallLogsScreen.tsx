@@ -68,7 +68,7 @@ function SummaryBar({
   if (loading && callsToday === null) {
     return (
       <View style={styles.summaryBar}>
-        <ActivityIndicator color={colors.primaryLight} size="small" />
+        <ActivityIndicator color={colors.primary} size="small" />
       </View>
     );
   }
@@ -226,7 +226,7 @@ function CallLogsScreenContent({ navigation, route }: Props) {
       }
       ListFooterComponent={
         logs.isFetchingNextPage ? (
-          <ActivityIndicator color={colors.primaryLight} style={styles.footerLoader} />
+          <ActivityIndicator color={colors.primary} style={styles.footerLoader} />
         ) : null
       }
       onEndReached={() => {
@@ -239,7 +239,7 @@ function CallLogsScreenContent({ navigation, route }: Props) {
         <RefreshControl
           refreshing={logs.isRefetching && !logs.isFetchingNextPage}
           onRefresh={() => void refetchAll()}
-          tintColor={colors.primaryLight}
+          tintColor={colors.primary}
         />
       }
     />
@@ -247,26 +247,26 @@ function CallLogsScreenContent({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md },
   emptyContent: { flexGrow: 1 },
   summaryBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     paddingVertical: spacing.md,
     marginBottom: spacing.md,
   },
   summaryItem: { flex: 1, alignItems: "center" },
-  summaryValue: { color: colors.primaryLight, fontSize: 20, fontWeight: "800" },
-  summaryLabel: { color: colors.textMutedDark, fontSize: 11, marginTop: 4, textAlign: "center" },
-  summaryDivider: { width: 1, height: 36, backgroundColor: colors.borderDark },
+  summaryValue: { color: colors.primary, fontSize: 20, fontWeight: "800" },
+  summaryLabel: { color: colors.textMuted, fontSize: 11, marginTop: 4, textAlign: "center" },
+  summaryDivider: { width: 1, height: 36, backgroundColor: colors.border },
   filterHeading: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: spacing.xs,
@@ -282,16 +282,16 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   chipActive: {
-    backgroundColor: "rgba(20, 184, 166, 0.15)",
-    borderColor: colors.primaryLight,
+    backgroundColor: "#dbeafe",
+    borderColor: colors.primary,
   },
-  chipText: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
-  chipTextActive: { color: colors.primaryLight },
+  chipText: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
+  chipTextActive: { color: colors.primary },
   loader: { marginTop: spacing.xl },
   footerLoader: { marginVertical: spacing.md },
 });

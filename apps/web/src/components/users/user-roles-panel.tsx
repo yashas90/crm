@@ -64,7 +64,7 @@ export function UserRolesPanel({
                 "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
                 isSelected
                   ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                  : "border-border/60 bg-background hover:border-border",
+                  : "border-black bg-background hover:border-border",
                 readOnly && "cursor-default opacity-80",
               )}
             >
@@ -92,7 +92,7 @@ export function UserRolesPanel({
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+      <div className="border-2 border-black bg-muted/30 p-4">
         <h3 className="text-sm font-semibold">Permissions</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           {selectedRole

@@ -6,7 +6,17 @@ jest.mock("expo-haptics", () => ({
   notificationAsync: jest.fn(),
   impactAsync: jest.fn(),
   selectionAsync: jest.fn(),
+  ImpactFeedbackStyle: { Light: "light", Medium: "medium" },
+  NotificationFeedbackType: { Success: "success", Error: "error" },
 }));
+
+jest.mock("expo-image", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  return {
+    Image: (props: Record<string, unknown>) => React.createElement(View, props),
+  };
+});
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: "Ionicons",

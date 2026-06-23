@@ -2,8 +2,10 @@ import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { apiPost } from "@/lib/apiClient";
 import { useAuth } from "@/providers/auth-provider";
-import { colors, radii, spacing, typography } from "@/theme";
+import { colors, spacing, typography } from "@/theme";
+import { neuCard } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -43,10 +45,14 @@ export function LoginScreen() {
           bounces={false}
         >
           <View style={styles.brandBlock}>
-            <View style={styles.logo}>
-              <Ionicons name="flash" size={32} color="#fff" />
-            </View>
-            <Text style={styles.title}>PropNinja</Text>
+            <Image
+              source={require("../../assets/logo.png")}
+              style={styles.logo}
+              contentFit="contain"
+            />
+            <Text style={styles.title}>
+              Prop<Text style={styles.titleAccent}>Ninja</Text>
+            </Text>
             <Text style={styles.subtitle}>Real estate CRM for field agents</Text>
           </View>
 
@@ -93,7 +99,7 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.backgroundDark },
+  safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
@@ -102,38 +108,33 @@ const styles = StyleSheet.create({
   },
   brandBlock: { alignItems: "center", marginBottom: spacing.xl },
   logo: {
-    width: 72,
+    width: 200,
     height: 72,
-    borderRadius: radii.lg,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
     marginBottom: spacing.md,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
   },
-  title: { ...typography.heading, color: colors.textDark, fontSize: 32 },
-  subtitle: { color: colors.textMutedDark, marginTop: 6, fontSize: 15 },
+  title: { ...typography.heading, color: colors.text, fontSize: 34 },
+  titleAccent: { color: colors.hot },
+  subtitle: { color: colors.textMuted, marginTop: 6, fontSize: 15, fontWeight: "500" },
   formCard: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.lg,
+    ...neuCard,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
   },
-  formTitle: { ...typography.subheading, color: colors.textDark, marginBottom: spacing.md },
+  formTitle: {
+    ...typography.subheading,
+    color: colors.text,
+    marginBottom: spacing.md,
+    fontSize: 16,
+  },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
-    borderRadius: radii.sm,
+    backgroundColor: "rgba(192, 32, 32, 0.12)",
+    borderWidth: 2,
+    borderColor: colors.border,
     padding: spacing.sm,
     marginBottom: spacing.sm,
   },
-  errorText: { color: "#fca5a5", flex: 1, fontSize: 14 },
-  hint: { color: colors.textMutedDark, textAlign: "center", marginTop: spacing.lg, fontSize: 13 },
+  errorText: { color: colors.text, flex: 1, fontSize: 14, fontWeight: "600" },
+  hint: { color: colors.textMuted, textAlign: "center", marginTop: spacing.lg, fontSize: 13 },
 });

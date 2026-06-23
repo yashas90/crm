@@ -212,7 +212,7 @@ export function TaskFormSheet({
             </p>
           ) : null}
           {leadSearch.length >= 2 ? (
-            <div className="max-h-40 overflow-y-auto rounded-md border border-border/60">
+            <div className="max-h-40 overflow-y-auto rounded-md border border-black">
               {leadsQuery.isLoading ? (
                 <p className="p-2 text-xs text-muted-foreground">Searching...</p>
               ) : leadOptions.length === 0 ? (

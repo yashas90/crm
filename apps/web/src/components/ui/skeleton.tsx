@@ -1,7 +1,9 @@
 import { cn } from "@propninja/ui/lib/utils";
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded-md bg-muted", className)} />;
+  return (
+    <div className={cn("animate-pulse border-2 border-black/20 bg-neutral-200/60", className)} />
+  );
 }
 
 export function TableSkeleton({ rows = 6 }: { rows?: number }) {

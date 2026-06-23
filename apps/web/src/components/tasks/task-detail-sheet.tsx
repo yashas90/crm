@@ -119,10 +119,7 @@ export function TaskDetailSheet({ taskId, open, onOpenChange }: TaskDetailSheetP
                 <p className="text-sm text-muted-foreground">No comments yet.</p>
               ) : (
                 (task.noteEntries ?? []).map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="rounded-lg border border-border/60 bg-muted/20 p-3"
-                  >
+                  <div key={entry.id} className="border-2 border-black bg-muted/20 p-3">
                     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                       <span className="font-medium text-foreground">{entry.authorName}</span>
                       <span>

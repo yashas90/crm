@@ -105,7 +105,7 @@ export function SiteVisitsCalendar({ agentId, initialDate }: SiteVisitsCalendarP
         ))}
       </div>
 
-      <div className="min-h-[640px] rounded-xl border border-border bg-card p-3 [&_.rbc-event]:text-white [&_.rbc-event]:text-xs">
+      <div className="min-h-[640px] border-2 border-black bg-card p-3 [&_.rbc-event]:text-white [&_.rbc-event]:text-xs">
         {isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading calendar…</p>
         ) : (

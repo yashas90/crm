@@ -94,7 +94,7 @@ export function LeadsAdvancedFiltersSheet({
         onClick={() => onOpenChange(false)}
       />
       <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-xl">
-        <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-black px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold">Filters</h3>
             <p className="text-sm text-muted-foreground">Refine status, source, and more.</p>
@@ -221,7 +221,7 @@ export function LeadsAdvancedFiltersSheet({
           </div>
         </div>
 
-        <div className="flex gap-2 border-t border-border/60 px-5 py-4">
+        <div className="flex gap-2 border-t border-black px-5 py-4">
           <Button variant="outline" className="flex-1" onClick={handleClear}>
             Clear
           </Button>

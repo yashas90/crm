@@ -39,7 +39,7 @@ export function LeadAdInfoPanel({ leadSource, tags, customFields }: LeadAdInfoPa
   const { payload, ingestedAt } = getAdLeadInfo(customFields);
 
   return (
-    <Card className="rounded-xl border-blue-200/60 bg-blue-50/40 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/20">
+    <Card className="rounded-xl border-blue-200/60 bg-blue-50/40 shadow-[2px_2px_0_0_#000] dark:border-blue-900/50 dark:bg-blue-950/20">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Megaphone className="h-4 w-4 text-blue-600 dark:text-blue-400" />

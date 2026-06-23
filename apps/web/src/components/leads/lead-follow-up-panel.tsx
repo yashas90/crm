@@ -40,7 +40,7 @@ export function LeadFollowUpPanel({
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-border/60 bg-card p-4">
+    <div className="space-y-4 border-2 border-black bg-card p-4">
       <div>
         <h3 className="text-sm font-semibold">Follow-up</h3>
         <p className="text-xs text-muted-foreground">

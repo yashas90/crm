@@ -46,7 +46,7 @@ export function PipelineColumn({
             <Ionicons
               name={collapsed ? "chevron-down" : "chevron-up"}
               size={16}
-              color={colors.textMutedDark}
+              color={colors.textMuted}
             />
           ) : null}
         </View>
@@ -90,8 +90,8 @@ const styles = StyleSheet.create({
   header: {
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    backgroundColor: colors.cardDark,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     padding: spacing.sm,
     marginBottom: spacing.sm,
   },
@@ -104,21 +104,21 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(239, 68, 68, 0.08)",
   },
   headerRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  headerTitle: { ...typography.subheading, color: colors.textDark, fontSize: 14, flex: 1 },
+  headerTitle: { ...typography.subheading, color: colors.text, fontSize: 14, flex: 1 },
   countBadge: {
     minWidth: 24,
     height: 24,
     borderRadius: radii.pill,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 8,
   },
-  countText: { color: colors.primaryLight, fontSize: 12, fontWeight: "800" },
+  countText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   list: { flex: 1 },
   listContent: { paddingBottom: spacing.md },
   empty: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     textAlign: "center",
     paddingVertical: spacing.lg,
@@ -127,10 +127,10 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     borderStyle: "dashed",
   },
-  collapsedText: { color: colors.textMutedDark, fontSize: 12, textAlign: "center" },
+  collapsedText: { color: colors.textMuted, fontSize: 12, textAlign: "center" },
 });
 
 export const PIPELINE_COLUMN_WIDTH = COLUMN_WIDTH;

@@ -95,7 +95,7 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               style={styles.input}
               value={firstName}
               onChangeText={setFirstName}
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               placeholder="First name"
             />
             <FieldLabel text="Last name" />
@@ -103,7 +103,7 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               style={styles.input}
               value={lastName}
               onChangeText={setLastName}
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               placeholder="Last name"
             />
             <FieldLabel text="Email" />
@@ -113,7 +113,7 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               placeholder="Email address"
             />
             <FieldLabel text="Secondary phone" />
@@ -122,7 +122,7 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               value={secondaryPhone}
               onChangeText={setSecondaryPhone}
               keyboardType="phone-pad"
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               placeholder="Optional"
             />
             <FieldLabel text="City" />
@@ -130,7 +130,7 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               style={styles.input}
               value={city}
               onChangeText={setCity}
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               placeholder="City"
             />
             <FieldLabel text="State" />
@@ -138,7 +138,7 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               style={styles.input}
               value={state}
               onChangeText={setState}
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               placeholder="State"
             />
 
@@ -169,7 +169,7 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
               value={tags}
               onChangeText={setTags}
               placeholder="comma, separated"
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
             />
             <FieldLabel text="Next follow-up" />
             <FollowUpQuickPicker value={nextFollowupAt} onChange={setNextFollowupAt} />
@@ -240,22 +240,22 @@ const styles = StyleSheet.create({
   },
   sheet: {
     maxHeight: "92%",
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     paddingTop: spacing.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   title: {
     ...typography.subheading,
-    color: colors.textDark,
+    color: colors.text,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
   content: { paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: spacing.sm },
   sectionLabel: {
-    color: colors.primaryLight,
+    color: colors.primary,
     fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
@@ -263,13 +263,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: 2,
   },
-  label: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600", marginTop: 4 },
+  label: { color: colors.textMuted, fontSize: 12, fontWeight: "600", marginTop: 4 },
   input: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    color: colors.textDark,
+    borderColor: colors.border,
+    color: colors.text,
     padding: spacing.sm,
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -277,13 +277,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "600",
     textTransform: "capitalize",
@@ -294,17 +294,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
+    borderTopColor: colors.border,
   },
   cancelBtn: {
     flex: 1,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     paddingVertical: 14,
     alignItems: "center",
   },
-  cancelText: { color: colors.textDark, fontWeight: "600" },
+  cancelText: { color: colors.text, fontWeight: "600" },
   saveBtn: {
     flex: 1,
     borderRadius: radii.md,

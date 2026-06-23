@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: spacing.md,
     right: spacing.md,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.primary,
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     zIndex: 2000,
   },
   toastText: {
-    color: colors.textDark,
+    color: colors.text,
     fontWeight: "600",
     fontSize: 14,
     textAlign: "center",

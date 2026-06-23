@@ -55,7 +55,7 @@ export function TaskSlideOver({
           widthClassName,
         )}
       >
-        <div className="flex items-start justify-between border-b border-border/60 px-5 py-4">
+        <div className="flex items-start justify-between border-b border-black px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold">{title}</h3>
             {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
@@ -65,7 +65,7 @@ export function TaskSlideOver({
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
-        {footer ? <div className="border-t border-border/60 px-5 py-4">{footer}</div> : null}
+        {footer ? <div className="border-t border-black px-5 py-4">{footer}</div> : null}
       </aside>
     </div>
   );

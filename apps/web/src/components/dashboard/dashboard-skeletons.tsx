@@ -5,10 +5,7 @@ export function KpiStripSkeleton() {
   return (
     <div className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-10">
       {Array.from({ length: 10 }, (_, index) => (
-        <Card
-          key={`kpi-skeleton-${index}`}
-          className="min-w-[9.5rem] shrink-0 border-border/60 shadow-sm"
-        >
+        <Card key={`kpi-skeleton-${index}`} className="min-w-[9.5rem] shrink-0 ">
           <CardContent className="space-y-3 p-4">
             <Skeleton className="h-5 w-20 rounded-full" />
             <Skeleton className="h-8 w-12" />
@@ -38,7 +35,7 @@ export function SourcesPanelSkeleton() {
 
 export function ChartCardSkeleton({ tall = false }: { tall?: boolean }) {
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className="">
       <CardHeader className="space-y-2">
         <Skeleton className="h-5 w-36" />
         <Skeleton className="h-4 w-24" />

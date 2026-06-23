@@ -87,7 +87,7 @@ function TeamHomeContent({ navigation }: Props) {
           <RefreshControl
             refreshing={teamReport.isRefetching}
             onRefresh={refreshAll}
-            tintColor={colors.primaryLight}
+            tintColor={colors.primary}
           />
         }
       >
@@ -103,7 +103,7 @@ function TeamHomeContent({ navigation }: Props) {
               style={({ pressed }) => [styles.bellButton, pressed && styles.pressed]}
               onPress={() => navigation.getParent()?.navigate("NotificationsTab")}
             >
-              <Ionicons name="notifications-outline" size={24} color={colors.textDark} />
+              <Ionicons name="notifications-outline" size={24} color={colors.text} />
               {unreadNotifications > 0 ? (
                 <View style={styles.bellBadge}>
                   <Text style={styles.bellBadgeText}>
@@ -116,7 +116,7 @@ function TeamHomeContent({ navigation }: Props) {
         </View>
 
         {isLoading ? (
-          <ActivityIndicator color={colors.primaryLight} style={{ marginVertical: spacing.xl }} />
+          <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.xl }} />
         ) : (
           <View style={styles.statsGrid}>
             <StatCard
@@ -234,7 +234,7 @@ export function ManagerHomeScreen(props: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.backgroundDark },
+  safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md },
   hero: {
     marginBottom: spacing.lg,
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     backgroundColor: colors.primaryDark,
     borderWidth: 1,
-    borderColor: "rgba(20, 184, 166, 0.35)",
+    borderColor: "#204060",
   },
   heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   heroText: { flex: 1 },
@@ -268,24 +268,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
   },
-  bellBadgeText: { color: colors.textDark, fontSize: 10, fontWeight: "800" },
-  greeting: { ...typography.heading, color: colors.textDark, fontSize: 26 },
+  bellBadgeText: { color: colors.text, fontSize: 10, fontWeight: "800" },
+  greeting: { ...typography.heading, color: colors.text, fontSize: 26 },
   heroSub: { color: "rgba(248, 250, 252, 0.8)", marginTop: 6, fontSize: 15 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
   statCard: {
     width: "48%",
     flexGrow: 1,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     minWidth: "46%",
   },
   pressed: { opacity: 0.88 },
   statValue: { fontSize: 28, fontWeight: "800", marginTop: 8 },
-  statLabel: { color: colors.textMutedDark, fontSize: 13, marginTop: 4 },
-  sectionTitle: { ...typography.subheading, color: colors.textDark, marginBottom: spacing.sm },
+  statLabel: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
+  sectionTitle: { ...typography.subheading, color: colors.text, marginBottom: spacing.sm },
   memberCard: { marginBottom: spacing.sm, padding: spacing.md },
   memberHeader: {
     flexDirection: "row",
@@ -303,16 +303,16 @@ const styles = StyleSheet.create({
   },
   memberAvatarText: { color: "#fff", fontWeight: "700" },
   memberBody: { flex: 1 },
-  memberName: { color: colors.textDark, fontSize: 16, fontWeight: "700" },
-  memberEmail: { color: colors.textMutedDark, fontSize: 12, marginTop: 2 },
+  memberName: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  memberEmail: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   memberStats: { flexDirection: "row", gap: spacing.sm },
   memberStat: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     borderRadius: radii.sm,
     padding: spacing.sm,
     alignItems: "center",
   },
-  memberStatValue: { color: colors.primaryLight, fontSize: 18, fontWeight: "800" },
-  memberStatLabel: { color: colors.textMutedDark, fontSize: 11, marginTop: 2 },
+  memberStatValue: { color: colors.primary, fontSize: 18, fontWeight: "800" },
+  memberStatLabel: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
 });

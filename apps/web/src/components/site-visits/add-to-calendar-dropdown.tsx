@@ -51,7 +51,7 @@ export function AddToCalendarDropdown({ event, className }: AddToCalendarDropdow
       {open ? (
         <div
           role="menu"
-          className="absolute left-0 z-50 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-border bg-popover p-1 shadow-lg"
+          className="absolute left-0 z-50 mt-2 min-w-[220px] overflow-hidden border-2 border-black bg-popover p-1 shadow-[4px_4px_0_0_#000]"
         >
           <button
             type="button"

@@ -30,7 +30,7 @@ export function UsersListToolbar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-border/60 bg-background p-3 sm:flex-row sm:items-center",
+        "flex flex-col gap-3 border-2 border-black bg-background p-3 sm:flex-row sm:items-center",
         className,
       )}
     >

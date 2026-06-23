@@ -1,6 +1,5 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
@@ -21,32 +20,31 @@ export function PipelineValueCards({ pipeline }: { pipeline: PipelineStage[] }) 
       {pipeline.map((stage) => {
         const positive = stage.trend_percent >= 0;
         return (
-          <Card key={stage.status} className="border-border/60 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium capitalize text-muted-foreground">
-                {stage.status}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              <p className="text-2xl font-bold">{stage.count}</p>
-              <p className="text-xs text-muted-foreground">
-                ₹{stage.total_value.toLocaleString("en-IN")} pipeline value
-              </p>
-              <p
-                className={cn(
-                  "flex items-center gap-0.5 text-xs font-semibold",
-                  positive ? "text-emerald-600" : "text-rose-600",
-                )}
-              >
-                {positive ? (
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                ) : (
-                  <ArrowDownRight className="h-3.5 w-3.5" />
-                )}
-                {Math.abs(stage.trend_percent)}% vs prior 30 days
-              </p>
-            </CardContent>
-          </Card>
+          <div
+            key={stage.status}
+            className="border-2 border-black bg-white p-5 shadow-[4px_4px_0_0_#000] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_0_#000]"
+          >
+            <p className="font-heading text-xs font-bold uppercase tracking-wide text-neutral-600">
+              {stage.status}
+            </p>
+            <p className="mt-2 font-heading text-4xl font-bold tracking-tighter">{stage.count}</p>
+            <p className="mt-1 text-xs font-medium text-neutral-600">
+              ₹{stage.total_value.toLocaleString("en-IN")} pipeline value
+            </p>
+            <p
+              className={cn(
+                "mt-2 flex items-center gap-0.5 text-xs font-bold uppercase",
+                positive ? "text-green-700" : "text-[#C02020]",
+              )}
+            >
+              {positive ? (
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowDownRight className="h-3.5 w-3.5" />
+              )}
+              {Math.abs(stage.trend_percent)}% vs prior 30 days
+            </p>
+          </div>
         );
       })}
     </div>

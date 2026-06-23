@@ -34,7 +34,7 @@ export function ProjectsScreen({ navigation }: Props) {
   if (isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primaryLight} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -51,7 +51,7 @@ export function ProjectsScreen({ navigation }: Props) {
         <RefreshControl
           refreshing={isRefetching}
           onRefresh={() => void refetch()}
-          tintColor={colors.primaryLight}
+          tintColor={colors.primary}
         />
       }
     >
@@ -68,13 +68,13 @@ export function ProjectsScreen({ navigation }: Props) {
         >
           <View style={styles.cardHeader}>
             <Text style={styles.projectName}>{project.name}</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMutedDark} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </View>
           <Text style={styles.summary}>{summaryLine(project.unitSummary)}</Text>
         </Pressable>
       ))}
       {isRefetching ? (
-        <ActivityIndicator style={{ marginTop: spacing.md }} color={colors.primaryLight} />
+        <ActivityIndicator style={{ marginTop: spacing.md }} color={colors.primary} />
       ) : null}
     </ScrollView>
   );
@@ -83,22 +83,22 @@ export function ProjectsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     padding: spacing.md,
   },
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   card: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.lg,
     padding: spacing.md,
     marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   cardPressed: {
     opacity: 0.9,
@@ -111,12 +111,12 @@ const styles = StyleSheet.create({
   },
   projectName: {
     ...typography.body,
-    color: colors.textDark,
+    color: colors.text,
     fontWeight: "600",
     flex: 1,
   },
   summary: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
   },
 });

@@ -2,8 +2,11 @@ import { cn } from "@propninja/ui/lib/utils";
 
 export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="relative w-full overflow-auto">
-      <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
+    <div className="relative w-full overflow-auto border-2 border-black shadow-[4px_4px_0_0_#000]">
+      <table
+        className={cn("neubrutal-table w-full border-collapse caption-bottom text-sm", className)}
+        {...props}
+      />
     </div>
   );
 }
@@ -12,20 +15,17 @@ export function TableHeader({
   className,
   ...props
 }: React.HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn("[&_tr]:border-b", className)} {...props} />;
+  return <thead className={cn(className)} {...props} />;
 }
 
 export function TableBody({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
-  return <tbody className={cn("[&_tr:last-child]:border-0", className)} {...props} />;
+  return <tbody className={cn(className)} {...props} />;
 }
 
 export function TableRow({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
   return (
     <tr
-      className={cn(
-        "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
-        className,
-      )}
+      className={cn("transition-colors data-[state=selected]:bg-slate-100", className)}
       {...props}
     />
   );
@@ -35,7 +35,7 @@ export function TableHead({ className, ...props }: React.ThHTMLAttributes<HTMLTa
   return (
     <th
       className={cn(
-        "h-12 px-4 text-left align-middle font-medium text-muted-foreground",
+        "border border-black bg-[#204060] px-4 py-3 text-left align-middle font-heading text-xs font-bold uppercase tracking-wider text-white",
         className,
       )}
       {...props}
@@ -44,5 +44,5 @@ export function TableHead({ className, ...props }: React.ThHTMLAttributes<HTMLTa
 }
 
 export function TableCell({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("p-4 align-middle", className)} {...props} />;
+  return <td className={cn("border border-black px-4 py-3 align-middle", className)} {...props} />;
 }

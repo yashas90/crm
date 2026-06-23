@@ -41,7 +41,7 @@ export default function LoginPage() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Sign in to PropNinja</CardTitle>
+        <CardTitle>Sign In</CardTitle>
         <CardDescription>Use your organization credentials.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -69,20 +69,20 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Signing in..." : "Sign in"}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            <Link href="/forgot-password" className="hover:underline">
+          <p className="text-center text-sm font-medium text-neutral-600">
+            <Link href="/forgot-password" className="font-bold text-[#204060] hover:underline">
               Forgot your password?
             </Link>
           </p>
         </form>
         {isDev ? (
-          <p className="mt-4 text-center text-sm text-muted-foreground">
+          <p className="mt-4 text-center text-sm text-neutral-600">
             Demo: admin@propninja.local / admin
           </p>
         ) : null}
-        <p className="mt-2 text-center text-sm text-muted-foreground">
+        <p className="mt-2 text-center text-sm text-neutral-600">
           No account?{" "}
-          <Link href="/register" className="font-medium text-primary hover:underline">
+          <Link href="/register" className="font-bold text-[#204060] hover:underline">
             Register
           </Link>
         </p>

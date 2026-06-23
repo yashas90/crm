@@ -101,7 +101,7 @@ export function formatVisitTime(visitTime: string) {
 }
 
 export function agentColor(name: string) {
-  const palette = ["#0d9488", "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0891b2"];
+  const palette = ["#0d9488", "#204060", "#7c3aed", "#db2777", "#ea580c", "#0891b2"];
   let hash = 0;
   for (let i = 0; i < name.length; i += 1) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return palette[Math.abs(hash) % palette.length];

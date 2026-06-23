@@ -47,7 +47,7 @@ export function ProjectUnitScreen({ route, navigation }: Props) {
   if (isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primaryLight} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -95,7 +95,7 @@ export function ProjectUnitScreen({ route, navigation }: Props) {
             <TextInput
               style={styles.search}
               placeholder="Search by name or phone…"
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               value={leadSearch}
               onChangeText={setLeadSearch}
             />
@@ -151,35 +151,35 @@ function InfoRow({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   card: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
   infoLabel: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
   },
   infoValue: {
     ...typography.body,
-    color: colors.textDark,
+    color: colors.text,
     fontWeight: "500",
   },
   capitalize: {
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
     padding: spacing.md,
@@ -199,16 +199,16 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     ...typography.h3,
-    color: colors.textDark,
+    color: colors.text,
     marginBottom: spacing.sm,
   },
   search: {
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    color: colors.textDark,
+    color: colors.text,
     marginBottom: spacing.sm,
   },
   leadList: {
@@ -218,17 +218,17 @@ const styles = StyleSheet.create({
   leadRow: {
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
   leadRowPressed: {
     opacity: 0.8,
   },
   leadName: {
     ...typography.body,
-    color: colors.textDark,
+    color: colors.text,
   },
   leadPhone: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
   },
 });

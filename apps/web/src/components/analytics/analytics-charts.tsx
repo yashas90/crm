@@ -63,7 +63,7 @@ export function AnalyticsCharts({ charts, dateFrom, dateTo }: AnalyticsChartsPro
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card className="border-border/60 shadow-sm">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-base">Leads over time</CardTitle>
         </CardHeader>
@@ -98,7 +98,7 @@ export function AnalyticsCharts({ charts, dateFrom, dateTo }: AnalyticsChartsPro
         </CardContent>
       </Card>
 
-      <Card className="border-border/60 shadow-sm">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-base">Lead funnel</CardTitle>
         </CardHeader>
@@ -131,7 +131,7 @@ export function AnalyticsCharts({ charts, dateFrom, dateTo }: AnalyticsChartsPro
         }))}
       />
 
-      <Card className="border-border/60 shadow-sm">
+      <Card className="">
         <CardHeader>
           <CardTitle className="text-base">Lead sources</CardTitle>
         </CardHeader>

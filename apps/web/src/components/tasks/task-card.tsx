@@ -68,8 +68,8 @@ export function TaskCard({
     <div
       className={cn(
         "group flex items-start gap-3 rounded-xl border p-3 transition-all duration-200",
-        selected ? "border-primary bg-primary/5" : "border-border/60 bg-card",
-        isDone ? "opacity-60" : "hover:border-border hover:shadow-sm",
+        selected ? "border-primary bg-primary/5" : "border-black bg-card",
+        isDone ? "opacity-60" : "hover:border-border hover:shadow-[2px_2px_0_0_#000]",
         compact && "p-2",
       )}
     >

@@ -88,7 +88,7 @@ export function AnalyticsLeaderboard({ rows }: AnalyticsLeaderboardProps) {
   }
 
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className="">
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle className="text-lg">Team leaderboard</CardTitle>
         <Button
@@ -137,7 +137,7 @@ export function AnalyticsLeaderboard({ rows }: AnalyticsLeaderboardProps) {
                 <tr
                   key={row.agentId}
                   className={cn(
-                    "border-t border-border/60",
+                    "border-t border-black",
                     row.agentId === topPerformerId && "bg-amber-50/80 dark:bg-amber-950/20",
                   )}
                 >

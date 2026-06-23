@@ -1,4 +1,5 @@
-import { colors, radii, spacing } from "@/theme";
+import { spacing } from "@/theme";
+import { neuCard, neuCardPressed } from "@/theme/neubrutal";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 
@@ -12,7 +13,7 @@ export function Card({ children, onPress, style }: CardProps) {
   if (onPress) {
     return (
       <Pressable
-        style={({ pressed }) => [styles.card, pressed && styles.pressed, style]}
+        style={({ pressed }) => [styles.card, pressed && neuCardPressed, style]}
         onPress={onPress}
       >
         {children}
@@ -25,11 +26,7 @@ export function Card({ children, onPress, style }: CardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.lg,
+    ...neuCard,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
   },
-  pressed: { opacity: 0.9 },
 });

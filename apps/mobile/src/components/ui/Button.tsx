@@ -1,4 +1,5 @@
-import { colors, radii } from "@/theme";
+import { hapticLight } from "@/lib/haptics";
+import { colors, radii, shadows } from "@/theme";
 import { ActivityIndicator, Pressable, StyleSheet, Text, type ViewStyle } from "react-native";
 
 type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
@@ -14,10 +15,10 @@ type ButtonProps = {
 };
 
 const labelColors: Record<ButtonVariant, string> = {
-  primary: "#fff",
-  secondary: colors.primaryLight,
-  danger: "#fff",
-  ghost: colors.textDark,
+  primary: "#ffffff",
+  secondary: colors.text,
+  danger: "#ffffff",
+  ghost: colors.text,
 };
 
 export function Button({
@@ -41,7 +42,10 @@ export function Button({
         isDisabled && styles.disabled,
         style,
       ]}
-      onPress={onPress}
+      onPress={() => {
+        if (!isDisabled) hapticLight();
+        onPress();
+      }}
       disabled={isDisabled}
     >
       {loading ? (
@@ -55,22 +59,24 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: radii.md,
+    borderRadius: radii.pill,
+    borderWidth: 2,
+    borderColor: colors.border,
     paddingVertical: 14,
     paddingHorizontal: 18,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 48,
+    ...shadows.neuSm,
   },
-  primary: { backgroundColor: colors.primary },
-  secondary: {
-    backgroundColor: "transparent",
-    borderWidth: 1.5,
-    borderColor: colors.primaryLight,
-  },
+  primary: { backgroundColor: colors.hot },
+  secondary: { backgroundColor: colors.card },
   danger: { backgroundColor: colors.danger },
-  ghost: { backgroundColor: colors.cardDark, borderWidth: 1, borderColor: colors.borderDark },
-  pressed: { opacity: 0.88 },
+  ghost: { backgroundColor: colors.sticky },
+  pressed: {
+    transform: [{ translateX: 1 }, { translateY: 1 }],
+    shadowOffset: { width: 1, height: 1 },
+  },
   disabled: { opacity: 0.5 },
-  label: { fontSize: 16, fontWeight: "700" },
+  label: { fontSize: 15, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
 });

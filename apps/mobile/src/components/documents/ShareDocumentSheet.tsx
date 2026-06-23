@@ -53,20 +53,20 @@ export function ShareDocumentSheet({
             <Text style={styles.title}>Share document</Text>
             <Text style={styles.subtitle}>with {leadName}</Text>
             <Pressable onPress={onClose} hitSlop={12}>
-              <Ionicons name="close" size={24} color={colors.textMutedDark} />
+              <Ionicons name="close" size={24} color={colors.textMuted} />
             </Pressable>
           </View>
 
           <TextInput
             style={styles.search}
             placeholder="Search library…"
-            placeholderTextColor={colors.textMutedDark}
+            placeholderTextColor={colors.textMuted}
             value={search}
             onChangeText={setSearch}
           />
 
           {isLoading ? (
-            <ActivityIndicator color={colors.primaryLight} style={{ marginTop: spacing.lg }} />
+            <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
           ) : (
             <FlatList
               data={items}
@@ -74,14 +74,14 @@ export function ShareDocumentSheet({
               contentContainerStyle={{ paddingBottom: spacing.xl }}
               renderItem={({ item }) => (
                 <Pressable style={styles.row} onPress={() => onSelectDocument(item)}>
-                  <Ionicons name={fileIcon(item.fileType)} size={22} color={colors.primaryLight} />
+                  <Ionicons name={fileIcon(item.fileType)} size={22} color={colors.primary} />
                   <View style={styles.rowText}>
                     <Text style={styles.rowTitle}>{item.name}</Text>
                     <Text style={styles.rowMeta}>
                       {formatFileSize(item.fileSizeMb)} · {item.fileType}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textMutedDark} />
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                 </Pressable>
               )}
               ListEmptyComponent={<Text style={styles.empty}>No documents in library.</Text>}
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   },
   sheet: {
     maxHeight: "80%",
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
     padding: spacing.lg,
@@ -112,15 +112,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.md,
   },
-  title: { ...typography.h3, color: colors.textDark, flex: 1 },
-  subtitle: { ...typography.caption, color: colors.textMutedDark, flex: 1 },
+  title: { ...typography.h3, color: colors.text, flex: 1 },
+  subtitle: { ...typography.caption, color: colors.textMuted, flex: 1 },
   search: {
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    color: colors.textDark,
+    color: colors.text,
     marginBottom: spacing.md,
   },
   row: {
@@ -129,14 +129,14 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
   rowText: { flex: 1 },
-  rowTitle: { ...typography.body, color: colors.textDark, fontWeight: "600" },
-  rowMeta: { ...typography.caption, color: colors.textMutedDark },
+  rowTitle: { ...typography.body, color: colors.text, fontWeight: "600" },
+  rowMeta: { ...typography.caption, color: colors.textMuted },
   empty: {
     ...typography.body,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: spacing.lg,
   },

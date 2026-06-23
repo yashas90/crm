@@ -87,7 +87,7 @@ export function ProjectsFilterDrawer({
         onClick={() => onOpenChange(false)}
       />
       <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-xl">
-        <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-black px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold">Filters</h3>
             <p className="text-sm text-muted-foreground">
@@ -163,7 +163,7 @@ export function ProjectsFilterDrawer({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-border/60 px-5 py-4">
+        <div className="flex items-center justify-between gap-2 border-t border-black px-5 py-4">
           <Button type="button" variant="ghost" onClick={handleReset}>
             Reset
           </Button>

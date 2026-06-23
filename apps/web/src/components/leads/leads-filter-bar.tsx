@@ -10,7 +10,7 @@ import { CalendarDays, Columns3, Filter, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const dateSelectClass =
-  "h-9 rounded-lg border border-input bg-background px-2.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "h-9 rounded-sm border-2 border-black bg-white px-2.5 text-sm font-medium shadow-[2px_2px_0_0_#000] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]";
 
 type LeadsFilterBarProps = {
   searchDraft: string;
@@ -79,7 +79,7 @@ export function LeadsFilterBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-border/60 bg-background p-3 sm:flex-row sm:items-center",
+        "flex flex-col gap-3 border-2 border-black bg-background p-3 sm:flex-row sm:items-center",
         className,
       )}
     >
@@ -88,7 +88,7 @@ export function LeadsFilterBar({
         <Input
           id={searchId}
           className="h-10 rounded-lg pl-9"
-          placeholder="Type to search"
+          placeholder="Search leads — press /"
           value={searchDraft}
           onChange={(event) => onSearchDraftChange(event.target.value)}
           onKeyDown={(event) => {
@@ -116,8 +116,10 @@ export function LeadsFilterBar({
           </Button>
 
           {dateOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-border bg-background p-3 shadow-lg">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Created date</p>
+            <div className="absolute right-0 z-20 mt-2 w-64 border-2 border-black bg-white p-3 shadow-[4px_4px_0_0_#000]">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-600">
+                Created date
+              </p>
               <div className="space-y-2">
                 <select
                   className={cn(dateSelectClass, "w-full")}
@@ -193,8 +195,10 @@ export function LeadsFilterBar({
           </Button>
 
           {columnsOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-border bg-background p-3 shadow-lg">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Visible columns</p>
+            <div className="absolute right-0 z-20 mt-2 w-56 border-2 border-black bg-white p-3 shadow-[4px_4px_0_#000]">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-600">
+                Visible columns
+              </p>
               <ul className="space-y-2">
                 {LEADS_TABLE_COLUMNS.map((column) => {
                   const checked = columns[column.id];

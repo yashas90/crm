@@ -34,7 +34,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/40"
         aria-label="Close dialog"
         onClick={() => onOpenChange(false)}
       />
@@ -50,7 +50,11 @@ export function DialogContent({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={cn("rounded-lg border bg-card p-6 shadow-lg", className)}>{children}</div>;
+  return (
+    <div className={cn("border-2 border-black bg-white p-6 shadow-[6px_6px_0_0_#000]", className)}>
+      {children}
+    </div>
+  );
 }
 
 export function DialogHeader({ children }: { children: React.ReactNode }) {
@@ -58,11 +62,11 @@ export function DialogHeader({ children }: { children: React.ReactNode }) {
 }
 
 export function DialogTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-lg font-semibold">{children}</h2>;
+  return <h2 className="font-heading text-xl font-bold uppercase tracking-tight">{children}</h2>;
 }
 
 export function DialogDescription({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-muted-foreground">{children}</p>;
+  return <p className="text-sm font-medium text-neutral-600">{children}</p>;
 }
 
 export function DialogFooter({ children }: { children: React.ReactNode }) {

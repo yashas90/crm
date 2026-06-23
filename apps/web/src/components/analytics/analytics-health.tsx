@@ -98,7 +98,7 @@ export function AnalyticsHealth({ health, onAssignComplete }: AnalyticsHealthPro
   return (
     <>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/60 shadow-sm">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Snowflake className="h-4 w-4 text-sky-500" />
@@ -118,7 +118,7 @@ export function AnalyticsHealth({ health, onAssignComplete }: AnalyticsHealthPro
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 shadow-sm">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -139,7 +139,7 @@ export function AnalyticsHealth({ health, onAssignComplete }: AnalyticsHealthPro
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 shadow-sm">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <UserX className="h-4 w-4 text-violet-500" />
@@ -165,7 +165,7 @@ export function AnalyticsHealth({ health, onAssignComplete }: AnalyticsHealthPro
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 shadow-sm">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Clock className="h-4 w-4 text-amber-600" />

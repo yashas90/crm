@@ -1,4 +1,5 @@
-import { colors, radii, spacing } from "@/theme";
+import { colors, spacing } from "@/theme";
+import { neuInput } from "@/theme/neubrutal";
 import { StyleSheet, Text, TextInput, type TextInputProps, View } from "react-native";
 
 type TextFieldProps = TextInputProps & {
@@ -14,7 +15,7 @@ export function TextField({ label, hint, style, inputTestID, ...props }: TextFie
       <TextInput
         testID={inputTestID}
         style={[styles.input, style]}
-        placeholderTextColor={colors.textMutedDark}
+        placeholderTextColor={colors.textMuted}
         {...props}
       />
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
@@ -24,16 +25,19 @@ export function TextField({ label, hint, style, inputTestID, ...props }: TextFie
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: spacing.sm },
-  label: { color: colors.textMutedDark, fontSize: 13, fontWeight: "600", marginBottom: 6 },
-  input: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    color: colors.textDark,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-    fontSize: 16,
+  label: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 6,
   },
-  hint: { color: colors.textMutedDark, fontSize: 12, marginTop: 6 },
+  input: {
+    ...neuInput,
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  hint: { color: colors.textMuted, fontSize: 12, marginTop: 6 },
 });

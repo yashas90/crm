@@ -1,28 +1,40 @@
 export const colors = {
-  primary: "#0f766e",
-  primaryLight: "#14b8a6",
-  primaryDark: "#115e59",
-  accent: "#6366f1",
-  background: "#f8fafc",
-  backgroundDark: "#0f172a",
+  primary: "#204060",
+  primaryLight: "#204060",
+  primaryDark: "#1a3550",
+  accent: "#C02020",
+  background: "#FFFBF2",
+  backgroundDark: "#FFFBF2",
   card: "#ffffff",
-  cardDark: "#1e293b",
-  text: "#0f172a",
-  textMuted: "#64748b",
-  textDark: "#f8fafc",
-  textMutedDark: "#94a3b8",
-  border: "#e2e8f0",
-  borderDark: "#334155",
-  success: "#10b981",
+  cardDark: "#ffffff",
+  text: "#000000",
+  textMuted: "#525252",
+  textDark: "#000000",
+  textMutedDark: "#525252",
+  border: "#000000",
+  borderDark: "#000000",
+  sticky: "#FEF08A",
+  hot: "#C02020",
+  success: "#16a34a",
   warning: "#f59e0b",
-  danger: "#ef4444",
+  danger: "#C02020",
 };
 
 export const typography = {
-  heading: { fontSize: 24, fontWeight: "700" as const },
-  subheading: { fontSize: 18, fontWeight: "600" as const },
+  heading: {
+    fontSize: 26,
+    fontWeight: "800" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: -0.5,
+  },
+  subheading: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
   body: { fontSize: 15, fontWeight: "400" as const },
-  caption: { fontSize: 13, fontWeight: "500" as const },
+  caption: { fontSize: 13, fontWeight: "600" as const },
 };
 
 export const spacing = {
@@ -34,8 +46,36 @@ export const spacing = {
 };
 
 export const radii = {
-  sm: 8,
-  md: 12,
-  lg: 16,
+  sm: 4,
+  md: 8,
+  lg: 12,
   pill: 999,
+};
+
+export const shadows = {
+  neu: {
+    shadowColor: "#204060",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
+  },
+  neuSm: {
+    shadowColor: "#204060",
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 2,
+  },
+};
+
+export const navigationTheme = {
+  headerStyle: { backgroundColor: colors.background },
+  headerTintColor: colors.text,
+  headerTitleStyle: {
+    fontWeight: "800" as const,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+  },
+  contentStyle: { backgroundColor: colors.background },
 };

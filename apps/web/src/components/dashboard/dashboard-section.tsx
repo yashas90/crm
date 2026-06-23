@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { NeuSectionHeading } from "@/components/ui/neubrutal";
 import { AlertCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -30,11 +31,13 @@ export function DashboardSection({
   const showSkeleton = isLoading && !hasData;
 
   return (
-    <section className={className ?? "space-y-3"}>
+    <section className={className ?? "space-y-4"}>
       {title ? (
         <div>
-          <h3 className="text-lg font-semibold">{title}</h3>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          <NeuSectionHeading title={title} className="mb-2" />
+          {description ? (
+            <p className="text-sm font-medium text-neutral-600">{description}</p>
+          ) : null}
         </div>
       ) : null}
 

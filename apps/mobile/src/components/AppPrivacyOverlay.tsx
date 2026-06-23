@@ -22,7 +22,7 @@ export function AppPrivacyOverlay() {
 
   return (
     <View style={styles.overlay} pointerEvents="auto" accessibilityLabel="PropNinja privacy screen">
-      <Ionicons name="shield-checkmark" size={56} color={colors.primaryLight} />
+      <Ionicons name="shield-checkmark" size={56} color={colors.primary} />
       <Text style={styles.title}>PropNinja</Text>
       <Text style={styles.subtitle}>Your session is protected</Text>
     </View>
@@ -36,15 +36,15 @@ const styles = StyleSheet.create({
     elevation: 9999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     gap: 12,
   },
   title: {
     ...typography.heading,
-    color: colors.textDark,
+    color: colors.text,
   },
   subtitle: {
     ...typography.body,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
   },
 });

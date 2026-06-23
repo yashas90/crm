@@ -2,7 +2,7 @@ import { CachedImage } from "@/components/ui/CachedImage";
 import { colors } from "@/theme";
 import { StyleSheet, Text, View } from "react-native";
 
-const PALETTE = ["#0d9488", "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0891b2"] as const;
+const PALETTE = ["#0d9488", "#204060", "#7c3aed", "#db2777", "#ea580c", "#0891b2"] as const;
 
 function colorForName(name: string) {
   let hash = 0;

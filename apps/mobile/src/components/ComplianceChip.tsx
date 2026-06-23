@@ -34,5 +34,5 @@ const styles = StyleSheet.create({
   blocked: { backgroundColor: "rgba(239, 68, 68, 0.15)" },
   blockedText: { color: colors.danger },
   unknown: { backgroundColor: "rgba(148, 163, 184, 0.15)" },
-  unknownText: { color: colors.textMutedDark },
+  unknownText: { color: colors.textMuted },
 });

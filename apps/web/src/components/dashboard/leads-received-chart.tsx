@@ -87,7 +87,7 @@ export const LeadsReceivedChart = memo(function LeadsReceivedChart({
   }, [rows, filter, dateFrom, dateTo]);
 
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className="">
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -104,7 +104,7 @@ export const LeadsReceivedChart = memo(function LeadsReceivedChart({
                 className={cn(
                   "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                   filter === option.value
-                    ? "bg-background text-foreground shadow-sm"
+                    ? "bg-background text-foreground shadow-[2px_2px_0_0_#000]"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >

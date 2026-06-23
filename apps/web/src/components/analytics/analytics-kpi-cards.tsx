@@ -28,7 +28,7 @@ function KpiCard({ title, kpi, formatValue, suffix, onClick }: KpiCardProps) {
   return (
     <Card
       className={cn(
-        "border-border/60 shadow-sm",
+        "",
         onClick && "cursor-pointer transition-colors hover:border-primary/40 hover:bg-muted/30",
       )}
       onClick={onClick}

@@ -20,7 +20,7 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <View style={styles.wrap}>
-      <Ionicons name={icon} size={48} color={colors.textMutedDark} />
+      <Ionicons name={icon} size={48} color={colors.textMuted} />
       <Text style={styles.title}>{title}</Text>
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {actionLabel && onAction ? (
@@ -39,12 +39,12 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.subheading,
-    color: colors.textDark,
+    color: colors.text,
     marginTop: spacing.md,
     textAlign: "center",
   },
   message: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: spacing.sm,
     lineHeight: 22,

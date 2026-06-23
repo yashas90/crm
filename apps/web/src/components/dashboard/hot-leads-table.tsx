@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { NeuBadge, NeuCard } from "@/components/ui/neubrutal";
 import {
   Table,
   TableBody,
@@ -21,6 +22,16 @@ function relativeTime(value: string | null) {
   return `${days} days ago`;
 }
 
+function nextAction(lead: HotLeadRow) {
+  if (lead.next_followup_at) {
+    const date = new Date(lead.next_followup_at);
+    const now = new Date();
+    if (date <= now) return "Follow up now";
+    return `Follow up ${date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+  }
+  return "Reach out soon";
+}
+
 const STATUS_CHIP: Record<string, string> = {
   new: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300",
   contacted: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
@@ -30,9 +41,55 @@ const STATUS_CHIP: Record<string, string> = {
   lost: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
 };
 
-export function HotLeadsTable({ leads }: { leads: HotLeadRow[] }) {
+type HotLeadsTableProps = {
+  leads: HotLeadRow[];
+  variant?: "default" | "neubrutal";
+};
+
+export function HotLeadsTable({ leads, variant = "default" }: HotLeadsTableProps) {
+  if (variant === "neubrutal") {
+    return (
+      <NeuCard hover={false} className="overflow-hidden">
+        {leads.length === 0 ? (
+          <p className="p-6 text-sm text-neutral-600">No hot leads in the pipeline right now.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="neubrutal-table w-full border-collapse">
+              <thead>
+                <tr>
+                  <th>Lead Name</th>
+                  <th>Contact</th>
+                  <th>Location</th>
+                  <th>Status</th>
+                  <th>Next Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leads.map((lead) => (
+                  <tr key={lead.id} className="cursor-pointer">
+                    <td className="font-bold">
+                      <Link href={`/leads/${lead.id}`} className="hover:underline">
+                        {lead.name}
+                      </Link>
+                    </td>
+                    <td>{lead.phone ?? "—"}</td>
+                    <td>{lead.city ?? "—"}</td>
+                    <td>
+                      <NeuBadge>Hot</NeuBadge>
+                    </td>
+                    <td className="italic text-neutral-600">{nextAction(lead)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </NeuCard>
+    );
+  }
+
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className="">
       <CardHeader>
         <CardTitle className="text-base">Hot leads — follow up soon</CardTitle>
       </CardHeader>

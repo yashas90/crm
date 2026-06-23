@@ -25,7 +25,7 @@ type StatCardProps = {
 
 function StatCard({ label, value, accent }: StatCardProps) {
   return (
-    <div className={cn("rounded-lg border border-border/60 bg-muted/30 px-3 py-2", accent)}>
+    <div className={cn("border-2 border-black bg-muted/30 px-3 py-2", accent)}>
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
@@ -146,7 +146,7 @@ export const CallsSection = memo(function CallsSection({
 
   return (
     <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
-      <Card className="border-border/60 shadow-sm">
+      <Card className="">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg">Calls</CardTitle>
           <p className="text-sm text-muted-foreground">{rangeLabel}</p>
@@ -245,7 +245,7 @@ export const CallsSection = memo(function CallsSection({
         </CardContent>
       </Card>
 
-      <Card className="border-border/60 shadow-sm">
+      <Card className="">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg">Activity on leads</CardTitle>
           <p className="text-sm text-muted-foreground">{rangeLabel}</p>

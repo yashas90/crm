@@ -17,7 +17,7 @@ export function OverdueFollowupsWidget({ className }: { className?: string }) {
   const items = (data?.items ?? []).slice(0, 10);
 
   return (
-    <Card className={cn("rounded-xl border-border/60 shadow-sm", className)}>
+    <Card className={cn("rounded-xl ", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -46,7 +46,7 @@ export function OverdueFollowupsWidget({ className }: { className?: string }) {
               </thead>
               <tbody>
                 {items.map((lead: OverdueLead) => (
-                  <tr key={lead.id} className="border-t border-border/60 hover:bg-muted/30">
+                  <tr key={lead.id} className="border-t border-black hover:bg-muted/30">
                     <td className="px-4 py-2">
                       <Link
                         href={`/leads/${lead.id}`}

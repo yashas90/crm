@@ -14,6 +14,7 @@ import { formatDateTime } from "@/lib/dates";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { screenStyles } from "@/theme/screen";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useCallback } from "react";
@@ -53,14 +54,14 @@ function NotificationItem({
   return (
     <Pressable
       style={({ pressed }) => [
-        styles.item,
+        screenStyles.listRow,
         !item.isRead && styles.itemUnread,
         pressed && styles.itemPressed,
       ]}
       onPress={onPress}
     >
       <View style={[styles.iconWrap, !item.isRead && styles.iconWrapUnread]}>
-        <Ionicons name={notificationIcon(item.type)} size={22} color={colors.primaryLight} />
+        <Ionicons name={notificationIcon(item.type)} size={22} color={colors.primary} />
       </View>
       <View style={styles.itemBody}>
         <View style={styles.titleRow}>
@@ -71,12 +72,12 @@ function NotificationItem({
         <Text style={styles.time}>{formatDateTime(item.createdAt)}</Text>
         {leadId ? (
           <View style={styles.leadHint}>
-            <Ionicons name="open-outline" size={14} color={colors.textMutedDark} />
+            <Ionicons name="open-outline" size={14} color={colors.textMuted} />
             <Text style={styles.leadHintText}>View lead</Text>
           </View>
         ) : null}
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.textMutedDark} />
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </Pressable>
   );
 }
@@ -119,14 +120,14 @@ export function NotificationsScreen({ navigation }: Props) {
         {unreadCount > 0 ? (
           <Badge
             label={`${unreadCount} unread`}
-            backgroundColor="rgba(20, 184, 166, 0.2)"
-            color={colors.primaryLight}
+            backgroundColor={colors.sticky}
+            color={colors.text}
           />
         ) : null}
       </View>
 
       {notifications.isLoading && !notifications.data ? (
-        <ActivityIndicator color={colors.primaryLight} style={styles.loader} />
+        <ActivityIndicator color={colors.primary} style={styles.loader} />
       ) : (
         <FlatList
           data={items}
@@ -140,7 +141,7 @@ export function NotificationsScreen({ navigation }: Props) {
             <RefreshControl
               refreshing={notifications.isRefetching}
               onRefresh={refetch}
-              tintColor={colors.primaryLight}
+              tintColor={colors.primary}
             />
           }
           ListEmptyComponent={
@@ -160,7 +161,7 @@ export function NotificationsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.backgroundDark },
+  safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -168,25 +169,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     gap: spacing.sm,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.sticky,
+    paddingTop: spacing.sm,
   },
-  title: { ...typography.heading, color: colors.textDark, fontSize: 26 },
+  title: { ...typography.heading, color: colors.text, fontSize: 24 },
   loader: { marginTop: spacing.xl },
   listContent: { paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   listEmpty: { flexGrow: 1, justifyContent: "center" },
-  item: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
   itemUnread: {
-    borderColor: "rgba(20, 184, 166, 0.35)",
-    backgroundColor: "rgba(20, 184, 166, 0.08)",
+    backgroundColor: colors.sticky,
   },
   itemPressed: { opacity: 0.88 },
   iconWrap: {
@@ -195,32 +188,36 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
   },
   iconWrapUnread: {
-    backgroundColor: "rgba(20, 184, 166, 0.15)",
+    backgroundColor: "#dbeafe",
   },
   itemBody: { flex: 1, gap: 4 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   typeLabel: {
-    color: colors.textDark,
-    fontSize: 14,
-    fontWeight: "700",
-    textTransform: "capitalize",
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: radii.pill,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.hot,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  message: { color: colors.textDark, fontSize: 15, lineHeight: 21 },
-  time: { color: colors.textMutedDark, fontSize: 12, marginTop: 2 },
+  message: { color: colors.text, fontSize: 15, lineHeight: 21, fontWeight: "500" },
+  time: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   leadHint: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
     marginTop: 4,
   },
-  leadHintText: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
+  leadHintText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
 });

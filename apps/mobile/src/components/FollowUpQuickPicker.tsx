@@ -56,7 +56,7 @@ export function FollowUpQuickPicker({ value, onChange }: FollowUpQuickPickerProp
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
-  current: { color: colors.textMutedDark, fontSize: 13 },
+  current: { color: colors.textMuted, fontSize: 13 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     backgroundColor: colors.primary,
@@ -65,9 +65,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   chipMuted: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   chipText: { color: "#fff", fontSize: 12, fontWeight: "600" },
 });

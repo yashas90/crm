@@ -1,4 +1,4 @@
-import { colors, radii } from "@/theme";
+import { colors } from "@/theme";
 import { StyleSheet, Text, View } from "react-native";
 
 type BadgeProps = {
@@ -17,15 +17,17 @@ export function Badge({ label, backgroundColor, color }: BadgeProps) {
 
 const styles = StyleSheet.create({
   badge: {
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: colors.card,
   },
   text: {
-    color: colors.textMutedDark,
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "capitalize",
+    color: colors.text,
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
 });

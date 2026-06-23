@@ -16,10 +16,10 @@ function AuthGate({ children }: { children: ReactNode }) {
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: colors.backgroundDark,
+          backgroundColor: colors.background,
         }}
       >
-        <ActivityIndicator size="large" color={colors.primaryLight} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }

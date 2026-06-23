@@ -103,7 +103,7 @@ export function TcfConsentPanel({ leadId, data, isLoading }: TcfConsentPanelProp
         TCF consent per channel. Updates are stored via POST /api/tcf/consent.
       </p>
 
-      <div className="divide-y rounded-xl border border-border/60">
+      <div className="divide-y border-2 border-black">
         {CHANNELS.map(({ type, label, toggleLabel }) => {
           const record = data?.consents[type] ?? null;
           const consented = record ? record.consented : null;

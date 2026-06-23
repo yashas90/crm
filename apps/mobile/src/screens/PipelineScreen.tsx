@@ -12,7 +12,7 @@ import {
   groupLeadsByStage,
 } from "@/lib/pipeline";
 import type { MainTabParamList } from "@/navigation/types";
-import { colors, radii, spacing, typography } from "@/theme";
+import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import type { LeadStatus } from "@propninja/types/enums";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
@@ -127,7 +127,7 @@ export function PipelineScreen({ navigation }: Props) {
       ) : null}
 
       {pipeline.isLoading && !pipeline.data ? (
-        <ActivityIndicator color={colors.primaryLight} style={styles.loader} />
+        <ActivityIndicator color={colors.primary} style={styles.loader} />
       ) : (
         <ScrollView
           style={styles.boardScroll}
@@ -138,7 +138,7 @@ export function PipelineScreen({ navigation }: Props) {
             <RefreshControl
               refreshing={pipeline.isRefetching}
               onRefresh={() => void refetch()}
-              tintColor={colors.primaryLight}
+              tintColor={colors.primary}
             />
           }
         >
@@ -229,10 +229,10 @@ export function PipelineScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.backgroundDark },
+  safe: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.xs },
-  title: { ...typography.heading, color: colors.textDark, fontSize: 22 },
-  subtitle: { color: colors.textMutedDark, fontSize: 13, marginTop: 2 },
+  title: { ...typography.heading, color: colors.text, fontSize: 22 },
+  subtitle: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -245,16 +245,17 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.cardDark,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    ...shadows.neuSm,
   },
   chipActive: {
-    backgroundColor: "rgba(20, 184, 166, 0.15)",
-    borderColor: colors.primaryLight,
+    backgroundColor: "#dbeafe",
+    borderColor: colors.primary,
   },
-  chipText: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
-  chipTextActive: { color: colors.primaryLight },
+  chipText: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
+  chipTextActive: { color: colors.primary },
   agentPicker: {
     flexDirection: "row",
     alignItems: "center",
@@ -263,11 +264,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    backgroundColor: colors.cardDark,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
-  agentPickerText: { color: colors.textDark, fontSize: 12, fontWeight: "600" },
-  agentPickerHint: { color: colors.textMutedDark, fontSize: 11 },
+  agentPickerText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  agentPickerHint: { color: colors.textMuted, fontSize: 11 },
   truncatedBanner: {
     color: colors.warning,
     fontSize: 12,
@@ -289,20 +290,20 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     padding: spacing.lg,
     maxHeight: "70%",
   },
-  modalTitle: { color: colors.textDark, fontSize: 18, fontWeight: "700" },
-  modalSubtitle: { color: colors.textMutedDark, marginTop: 4, marginBottom: spacing.md },
+  modalTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  modalSubtitle: { color: colors.textMuted, marginTop: 4, marginBottom: spacing.md },
   modalOption: {
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
-  modalOptionText: { color: colors.textDark, fontSize: 16 },
+  modalOptionText: { color: colors.text, fontSize: 16 },
   errorToast: {
     position: "absolute",
     left: spacing.md,

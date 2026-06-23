@@ -33,7 +33,8 @@ import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
 import { scoreBadgeStyle } from "@/lib/leadScore";
 import type { LeadsStackParamList } from "@/navigation/types";
-import { colors, radii, spacing, typography } from "@/theme";
+import { colors, radii, shadows, spacing, typography } from "@/theme";
+import { neuCard } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useLayoutEffect, useState } from "react";
@@ -107,7 +108,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           style={{ marginRight: 4 }}
           accessibilityLabel="Edit lead"
         >
-          <Ionicons name="pencil" size={22} color="#f8fafc" />
+          <Ionicons name="pencil" size={22} color={colors.text} />
         </Pressable>
       ),
     });
@@ -178,7 +179,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   if (isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.primaryLight} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -203,88 +204,92 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
       >
         <View style={styles.profileCard}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>
-              {lead.firstName} {lead.lastName}
-            </Text>
-            <View style={styles.statusChip}>
-              <Text style={styles.statusChipText}>{lead.leadStatus}</Text>
-            </View>
-          </View>
-          <ComplianceChip callConsent={callConsent} />
-          {lead.temperature ? (
-            <View style={styles.tempChip}>
-              <Text style={styles.tempChipText}>{lead.temperature}</Text>
-            </View>
-          ) : null}
-          {scoreStyle ? (
-            <View style={[styles.scoreChip, { backgroundColor: scoreStyle.bg }]}>
-              <Text style={[styles.scoreChipText, { color: scoreStyle.text }]}>
-                {scoreStyle.label} · {lead.score}
+          <View style={styles.profileCardInner}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>
+                {lead.firstName} {lead.lastName}
               </Text>
+              <View style={styles.statusChip}>
+                <Text style={styles.statusChipText}>{lead.leadStatus}</Text>
+              </View>
             </View>
-          ) : null}
+            <ComplianceChip callConsent={callConsent} />
+            {lead.temperature ? (
+              <View style={styles.tempChip}>
+                <Text style={styles.tempChipText}>{lead.temperature}</Text>
+              </View>
+            ) : null}
+            {scoreStyle ? (
+              <View style={[styles.scoreChip, { backgroundColor: scoreStyle.bg }]}>
+                <Text style={[styles.scoreChipText, { color: scoreStyle.text }]}>
+                  {scoreStyle.label} · {lead.score}
+                </Text>
+              </View>
+            ) : null}
 
-          <Pressable
-            onPress={() => lead.phone && void dialWithConsentCheck(lead.phone)}
-            style={styles.infoRow}
-          >
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoValue}>{lead.phone ?? "—"}</Text>
-          </Pressable>
-          {lead.secondaryPhone ? (
             <Pressable
-              onPress={() => lead.secondaryPhone && void dialWithConsentCheck(lead.secondaryPhone)}
+              onPress={() => lead.phone && void dialWithConsentCheck(lead.phone)}
               style={styles.infoRow}
             >
-              <Text style={styles.infoLabel}>Secondary phone</Text>
-              <Text style={styles.infoValue}>{lead.secondaryPhone}</Text>
+              <Text style={styles.infoLabel}>Phone</Text>
+              <Text style={styles.infoValue}>{lead.phone ?? "—"}</Text>
             </Pressable>
-          ) : null}
-          {lead.email ? (
+            {lead.secondaryPhone ? (
+              <Pressable
+                onPress={() =>
+                  lead.secondaryPhone && void dialWithConsentCheck(lead.secondaryPhone)
+                }
+                style={styles.infoRow}
+              >
+                <Text style={styles.infoLabel}>Secondary phone</Text>
+                <Text style={styles.infoValue}>{lead.secondaryPhone}</Text>
+              </Pressable>
+            ) : null}
+            {lead.email ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoValue}>{lead.email}</Text>
+              </View>
+            ) : null}
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{lead.email}</Text>
+              <Text style={styles.infoLabel}>Assigned to</Text>
+              <View style={styles.assignedRow}>
+                <Text style={styles.infoValue}>{lead.assignedUser?.name ?? "Unassigned"}</Text>
+                {lead.assignedUser?.id !== getCurrentUserId() ? (
+                  <Pressable
+                    style={styles.claimButton}
+                    onPress={() =>
+                      updateLead.mutate(
+                        { leadId: lead.id, payload: { assignedTo: getCurrentUserId() } },
+                        {
+                          onError: (err) =>
+                            Alert.alert(
+                              "Error",
+                              err instanceof Error ? err.message : "Failed to assign lead.",
+                            ),
+                        },
+                      )
+                    }
+                    disabled={updateLead.isPending}
+                  >
+                    <Text style={styles.claimButtonText}>Assign to me</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
-          ) : null}
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Assigned to</Text>
-            <View style={styles.assignedRow}>
-              <Text style={styles.infoValue}>{lead.assignedUser?.name ?? "Unassigned"}</Text>
-              {lead.assignedUser?.id !== getCurrentUserId() ? (
-                <Pressable
-                  style={styles.claimButton}
-                  onPress={() =>
-                    updateLead.mutate(
-                      { leadId: lead.id, payload: { assignedTo: getCurrentUserId() } },
-                      {
-                        onError: (err) =>
-                          Alert.alert(
-                            "Error",
-                            err instanceof Error ? err.message : "Failed to assign lead.",
-                          ),
-                      },
-                    )
-                  }
-                  disabled={updateLead.isPending}
-                >
-                  <Text style={styles.claimButtonText}>Assign to me</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-          {(lead.tags ?? []).length > 0 ? (
-            <View style={styles.badgesRow}>
-              {lead.tags!.map((tag) => (
-                <Badge key={tag} label={tag} />
-              ))}
-            </View>
-          ) : null}
+            {(lead.tags ?? []).length > 0 ? (
+              <View style={styles.badgesRow}>
+                {lead.tags!.map((tag) => (
+                  <Badge key={tag} label={tag} />
+                ))}
+              </View>
+            ) : null}
 
-          <View style={styles.badgesRow}>
-            {lead.city ? <Badge label={lead.city} /> : null}
-            {lead.state ? <Badge label={lead.state} /> : null}
-            {lead.leadSource ? <Badge label={lead.leadSource} /> : null}
+            <View style={styles.badgesRow}>
+              {lead.city ? <Badge label={lead.city} /> : null}
+              {lead.state ? <Badge label={lead.state} /> : null}
+              {lead.leadSource ? <Badge label={lead.leadSource} /> : null}
+            </View>
           </View>
         </View>
 
@@ -405,7 +410,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               style={styles.noteInput}
               multiline
               placeholder="Add a note..."
-              placeholderTextColor={colors.textMutedDark}
+              placeholderTextColor={colors.textMuted}
               value={noteText}
               onChangeText={setNoteText}
             />
@@ -559,7 +564,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 function channelStatusLabel(consent: boolean | null) {
   if (consent === true) return { text: "Allowed", color: colors.success };
   if (consent === false) return { text: "Not allowed", color: colors.danger };
-  return { text: "Unknown", color: colors.textMutedDark };
+  return { text: "Unknown", color: colors.textMuted };
 }
 
 function TcfConsentSection({
@@ -653,21 +658,27 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.backgroundDark },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md },
   center: {
     flex: 1,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     alignItems: "center",
     justifyContent: "center",
   },
   profileCard: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.lg,
-    padding: spacing.md,
+    backgroundColor: colors.sticky,
+    borderWidth: 2,
+    borderColor: colors.border,
+    padding: spacing.sm,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    ...shadows.neu,
+  },
+  profileCardInner: {
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    padding: spacing.md,
   },
   titleRow: {
     flexDirection: "row",
@@ -676,86 +687,94 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  title: { ...typography.subheading, color: colors.textDark, flexShrink: 1 },
+  title: { ...typography.subheading, color: colors.text, flexShrink: 1 },
   statusChip: {
-    backgroundColor: "rgba(20,184,166,0.15)",
+    backgroundColor: "#dbeafe",
+    borderWidth: 2,
+    borderColor: colors.border,
     borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   statusChipText: {
-    color: colors.primaryLight,
+    color: colors.primary,
     fontSize: 12,
-    fontWeight: "600",
-    textTransform: "capitalize",
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   tempChip: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(99,102,241,0.15)",
+    backgroundColor: colors.sticky,
+    borderWidth: 2,
+    borderColor: colors.border,
     borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginBottom: spacing.sm,
   },
   tempChipText: {
-    color: colors.accent,
+    color: colors.text,
     fontSize: 12,
-    fontWeight: "600",
-    textTransform: "capitalize",
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   infoRow: { marginBottom: 8 },
-  infoLabel: { color: colors.textMutedDark, fontSize: 12, fontWeight: "600" },
-  infoValue: { color: colors.textDark, fontSize: 16, marginTop: 2 },
+  infoLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  infoValue: { color: colors.text, fontSize: 16, fontWeight: "600", marginTop: 2 },
   assignedRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 },
   claimButton: {
-    backgroundColor: "rgba(20,184,166,0.15)",
-    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
+    borderRadius: radii.sm,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: "rgba(20,184,166,0.3)",
+    borderWidth: 2,
+    borderColor: colors.border,
+    ...shadows.neuSm,
   },
-  claimButtonText: { color: colors.primaryLight, fontSize: 12, fontWeight: "700" },
+  claimButtonText: { color: "#fff", fontSize: 12, fontWeight: "800" },
   badgesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   badge: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.card,
     borderRadius: radii.pill,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderWidth: 2,
+    borderColor: colors.border,
   },
-  badgeText: { color: colors.textMutedDark, fontSize: 12 },
+  badgeText: { color: colors.text, fontSize: 12, fontWeight: "700" },
   callHint: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,
     marginBottom: spacing.md,
     marginTop: -4,
   },
   consentCard: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.lg,
+    ...neuCard,
     padding: spacing.md,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
   },
   consentTitle: {
     ...typography.subheading,
-    color: colors.textDark,
+    color: colors.text,
     fontSize: 16,
   },
   consentSubtitle: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 4,
     marginBottom: spacing.sm,
   },
   consentChannelLabel: {
-    color: colors.textMutedDark,
-    fontSize: 12,
-    fontWeight: "700",
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
@@ -767,27 +786,28 @@ const styles = StyleSheet.create({
   },
   consentButton: {
     flex: 1,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderRadius: radii.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
     paddingVertical: 10,
     paddingHorizontal: spacing.sm,
     alignItems: "center",
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.card,
+    ...shadows.neuSm,
   },
   consentButtonActiveOk: {
-    borderColor: "rgba(16, 185, 129, 0.5)",
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderColor: colors.border,
+    backgroundColor: "#dcfce7",
   },
   consentButtonActiveBlock: {
-    borderColor: "rgba(239, 68, 68, 0.5)",
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderColor: colors.border,
+    backgroundColor: "#fee2e2",
   },
   consentButtonDisabled: { opacity: 0.6 },
   consentButtonText: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
     textAlign: "center",
   },
   consentButtonTextActiveOk: { color: colors.success },
@@ -797,145 +817,163 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderDark,
+    borderTopWidth: 2,
+    borderTopColor: colors.border,
   },
-  consentReadLabel: { color: colors.textDark, fontSize: 14, fontWeight: "600" },
-  consentReadValue: { fontSize: 13, fontWeight: "600" },
+  consentReadLabel: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  consentReadValue: { fontSize: 13, fontWeight: "700" },
   summaryRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   summaryCard: {
     flex: 1,
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
+    ...neuCard,
     padding: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
   },
-  summaryValue: { color: colors.textDark, fontSize: 16, fontWeight: "700" },
-  summaryLabel: { color: colors.textMutedDark, fontSize: 11, marginTop: 4 },
+  summaryValue: { color: colors.text, fontSize: 16, fontWeight: "800" },
+  summaryLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    marginTop: 4,
+  },
   tabs: {
     flexDirection: "row",
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
     padding: 4,
     marginBottom: spacing.sm,
+    ...shadows.neuSm,
   },
   tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: radii.sm },
-  tabActive: { backgroundColor: colors.primary },
-  tabText: { color: colors.textMutedDark, fontWeight: "600" },
-  tabTextActive: { color: "#fff" },
+  tabActive: {
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  tabText: { color: colors.textMuted, fontWeight: "700", fontSize: 12, textTransform: "uppercase" },
+  tabTextActive: { color: "#fff", fontWeight: "800" },
   panel: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
+    ...neuCard,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
   },
   callRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 12,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
   },
-  callTitle: { color: colors.textDark, fontWeight: "600", textTransform: "capitalize" },
-  callMeta: { color: colors.textMutedDark, fontSize: 12, marginTop: 2 },
-  callTime: { color: colors.textMutedDark, fontSize: 12 },
-  empty: { color: colors.textMutedDark, textAlign: "center" },
+  callTitle: { color: colors.text, fontWeight: "700", textTransform: "capitalize" },
+  callMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  callTime: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
+  empty: { color: colors.textMuted, textAlign: "center", fontWeight: "600" },
   noteInput: {
     minHeight: 120,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderRadius: radii.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
     padding: spacing.sm,
-    color: colors.textDark,
+    color: colors.text,
+    backgroundColor: colors.card,
     textAlignVertical: "top",
+    ...shadows.neuSm,
   },
   noteSave: {
     marginTop: spacing.sm,
     alignSelf: "flex-start",
     backgroundColor: colors.primary,
     borderRadius: radii.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    ...shadows.neuSm,
   },
-  noteSaveText: { color: "#fff", fontWeight: "600" },
+  noteSaveText: { color: "#fff", fontWeight: "800" },
   noteToast: {
     marginTop: spacing.sm,
-    color: colors.primaryLight,
+    color: colors.primary,
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   callLoggedToast: {
     position: "absolute",
     alignSelf: "center",
-    backgroundColor: "#166534",
+    backgroundColor: colors.text,
+    borderWidth: 2,
+    borderColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: radii.sm,
     zIndex: 100,
+    ...shadows.neu,
   },
-  callLoggedToastText: { color: "#ffffff", fontWeight: "600", fontSize: 14 },
+  callLoggedToastText: { color: colors.sticky, fontWeight: "800", fontSize: 14 },
   noteBlock: { marginTop: spacing.md },
   noteBlockTitle: {
-    color: colors.textMutedDark,
-    fontSize: 12,
-    fontWeight: "700",
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: spacing.sm,
   },
-  existingNote: { color: colors.textDark, fontSize: 14, lineHeight: 20 },
+  existingNote: { color: colors.text, fontSize: 14, lineHeight: 20, fontWeight: "500" },
   activityRow: {
     paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
   },
-  activityMeta: { color: colors.textMutedDark, fontSize: 12, marginBottom: 4 },
-  activityText: { color: colors.textDark, fontSize: 14, lineHeight: 20 },
+  activityMeta: { color: colors.textMuted, fontSize: 12, marginBottom: 4, fontWeight: "600" },
+  activityText: { color: colors.text, fontSize: 14, lineHeight: 20 },
   scoreChip: {
     alignSelf: "flex-start",
-    borderRadius: radii.full,
+    borderRadius: radii.pill,
+    borderWidth: 2,
+    borderColor: colors.border,
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginTop: spacing.xs,
   },
-  scoreChipText: { fontSize: 12, fontWeight: "700" },
+  scoreChipText: { fontSize: 12, fontWeight: "800" },
   followUpCard: {
-    backgroundColor: colors.cardDark,
-    borderRadius: radii.md,
+    ...neuCard,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
     marginBottom: spacing.md,
   },
   followUpTitle: {
-    color: colors.textDark,
+    color: colors.text,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
+    textTransform: "uppercase",
     marginBottom: spacing.sm,
   },
   scheduleVisitBtn: {
     alignSelf: "flex-start",
     backgroundColor: colors.primary,
-    borderRadius: radii.md,
+    borderRadius: radii.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,
+    ...shadows.neuSm,
   },
-  scheduleVisitBtnText: { color: "#fff", fontWeight: "700" },
+  scheduleVisitBtnText: { color: "#fff", fontWeight: "800" },
   visitRow: {
     paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.border,
   },
-  visitTitle: { color: colors.textDark, fontWeight: "600" },
+  visitTitle: { color: colors.text, fontWeight: "700" },
   visitMeta: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 2,
     textTransform: "capitalize",
+    fontWeight: "600",
   },
-  errorText: { color: colors.danger },
+  errorText: { color: colors.danger, fontWeight: "700" },
 });

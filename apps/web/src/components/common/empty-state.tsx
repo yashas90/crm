@@ -24,14 +24,14 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <Card className={cn("border-dashed border-border/60 bg-muted/20 shadow-none", className)}>
+    <Card className={cn("border-dashed bg-neutral-50", className)}>
       <CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center border-2 border-black bg-[#FEF08A] shadow-[3px_3px_0_0_#000]">
           {icon ?? <Inbox className="h-7 w-7" />}
         </div>
-        <h3 className="text-base font-semibold">{title}</h3>
+        <h3 className="font-heading text-lg font-bold uppercase">{title}</h3>
         {description ? (
-          <p className="mt-2 max-w-sm text-sm text-muted-foreground">{description}</p>
+          <p className="mt-2 max-w-sm text-sm font-medium text-neutral-600">{description}</p>
         ) : null}
         {actionLabel && onActionClick ? (
           <Button className="mt-5" size="sm" onClick={onActionClick}>

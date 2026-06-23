@@ -40,7 +40,7 @@ export function TaskDetailSheet({ taskId, visible, onClose, onViewLead }: TaskDe
         <View style={styles.sheet}>
           <View style={styles.handle} />
           {isLoading || !task ? (
-            <ActivityIndicator color={colors.primaryLight} style={{ marginVertical: spacing.lg }} />
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
           ) : (
             <ScrollView contentContainerStyle={styles.content}>
               <Text style={styles.title}>{task.title}</Text>
@@ -82,7 +82,7 @@ export function TaskDetailSheet({ taskId, visible, onClose, onViewLead }: TaskDe
                       onViewLead(task.lead!.id);
                     }}
                   >
-                    <Ionicons name="person-outline" size={18} color={colors.primaryLight} />
+                    <Ionicons name="person-outline" size={18} color={colors.primary} />
                     <Text style={styles.secondaryBtnText}>
                       View {task.lead.firstName} {task.lead.lastName}
                     </Text>
@@ -107,30 +107,30 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end" },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     maxHeight: "80%",
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
   handle: {
     alignSelf: "center",
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.borderDark,
+    backgroundColor: colors.border,
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
   },
   content: { padding: spacing.lg, paddingBottom: spacing.xl },
-  title: { ...typography.subheading, color: colors.textDark, fontSize: 18 },
-  meta: { color: colors.textMutedDark, fontSize: 13, marginTop: 4, textTransform: "capitalize" },
-  due: { color: colors.textMutedDark, fontSize: 13, marginTop: 8 },
-  description: { color: colors.textDark, fontSize: 14, marginTop: spacing.md, lineHeight: 20 },
+  title: { ...typography.subheading, color: colors.text, fontSize: 18 },
+  meta: { color: colors.textMuted, fontSize: 13, marginTop: 4, textTransform: "capitalize" },
+  due: { color: colors.textMuted, fontSize: 13, marginTop: 8 },
+  description: { color: colors.text, fontSize: 14, marginTop: spacing.md, lineHeight: 20 },
   notesSection: { marginTop: spacing.lg },
   notesLabel: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
@@ -138,15 +138,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   noteCard: {
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
     borderRadius: radii.md,
     padding: spacing.sm,
     marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
   },
-  noteAuthor: { color: colors.textDark, fontSize: 12, fontWeight: "600" },
-  noteText: { color: colors.textMutedDark, fontSize: 13, marginTop: 4 },
+  noteAuthor: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  noteText: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
   actions: { marginTop: spacing.lg, gap: spacing.sm },
   primaryBtn: {
     flexDirection: "row",
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: colors.primaryLight,
+    borderColor: colors.primary,
   },
-  secondaryBtnText: { color: colors.primaryLight, fontWeight: "600", fontSize: 15 },
+  secondaryBtnText: { color: colors.primary, fontWeight: "600", fontSize: 15 },
 });

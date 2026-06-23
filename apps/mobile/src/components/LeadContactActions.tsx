@@ -61,7 +61,7 @@ export function LeadContactActions({
         <ActionChip
           icon="call"
           label="Call"
-          tint={colors.primaryLight}
+          tint={colors.primary}
           onPress={() => void handleCall()}
           disabled={disabled || !hasPhone}
         />
@@ -76,7 +76,7 @@ export function LeadContactActions({
           <ActionChip
             icon="create-outline"
             label="Log"
-            tint={colors.textDark}
+            tint={colors.text}
             onPress={onLogPress}
             disabled={disabled}
             ghost
@@ -107,7 +107,7 @@ export function LeadContactActions({
       </Pressable>
       {onLogPress ? (
         <Pressable style={styles.logBtn} onPress={onLogPress} disabled={disabled}>
-          <Ionicons name="clipboard-outline" size={18} color={colors.textDark} />
+          <Ionicons name="clipboard-outline" size={18} color={colors.text} />
           <Text style={styles.logBtnText}>Log call</Text>
         </Pressable>
       ) : null}
@@ -141,8 +141,8 @@ function ActionChip({
       onPress={onPress}
       disabled={disabled}
     >
-      <Ionicons name={icon} size={14} color={ghost ? colors.textMutedDark : tint} />
-      <Text style={[styles.chipText, { color: ghost ? colors.textDark : tint }]}>{label}</Text>
+      <Ionicons name={icon} size={14} color={ghost ? colors.textMuted : tint} />
+      <Text style={[styles.chipText, { color: ghost ? colors.text : tint }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -175,12 +175,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     borderRadius: radii.md,
     paddingVertical: 12,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
   },
-  logBtnText: { color: colors.textDark, fontWeight: "600", fontSize: 15 },
+  logBtnText: { color: colors.text, fontWeight: "600", fontSize: 15 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
@@ -190,11 +190,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.backgroundDark,
+    backgroundColor: colors.background,
   },
   chipGhost: {
-    borderColor: colors.borderDark,
-    backgroundColor: colors.cardDark,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
   chipText: { fontSize: 12, fontWeight: "700" },
   disabledBtn: { opacity: 0.45 },

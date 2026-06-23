@@ -23,7 +23,7 @@ export function ProjectsGrid({ projects }: { projects: ProjectSummary[] }) {
       {projects.map((project) => (
         <Card
           key={project.name}
-          className="border-border/60 bg-gradient-to-br from-slate-900/[0.02] to-emerald-500/[0.06] shadow-sm transition-shadow hover:shadow-md dark:from-slate-900/40 dark:to-emerald-500/10"
+          className="border-black bg-gradient-to-br from-slate-900/[0.02] to-emerald-500/[0.06] shadow-[2px_2px_0_0_#000] transition-shadow hover:shadow-md dark:from-slate-900/40 dark:to-emerald-500/10"
         >
           <CardHeader className="pb-2">
             <CardTitle className="text-base">{project.name}</CardTitle>

@@ -15,7 +15,7 @@ type AnalyticsDateFilterProps = {
 
 export function AnalyticsDateFilter({ value, onChange }: AnalyticsDateFilterProps) {
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className="">
       <CardHeader>
         <CardTitle className="text-base">Date range</CardTitle>
       </CardHeader>

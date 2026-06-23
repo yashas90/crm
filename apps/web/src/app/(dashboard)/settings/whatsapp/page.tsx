@@ -72,7 +72,7 @@ export default function WhatsAppSettingsPage() {
         </Button>
       </div>
 
-      <Card className="border-border/60 shadow-sm">
+      <Card className="">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <MessageCircle className="h-4 w-4 text-emerald-600" />
@@ -93,7 +93,7 @@ export default function WhatsAppSettingsPage() {
               approved.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border/60">
+            <div className="overflow-x-auto border-2 border-black">
               <table className="min-w-full text-sm">
                 <thead className="bg-muted/40 text-left">
                   <tr>
@@ -105,7 +105,7 @@ export default function WhatsAppSettingsPage() {
                 </thead>
                 <tbody>
                   {templates.data?.items.map((template) => (
-                    <tr key={template.id} className="border-t border-border/60">
+                    <tr key={template.id} className="border-t border-black">
                       <td className="px-4 py-3">
                         <div className="font-medium">{template.name}</div>
                         <div className="text-xs text-muted-foreground">{template.templateName}</div>

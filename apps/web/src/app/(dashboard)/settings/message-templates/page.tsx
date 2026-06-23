@@ -225,7 +225,7 @@ export default function MessageTemplatesSettingsPage() {
                   </Button>
                 </div>
               </div>
-              <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+              <div className="border-2 border-black bg-muted/20 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Live preview
                 </p>
@@ -250,7 +250,7 @@ export default function MessageTemplatesSettingsPage() {
             templates.data.items.map((template) => (
               <div
                 key={template.id}
-                className={`rounded-xl border p-4 ${template.isActive ? "border-border/60" : "border-dashed opacity-60"}`}
+                className={`rounded-xl border p-4 ${template.isActive ? "border-black" : "border-dashed opacity-60"}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>

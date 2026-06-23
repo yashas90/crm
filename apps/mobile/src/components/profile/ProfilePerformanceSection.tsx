@@ -33,7 +33,7 @@ function StatRow({
         {sub ? <Text style={styles.statRowSub}>{sub}</Text> : null}
       </View>
       <Text style={styles.statRowValue}>{value}</Text>
-      {onPress ? <Ionicons name="chevron-forward" size={16} color={colors.textMutedDark} /> : null}
+      {onPress ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
     </View>
   );
 
@@ -52,7 +52,7 @@ function CallsChart({ data }: { data: AgentStats["callsLast7Days"] }) {
   const barData = data.map((point) => ({
     value: point.count,
     label: point.date.slice(5),
-    frontColor: colors.primaryLight,
+    frontColor: colors.primary,
   }));
 
   return (
@@ -66,8 +66,8 @@ function CallsChart({ data }: { data: AgentStats["callsLast7Days"] }) {
         hideRules
         xAxisThickness={0}
         yAxisThickness={0}
-        yAxisTextStyle={{ color: colors.textMutedDark, fontSize: 10 }}
-        xAxisLabelTextStyle={{ color: colors.textMutedDark, fontSize: 10 }}
+        yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
+        xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 10 }}
         noOfSections={3}
         maxValue={Math.max(4, ...barData.map((b) => b.value))}
         height={140}
@@ -116,7 +116,7 @@ function PerformanceBody({
           <Ionicons
             name={showChart ? "chevron-up" : "chevron-down"}
             size={16}
-            color={colors.primaryLight}
+            color={colors.primary}
           />
         </Pressable>
         {showChart ? <CallsChart data={stats.callsLast7Days} /> : null}
@@ -194,7 +194,7 @@ export function ProfilePerformanceSection({ onOpenCallLogs }: ProfilePerformance
       </View>
 
       {isLoading && !data ? (
-        <ActivityIndicator color={colors.primaryLight} style={styles.loader} />
+        <ActivityIndicator color={colors.primary} style={styles.loader} />
       ) : isError && !data ? (
         <Pressable onPress={() => void refetch()} style={styles.errorBox}>
           <Text style={styles.errorText}>Could not load performance. Tap to retry.</Text>
@@ -211,7 +211,7 @@ export function ProfilePerformanceSection({ onOpenCallLogs }: ProfilePerformance
       ) : null}
 
       {isRefetching ? (
-        <ActivityIndicator color={colors.primaryLight} size="small" style={styles.refreshing} />
+        <ActivityIndicator color={colors.primary} size="small" style={styles.refreshing} />
       ) : null}
     </View>
   );
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   sectionTitle: {
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
@@ -243,22 +243,22 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: radii.md,
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     alignItems: "center",
   },
   tabActive: {
-    borderColor: colors.primaryLight,
+    borderColor: colors.primary,
     backgroundColor: "rgba(20, 184, 166, 0.12)",
   },
-  tabText: { color: colors.textMutedDark, fontWeight: "600", fontSize: 13 },
-  tabTextActive: { color: colors.primaryLight },
+  tabText: { color: colors.textMuted, fontWeight: "600", fontSize: 13 },
+  tabTextActive: { color: colors.primary },
   panel: {
-    backgroundColor: colors.cardDark,
+    backgroundColor: colors.card,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderDark,
+    borderColor: colors.border,
     overflow: "hidden",
   },
   statRow: {
@@ -268,12 +268,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
   statRowBody: { flex: 1 },
-  statRowLabel: { color: colors.textDark, fontSize: 14, fontWeight: "600" },
-  statRowSub: { color: colors.textMutedDark, fontSize: 11, marginTop: 2 },
-  statRowValue: { color: colors.primaryLight, fontSize: 18, fontWeight: "800" },
+  statRowLabel: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  statRowSub: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+  statRowValue: { color: colors.primary, fontSize: 18, fontWeight: "800" },
   pressed: { opacity: 0.85 },
   chartToggle: {
     flexDirection: "row",
@@ -282,16 +282,16 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
+    borderBottomColor: colors.border,
   },
-  chartToggleText: { color: colors.primaryLight, fontWeight: "600", fontSize: 13 },
+  chartToggleText: { color: colors.primary, fontWeight: "600", fontSize: 13 },
   chartWrap: {
     padding: spacing.md,
     alignItems: "center",
   },
   chartTitle: {
     ...typography.caption,
-    color: colors.textMutedDark,
+    color: colors.textMuted,
     alignSelf: "flex-start",
     marginBottom: spacing.sm,
   },
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: "rgba(245, 158, 11, 0.08)",
   },
-  leaderboardText: { flex: 1, color: colors.textDark, fontSize: 13, lineHeight: 20 },
+  leaderboardText: { flex: 1, color: colors.text, fontSize: 13, lineHeight: 20 },
   loader: { marginVertical: spacing.lg },
   errorBox: { padding: spacing.md },
   errorText: { color: colors.danger, textAlign: "center" },

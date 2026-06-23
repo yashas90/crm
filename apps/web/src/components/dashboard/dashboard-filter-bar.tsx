@@ -11,7 +11,7 @@ import { Label } from "@propninja/ui/label";
 import { cn } from "@propninja/ui/lib/utils";
 
 const selectClass =
-  "h-9 min-w-[9rem] rounded-md border border-input bg-background px-2.5 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "h-10 min-w-[9rem] border-2 border-black bg-white px-2.5 text-sm font-medium shadow-[2px_2px_0_0_#000] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]";
 
 type DashboardFilterBarProps = {
   value: DashboardFilterValue;
@@ -25,12 +25,12 @@ export function DashboardFilterBar({ value, onChange, className }: DashboardFilt
   return (
     <div
       className={cn(
-        "flex flex-wrap items-end gap-3 rounded-xl border border-border/60 bg-muted/30 p-3",
+        "flex flex-wrap items-end gap-3 border-2 border-black bg-white p-4 shadow-[4px_4px_0_0_#000]",
         className,
       )}
     >
       <div className="space-y-1">
-        <Label htmlFor="dashboard-date-preset" className="text-xs text-muted-foreground">
+        <Label htmlFor="dashboard-date-preset" className="text-xs text-neutral-600">
           Date range
         </Label>
         <select
@@ -59,7 +59,7 @@ export function DashboardFilterBar({ value, onChange, className }: DashboardFilt
       {value.dateRange.preset === "custom" ? (
         <>
           <div className="space-y-1">
-            <Label htmlFor="dashboard-from" className="text-xs text-muted-foreground">
+            <Label htmlFor="dashboard-from" className="text-xs text-neutral-600">
               From
             </Label>
             <Input
@@ -76,7 +76,7 @@ export function DashboardFilterBar({ value, onChange, className }: DashboardFilt
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="dashboard-to" className="text-xs text-muted-foreground">
+            <Label htmlFor="dashboard-to" className="text-xs text-neutral-600">
               To
             </Label>
             <Input
@@ -96,7 +96,7 @@ export function DashboardFilterBar({ value, onChange, className }: DashboardFilt
       ) : null}
 
       <div className="space-y-1">
-        <Label htmlFor="dashboard-user" className="text-xs text-muted-foreground">
+        <Label htmlFor="dashboard-user" className="text-xs text-neutral-600">
           User
         </Label>
         <select
@@ -115,7 +115,7 @@ export function DashboardFilterBar({ value, onChange, className }: DashboardFilt
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="dashboard-status" className="text-xs text-muted-foreground">
+        <Label htmlFor="dashboard-status" className="text-xs text-neutral-600">
           Stage
         </Label>
         <select
