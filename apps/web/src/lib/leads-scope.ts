@@ -7,9 +7,10 @@ export type LeadsScope =
   | "unassigned"
   | "deleted"
   | "duplicate"
-  | "re-enquired";
+  | "re-enquired"
+  | "naleads";
 
-export type LeadScopeCounts = Record<LeadsScope, number>;
+export type LeadScopeCounts = Record<LeadsScope, number> & { naleads?: number };
 
 export const LEADS_QUICK_FILTER_TABS: { id: LeadsScope; label: string }[] = [
   { id: "all", label: "All" },
@@ -32,6 +33,7 @@ const VALID_SCOPES = new Set<LeadsScope>([
   "deleted",
   "duplicate",
   "re-enquired",
+  "naleads",
 ]);
 
 export function scopeFromSearchParams(
@@ -69,6 +71,7 @@ export function scopeToQueryParams(
   duplicatesOnly?: string;
   excludeDuplicates?: string;
   reEnquiredOnly?: string;
+  naLeadsOnly?: string;
 } {
   switch (scope) {
     case "my":
@@ -87,6 +90,8 @@ export function scopeToQueryParams(
       return { duplicatesOnly: "true" };
     case "re-enquired":
       return { reEnquiredOnly: "true", excludeDuplicates: "true" };
+    case "naleads":
+      return { naLeadsOnly: "true", excludeDuplicates: "true" };
     default:
       return { excludeDuplicates: "true" };
   }

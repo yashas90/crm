@@ -17,7 +17,9 @@ const STATUS_LABELS: Record<string, string> = {
   qualified: "Qualified",
   negotiation: "Negotiation",
   won: "Booked",
-  lost: "Not Interested",
+  lost: "Lost",
+  not_interested: "Not Interested",
+  dropped: "Dropped",
   overdue: "Overdue",
 };
 
@@ -28,6 +30,8 @@ const STATUS_STYLES: Record<string, string> = {
   negotiation: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300",
   won: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
   lost: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
+  not_interested: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  dropped: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300",
   overdue: "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300",
 };
 

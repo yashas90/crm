@@ -8,6 +8,8 @@ export function statusStyle(status: string) {
     negotiation: { bg: "#fde68a", text: "#92400e" },
     won: { bg: "#bbf7d0", text: "#166534" },
     lost: { bg: "#fecaca", text: "#991b1b" },
+    not_interested: { bg: "#f1f5f9", text: "#475569" },
+    dropped: { bg: "#fef3c7", text: "#92400e" },
   };
   return map[status] ?? { bg: colors.card, text: colors.textMuted };
 }

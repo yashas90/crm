@@ -31,6 +31,7 @@ type LeadsListFiltersProps = {
   advancedFilterCount: number;
   onAdLeadsOnlyChange: (value: boolean) => void;
   onSourceChange: (source: string) => void;
+  isAdmin?: boolean;
 };
 
 export function LeadsListFilters({
@@ -53,6 +54,7 @@ export function LeadsListFilters({
   advancedFilterCount,
   onAdLeadsOnlyChange,
   onSourceChange,
+  isAdmin = false,
 }: LeadsListFiltersProps) {
   return (
     <section
@@ -64,6 +66,7 @@ export function LeadsListFilters({
         onChange={onScopeChange}
         counts={scopeCounts}
         isLoadingCounts={scopeCountsLoading}
+        isAdmin={isAdmin}
       />
       <LeadsSourceChips
         value={filters.source}

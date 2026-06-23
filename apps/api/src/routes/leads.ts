@@ -121,7 +121,7 @@ leadsRoute.get("/scope-counts", async (c) => {
 
   const query = parsed.data;
 
-  const data = await leadService.getScopeCounts(
+  const rawData = await leadService.getScopeCounts(
     {
       search: query.search,
       projectId: query.projectId,
@@ -137,6 +137,9 @@ leadsRoute.get("/scope-counts", async (c) => {
       isAgent: authUser.role === "agent",
     },
   );
+
+  // naleads bucket is admin-only — strip it for non-admins
+  const data = authUser.role === "admin" ? rawData : { ...rawData, naleads: undefined };
 
   return c.json({ ok: true, data });
 });
@@ -231,6 +234,7 @@ leadsRoute.get("/", async (c) => {
     activeOnly: query.activeOnly,
     deletedOnly: query.deletedOnly,
     reEnquiredOnly: query.reEnquiredOnly,
+    naLeadsOnly: authUser.role === "admin" ? query.naLeadsOnly : false,
     ...leadDuplicateFilters(query),
   });
 

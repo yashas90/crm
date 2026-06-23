@@ -76,7 +76,7 @@ export function LeadsPageView() {
   const [pendingBulkAction, setPendingBulkAction] = useState<BulkActionIntent | null>(null);
   const bulkBarRef = useRef<HTMLDivElement>(null);
 
-  const { session, ready } = useSession();
+  const { session, ready, isAdmin } = useSession();
 
   useEffect(() => {
     skipUrlWriteRef.current = true;
@@ -248,6 +248,7 @@ export function LeadsPageView() {
             adLeadsOnly: false,
           }))
         }
+        isAdmin={isAdmin}
       />
 
       {showForm ? (

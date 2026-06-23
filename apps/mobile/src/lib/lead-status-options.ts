@@ -12,8 +12,8 @@ export const MOBILE_LEAD_STATUS_OPTIONS: MobileLeadStatusOption[] = [
   { label: "Site Visit Scheduled", value: "qualified" },
   { label: "Expression Of Interest", value: "negotiation" },
   { label: "Booked", value: "won" },
-  { label: "Not Interested", value: "lost" },
-  { label: "Dropped", value: "lost" },
+  { label: "Not Interested", value: "not_interested" },
+  { label: "Dropped", value: "dropped" },
 ];
 
 export function formatLeadStatusLabel(status: string | null | undefined): string {

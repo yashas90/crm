@@ -54,6 +54,10 @@ export const listLeadsQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),
+  naLeadsOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
   tags: z
     .union([z.string(), z.array(z.string())])
     .optional()

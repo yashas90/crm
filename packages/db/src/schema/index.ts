@@ -111,7 +111,7 @@ export const leads = pgTable(
   (table) => [
     check(
       "leads_lead_status_check",
-      sql`${table.leadStatus} in ('new', 'contacted', 'qualified', 'negotiation', 'won', 'lost')`,
+      sql`${table.leadStatus} in ('new', 'contacted', 'qualified', 'negotiation', 'won', 'lost', 'not_interested', 'dropped')`,
     ),
     check("leads_temperature_check", sql`${table.temperature} in ('cold', 'warm', 'hot')`),
     index("leads_org_id_idx").on(table.orgId),

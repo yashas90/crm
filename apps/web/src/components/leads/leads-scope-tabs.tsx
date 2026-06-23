@@ -10,6 +10,7 @@ type LeadsScopeTabsProps = {
   onChange: (scope: LeadsScope) => void;
   counts?: LeadScopeCounts;
   isLoadingCounts?: boolean;
+  isAdmin?: boolean;
   className?: string;
 };
 
@@ -31,6 +32,7 @@ export function LeadsScopeTabs({
   onChange,
   counts,
   isLoadingCounts,
+  isAdmin = false,
   className,
 }: LeadsScopeTabsProps) {
   const isPrimary = LEADS_PRIMARY_SCOPES.some((tab) => tab.id === value);
@@ -72,7 +74,7 @@ export function LeadsScopeTabs({
       </div>
 
       <div className="flex flex-wrap gap-2" aria-label="Additional lead scopes">
-        {LEADS_SECONDARY_SCOPES.map((tab) => {
+        {LEADS_SECONDARY_SCOPES.filter((tab) => !tab.adminOnly || isAdmin).map((tab) => {
           const active = value === tab.id;
           const count = counts?.[tab.id];
           return (

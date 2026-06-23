@@ -14,7 +14,28 @@ import { cn } from "@propninja/ui/lib/utils";
 import { X } from "lucide-react";
 import { useEffect } from "react";
 
-const STATUSES = ["", "new", "contacted", "qualified", "negotiation", "won", "lost"] as const;
+const STATUSES = [
+  "",
+  "new",
+  "contacted",
+  "qualified",
+  "negotiation",
+  "won",
+  "lost",
+  "not_interested",
+  "dropped",
+] as const;
+
+const STATUS_LABELS: Record<string, string> = {
+  new: "New",
+  contacted: "Contacted",
+  qualified: "Qualified",
+  negotiation: "Negotiation",
+  won: "Won",
+  lost: "Lost",
+  not_interested: "Not Interested",
+  dropped: "Dropped",
+};
 const TEMPERATURES = ["", "cold", "warm", "hot"] as const;
 const TEMP_CHIP: Record<string, string> = {
   "": "bg-muted text-muted-foreground",
@@ -122,7 +143,7 @@ export function LeadsAdvancedFiltersSheet({
             >
               {STATUSES.map((value) => (
                 <option key={value || "all"} value={value}>
-                  {value ? value.charAt(0).toUpperCase() + value.slice(1) : "All statuses"}
+                  {value ? (STATUS_LABELS[value] ?? value) : "All statuses"}
                 </option>
               ))}
             </select>

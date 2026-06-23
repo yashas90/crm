@@ -5,6 +5,8 @@ export const LEAD_STATUSES = [
   "negotiation",
   "won",
   "lost",
+  "not_interested",
+  "dropped",
 ] as const;
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];

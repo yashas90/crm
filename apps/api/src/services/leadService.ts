@@ -16,6 +16,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { getIstDayBounds } from "@propninja/types/ist";
 import { adLeadsOnlyFilter } from "../lib/adLeadFilters.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
@@ -27,7 +28,17 @@ import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 import { recordLeadAssignment } from "./leadAssignmentService.js";
 
-type LeadStatus = "new" | "contacted" | "qualified" | "negotiation" | "won" | "lost";
+type LeadStatus =
+  | "new"
+  | "contacted"
+  | "qualified"
+  | "negotiation"
+  | "won"
+  | "lost"
+  | "not_interested"
+  | "dropped";
+
+const NA_STATUSES: LeadStatus[] = ["not_interested", "dropped"];
 type Temperature = "cold" | "warm" | "hot";
 
 export interface ListLeadsParams {
@@ -49,6 +60,7 @@ export interface ListLeadsParams {
   duplicatesOnly?: boolean;
   excludeDuplicates?: boolean;
   reEnquiredOnly?: boolean;
+  naLeadsOnly?: boolean;
   activeOnly?: boolean;
   deletedOnly?: boolean;
   adLeadsOnly?: boolean;
@@ -248,8 +260,12 @@ function buildListWhere(params: ListLeadsParams) {
     whereClauses.push(eq(leads.assignedTo, params.assignedTo));
   }
 
+  if (params.naLeadsOnly) {
+    whereClauses.push(inArray(leads.leadStatus, NA_STATUSES));
+  }
+
   if (params.activeOnly) {
-    whereClauses.push(sql`${leads.leadStatus} not in ('lost', 'won')`);
+    whereClauses.push(sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`);
   }
 
   if (params.projectId) {
@@ -378,26 +394,31 @@ export const leadService = {
 
     const deduped = { excludeDuplicates: true as const };
 
-    const [all, my, teams, unassigned, deleted, duplicate, reEnquired] = await Promise.all([
-      countLeadsWhere({ ...baseParams, ...agentBook, ...deduped }),
-      userId
-        ? countLeadsWhere({ ...baseParams, assignedTo: userId, ...deduped })
-        : Promise.resolve(0),
-      userId && !isAgent
-        ? countLeadsWhere({ ...baseParams, teamLeadsExcludingUser: userId, ...deduped })
-        : Promise.resolve(0),
-      isAgent
-        ? Promise.resolve(0)
-        : countLeadsWhere({ ...baseParams, unassigned: true, ...deduped }),
-      countLeadsWhere({
-        ...baseParams,
-        deletedOnly: true,
-        excludeDuplicates: true,
-        ...(isAgent && userId ? { assignedTo: userId } : {}),
-      }),
-      countLeadsWhere({ ...baseParams, ...agentBook, duplicatesOnly: true }),
-      countLeadsWhere({ ...baseParams, ...agentBook, reEnquiredOnly: true, ...deduped }),
-    ]);
+    const [all, my, teams, unassigned, deleted, duplicate, reEnquired, naLeads] = await Promise.all(
+      [
+        countLeadsWhere({ ...baseParams, ...agentBook, ...deduped }),
+        userId
+          ? countLeadsWhere({ ...baseParams, assignedTo: userId, ...deduped })
+          : Promise.resolve(0),
+        userId && !isAgent
+          ? countLeadsWhere({ ...baseParams, teamLeadsExcludingUser: userId, ...deduped })
+          : Promise.resolve(0),
+        isAgent
+          ? Promise.resolve(0)
+          : countLeadsWhere({ ...baseParams, unassigned: true, ...deduped }),
+        countLeadsWhere({
+          ...baseParams,
+          deletedOnly: true,
+          excludeDuplicates: true,
+          ...(isAgent && userId ? { assignedTo: userId } : {}),
+        }),
+        countLeadsWhere({ ...baseParams, ...agentBook, duplicatesOnly: true }),
+        countLeadsWhere({ ...baseParams, ...agentBook, reEnquiredOnly: true, ...deduped }),
+        isAgent
+          ? Promise.resolve(0)
+          : countLeadsWhere({ ...baseParams, naLeadsOnly: true, ...deduped }),
+      ],
+    );
 
     return {
       all,
@@ -407,6 +428,7 @@ export const leadService = {
       deleted,
       duplicate,
       "re-enquired": reEnquired,
+      naleads: naLeads,
     };
   },
 
@@ -824,8 +846,20 @@ export const leadService = {
       update.assignedTo = payload.assignedTo;
     }
 
+    // Auto-unassign when status changes to not_interested or dropped
+    const becomingNaLead =
+      payload.leadStatus !== undefined &&
+      payload.leadStatus !== existing.leadStatus &&
+      (NA_STATUSES as string[]).includes(payload.leadStatus) &&
+      payload.assignedTo === undefined;
+    if (becomingNaLead) {
+      update.assignedTo = null;
+    }
+
     const assignmentChanged =
-      payload.assignedTo !== undefined && payload.assignedTo !== existing.assignedTo;
+      payload.assignedTo !== undefined
+        ? payload.assignedTo !== existing.assignedTo
+        : becomingNaLead && existing.assignedTo !== null;
 
     const [updated] = await db.transaction(async (tx) => {
       const [row] = await tx
@@ -970,19 +1004,15 @@ export const leadService = {
   },
 
   async getUpcomingFollowups(days: number, assignedTo?: string) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const rangeEnd = new Date(todayStart);
-    rangeEnd.setDate(rangeEnd.getDate() + days);
-    rangeEnd.setHours(23, 59, 59, 999);
+    const { start: todayStart } = getIstDayBounds(0);
+    const horizonEnd = getIstDayBounds(days).end;
 
     const filters = [
       eq(leads.orgId, SINGLE_TENANT_ORG_ID),
       isNull(leads.deletedAt),
       isNotNull(leads.nextFollowupAt),
       gte(leads.nextFollowupAt, todayStart),
-      lte(leads.nextFollowupAt, rangeEnd),
+      lte(leads.nextFollowupAt, horizonEnd),
     ];
 
     if (assignedTo) {
@@ -1196,10 +1226,7 @@ export const leadService = {
   },
 
   async getAgentDigestCounts(agentId: string, now = new Date()) {
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(now);
-    end.setHours(23, 59, 59, 999);
+    const { start, end } = getIstDayBounds(0, now);
     const cutoff = coldCutoffDate(now);
 
     const agentFilter = eq(leads.assignedTo, agentId);

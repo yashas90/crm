@@ -155,6 +155,7 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
       duplicatesOnly: scopeParams.duplicatesOnly,
       excludeDuplicates: scopeParams.excludeDuplicates,
       reEnquiredOnly: scopeParams.reEnquiredOnly,
+      naLeadsOnly: scopeParams.naLeadsOnly,
     };
   }
 
@@ -166,6 +167,7 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
     duplicatesOnly: scopeParams.duplicatesOnly,
     excludeDuplicates: scopeParams.excludeDuplicates ?? "true",
     reEnquiredOnly: scopeParams.reEnquiredOnly,
+    naLeadsOnly: undefined,
   };
 }
 
@@ -220,6 +222,7 @@ export function leadsBaseFiltersToQuery(
     teamLeads: assignment.teamLeads,
     duplicatesOnly: assignment.duplicatesOnly,
     excludeDuplicates: assignment.excludeDuplicates,
+    naLeadsOnly: assignment.naLeadsOnly,
     dateFrom: dateRange.dateFrom,
     dateTo: dateRange.dateTo,
   };

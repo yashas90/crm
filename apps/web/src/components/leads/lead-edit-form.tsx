@@ -12,15 +12,30 @@ import { Label } from "@propninja/ui/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-const STATUSES = ["new", "contacted", "qualified", "negotiation", "won", "lost"] as const;
-const TEMPERATURES = ["cold", "warm", "hot"] as const;
+import { parseDatetimeLocalAsIst, toDatetimeLocalIst } from "@propninja/types/ist";
 
-function toDatetimeLocal(value: string | null | undefined) {
-  if (!value) return "";
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+const STATUSES = [
+  "new",
+  "contacted",
+  "qualified",
+  "negotiation",
+  "won",
+  "lost",
+  "not_interested",
+  "dropped",
+] as const;
+
+const STATUS_LABELS: Record<(typeof STATUSES)[number], string> = {
+  new: "New",
+  contacted: "Contacted",
+  qualified: "Qualified",
+  negotiation: "Negotiation",
+  won: "Won",
+  lost: "Lost",
+  not_interested: "Not Interested",
+  dropped: "Dropped",
+};
+const TEMPERATURES = ["cold", "warm", "hot"] as const;
 
 type LeadEditFormProps = {
   lead: LeadRow & {
@@ -53,7 +68,7 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
   const [temperature, setTemperature] = useState(lead.temperature ?? "");
   const [notes, setNotes] = useState(lead.notes ?? "");
   const [tags, setTags] = useState((lead.tags ?? []).join(", "));
-  const [nextFollowupAt, setNextFollowupAt] = useState(toDatetimeLocal(lead.nextFollowupAt));
+  const [nextFollowupAt, setNextFollowupAt] = useState(toDatetimeLocalIst(lead.nextFollowupAt));
   const [estimatedValue, setEstimatedValue] = useState(lead.estimatedValue ?? "");
   const [projectId, setProjectId] = useState(lead.projectId ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +86,7 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
     setTemperature(lead.temperature ?? "");
     setNotes(lead.notes ?? "");
     setTags((lead.tags ?? []).join(", "));
-    setNextFollowupAt(toDatetimeLocal(lead.nextFollowupAt));
+    setNextFollowupAt(toDatetimeLocalIst(lead.nextFollowupAt));
     setEstimatedValue(lead.estimatedValue ?? "");
     setProjectId(lead.projectId ?? "");
   }, [lead]);
@@ -96,7 +111,7 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
               .map((t) => t.trim())
               .filter(Boolean)
           : [],
-        nextFollowupAt: nextFollowupAt ? new Date(nextFollowupAt).toISOString() : undefined,
+        nextFollowupAt: nextFollowupAt ? parseDatetimeLocalAsIst(nextFollowupAt) : undefined,
         estimatedValue: estimatedValue ? Number(estimatedValue) : undefined,
         projectId: projectId || null,
       }),
@@ -186,7 +201,7 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
         >
           {STATUSES.map((status) => (
             <option key={status} value={status}>
-              {status}
+              {STATUS_LABELS[status]}
             </option>
           ))}
         </select>

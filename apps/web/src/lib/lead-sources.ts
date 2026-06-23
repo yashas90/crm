@@ -39,11 +39,12 @@ export const LEADS_PRIMARY_SCOPES = [
 ];
 
 export const LEADS_SECONDARY_SCOPES = [
-  { id: "unassigned" as const, label: "Unassigned" },
-  { id: "deleted" as const, label: "Deleted" },
-  { id: "duplicate" as const, label: "Duplicate" },
-  { id: "re-enquired" as const, label: "Re-Enquired" },
-] as const;
+  { id: "unassigned" as const, label: "Unassigned", adminOnly: false },
+  { id: "deleted" as const, label: "Deleted", adminOnly: false },
+  { id: "duplicate" as const, label: "Duplicate", adminOnly: false },
+  { id: "re-enquired" as const, label: "Re-Enquired", adminOnly: false },
+  { id: "naleads" as const, label: "NA Leads", adminOnly: true },
+];
 
 export const AD_PLATFORM_SOURCE_OPTIONS = LEAD_SOURCE_OPTIONS.filter((option) =>
   (AD_LEAD_SOURCE_LABELS as readonly string[]).includes(option.value),
