@@ -1,5 +1,14 @@
-import { callRecords, leadActivities, leads, projects, tasks, users } from "@propninja/db";
-import { and, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
+import {
+  callRecords,
+  leadActivities,
+  leads,
+  projects,
+  siteVisits,
+  tasks,
+  users,
+} from "@propninja/db";
+import { getIstDateKey } from "@propninja/types/ist";
+import { and, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
@@ -191,7 +200,7 @@ function callStartedFilter(range: DateRange, userId?: string, userIds?: string[]
   return and(...filters);
 }
 
-function callReportLeadExistsFilter(query: CallsReportQuery) {
+function buildReportLeadExistsFilter(query: CallsReportQuery, leadIdRef: unknown) {
   const hasLeadFilter = Boolean(
     query.source ||
       query.subSource ||
@@ -240,9 +249,17 @@ function callReportLeadExistsFilter(query: CallsReportQuery) {
   return sql`exists (
     select 1 from ${leads}
     left join ${projects} on ${projects.id} = ${leads.projectId}
-    where ${leads.id} = ${callRecords.leadId}
+    where ${leads.id} = ${leadIdRef}
     and ${leadMatch}
   )`;
+}
+
+function callReportLeadExistsFilter(query: CallsReportQuery) {
+  return buildReportLeadExistsFilter(query, callRecords.leadId);
+}
+
+function siteVisitReportLeadExistsFilter(query: CallsReportQuery) {
+  return buildReportLeadExistsFilter(query, sql`sv.lead_id`);
 }
 
 function callPerUserScopeFilter(query: CallsReportQuery) {
@@ -339,6 +356,7 @@ type CallsPerUserMetricsRow = {
   minTalkTimeSeconds: number;
   maxTalkTimeSeconds: number;
   totalCalls: number;
+  siteVisitsBooked: number;
 };
 
 type CallsPerUserTotalsRow = Omit<CallsPerUserMetricsRow, "userId" | "userName">;
@@ -358,6 +376,31 @@ const callsPerUserMetricsSelect = {
   maxTalkTimeSeconds: sql<number>`coalesce(max(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed'), 0)::int`,
   totalCalls: sql<number>`count(${callRecords.id})::int`,
 };
+
+function siteVisitsBookedExpr(query: CallsReportQuery) {
+  const scope = leadScopeFromQuery(query);
+  const dateFromKey = getIstDateKey(scope.dateFrom);
+  const dateToKey = getIstDateKey(scope.dateTo);
+  const leadFilter = siteVisitReportLeadExistsFilter(query);
+  const leadFilterSql = leadFilter ?? sql`true`;
+
+  return sql<number>`coalesce((
+    select count(*)::int from ${siteVisits} sv
+    where sv.agent_id = ${users.id}
+    and sv.org_id = ${SINGLE_TENANT_ORG_ID}
+    and sv.visit_date >= ${dateFromKey}
+    and sv.visit_date <= ${dateToKey}
+    and sv.status <> 'cancelled'
+    and ${leadFilterSql}
+  ), 0)::int`;
+}
+
+function callsPerUserMetricsSelectFor(query: CallsReportQuery) {
+  return {
+    ...callsPerUserMetricsSelect,
+    siteVisitsBooked: siteVisitsBookedExpr(query),
+  };
+}
 
 function buildCallsPerUserUserWhere(query: CallsReportQuery) {
   const filters = [eq(users.orgId, SINGLE_TENANT_ORG_ID)];
@@ -415,6 +458,7 @@ function mapCallsPerUserMetricsRow(row: CallsPerUserMetricsRow) {
     minTalkTimeSeconds: row.minTalkTimeSeconds,
     maxTalkTimeSeconds: row.maxTalkTimeSeconds,
     totalCalls: row.totalCalls,
+    siteVisitsBooked: row.siteVisitsBooked,
   };
 }
 
@@ -431,6 +475,7 @@ function mapCallsPerUserTotalsRow(row: CallsPerUserTotalsRow) {
     minTalkTimeSeconds: row.minTalkTimeSeconds,
     maxTalkTimeSeconds: row.maxTalkTimeSeconds,
     totalCalls: row.totalCalls,
+    siteVisitsBooked: row.siteVisitsBooked,
   };
 }
 
@@ -464,6 +509,7 @@ function buildCallsUserReportCsv(items: CallsPerUserMetricsRow[], totals: CallsP
     "Min TalkTime",
     "Max TalkTime",
     "Total Calls",
+    "Site Visits Booked",
   ];
 
   const lines = [headers.join(",")];
@@ -483,6 +529,7 @@ function buildCallsUserReportCsv(items: CallsPerUserMetricsRow[], totals: CallsP
         formatTalkTimeCsv(row.minTalkTimeSeconds),
         formatTalkTimeCsv(row.maxTalkTimeSeconds),
         row.totalCalls,
+        row.siteVisitsBooked,
       ].join(","),
     );
   }
@@ -501,6 +548,7 @@ function buildCallsUserReportCsv(items: CallsPerUserMetricsRow[], totals: CallsP
       formatTalkTimeCsv(totals.minTalkTimeSeconds),
       formatTalkTimeCsv(totals.maxTalkTimeSeconds),
       totals.totalCalls,
+      totals.siteVisitsBooked,
     ].join(","),
   );
 
@@ -513,8 +561,9 @@ async function fetchCallsPerUserRows(
 ) {
   const userWhere = buildCallsPerUserUserWhere(query);
   const callJoinOn = buildCallsPerUserCallJoinOn(query);
+  const metrics = callsPerUserMetricsSelectFor(query);
   const baseQuery = db
-    .select(callsPerUserMetricsSelect)
+    .select(metrics)
     .from(users)
     .leftJoin(callRecords, callJoinOn)
     .where(userWhere)
@@ -534,29 +583,62 @@ async function countCallsPerUserGroups(query: CallsReportQuery) {
   return row?.count ?? 0;
 }
 
+function buildSiteVisitsBookedWhere(query: CallsReportQuery) {
+  const scope = leadScopeFromQuery(query);
+  const dateFromKey = getIstDateKey(scope.dateFrom);
+  const dateToKey = getIstDateKey(scope.dateTo);
+  const filters = [
+    eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
+    gte(siteVisits.visitDate, dateFromKey),
+    lte(siteVisits.visitDate, dateToKey),
+    ne(siteVisits.status, "cancelled"),
+  ];
+  const leadFilter = buildReportLeadExistsFilter(query, siteVisits.leadId);
+  if (leadFilter) {
+    filters.push(leadFilter);
+  }
+  return and(...filters);
+}
+
+async function fetchSiteVisitsBookedGrandTotal(query: CallsReportQuery) {
+  const visitWhere = buildSiteVisitsBookedWhere(query);
+  const userWhere = buildCallsPerUserUserWhere(query);
+  const [row] = await db
+    .select({ count: sql<number>`count(${siteVisits.id})::int` })
+    .from(siteVisits)
+    .innerJoin(users, eq(siteVisits.agentId, users.id))
+    .where(and(visitWhere, userWhere));
+
+  return row?.count ?? 0;
+}
+
 async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
   const callWhere = buildCallsPerUserCallWhere(query);
   const userWhere = buildCallsPerUserUserWhere(query);
-  const [row] = await db
-    .select({
-      incomingAnswered: callsPerUserMetricsSelect.incomingAnswered,
-      incomingMissed: callsPerUserMetricsSelect.incomingMissed,
-      incomingTotal: callsPerUserMetricsSelect.incomingTotal,
-      outgoingAnswered: callsPerUserMetricsSelect.outgoingAnswered,
-      outgoingNotConnected: callsPerUserMetricsSelect.outgoingNotConnected,
-      outgoingTotal: callsPerUserMetricsSelect.outgoingTotal,
-      totalTalkTimeSeconds: callsPerUserMetricsSelect.totalTalkTimeSeconds,
-      avgTalkTimeSeconds: callsPerUserMetricsSelect.avgTalkTimeSeconds,
-      minTalkTimeSeconds: callsPerUserMetricsSelect.minTalkTimeSeconds,
-      maxTalkTimeSeconds: callsPerUserMetricsSelect.maxTalkTimeSeconds,
-      totalCalls: callsPerUserMetricsSelect.totalCalls,
-    })
-    .from(callRecords)
-    .innerJoin(users, eq(callRecords.userId, users.id))
-    .where(and(callWhere, userWhere));
+  const [row, siteVisitsBooked] = await Promise.all([
+    db
+      .select({
+        incomingAnswered: callsPerUserMetricsSelect.incomingAnswered,
+        incomingMissed: callsPerUserMetricsSelect.incomingMissed,
+        incomingTotal: callsPerUserMetricsSelect.incomingTotal,
+        outgoingAnswered: callsPerUserMetricsSelect.outgoingAnswered,
+        outgoingNotConnected: callsPerUserMetricsSelect.outgoingNotConnected,
+        outgoingTotal: callsPerUserMetricsSelect.outgoingTotal,
+        totalTalkTimeSeconds: callsPerUserMetricsSelect.totalTalkTimeSeconds,
+        avgTalkTimeSeconds: callsPerUserMetricsSelect.avgTalkTimeSeconds,
+        minTalkTimeSeconds: callsPerUserMetricsSelect.minTalkTimeSeconds,
+        maxTalkTimeSeconds: callsPerUserMetricsSelect.maxTalkTimeSeconds,
+        totalCalls: callsPerUserMetricsSelect.totalCalls,
+      })
+      .from(callRecords)
+      .innerJoin(users, eq(callRecords.userId, users.id))
+      .where(and(callWhere, userWhere))
+      .then((rows) => rows[0]),
+    fetchSiteVisitsBookedGrandTotal(query),
+  ]);
 
-  return mapCallsPerUserTotalsRow(
-    row ?? {
+  return mapCallsPerUserTotalsRow({
+    ...(row ?? {
       incomingAnswered: 0,
       incomingMissed: 0,
       incomingTotal: 0,
@@ -568,8 +650,9 @@ async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
       minTalkTimeSeconds: 0,
       maxTalkTimeSeconds: 0,
       totalCalls: 0,
-    },
-  );
+    }),
+    siteVisitsBooked,
+  });
 }
 
 async function fetchCallsReportPerUserPaginated(query: CallsReportQuery) {
@@ -717,6 +800,7 @@ export const reportService = {
             formatTalkTimeCsv(row.minTalkTimeSeconds),
             formatTalkTimeCsv(row.maxTalkTimeSeconds),
             row.totalCalls,
+            row.siteVisitsBooked,
           ]
             .map((cell) => escapeCsvCell(cell as unknown as string | number))
             .join(",");
@@ -738,6 +822,7 @@ export const reportService = {
         formatTalkTimeCsv(totals.minTalkTimeSeconds),
         formatTalkTimeCsv(totals.maxTalkTimeSeconds),
         totals.totalCalls,
+        totals.siteVisitsBooked,
       ]
         .map((cell) => escapeCsvCell(cell as unknown as string | number))
         .join(",");

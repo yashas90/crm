@@ -293,6 +293,7 @@ export default function CallsReportPage() {
                         minTalkTimeSeconds: 0,
                         maxTalkTimeSeconds: 0,
                         totalCalls: 0,
+                        siteVisitsBooked: 0,
                       }
                 }
                 total={showUserReport ? userReport.data.total : 0}

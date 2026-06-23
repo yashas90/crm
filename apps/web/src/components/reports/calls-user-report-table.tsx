@@ -103,6 +103,9 @@ function ReportTableHeader() {
         <TableHead rowSpan={2} className={cn(HEADER_CELL, GROUP_BORDER, "align-middle")}>
           Total Calls
         </TableHead>
+        <TableHead rowSpan={2} className={cn(HEADER_CELL, GROUP_BORDER, "align-middle")}>
+          Site Visits Booked
+        </TableHead>
       </TableRow>
       <TableRow className="border-0 bg-slate-900 hover:bg-slate-900">
         <TableHead className={cn(HEADER_CELL, "font-medium")}>Answered</TableHead>
@@ -201,11 +204,11 @@ function CallsUserReportTableSkeleton({ rowCount }: { rowCount: number }) {
                 <TableCell>
                   <Skeleton className="h-4 w-28" />
                 </TableCell>
-                {Array.from({ length: 11 }, (__, cellIndex) => (
+                {Array.from({ length: 12 }, (__, cellIndex) => (
                   <TableCell
                     key={cellIndex}
                     className={cn(
-                      cellIndex === 3 || cellIndex === 6 || cellIndex === 10
+                      cellIndex === 3 || cellIndex === 6 || cellIndex === 10 || cellIndex === 11
                         ? GROUP_BORDER
                         : undefined,
                     )}
@@ -241,9 +244,7 @@ export function CallsUserReportTable({
   }
 
   if (total === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">No users match the selected filters.</p>
-    );
+    return <p className="text-sm text-muted-foreground">No users match the selected filters.</p>;
   }
 
   const totalsHaveActivity = totals.totalCalls > 0;
@@ -255,31 +256,36 @@ export function CallsUserReportTable({
           <ReportTableHeader />
           <TableBody>
             {rows.map((row) => {
-              const hasActivity = row.totalCalls > 0;
+              const hasCallActivity = row.totalCalls > 0;
               return (
                 <TableRow key={row.userId} className="hover:bg-muted/50">
                   <TableCell className="font-medium">{row.userName}</TableCell>
-                  <NumericCell value={row.incomingAnswered} hasActivity={hasActivity} />
-                  <NumericCell value={row.incomingMissed} hasActivity={hasActivity} />
-                  <NumericCell value={row.incomingTotal} hasActivity={hasActivity} />
+                  <NumericCell value={row.incomingAnswered} hasActivity={hasCallActivity} />
+                  <NumericCell value={row.incomingMissed} hasActivity={hasCallActivity} />
+                  <NumericCell value={row.incomingTotal} hasActivity={hasCallActivity} />
                   <NumericCell
                     value={row.outgoingAnswered}
-                    hasActivity={hasActivity}
+                    hasActivity={hasCallActivity}
                     className={GROUP_BORDER}
                   />
-                  <NumericCell value={row.outgoingNotConnected} hasActivity={hasActivity} />
-                  <NumericCell value={row.outgoingTotal} hasActivity={hasActivity} />
+                  <NumericCell value={row.outgoingNotConnected} hasActivity={hasCallActivity} />
+                  <NumericCell value={row.outgoingTotal} hasActivity={hasCallActivity} />
                   <TalkTimeCell
                     seconds={row.totalTalkTimeSeconds}
-                    hasActivity={hasActivity}
+                    hasActivity={hasCallActivity}
                     className={GROUP_BORDER}
                   />
-                  <TalkTimeCell seconds={row.avgTalkTimeSeconds} hasActivity={hasActivity} />
-                  <TalkTimeCell seconds={row.minTalkTimeSeconds} hasActivity={hasActivity} />
-                  <TalkTimeCell seconds={row.maxTalkTimeSeconds} hasActivity={hasActivity} />
+                  <TalkTimeCell seconds={row.avgTalkTimeSeconds} hasActivity={hasCallActivity} />
+                  <TalkTimeCell seconds={row.minTalkTimeSeconds} hasActivity={hasCallActivity} />
+                  <TalkTimeCell seconds={row.maxTalkTimeSeconds} hasActivity={hasCallActivity} />
                   <NumericCell
                     value={row.totalCalls}
-                    hasActivity={hasActivity}
+                    hasActivity={hasCallActivity}
+                    className={GROUP_BORDER}
+                  />
+                  <NumericCell
+                    value={row.siteVisitsBooked}
+                    hasActivity={row.siteVisitsBooked > 0}
                     className={GROUP_BORDER}
                   />
                 </TableRow>
@@ -295,10 +301,7 @@ export function CallsUserReportTable({
                 hasActivity={totalsHaveActivity}
                 className={GROUP_BORDER}
               />
-              <NumericCell
-                value={totals.outgoingNotConnected}
-                hasActivity={totalsHaveActivity}
-              />
+              <NumericCell value={totals.outgoingNotConnected} hasActivity={totalsHaveActivity} />
               <NumericCell value={totals.outgoingTotal} hasActivity={totalsHaveActivity} />
               <TalkTimeCell
                 seconds={totals.totalTalkTimeSeconds}
@@ -311,6 +314,11 @@ export function CallsUserReportTable({
               <NumericCell
                 value={totals.totalCalls}
                 hasActivity={totalsHaveActivity}
+                className={GROUP_BORDER}
+              />
+              <NumericCell
+                value={totals.siteVisitsBooked}
+                hasActivity={totals.siteVisitsBooked > 0}
                 className={GROUP_BORDER}
               />
             </TableRow>
