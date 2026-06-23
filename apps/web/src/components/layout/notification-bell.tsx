@@ -26,6 +26,13 @@ function formatNotificationLabel(notification: NotificationRow): string {
     return `${assignedBy} assigned you ${leadName}`;
   }
 
+  if (notification.type === "new_ad_lead") {
+    const sourceLabel = typeof payload.sourceLabel === "string" ? payload.sourceLabel : "Meta";
+    const campaign =
+      typeof payload.campaignName === "string" ? payload.campaignName : "your campaign";
+    return `New ${sourceLabel} lead: ${leadName} (${campaign})`;
+  }
+
   if (notification.type === "followup_due") {
     return `Follow-up due for ${leadName}`;
   }

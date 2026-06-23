@@ -14,6 +14,7 @@ export const NOTIFICATION_TYPES = {
   SITE_VISIT_SCHEDULED: "site_visit_scheduled",
   COLD_LEADS_ALERT: "cold_leads_alert",
   DAILY_DIGEST: "daily_digest",
+  NEW_AD_LEAD: "new_ad_lead",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -33,12 +34,20 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
   const leadName = typeof payload.leadName === "string" ? payload.leadName : "a lead";
   const assignedBy = typeof payload.assignedBy === "string" ? payload.assignedBy : "Someone";
   const taskTitle = typeof payload.taskTitle === "string" ? payload.taskTitle : "a task";
+  const sourceLabel = typeof payload.sourceLabel === "string" ? payload.sourceLabel : "Meta";
+  const campaignName =
+    typeof payload.campaignName === "string" ? payload.campaignName : "your campaign";
 
   switch (type) {
     case NOTIFICATION_TYPES.LEAD_ASSIGNED:
       return {
         title: "Lead assigned",
         body: `${assignedBy} assigned you ${leadName}`,
+      };
+    case NOTIFICATION_TYPES.NEW_AD_LEAD:
+      return {
+        title: `New ${sourceLabel} lead`,
+        body: `${leadName} from ${campaignName}`,
       };
     case NOTIFICATION_TYPES.FOLLOWUP_DUE:
       return {

@@ -41,11 +41,21 @@ export async function registerPushToken(): Promise<void> {
     await apiPost("/api/auth/push-token", { token }, { skipSessionLogout: true });
 
     if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("leads", {
+        name: "Lead alerts",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 120, 250],
+        lightColor: "#204060",
+        sound: "default",
+        enableVibrate: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
       await Notifications.setNotificationChannelAsync("default", {
         name: "Default",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: "#14b8a6",
+        sound: "default",
       });
     }
   } catch {

@@ -475,7 +475,7 @@ export async function sendWeeklyReportEmails(database: Database = db, reference 
 
 export async function sendTestReportEmail(
   recipient: { id: string; email: string; name: string },
-  database: Database = db,
+  _database: Database = db,
 ) {
   const comparison = await aggregateDailyReportSummary();
   const metrics = summaryToMetricRows(comparison.current, comparison.previous);

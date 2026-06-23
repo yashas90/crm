@@ -24,12 +24,12 @@ function activityIconBg(type: string) {
 function activityTitle(activity: RecentActivity) {
   const meta = activity.metadata ?? {};
   if (activity.type === "call") {
-    const status = typeof meta.status === "string" ? meta.status : "call";
+    const _status = typeof meta.status === "string" ? meta.status : "call";
     return `Call with ${activity.leadName}`;
   }
   if (activity.type === "note") return `Note on ${activity.leadName}`;
   if (activity.type === "status_change") {
-    const to = typeof meta.to === "string" ? meta.to : "updated";
+    const _to = typeof meta.to === "string" ? meta.to : "updated";
     return `Status update: ${activity.leadName}`;
   }
   return `${activity.type.replace("_", " ")}: ${activity.leadName}`;

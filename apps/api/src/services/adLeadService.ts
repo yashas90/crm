@@ -1,5 +1,6 @@
 import { adLeads, leadActivities, leads } from "@propninja/db";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { notifyNewAdLeadReceived } from "../lib/adLeadNotifications.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
@@ -392,6 +393,17 @@ export const adLeadService = {
     }
 
     await insertAdLeadActivity(leadRow.id, activityMetadata);
+
+    void notifyNewAdLeadReceived(db, leadRow, {
+      source: input.source,
+      campaignName: input.campaignName,
+    }).catch((error) => {
+      logger.error("Failed to notify ad lead recipients", {
+        leadId: leadRow.id,
+        source: input.source,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     return leadRow;
   },

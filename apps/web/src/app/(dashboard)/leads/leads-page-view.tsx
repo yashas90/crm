@@ -241,6 +241,13 @@ export function LeadsPageView() {
             source: adLeadsOnly ? "" : current.source,
           }))
         }
+        onSourceChange={(source) =>
+          setFilters((current) => ({
+            ...current,
+            source,
+            adLeadsOnly: false,
+          }))
+        }
       />
 
       {showForm ? (

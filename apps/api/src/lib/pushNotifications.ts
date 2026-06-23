@@ -21,6 +21,8 @@ export type SendPushResult =
   | { sent: true }
   | { sent: false; reason: "no_token" | "invalid_token" | "ticket_error" | "no_ticket" };
 
+export const LEADS_PUSH_CHANNEL_ID = "leads";
+
 export async function sendPushNotification(
   db: Database,
   userId: string,
@@ -51,6 +53,8 @@ export async function sendPushNotification(
     body,
     data: data ?? {},
     sound: "default",
+    priority: "high",
+    channelId: LEADS_PUSH_CHANNEL_ID,
   };
 
   let tickets: ExpoPushTicket[];

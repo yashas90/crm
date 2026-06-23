@@ -28,7 +28,7 @@ import { documentService } from "../services/documentService.js";
 import { getAssignmentHistory } from "../services/leadAssignmentService.js";
 import { listHotLeads } from "../services/leadScoringService.js";
 import { LeadDuplicatePhoneError, leadService } from "../services/leadService.js";
-import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
+import { notifyLeadAssigned } from "../lib/leadAssignmentNotifications.js";
 import { createProjectUnitService } from "../services/projectUnitService.js";
 import { whatsappService } from "../services/whatsappService.js";
 
@@ -476,6 +476,21 @@ leadsRoute.patch("/:id", leadsPatchRateLimit, async (c) => {
       payload: parsed.data,
     });
 
+    if (
+      updated &&
+      parsed.data.assignedTo !== undefined &&
+      parsed.data.assignedTo !== lead!.assignedTo &&
+      parsed.data.assignedTo
+    ) {
+      await notifyLeadAssigned(c.get("db"), {
+        assigneeId: parsed.data.assignedTo,
+        actingUserId: authUser.id,
+        assignedByName: authUser.name,
+        leadId: id,
+        leadName: `${updated.firstName} ${updated.lastName ?? ""}`.trim(),
+      });
+    }
+
     return c.json({ ok: true, data: updated });
   } catch (err) {
     if (err instanceof LeadDuplicatePhoneError) {
@@ -563,11 +578,12 @@ leadsRoute.post("/:id/assign", async (c) => {
   }
 
   if (assigneeId !== authUser.id) {
-    const notifications = createNotificationService(c.get("db"));
-    await notifications.createNotification(assigneeId, NOTIFICATION_TYPES.LEAD_ASSIGNED, {
+    await notifyLeadAssigned(c.get("db"), {
+      assigneeId,
+      actingUserId: authUser.id,
+      assignedByName: authUser.name,
       leadId: id,
-      leadName: `${updated.firstName} ${updated.lastName}`.trim(),
-      assignedBy: authUser.name,
+      leadName: `${updated.firstName} ${updated.lastName ?? ""}`.trim(),
     });
   }
 

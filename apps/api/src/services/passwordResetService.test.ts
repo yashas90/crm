@@ -37,7 +37,7 @@ const dbMocks = vi.hoisted(() => {
         }),
       }),
     }),
-    update: (table: unknown) => ({
+    update: (_table: unknown) => ({
       set: (values: { passwordHash?: string; usedAt?: Date }) => ({
         where: () => {
           if ("passwordHash" in values && values.passwordHash) {
@@ -56,8 +56,8 @@ const dbMocks = vi.hoisted(() => {
 
   const db = {
     select: (shape?: unknown) => ({
-      from: (table: unknown) => ({
-        where: (condition: unknown) => ({
+      from: (_table: unknown) => ({
+        where: (_condition: unknown) => ({
           limit: async (n: number) => {
             if (shape && typeof shape === "object" && shape !== null && "id" in shape) {
               const email = state.users[0]?.email;

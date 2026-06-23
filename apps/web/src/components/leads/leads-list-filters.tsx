@@ -2,7 +2,8 @@
 
 import { LeadsAdSourceTabs } from "@/components/leads/leads-ad-source-tabs";
 import { LeadsFilterBar } from "@/components/leads/leads-filter-bar";
-import { LeadsQuickFilterTabs } from "@/components/leads/leads-quick-filter-tabs";
+import { LeadsScopeTabs } from "@/components/leads/leads-scope-tabs";
+import { LeadsSourceChips } from "@/components/leads/leads-source-chips";
 import { LeadsStageBar } from "@/components/leads/leads-stage-bar";
 import type { LeadsDatePreset } from "@/lib/leads-date-filters";
 import type { LeadScopeCounts, LeadsScope } from "@/lib/leads-scope";
@@ -29,14 +30,9 @@ type LeadsListFiltersProps = {
   onOpenAdvancedFilters: () => void;
   advancedFilterCount: number;
   onAdLeadsOnlyChange: (value: boolean) => void;
+  onSourceChange: (source: string) => void;
 };
 
-/**
- * Leads list filter stack:
- * 1) Quick scope tabs (who/what subset)
- * 2) Stage tabs (pipeline slice within scope)
- * 3) Search + date + columns + advanced filters
- */
 export function LeadsListFilters({
   scope,
   onScopeChange,
@@ -56,14 +52,23 @@ export function LeadsListFilters({
   onOpenAdvancedFilters,
   advancedFilterCount,
   onAdLeadsOnlyChange,
+  onSourceChange,
 }: LeadsListFiltersProps) {
   return (
-    <section className="space-y-3" aria-label="Lead filters">
-      <LeadsQuickFilterTabs
+    <section
+      className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      aria-label="Lead filters"
+    >
+      <LeadsScopeTabs
         value={scope}
         onChange={onScopeChange}
         counts={scopeCounts}
         isLoadingCounts={scopeCountsLoading}
+      />
+      <LeadsSourceChips
+        value={filters.source}
+        adLeadsOnly={filters.adLeadsOnly}
+        onChange={onSourceChange}
       />
       <LeadsStageBar
         value={stage}

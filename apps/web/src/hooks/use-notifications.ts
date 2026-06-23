@@ -22,7 +22,7 @@ export function useNotifications(enabled = true) {
     queryKey: ["notifications"],
     queryFn: () => apiGet<NotificationsData>("/api/notifications"),
     enabled,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
 }

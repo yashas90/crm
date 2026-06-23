@@ -11,6 +11,7 @@ import {
   SourcesPanelSkeleton,
 } from "@/components/dashboard/dashboard-skeletons";
 import { HotLeadsTable } from "@/components/dashboard/hot-leads-table";
+import { LeadsSourceHero } from "@/components/dashboard/leads-source-hero";
 import { OverviewKpiStrip } from "@/components/dashboard/overview-kpi-strip";
 import { PipelineHealth } from "@/components/dashboard/pipeline-health";
 import { PipelineValueCards } from "@/components/dashboard/pipeline-value-cards";
@@ -33,12 +34,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { Suspense, lazy, useMemo, useState } from "react";
-
-const LeadsFromSource = lazy(() =>
-  import("@/components/dashboard/leads-from-source").then((module) => ({
-    default: module.LeadsFromSource,
-  })),
-);
 
 const LeadsReceivedChart = lazy(() =>
   import("@/components/dashboard/leads-received-chart").then((module) => ({
@@ -96,18 +91,33 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
       <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-12">
         <div className="min-w-0 space-y-12 lg:col-span-9">
           <header>
-            <h1 className="font-heading text-4xl font-bold uppercase italic tracking-tighter md:text-5xl">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
               Command Centre
             </h1>
-            <p className="mt-2 text-lg font-medium text-neutral-600">
+            <p className="mt-1 text-sm text-slate-500">
               Funnel performance for {rangeLabelLower}.
               {overview.isFetching && overviewData ? (
-                <span className="ml-2 text-sm">Updating…</span>
+                <span className="ml-2 text-xs">Updating…</span>
               ) : null}
             </p>
           </header>
 
           <DashboardFilterBar value={dashboardFilters} onChange={setDashboardFilters} />
+
+          <DashboardSection
+            isLoading={sources.isLoading}
+            isError={sources.isError}
+            hasData={Boolean(sources.data?.leads_from_source?.length)}
+            onRetry={() => void sources.refetch()}
+            skeleton={<SourcesPanelSkeleton />}
+            className="space-y-0"
+          >
+            {sources.data?.leads_from_source ? (
+              <Suspense fallback={<SourcesPanelSkeleton />}>
+                <LeadsSourceHero groups={sources.data.leads_from_source} />
+              </Suspense>
+            ) : null}
+          </DashboardSection>
 
           <DashboardSection
             title="Lead pipeline"
@@ -132,22 +142,6 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
           >
             {overviewData?.status_breakdown ? (
               <StatusKpiRow items={overviewData.status_breakdown} />
-            ) : null}
-          </DashboardSection>
-
-          <DashboardSection
-            title="Leads from source"
-            description="All active leads by channel (includes zero-count sources)."
-            isLoading={sources.isLoading}
-            isError={sources.isError}
-            hasData={Boolean(sources.data?.leads_from_source?.length)}
-            onRetry={() => void sources.refetch()}
-            skeleton={<SourcesPanelSkeleton />}
-          >
-            {sources.data?.leads_from_source ? (
-              <Suspense fallback={<SourcesPanelSkeleton />}>
-                <LeadsFromSource groups={sources.data.leads_from_source} />
-              </Suspense>
             ) : null}
           </DashboardSection>
 
@@ -258,8 +252,8 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
               </section>
 
               <section className="space-y-4">
-                <NeuSectionHeading title="Hot Leads Ledger" />
-                <HotLeadsTable variant="neubrutal" leads={overviewData.hot_leads_list ?? []} />
+                <NeuSectionHeading title="Hot Leads" />
+                <HotLeadsTable leads={overviewData.hot_leads_list ?? []} />
               </section>
 
               <section className="space-y-4">
@@ -287,7 +281,7 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
 
           <section>
             {recentActivities.isLoading ? (
-              <Skeleton className="h-40 w-full border-2 border-black" />
+              <Skeleton className="h-40 w-full rounded-xl" />
             ) : recentActivities.isError ? (
               <EmptyState
                 title="Couldn't load activity"
@@ -296,18 +290,18 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
                 onActionClick={() => void recentActivities.refetch()}
               />
             ) : (
-              <RecentActivityFeed variant="neubrutal" activities={recentActivities.data ?? []} />
+              <RecentActivityFeed activities={recentActivities.data ?? []} />
             )}
           </section>
         </div>
 
         <aside className="hidden lg:col-span-3 lg:block">
-          <RemindersPanel variant="neubrutal" className="sticky top-24" />
+          <RemindersPanel className="sticky top-24" />
         </aside>
       </div>
 
       <div className="lg:hidden">
-        <RemindersPanel variant="neubrutal" collapsible />
+        <RemindersPanel collapsible />
       </div>
     </div>
   );

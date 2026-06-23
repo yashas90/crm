@@ -18,6 +18,33 @@ export const LEAD_SOURCE_VALUES = LEAD_SOURCE_OPTIONS.map((option) => option.val
 /** Sentinel value for the advanced filters “All Ad Leads” option. */
 export const AD_LEADS_FILTER_VALUE = "__ad_leads__";
 
+/** LeadRat-style source filter chips on the leads list. */
+export const LEADS_SOURCE_FILTER_CHIPS = [
+  { value: "", label: "All Sources" },
+  { value: "Meta Ads", label: "Facebook / Meta" },
+  { value: "Google Ads", label: "Google Ads" },
+  { value: "Magicbricks", label: "MagicBricks" },
+  { value: "99 Acres", label: "99 Acres" },
+  { value: "Housing.com", label: "Housing" },
+  { value: "WhatsApp", label: "WhatsApp" },
+  { value: "Website", label: "Website" },
+  { value: "Referral", label: "Referral" },
+  { value: "Walk In", label: "Walk In" },
+] as const;
+
+export const LEADS_PRIMARY_SCOPES = [
+  { id: "all" as const, label: "All Leads" },
+  { id: "my" as const, label: "My Leads" },
+  { id: "teams" as const, label: "Team" },
+];
+
+export const LEADS_SECONDARY_SCOPES = [
+  { id: "unassigned" as const, label: "Unassigned" },
+  { id: "deleted" as const, label: "Deleted" },
+  { id: "duplicate" as const, label: "Duplicate" },
+  { id: "re-enquired" as const, label: "Re-Enquired" },
+] as const;
+
 export const AD_PLATFORM_SOURCE_OPTIONS = LEAD_SOURCE_OPTIONS.filter((option) =>
   (AD_LEAD_SOURCE_LABELS as readonly string[]).includes(option.value),
 );

@@ -15,7 +15,6 @@ type QuickFilterTabsProps<T extends string> = {
   onChange: (value: T) => void;
   counts?: Partial<Record<T, number>>;
   isLoadingCounts?: boolean;
-  /** pill = primary scope row; chip = colored stage chips */
   variant?: "pill" | "chip";
   ariaLabel?: string;
   className?: string;
@@ -33,14 +32,14 @@ function CountBubble({
   return (
     <span
       className={cn(
-        "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums leading-none",
+        "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none",
         variant === "pill"
           ? active
-            ? "bg-primary-foreground/20 text-primary-foreground"
-            : "bg-background text-muted-foreground shadow-[2px_2px_0_0_#000]"
+            ? "bg-white/20 text-white"
+            : "bg-slate-100 text-slate-600"
           : active
-            ? "bg-background/80 text-foreground"
-            : "bg-background/60 text-muted-foreground",
+            ? "bg-white text-slate-900"
+            : "bg-slate-100 text-slate-500",
       )}
     >
       {count}
@@ -59,12 +58,11 @@ export function QuickFilterTabs<T extends string>({
   className,
 }: QuickFilterTabsProps<T>) {
   return (
-    <div className={cn("border-2 border-black bg-muted/10 p-1.5", className)}>
+    <div className={cn("rounded-lg border border-slate-200 bg-slate-50/80 p-1.5", className)}>
       <div
         className={cn(
-          "flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin",
-          "snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5",
-          "md:flex-wrap md:overflow-visible md:snap-none",
+          "flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5",
+          "snap-x snap-mandatory md:flex-wrap md:overflow-visible md:snap-none",
         )}
         role="tablist"
         aria-label={ariaLabel}
@@ -81,16 +79,18 @@ export function QuickFilterTabs<T extends string>({
               aria-selected={active}
               onClick={() => onChange(tab.id)}
               className={cn(
-                "inline-flex shrink-0 snap-start items-center gap-2 rounded-full border-2 px-3 py-2 text-sm font-bold transition-all",
+                "inline-flex shrink-0 snap-start items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
                 variant === "pill" &&
                   (active
-                    ? "border-black bg-[#204060] text-white shadow-[2px_2px_0_0_#000]"
-                    : "border-transparent text-neutral-600 hover:border-black hover:bg-white hover:shadow-[2px_2px_0_0_#000]"),
+                    ? "bg-[#204060] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-white hover:text-slate-900"),
                 variant === "chip" &&
                   cn(
                     tab.chipClass,
-                    "border-2 border-black text-xs font-bold",
-                    active && "shadow-[2px_2px_0_0_#000]",
+                    "border text-xs",
+                    active
+                      ? "border-[#204060] bg-[#204060]/10 text-[#204060]"
+                      : "border-slate-200 bg-white text-slate-600",
                   ),
               )}
             >

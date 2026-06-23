@@ -29,6 +29,8 @@ export function formatNotificationType(type: string): string {
   switch (type) {
     case "lead_assigned":
       return "Lead assigned";
+    case "new_ad_lead":
+      return "New Meta lead";
     case "followup_due":
       return "Follow-up due";
     case "task_assigned":
@@ -45,6 +47,13 @@ export function formatNotificationLabel(notification: NotificationRow): string {
   if (notification.type === "lead_assigned") {
     const assignedBy = typeof payload.assignedBy === "string" ? payload.assignedBy : "Someone";
     return `${assignedBy} assigned you ${leadName}`;
+  }
+
+  if (notification.type === "new_ad_lead") {
+    const sourceLabel = typeof payload.sourceLabel === "string" ? payload.sourceLabel : "Meta";
+    const campaign =
+      typeof payload.campaignName === "string" ? payload.campaignName : "your campaign";
+    return `New ${sourceLabel} lead: ${leadName} (${campaign})`;
   }
 
   if (notification.type === "followup_due") {

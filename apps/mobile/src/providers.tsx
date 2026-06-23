@@ -1,10 +1,18 @@
 import { queryClient } from "@/lib/queryClient";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
+import { usePushNotificationSync } from "@/hooks/use-push-notification-sync";
 import { AuthProvider, useAuth } from "@/providers/auth-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { colors } from "@/theme";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { ActivityIndicator, View } from "react-native";
+
+function NotificationEffects() {
+  usePushNotificationSync();
+  useNotificationSound();
+  return null;
+}
 
 function AuthGate({ children }: { children: ReactNode }) {
   const { status } = useAuth();
@@ -32,6 +40,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <AuthProvider>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
+          <NotificationEffects />
           <AuthGate>{children}</AuthGate>
         </QueryClientProvider>
       </ThemeProvider>

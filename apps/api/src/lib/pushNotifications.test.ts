@@ -62,6 +62,9 @@ describe("sendPushNotification", () => {
         to: "ExponentPushToken[abc123]",
         title: "Lead assigned",
         body: "New lead for you",
+        sound: "default",
+        priority: "high",
+        channelId: "leads",
         data: { leadId: "lead-1", type: "lead_assigned" },
       }),
     ]);

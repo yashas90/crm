@@ -55,7 +55,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-notifications",
       {
         color: "#204060",
-        defaultChannel: "default",
+        defaultChannel: "leads",
         enableBackgroundRemoteNotifications: false,
       },
     ],

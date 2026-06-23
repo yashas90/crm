@@ -5,12 +5,14 @@ import { AppErrorBoundary } from "@/components/common/app-error-boundary";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { ensureSessionCookie, isAuthenticated } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  useNotificationSound();
 
   useEffect(() => {
     if (!isAuthenticated()) {
