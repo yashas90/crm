@@ -38,7 +38,7 @@ export async function registerPushToken(): Promise<void> {
     );
     const token = tokenData.data;
 
-    await apiPost("/api/auth/push-token", { token });
+    await apiPost("/api/auth/push-token", { token }, { skipSessionLogout: true });
 
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {

@@ -35,13 +35,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<SessionUser | null>(null);
 
+  const [bootstrapped, setBootstrapped] = useState(false);
+
   useEffect(() => {
     void loadAuth()
       .then(() => {
         setUser(getUser());
         setStatus(isAuthenticated() ? "authenticated" : "unauthenticated");
       })
-      .catch(() => setStatus("unauthenticated"));
+      .catch(() => setStatus("unauthenticated"))
+      .finally(() => setBootstrapped(true));
   }, []);
 
   useEffect(() => {
@@ -77,11 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!bootstrapped) return;
     setUnauthorizedHandler(() => {
       void logout();
     });
     return () => setUnauthorizedHandler(null);
-  }, [logout]);
+  }, [logout, bootstrapped]);
 
   const value = useMemo(() => ({ status, user, login, logout }), [status, user, login, logout]);
 

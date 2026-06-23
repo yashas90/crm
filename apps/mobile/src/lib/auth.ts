@@ -1,4 +1,5 @@
-import { apiGet } from "@/lib/apiClient";
+import { ApiRequestError, apiGet, runWithSessionLogoutSuppressed } from "@/lib/apiClient";
+import { isTokenExpired } from "@/lib/jwt";
 import * as SecureStore from "expo-secure-store";
 
 export type SessionUser = {
@@ -25,9 +26,15 @@ export async function loadAuth() {
   cachedToken = await SecureStore.getItemAsync(TOKEN_KEY);
   const rawUser = await SecureStore.getItemAsync(USER_KEY);
   cachedUser = rawUser ? (JSON.parse(rawUser) as SessionUser) : null;
-  if (cachedToken) {
-    await refreshCurrentUser();
+
+  if (!cachedToken) return;
+
+  if (isTokenExpired(cachedToken)) {
+    await clearAuth();
+    return;
   }
+
+  await runWithSessionLogoutSuppressed(() => refreshCurrentUser());
 }
 
 export function getToken() {
@@ -63,12 +70,21 @@ export function isAuthenticated() {
 /** Sync user profile from GET /api/auth/me when a token is present. */
 export async function refreshCurrentUser(): Promise<SessionUser | null> {
   if (!cachedToken) return null;
+  if (isTokenExpired(cachedToken)) {
+    await clearAuth();
+    return null;
+  }
+
   try {
-    const user = await apiGet<SessionUser>("/api/auth/me");
+    const user = await apiGet<SessionUser>("/api/auth/me", { skipSessionLogout: true });
     cachedUser = user;
     await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
     return user;
-  } catch {
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status === 401) {
+      await clearAuth();
+      return null;
+    }
     return cachedUser;
   }
 }

@@ -21,22 +21,39 @@ export class ApiRequestError extends Error {
 
 type UnauthorizedHandler = () => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
+let sessionLogoutSuppressed = false;
 
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
   unauthorizedHandler = handler;
 }
+
+/** Suppress automatic logout on 401 (bootstrap / best-effort requests). */
+export function runWithSessionLogoutSuppressed<T>(fn: () => Promise<T>): Promise<T> {
+  sessionLogoutSuppressed = true;
+  return fn().finally(() => {
+    sessionLogoutSuppressed = false;
+  });
+}
+
+export type ApiRequestOptions = {
+  skipSessionLogout?: boolean;
+};
 
 /** Resolved at request time (not module load) for correct release/dev URLs. */
 export function getApiUrl() {
   return getApiBaseUrl();
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit & ApiRequestOptions,
+): Promise<T> {
+  const { skipSessionLogout, ...requestInit } = init ?? {};
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
-    ...(init?.headers as Record<string, string> | undefined),
+    ...(requestInit.headers as Record<string, string> | undefined),
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -46,7 +63,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   let response: Response;
 
   try {
-    response = await fetch(url, { ...init, headers });
+    response = await fetch(url, { ...requestInit, headers });
   } catch {
     throw new ApiRequestError(
       "NETWORK_ERROR",
@@ -76,9 +93,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     );
 
     if (
-      response.status === 401 ||
-      error.code === "UNAUTHORIZED" ||
-      error.code === "INVALID_TOKEN"
+      !skipSessionLogout &&
+      !sessionLogoutSuppressed &&
+      (response.status === 401 ||
+        error.code === "UNAUTHORIZED" ||
+        error.code === "INVALID_TOKEN")
     ) {
       unauthorizedHandler?.();
     }
@@ -89,14 +108,22 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return json.data;
 }
 
-export function apiGet<T>(path: string) {
-  return apiFetch<T>(path, { method: "GET" });
+export function apiGet<T>(path: string, options?: ApiRequestOptions) {
+  return apiFetch<T>(path, { method: "GET", ...options });
 }
 
-export function apiPost<T>(path: string, body: unknown) {
-  return apiFetch<T>(path, { method: "POST", body: JSON.stringify(body) });
+export function apiPost<T>(path: string, body: unknown, options?: ApiRequestOptions) {
+  return apiFetch<T>(path, {
+    method: "POST",
+    body: JSON.stringify(body),
+    ...options,
+  });
 }
 
-export function apiPatch<T>(path: string, body: unknown) {
-  return apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+export function apiPatch<T>(path: string, body: unknown, options?: ApiRequestOptions) {
+  return apiFetch<T>(path, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    ...options,
+  });
 }

@@ -1,7 +1,11 @@
 import type { CallLogItem } from "@/hooks/use-call-logs";
 import { useIsManager } from "@/hooks/use-role";
 import { apiGet } from "@/lib/apiClient";
-import { getCurrentUserId } from "@/lib/auth";
+import {
+  type ApiCallsListResponse,
+  callsListQuery,
+  mapCallRecordToLogItem,
+} from "@/lib/callsApi";
 import {
   type CallDateFilter,
   type CallOutcomeFilter,
@@ -19,7 +23,7 @@ const PAGE_SIZE = 50;
 
 function useAuthReady() {
   const { status } = useAuth();
-  return status === "authenticated" && Boolean(getCurrentUserId());
+  return status === "authenticated";
 }
 
 export function useTeamCallLogsInfinite(filters: {
@@ -35,27 +39,24 @@ export function useTeamCallLogsInfinite(filters: {
   return useInfiniteQuery({
     queryKey: queryKeys.calls.team(filters.dateFilter, filters.outcome, filters.agentId ?? "all"),
     queryFn: async ({ pageParam }) => {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        page: String(pageParam),
+      const query = callsListQuery({
+        page: pageParam,
+        pageSize: PAGE_SIZE,
         dateFrom,
         dateTo,
+        userId: filters.agentId,
+        outcome,
       });
-      if (filters.agentId) params.set("agentId", filters.agentId);
-      if (outcome) params.set("outcome", outcome);
-
-      const data = await apiGet<{
-        calls: TeamCallLogItem[];
-        total: number;
-        page: number;
-        limit: number;
-      }>(`/api/calls?${params.toString()}`);
+      const data = await apiGet<ApiCallsListResponse>(`/api/calls?${query}`);
 
       return {
-        calls: data.calls,
+        calls: data.items.map((item) => ({
+          ...mapCallRecordToLogItem(item),
+          agentName: item.userName ?? null,
+        })) satisfies TeamCallLogItem[],
         total: data.total,
         page: data.page,
-        limit: data.limit,
+        limit: data.pageSize,
       };
     },
     initialPageParam: 1,

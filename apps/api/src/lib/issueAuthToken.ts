@@ -21,7 +21,7 @@ export async function issueAuthToken(user: {
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime("90d")
     .sign(getJwtSecret());
 
   return { token, jti };

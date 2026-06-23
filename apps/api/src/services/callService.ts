@@ -29,6 +29,7 @@ export interface ListCallsParams {
   leadId?: string;
   direction?: CallDirection;
   status?: CallStatus;
+  outcome?: string;
   dateFrom?: Date;
   dateTo?: Date;
   page?: number;
@@ -44,7 +45,7 @@ export interface CallSummaryParams {
 function buildWhere(
   params: Pick<
     ListCallsParams,
-    "userId" | "leadId" | "direction" | "status" | "dateFrom" | "dateTo"
+    "userId" | "leadId" | "direction" | "status" | "outcome" | "dateFrom" | "dateTo"
   >,
 ) {
   const where = [eq(callRecords.orgId, SINGLE_TENANT_ORG_ID)];
@@ -53,6 +54,7 @@ function buildWhere(
   if (params.leadId) where.push(eq(callRecords.leadId, params.leadId));
   if (params.direction) where.push(eq(callRecords.direction, params.direction));
   if (params.status) where.push(eq(callRecords.status, params.status));
+  if (params.outcome) where.push(eq(callRecords.outcome, params.outcome));
   if (params.dateFrom) where.push(gte(callRecords.startedAt, params.dateFrom));
   if (params.dateTo) where.push(lte(callRecords.startedAt, params.dateTo));
 
@@ -172,9 +174,10 @@ export const callService = {
   },
 
   async listCalls(params: ListCallsParams) {
-    const { userId, leadId, direction, status, dateFrom, dateTo, page = 1, pageSize = 20 } = params;
+    const { userId, leadId, direction, status, outcome, dateFrom, dateTo, page = 1, pageSize = 20 } =
+      params;
 
-    const whereClause = buildWhere({ userId, leadId, direction, status, dateFrom, dateTo });
+    const whereClause = buildWhere({ userId, leadId, direction, status, outcome, dateFrom, dateTo });
     const offset = (page - 1) * pageSize;
 
     const [rows, [{ count }]] = await Promise.all([
