@@ -174,10 +174,27 @@ export const callService = {
   },
 
   async listCalls(params: ListCallsParams) {
-    const { userId, leadId, direction, status, outcome, dateFrom, dateTo, page = 1, pageSize = 20 } =
-      params;
+    const {
+      userId,
+      leadId,
+      direction,
+      status,
+      outcome,
+      dateFrom,
+      dateTo,
+      page = 1,
+      pageSize = 20,
+    } = params;
 
-    const whereClause = buildWhere({ userId, leadId, direction, status, outcome, dateFrom, dateTo });
+    const whereClause = buildWhere({
+      userId,
+      leadId,
+      direction,
+      status,
+      outcome,
+      dateFrom,
+      dateTo,
+    });
     const offset = (page - 1) * pageSize;
 
     const [rows, [{ count }]] = await Promise.all([

@@ -37,9 +37,7 @@ export type ApiCallsSummary = {
 };
 
 export function mapCallRecordToLogItem(record: ApiCallRecord): CallLogItem {
-  const leadName = record.lead
-    ? `${record.lead.firstName} ${record.lead.lastName}`.trim()
-    : null;
+  const leadName = record.lead ? `${record.lead.firstName} ${record.lead.lastName}`.trim() : null;
 
   return {
     id: record.id,

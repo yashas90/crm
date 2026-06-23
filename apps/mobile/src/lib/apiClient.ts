@@ -95,9 +95,7 @@ export async function apiFetch<T>(
     if (
       !skipSessionLogout &&
       !sessionLogoutSuppressed &&
-      (response.status === 401 ||
-        error.code === "UNAUTHORIZED" ||
-        error.code === "INVALID_TOKEN")
+      (response.status === 401 || error.code === "UNAUTHORIZED" || error.code === "INVALID_TOKEN")
     ) {
       unauthorizedHandler?.();
     }

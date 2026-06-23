@@ -2,15 +2,11 @@ import type { CallLogItem } from "@/hooks/use-call-logs";
 import { useIsManager } from "@/hooks/use-role";
 import { apiGet } from "@/lib/apiClient";
 import {
-  type ApiCallsListResponse,
-  callsListQuery,
-  mapCallRecordToLogItem,
-} from "@/lib/callsApi";
-import {
   type CallDateFilter,
   type CallOutcomeFilter,
   dateRangeForFilter,
 } from "@/lib/callLogFilters";
+import { type ApiCallsListResponse, callsListQuery, mapCallRecordToLogItem } from "@/lib/callsApi";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/providers/auth-provider";
 import { useInfiniteQuery } from "@tanstack/react-query";

@@ -9,6 +9,7 @@
     "db:migrate": "pnpm --filter @propninja/db db:migrate",
     "db:seed": "pnpm --filter @propninja/db db:seed",
     "reset:admin": "pnpm --filter @propninja/db exec tsx ../../scripts/reset-admin.ts",
+    "db:wipe": "pnpm --filter @propninja/db exec tsx ../../scripts/wipe-production-db.ts",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "check": "biome check --write .",

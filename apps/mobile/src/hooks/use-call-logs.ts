@@ -1,6 +1,12 @@
 import { apiGet } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
 import {
+  type CallDateFilter,
+  type CallOutcomeFilter,
+  dateRangeForFilter,
+  weekRange,
+} from "@/lib/callLogFilters";
+import {
   type ApiCallsListResponse,
   type ApiCallsSummary,
   type CallLogItem,
@@ -8,12 +14,6 @@ import {
   callsSummaryQuery,
   mapCallRecordToLogItem,
 } from "@/lib/callsApi";
-import {
-  type CallDateFilter,
-  type CallOutcomeFilter,
-  dateRangeForFilter,
-  weekRange,
-} from "@/lib/callLogFilters";
 import { todayRange } from "@/lib/dates";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/providers/auth-provider";
@@ -80,14 +80,18 @@ export function useCallLogsSummaryBar() {
   const todayQuery = useQuery({
     queryKey: queryKeys.calls.summaryToday(userId),
     queryFn: () =>
-      apiGet<ApiCallsSummary>(`/api/calls/summary?${callsSummaryQuery(today.dateFrom, today.dateTo)}`),
+      apiGet<ApiCallsSummary>(
+        `/api/calls/summary?${callsSummaryQuery(today.dateFrom, today.dateTo)}`,
+      ),
     enabled: ready,
   });
 
   const weekQuery = useQuery({
     queryKey: queryKeys.calls.summaryWeek(userId),
     queryFn: () =>
-      apiGet<ApiCallsSummary>(`/api/calls/summary?${callsSummaryQuery(week.dateFrom, week.dateTo)}`),
+      apiGet<ApiCallsSummary>(
+        `/api/calls/summary?${callsSummaryQuery(week.dateFrom, week.dateTo)}`,
+      ),
     enabled: ready,
   });
 

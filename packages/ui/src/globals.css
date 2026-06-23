@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -42,6 +44,10 @@
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 160 84% 39%;
+    --gold: #d4af37;
+    --cyan: #22d3ee;
+    --glass-bg: rgba(255, 255, 255, 0.04);
+    --glass-border: rgba(255, 255, 255, 0.08);
   }
 
   * {
@@ -49,6 +55,43 @@
   }
 
   body {
-    @apply bg-[#FFFBF2] text-foreground antialiased;
+    @apply bg-[#FFFBF2] text-foreground antialiased transition-colors duration-300 dark:bg-[#0A0F1C];
+  }
+}
+
+@layer utilities {
+  .font-serif {
+    font-family: "Playfair Display", serif;
+  }
+  .font-sans-alt {
+    font-family: "Lato", sans-serif;
+  }
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+  .gold-glow {
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.15);
+    border-color: rgba(212, 175, 55, 0.25);
+  }
+  .cyan-pulse {
+    animation: cyan-glow 2s infinite alternate;
+  }
+  .laser-line {
+    width: 2px;
+    background: linear-gradient(to bottom, transparent, var(--cyan), transparent);
+    box-shadow: 0 0 8px var(--cyan);
+  }
+}
+
+@keyframes cyan-glow {
+  from {
+    box-shadow: 0 0 5px rgba(34, 211, 238, 0.15);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
   }
 }

@@ -21,17 +21,28 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-neu-cream text-black">
-      <FirstLoginModal />
-      <CommandPalette />
-      <Sidebar />
-      <div className="pl-64">
-        <Topbar />
-        <main className="p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl">
-            <AppErrorBoundary>{children as ReactNode}</AppErrorBoundary>
-          </div>
-        </main>
+    <div className="min-h-screen bg-neu-cream text-black transition-all duration-300 dark:bg-[#0A0F1C] dark:text-white relative">
+      <div className="absolute inset-0 z-0 hidden dark:block pointer-events-none">
+        <img
+          src="https://images.unsplash.com/photo-1515703944563-dbcfbf121b3d?auto=format&w=1440&q=80&fit=crop"
+          className="w-full h-full object-cover opacity-10 blur-sm"
+          alt="Luxury Architecture"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0A0F1C]/80 to-[#0A0F1C]" />
+      </div>
+
+      <div className="relative z-10">
+        <FirstLoginModal />
+        <CommandPalette />
+        <Sidebar />
+        <div className="pl-64">
+          <Topbar />
+          <main className="p-6 lg:p-8">
+            <div className="mx-auto max-w-7xl">
+              <AppErrorBoundary>{children as ReactNode}</AppErrorBoundary>
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
