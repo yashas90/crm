@@ -13,7 +13,7 @@ type UseAutoDialerCallLogOptions = {
   onLogError?: (error: unknown) => void;
 };
 
-export type PendingAutoLog = {
+export type PostCallPrompt = {
   durationSeconds: number;
   phoneNumber: string;
   leadId: string;
@@ -29,10 +29,9 @@ function elapsedSeconds(info: CallReturnInfo): number {
 }
 
 /**
- * Tracks native dialer sessions (AppState). When the agent returns from the dialer,
- * sets a pending log state — the actual API call is deferred until confirmLog() so
- * the agent can set the correct outcome (or it auto-submits as "answered" after a
- * short countdown in the UI). This prevents every call being logged as "answered".
+ * Tracks native dialer sessions. When the agent returns from the dialer the call is
+ * logged to the API immediately so reports and call counts update even if the agent
+ * skips the post-call status sheet.
  */
 export function useAutoDialerCallLog({
   logCall,
@@ -40,42 +39,12 @@ export function useAutoDialerCallLog({
   onLogError,
 }: UseAutoDialerCallLogOptions) {
   const sessionRef = useRef<CallSessionContext | null>(null);
-  const [pendingLog, setPendingLog] = useState<PendingAutoLog | null>(null);
+  const [postCallPrompt, setPostCallPrompt] = useState<PostCallPrompt | null>(null);
   const loggingRef = useRef(false);
 
-  const handleReturn = useCallback((info: CallReturnInfo) => {
-    const context = sessionRef.current;
-    if (!context) return;
-
-    const durationSeconds = elapsedSeconds(info);
-    setPendingLog({
-      durationSeconds,
-      phoneNumber: context.phoneNumber,
-      leadId: context.leadId,
-      calledAt: info.calledAt,
-    });
-    sessionRef.current = null;
-  }, []);
-
-  const { beginCall: trackCall, clearCallSession } = useCallDurationTracking({
-    onReturn: handleReturn,
-  });
-
-  const beginCall = useCallback(
-    (context: CallSessionContext) => {
-      sessionRef.current = context;
-      setPendingLog(null);
-      trackCall(context);
-    },
-    [trackCall],
-  );
-
-  /** Called by the UI when the agent confirms (or auto-timer fires). */
-  const confirmLog = useCallback(
-    async (outcome: CallOutcome, notes?: string) => {
-      const pending = pendingLog;
-      if (!pending || loggingRef.current) return;
-
+  const submitCallLog = useCallback(
+    async (pending: PostCallPrompt, notes?: string) => {
+      if (loggingRef.current) return;
       loggingRef.current = true;
       try {
         const endedAt = new Date();
@@ -84,41 +53,88 @@ export function useAutoDialerCallLog({
           lead_id: pending.leadId,
           phone_number: pending.phoneNumber,
           direction: "outgoing",
+          status: "completed",
           duration_seconds: pending.durationSeconds,
           started_at: startedAt.toISOString(),
           ended_at: endedAt.toISOString(),
-          outcome,
+          outcome: "answered",
           notes,
           source: "mobile-auto",
         });
-        setPendingLog(null);
-        onLogged?.(outcome);
+        onLogged?.("answered");
       } catch (error) {
         onLogError?.(error);
+        throw error;
       } finally {
         loggingRef.current = false;
       }
     },
-    [pendingLog, logCall, onLogged, onLogError],
+    [logCall, onLogged, onLogError],
   );
 
-  const dismissPending = useCallback(() => {
-    setPendingLog(null);
+  const handleReturn = useCallback(
+    (info: CallReturnInfo) => {
+      const context = sessionRef.current;
+      if (!context) return;
+
+      const pending: PostCallPrompt = {
+        durationSeconds: elapsedSeconds(info),
+        phoneNumber: context.phoneNumber,
+        leadId: context.leadId,
+        calledAt: info.calledAt,
+      };
+      sessionRef.current = null;
+
+      void (async () => {
+        try {
+          await submitCallLog(pending);
+          setPostCallPrompt(pending);
+        } catch {
+          // Error surfaced via onLogError; still offer status sheet so agent can retry notes.
+          setPostCallPrompt(pending);
+        }
+      })();
+    },
+    [submitCallLog],
+  );
+
+  const { beginCall: trackCall, clearCallSession } = useCallDurationTracking({
+    onReturn: handleReturn,
+  });
+
+  const beginCall = useCallback(
+    (context: CallSessionContext) => {
+      sessionRef.current = context;
+      setPostCallPrompt(null);
+      trackCall(context);
+    },
+    [trackCall],
+  );
+
+  const dismissPostCall = useCallback(() => {
+    setPostCallPrompt(null);
     clearCallSession();
   }, [clearCallSession]);
 
   return {
     beginCall,
-    pendingLog,
-    isPendingLog: pendingLog !== null,
-    confirmLog,
-    dismissPending,
+    postCallPrompt,
+    isPostCallPrompt: postCallPrompt !== null,
+    dismissPostCall,
     isLogging: loggingRef.current,
-    // Legacy aliases kept for any existing callers
-    review: pendingLog
-      ? { durationSeconds: pendingLog.durationSeconds, phoneNumber: pendingLog.phoneNumber }
+    // Legacy aliases used by screens/tests
+    pendingLog: postCallPrompt,
+    isPendingLog: postCallPrompt !== null,
+    dismissPending: dismissPostCall,
+    confirmLog: async (_outcome: CallOutcome, notes?: string) => {
+      const pending = postCallPrompt;
+      if (!pending) return;
+      await submitCallLog(pending, notes);
+    },
+    review: postCallPrompt
+      ? { durationSeconds: postCallPrompt.durationSeconds, phoneNumber: postCallPrompt.phoneNumber }
       : null,
-    dismissReview: dismissPending,
-    isReviewOpen: pendingLog !== null,
+    dismissReview: dismissPostCall,
+    isReviewOpen: postCallPrompt !== null,
   };
 }

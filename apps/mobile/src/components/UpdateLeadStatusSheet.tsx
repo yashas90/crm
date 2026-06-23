@@ -1,10 +1,12 @@
 import type { OrgUser } from "@/hooks/use-users";
+import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
 import { MOBILE_LEAD_STATUS_OPTIONS, formatLeadStatusLabel } from "@/lib/lead-status-options";
 import { colors, radii, shadows, spacing } from "@/theme";
 import type { LeadStatus } from "@propninja/types/enums";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -20,6 +22,7 @@ export type UpdateLeadStatusPayload = {
   statusLabel: string;
   notes?: string;
   assignedTo?: string;
+  nextFollowupAt?: string | null;
 };
 
 type UpdateLeadStatusSheetProps = {
@@ -47,6 +50,7 @@ export function UpdateLeadStatusSheet({
   const [notes, setNotes] = useState("");
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [nextFollowupAt, setNextFollowupAt] = useState<string | null>(null);
 
   const showAssignee = assigneeOptions.length > 0;
 
@@ -56,20 +60,27 @@ export function UpdateLeadStatusSheet({
     setNotes("");
     setAssigneeId(defaultAssigneeId ?? currentAssigneeId ?? null);
     setAssignOpen(false);
+    setNextFollowupAt(null);
   }, [visible, currentAssigneeId, defaultAssigneeId]);
 
   const selectedOption = MOBILE_LEAD_STATUS_OPTIONS.find((o) => o.label === selectedLabel);
+  const showFollowUpPicker = selectedOption?.label === "Callback";
   const assigneeName =
     assigneeOptions.find((u) => u.id === assigneeId)?.name ??
     (assigneeId ? "Selected agent" : "You");
 
   function handleSave() {
     if (!selectedOption) return;
+    if (showFollowUpPicker && !nextFollowupAt) {
+      Alert.alert("Callback time required", "Pick when to call this lead back.");
+      return;
+    }
     onSave({
       leadStatus: selectedOption.value,
       statusLabel: selectedOption.label,
       notes: notes.trim() || undefined,
       assignedTo: assigneeId ?? undefined,
+      nextFollowupAt: showFollowUpPicker ? nextFollowupAt : undefined,
     });
   }
 
@@ -148,6 +159,13 @@ export function UpdateLeadStatusSheet({
                       ))}
                     </View>
                   ) : null}
+                </>
+              ) : null}
+
+              {showFollowUpPicker ? (
+                <>
+                  <Text style={styles.sectionLabel}>Callback time</Text>
+                  <FollowUpQuickPicker value={nextFollowupAt} onChange={setNextFollowupAt} />
                 </>
               ) : null}
 

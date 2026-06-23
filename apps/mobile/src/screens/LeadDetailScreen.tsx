@@ -112,15 +112,8 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
     const afterCall = dialerLog.isPendingLog;
     const noteText = payload.notes?.trim();
-    const noteWithStatus = noteText
-      ? `${payload.statusLabel}: ${noteText}`
-      : `Status updated to ${payload.statusLabel}`;
 
     try {
-      if (afterCall && dialerLog.pendingLog) {
-        await dialerLog.confirmLog("answered", noteWithStatus);
-      }
-
       const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
       if (canReassign && payload.assignedTo && payload.assignedTo !== lead.assignedUser?.id) {
         patch.assignedTo = payload.assignedTo;
@@ -128,14 +121,18 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
       await updateLead.mutateAsync({ leadId: lead.id, payload: patch });
 
-      if (!afterCall && noteText) {
+      if (payload.nextFollowupAt) {
+        await updateFollowUp.mutateAsync({ nextFollowupAt: payload.nextFollowupAt });
+      }
+
+      if (noteText) {
         await addNote.mutateAsync(noteText);
       }
 
-      await refetch();
+      await Promise.all([refetch(), refetchCalls()]);
       setStatusSheetOpen(false);
       dialerLog.dismissPending();
-      setSavedToast("Lead status updated");
+      setSavedToast(afterCall ? "Call logged · status updated" : "Lead status updated");
       setTimeout(() => setSavedToast(null), 2500);
     } catch (err) {
       Alert.alert("Error", err instanceof Error ? err.message : "Could not update lead.");
@@ -327,7 +324,8 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           onWhatsAppPress={() => setWhatsappSheetVisible(true)}
         />
         <Text style={styles.callHint}>
-          Call opens your SIM dialer. When you return, update the lead status to save the call.
+          Call opens your SIM dialer. When you return, the call is logged automatically — you can
+          optionally update status and schedule a callback.
         </Text>
 
         <TcfConsentSection
@@ -519,7 +517,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         currentAssigneeId={lead.assignedUser?.id ?? null}
         defaultAssigneeId={getCurrentUserId()}
         assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
-        isSaving={logCall.isPending || updateLead.isPending || addNote.isPending}
+        isSaving={updateLead.isPending || updateFollowUp.isPending || addNote.isPending}
         onClose={() => {
           setStatusSheetOpen(false);
           dialerLog.dismissPending();

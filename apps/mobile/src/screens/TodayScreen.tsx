@@ -8,7 +8,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
-import { type LeadRow, useTodayQueue, useUpdateLead } from "@/hooks/use-leads";
+import { type LeadRow, useAddLeadNote, useTodayQueue, useUpdateLead, useUpdateLeadFollowUp } from "@/hooks/use-leads";
 import { type SiteVisit, formatVisitTime, useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
@@ -220,6 +220,10 @@ export function TodayScreen({ route, navigation }: Props) {
     },
   });
 
+  const postCallLeadId = dialerLog.pendingLog?.leadId ?? "";
+  const updateFollowUp = useUpdateLeadFollowUp(postCallLeadId);
+  const addNote = useAddLeadNote(postCallLeadId);
+
   const statusLead = dialerLog.pendingLog
     ? (queueItems.find((item) => item.id === dialerLog.pendingLog?.leadId) ?? null)
     : null;
@@ -269,25 +273,30 @@ export function TodayScreen({ route, navigation }: Props) {
 
   async function handleStatusSave(payload: UpdateLeadStatusPayload) {
     const lead = statusLead;
-    if (!lead || !dialerLog.pendingLog) return;
+    if (!lead) return;
 
     const noteText = payload.notes?.trim();
-    const noteWithStatus = noteText
-      ? `${payload.statusLabel}: ${noteText}`
-      : `Status updated to ${payload.statusLabel}`;
+    const afterCall = dialerLog.isPendingLog;
 
     try {
-      await dialerLog.confirmLog("answered", noteWithStatus);
-
       const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
       if (canReassign && payload.assignedTo) {
         patch.assignedTo = payload.assignedTo;
       }
 
       await updateLead.mutateAsync({ leadId: lead.id, payload: patch });
+
+      if (payload.nextFollowupAt) {
+        await updateFollowUp.mutateAsync({ nextFollowupAt: payload.nextFollowupAt });
+      }
+
+      if (noteText) {
+        await addNote.mutateAsync(noteText);
+      }
+
       await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
       dialerLog.dismissPending();
-      setSavedToast("Lead status updated");
+      setSavedToast(afterCall ? "Call logged · status updated" : "Lead status updated");
       setTimeout(() => setSavedToast(null), 2500);
     } catch (err) {
       Alert.alert("Error", err instanceof Error ? err.message : "Could not update lead.");
@@ -446,7 +455,7 @@ export function TodayScreen({ route, navigation }: Props) {
         currentStatus={statusLead?.leadStatus ?? null}
         defaultAssigneeId={getCurrentUserId()}
         assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
-        isSaving={logCall.isPending || updateLead.isPending}
+        isSaving={updateLead.isPending || updateFollowUp.isPending || addNote.isPending}
         onClose={dialerLog.dismissPending}
         onSave={(payload) => void handleStatusSave(payload)}
       />

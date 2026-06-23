@@ -64,12 +64,14 @@ describe("LeadDetailScreen consent section", () => {
   beforeEach(() => {
     mockUseAutoDialerCallLog.mockReturnValue({
       beginCall: jest.fn(),
+      postCallPrompt: null,
+      isPostCallPrompt: false,
+      dismissPostCall: jest.fn(),
       pendingLog: null,
       isPendingLog: false,
       confirmLog: jest.fn(),
       dismissPending: jest.fn(),
       isLogging: false,
-      // legacy aliases
       review: null,
       dismissReview: jest.fn(),
       isReviewOpen: false,
