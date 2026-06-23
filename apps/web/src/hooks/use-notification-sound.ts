@@ -1,10 +1,7 @@
 "use client";
 
-import {
-  LEAD_ALERT_NOTIFICATION_TYPES,
-  playNotificationSound,
-} from "@/lib/notification-sound";
 import { useNotifications } from "@/hooks/use-notifications";
+import { LEAD_ALERT_NOTIFICATION_TYPES, playNotificationSound } from "@/lib/notification-sound";
 import { useEffect, useRef } from "react";
 
 /** Plays a chime when new lead-assignment or Meta lead notifications arrive. */

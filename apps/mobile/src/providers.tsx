@@ -1,6 +1,6 @@
-import { queryClient } from "@/lib/queryClient";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { usePushNotificationSync } from "@/hooks/use-push-notification-sync";
+import { queryClient } from "@/lib/queryClient";
 import { AuthProvider, useAuth } from "@/providers/auth-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { colors } from "@/theme";

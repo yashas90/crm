@@ -1,8 +1,5 @@
+import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 import type { Database } from "./db.js";
-import {
-  NOTIFICATION_TYPES,
-  createNotificationService,
-} from "../services/notificationService.js";
 
 export async function notifyLeadAssigned(
   db: Database,

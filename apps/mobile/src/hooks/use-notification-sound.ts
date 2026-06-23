@@ -1,8 +1,5 @@
-import {
-  LEAD_ALERT_NOTIFICATION_TYPES,
-  playLeadAlertSound,
-} from "@/lib/notificationSound";
 import { useNotifications } from "@/hooks/use-notifications";
+import { LEAD_ALERT_NOTIFICATION_TYPES, playLeadAlertSound } from "@/lib/notificationSound";
 import { useEffect, useRef } from "react";
 
 /** Plays chime when lead alerts appear via API polling (app foreground, no push). */

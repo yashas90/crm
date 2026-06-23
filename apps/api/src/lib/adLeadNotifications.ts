@@ -1,11 +1,8 @@
 import { users } from "@propninja/db";
 import { and, eq, inArray } from "drizzle-orm";
+import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 import type { Database } from "./db.js";
-import {
-  NOTIFICATION_TYPES,
-  createNotificationService,
-} from "../services/notificationService.js";
 
 type LeadLike = {
   id: string;
