@@ -1,3 +1,4 @@
+import { CompleteSiteVisitSheet } from "@/components/site-visits/CompleteSiteVisitSheet";
 import { type SiteVisit, formatVisitTime, useUpdateSiteVisit } from "@/hooks/use-site-visits";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { colors, radii, spacing, typography } from "@/theme";
@@ -17,6 +18,7 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
   const updateVisit = useUpdateSiteVisit();
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
+  const [completeSheetOpen, setCompleteSheetOpen] = useState(false);
 
   if (!visit) return null;
 
@@ -26,17 +28,17 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
   async function setStatus(status: SiteVisit["status"]) {
     try {
       await updateVisit.mutateAsync({ id: visit.id, payload: { status } });
-      if (status === "completed") {
-        Alert.alert("Visit completed", "Would you like to update the lead stage to Site Visit?", [
-          { text: "Not now", style: "cancel", onPress: onClose },
-          { text: "Update stage", onPress: () => onCompleted?.() },
-        ]);
-      } else {
-        onClose();
-      }
+      onClose();
     } catch (err) {
       Alert.alert("Error", err instanceof Error ? err.message : "Update failed");
     }
+  }
+
+  function handleVisitCompleted() {
+    Alert.alert("Visit completed", "Would you like to update the lead stage to Site Visit?", [
+      { text: "Not now", style: "cancel", onPress: onClose },
+      { text: "Update stage", onPress: () => onCompleted?.() },
+    ]);
   }
 
   async function openMaps() {
@@ -113,13 +115,22 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
           </View>
 
           <View style={styles.actions}>
-            <Pressable style={styles.primaryBtn} onPress={() => void setStatus("completed")}>
-              <Text style={styles.primaryBtnText}>Mark complete</Text>
-            </Pressable>
+            {visit.status === "scheduled" ? (
+              <Pressable style={styles.primaryBtn} onPress={() => setCompleteSheetOpen(true)}>
+                <Text style={styles.primaryBtnText}>Mark complete</Text>
+              </Pressable>
+            ) : null}
             <Pressable style={styles.secondaryBtn} onPress={() => void setStatus("no_show")}>
               <Text style={styles.secondaryBtnText}>No show</Text>
             </Pressable>
           </View>
+
+          <CompleteSiteVisitSheet
+            visible={completeSheetOpen}
+            visit={visit}
+            onClose={() => setCompleteSheetOpen(false)}
+            onCompleted={handleVisitCompleted}
+          />
 
           <Pressable onPress={onClose} style={styles.close}>
             <Text style={styles.closeText}>Close</Text>

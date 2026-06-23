@@ -106,6 +106,9 @@ function ReportTableHeader() {
         <TableHead rowSpan={2} className={cn(HEADER_CELL, GROUP_BORDER, "align-middle")}>
           Site Visits Booked
         </TableHead>
+        <TableHead rowSpan={2} className={cn(HEADER_CELL, "align-middle")}>
+          Site Visits Conducted
+        </TableHead>
       </TableRow>
       <TableRow className="border-0 bg-slate-900 hover:bg-slate-900">
         <TableHead className={cn(HEADER_CELL, "font-medium")}>Answered</TableHead>
@@ -204,7 +207,7 @@ function CallsUserReportTableSkeleton({ rowCount }: { rowCount: number }) {
                 <TableCell>
                   <Skeleton className="h-4 w-28" />
                 </TableCell>
-                {Array.from({ length: 12 }, (__, cellIndex) => (
+                {Array.from({ length: 13 }, (__, cellIndex) => (
                   <TableCell
                     key={cellIndex}
                     className={cn(
@@ -288,6 +291,10 @@ export function CallsUserReportTable({
                     hasActivity={row.siteVisitsBooked > 0}
                     className={GROUP_BORDER}
                   />
+                  <NumericCell
+                    value={row.siteVisitsConducted}
+                    hasActivity={row.siteVisitsConducted > 0}
+                  />
                 </TableRow>
               );
             })}
@@ -320,6 +327,10 @@ export function CallsUserReportTable({
                 value={totals.siteVisitsBooked}
                 hasActivity={totals.siteVisitsBooked > 0}
                 className={GROUP_BORDER}
+              />
+              <NumericCell
+                value={totals.siteVisitsConducted}
+                hasActivity={totals.siteVisitsConducted > 0}
               />
             </TableRow>
           </TableBody>

@@ -1,4 +1,4 @@
-import { apiDelete, apiPatch, apiPost } from "@/lib/apiClient";
+import { apiDelete, apiDownload, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import type { BulkLeadImportRow } from "@/lib/parse-leads-csv";
 import { agentForRoundRobinIndex } from "@/lib/round-robin";
@@ -57,6 +57,7 @@ export function bulkDeleteLeads(leadIds: string[]) {
 }
 
 export type BulkImportLeadsResult = {
+  batchId?: string;
   createdCount: number;
   updatedCount: number;
   skippedCount: number;
@@ -67,13 +68,55 @@ export type BulkImportLeadsResult = {
   failed: { row: number; message: string }[];
 };
 
+export type LeadImportBatchRow = {
+  id: string;
+  fileName: string | null;
+  status: "initiated" | "completed" | "failed";
+  totalCount: number;
+  uniqueCount: number;
+  totalUploaded: number;
+  duplicateCount: number;
+  invalidCount: number;
+  visitsBooked: number;
+  hotCount: number;
+  coldCount: number;
+  droppedCount: number;
+  notInterestedCount: number;
+  uploadedBy: { name: string; email: string | null };
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export type LeadImportBatchesResponse = {
+  items: LeadImportBatchRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
 export function bulkImportLeads(input: {
   leads: BulkLeadImportRow[];
   skipDuplicates?: boolean;
   assignToUserId?: string;
   assignToUserIds?: string[];
+  fileName?: string;
+  totalCount?: number;
+  invalidCount?: number;
+  parseErrors?: { row: number; message: string }[];
 }) {
   return apiPost<BulkImportLeadsResult>("/api/leads/bulk-import", input);
+}
+
+export function fetchLeadImportBatches(params: { page?: number; pageSize?: number }) {
+  const search = new URLSearchParams();
+  if (params.page) search.set("page", String(params.page));
+  if (params.pageSize) search.set("pageSize", String(params.pageSize));
+  const query = search.toString();
+  return apiGet<LeadImportBatchesResponse>(`/api/leads/import-batches${query ? `?${query}` : ""}`);
+}
+
+export function downloadLeadImportReport(batchId: string, fileName: string) {
+  return apiDownload(`/api/leads/import-batches/${batchId}/report`, fileName);
 }
 
 export function summarizeBulkResult(

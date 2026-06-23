@@ -44,6 +44,13 @@ export class SiteVisitOverlapError extends Error {
   }
 }
 
+export class SiteVisitProjectRequiredError extends Error {
+  constructor() {
+    super("Select which project the client visited before marking the site visit complete.");
+    this.name = "SiteVisitProjectRequiredError";
+  }
+}
+
 export function formatVisitTimeDisplay(visitTime: string): string {
   const normalized = normalizeVisitTime(visitTime);
   const [hours, minutes] = normalized.split(":").map(Number);

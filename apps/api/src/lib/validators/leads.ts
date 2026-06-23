@@ -135,6 +135,18 @@ export const bulkImportLeadsBodySchema = z.object({
   skipDuplicates: z.boolean().optional().default(true),
   assignToUserId: z.string().uuid().optional(),
   assignToUserIds: z.array(z.string().uuid()).min(1).max(50).optional(),
+  fileName: z.string().max(255).optional(),
+  totalCount: z.number().int().min(1).max(500).optional(),
+  invalidCount: z.number().int().min(0).max(500).optional(),
+  parseErrors: z
+    .array(
+      z.object({
+        row: z.number().int().min(1),
+        message: z.string(),
+      }),
+    )
+    .max(500)
+    .optional(),
 });
 
 export type CreateLeadBody = z.infer<typeof createLeadBodySchema>;

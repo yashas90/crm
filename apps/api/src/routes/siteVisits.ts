@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
 import { listPaginationSchema } from "../lib/pagination.js";
 import { jsonError, jsonOk } from "../lib/response.js";
-import { SiteVisitOverlapError } from "../lib/siteVisitTime.js";
+import { SiteVisitOverlapError, SiteVisitProjectRequiredError } from "../lib/siteVisitTime.js";
 import { validate } from "../lib/validate.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
@@ -235,13 +235,20 @@ siteVisitsRoutes.patch(
           entityType: "site_visit",
           entityId: visit!.id,
           entityName: leadName,
-          metadata: { leadId: visit!.leadId },
+          metadata: {
+            leadId: visit!.leadId,
+            projectId: visit!.projectId,
+            projectName: visit!.project?.name ?? null,
+          },
         });
       }
       return jsonOk(c, visit);
     } catch (err) {
       if (err instanceof SiteVisitOverlapError) {
         return jsonError(c, "VISIT_OVERLAP", err.message, 409);
+      }
+      if (err instanceof SiteVisitProjectRequiredError) {
+        return jsonError(c, "VALIDATION_ERROR", err.message, 400);
       }
       throw err;
     }

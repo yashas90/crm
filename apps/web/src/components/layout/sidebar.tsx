@@ -81,7 +81,7 @@ export function Sidebar() {
     ready && role ? navItems.filter((item) => item.roles.includes(role)) : DEFAULT_NAV;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-slate-200/80 bg-white shadow-[1px_0_20px_0_rgba(0,0,0,0.04)] transition-all duration-300 dark:border-white/10 dark:bg-black/30 dark:backdrop-blur-md dark:shadow-none">
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-slate-200/50 bg-white/90 shadow-[1px_0_24px_0_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#0a0f1a]/80 dark:backdrop-blur-xl dark:shadow-none">
       <div className="border-b border-slate-200/80 px-5 py-5 dark:border-white/10">
         <AppLogo />
         <p className="mt-2 text-xs font-medium text-slate-400 dark:text-slate-500">
@@ -102,10 +102,10 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
+                  "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                   active
-                    ? "bg-gradient-to-r from-[#204060]/10 to-[#204060]/5 text-[#204060] dark:from-white/10 dark:to-white/5 dark:text-[var(--gold)]"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white",
+                    ? "bg-gradient-to-r from-[#204060]/[0.12] via-[#204060]/[0.07] to-transparent text-[#204060] shadow-[inset_0_0_0_1px_rgba(32,64,96,0.1)] dark:from-white/15 dark:via-white/8 dark:to-transparent dark:text-[var(--gold)]"
+                    : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/8 dark:hover:text-white",
                 )}
               >
                 {active && (
@@ -113,10 +113,10 @@ export function Sidebar() {
                 )}
                 <Icon
                   className={cn(
-                    "h-4 w-4 shrink-0 transition-colors",
+                    "h-4 w-4 shrink-0 transition-all duration-200",
                     active
-                      ? "text-[#204060] dark:text-[var(--gold)]"
-                      : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-white",
+                      ? "scale-110 text-[#204060] dark:text-[var(--gold)]"
+                      : "text-slate-400 group-hover:scale-105 group-hover:text-slate-600 dark:group-hover:text-white",
                   )}
                 />
                 <span className="truncate">{label}</span>

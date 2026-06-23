@@ -3,17 +3,13 @@ import {
   type UpdateLeadStatusPayload,
   UpdateLeadStatusSheet,
 } from "@/components/UpdateLeadStatusSheet";
+import { CompleteSiteVisitSheet } from "@/components/site-visits/CompleteSiteVisitSheet";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
 import { type LeadRow, useTodayQueue, useUpdateLead } from "@/hooks/use-leads";
-import {
-  type SiteVisit,
-  formatVisitTime,
-  useTodaySiteVisits,
-  useUpdateSiteVisit,
-} from "@/hooks/use-site-visits";
+import { type SiteVisit, formatVisitTime, useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -123,8 +119,7 @@ type TodayVisitsSectionProps = {
   isError: boolean;
   onRetry: () => void;
   onViewLead: (leadId: string) => void;
-  onMarkComplete: (visitId: string) => void;
-  completingVisitId: string | null;
+  onMarkComplete: (visit: SiteVisit) => void;
 };
 
 function TodayVisitsSection({
@@ -134,7 +129,6 @@ function TodayVisitsSection({
   onRetry,
   onViewLead,
   onMarkComplete,
-  completingVisitId,
 }: TodayVisitsSectionProps) {
   return (
     <View style={styles.visitsSection}>
@@ -173,12 +167,9 @@ function TodayVisitsSection({
                 {visit.status === "scheduled" ? (
                   <Pressable
                     style={[styles.visitActionBtn, styles.visitCompleteBtn]}
-                    onPress={() => onMarkComplete(visit.id)}
-                    disabled={completingVisitId === visit.id}
+                    onPress={() => onMarkComplete(visit)}
                   >
-                    <Text style={styles.visitCompleteBtnText}>
-                      {completingVisitId === visit.id ? "Saving…" : "Mark Complete"}
-                    </Text>
+                    <Text style={styles.visitCompleteBtnText}>Mark Complete</Text>
                   </Pressable>
                 ) : null}
                 <Pressable
@@ -204,10 +195,9 @@ export function TodayScreen({ route, navigation }: Props) {
   const calls = useTodayCalls();
   const summary = useTodayCallSummary();
   const todayVisits = useTodaySiteVisits();
-  const updateVisit = useUpdateSiteVisit();
   const logCall = useLogCall();
   const updateLead = useUpdateLead();
-  const [completingVisitId, setCompletingVisitId] = useState<string | null>(null);
+  const [visitToComplete, setVisitToComplete] = useState<SiteVisit | null>(null);
 
   const queueItems = queue.data?.items ?? [];
   const recentCalls = (calls.data?.items ?? []).slice(0, 3);
@@ -258,18 +248,8 @@ export function TodayScreen({ route, navigation }: Props) {
     });
   }
 
-  function handleMarkVisitComplete(visitId: string) {
-    setCompletingVisitId(visitId);
-    updateVisit.mutate(
-      { id: visitId, payload: { status: "completed" } },
-      {
-        onSuccess: () => void todayVisits.refetch(),
-        onError: (err) => {
-          Alert.alert("Error", err instanceof Error ? err.message : "Could not update visit.");
-        },
-        onSettled: () => setCompletingVisitId(null),
-      },
-    );
+  function handleMarkVisitComplete(visit: SiteVisit) {
+    setVisitToComplete(visit);
   }
 
   async function handleCall(lead: LeadRow) {
@@ -425,7 +405,6 @@ export function TodayScreen({ route, navigation }: Props) {
               onRetry={() => void todayVisits.refetch()}
               onViewLead={openLeadById}
               onMarkComplete={handleMarkVisitComplete}
-              completingVisitId={completingVisitId}
             />
             {recentCalls.length > 0 ? (
               <View style={styles.recentSection}>
@@ -453,6 +432,13 @@ export function TodayScreen({ route, navigation }: Props) {
             )}
           </>
         }
+      />
+
+      <CompleteSiteVisitSheet
+        visible={visitToComplete !== null}
+        visit={visitToComplete}
+        onClose={() => setVisitToComplete(null)}
+        onCompleted={() => void todayVisits.refetch()}
       />
 
       <UpdateLeadStatusSheet

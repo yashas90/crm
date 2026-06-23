@@ -5,13 +5,15 @@ import {
   bulkDeleteLeads,
   bulkImportLeads,
   bulkUpdateLeadStatus,
+  downloadLeadImportReport,
+  fetchLeadImportBatches,
   summarizeBulkResult,
 } from "@/lib/bulk-leads";
 import { getErrorMessage } from "@/lib/errors";
 import type { BulkLeadImportRow } from "@/lib/parse-leads-csv";
 import { toast } from "@/lib/toast";
 import type { LeadStatus } from "@propninja/types/enums";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function useBulkLeadActions() {
   const queryClient = useQueryClient();
@@ -70,9 +72,14 @@ export function useBulkImportLeads() {
       skipDuplicates?: boolean;
       assignToUserId?: string;
       assignToUserIds?: string[];
+      fileName?: string;
+      totalCount?: number;
+      invalidCount?: number;
+      parseErrors?: { row: number; message: string }[];
     }) => bulkImportLeads(input),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      await queryClient.invalidateQueries({ queryKey: ["leads", "import-batches"] });
       const changedCount = result.createdCount + (result.updatedCount ?? 0);
       if (result.createdCount > 0 && (result.updatedCount ?? 0) > 0) {
         toast.success(
@@ -90,6 +97,24 @@ export function useBulkImportLeads() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Bulk import failed"));
+    },
+  });
+}
+
+export function useLeadImportBatches(page: number, pageSize = 10) {
+  return useQuery({
+    queryKey: ["leads", "import-batches", page, pageSize],
+    queryFn: () => fetchLeadImportBatches({ page, pageSize }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useDownloadLeadImportReport() {
+  return useMutation({
+    mutationFn: ({ batchId, fileName }: { batchId: string; fileName: string }) =>
+      downloadLeadImportReport(batchId, fileName),
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Could not download report"));
     },
   });
 }

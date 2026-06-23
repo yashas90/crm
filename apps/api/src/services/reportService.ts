@@ -357,6 +357,7 @@ type CallsPerUserMetricsRow = {
   maxTalkTimeSeconds: number;
   totalCalls: number;
   siteVisitsBooked: number;
+  siteVisitsConducted: number;
 };
 
 type CallsPerUserTotalsRow = Omit<CallsPerUserMetricsRow, "userId" | "userName">;
@@ -377,12 +378,14 @@ const callsPerUserMetricsSelect = {
   totalCalls: sql<number>`count(${callRecords.id})::int`,
 };
 
-function siteVisitsBookedExpr(query: CallsReportQuery) {
+function siteVisitsCountExpr(query: CallsReportQuery, mode: "booked" | "conducted") {
   const scope = leadScopeFromQuery(query);
   const dateFromKey = getIstDateKey(scope.dateFrom);
   const dateToKey = getIstDateKey(scope.dateTo);
   const leadFilter = siteVisitReportLeadExistsFilter(query);
   const leadFilterSql = leadFilter ?? sql`true`;
+  const statusSql =
+    mode === "conducted" ? sql`sv.status = 'completed'` : sql`sv.status <> 'cancelled'`;
 
   return sql<number>`coalesce((
     select count(*)::int from ${siteVisits} sv
@@ -390,15 +393,24 @@ function siteVisitsBookedExpr(query: CallsReportQuery) {
     and sv.org_id = ${SINGLE_TENANT_ORG_ID}
     and sv.visit_date >= ${dateFromKey}
     and sv.visit_date <= ${dateToKey}
-    and sv.status <> 'cancelled'
+    and ${statusSql}
     and ${leadFilterSql}
   ), 0)::int`;
+}
+
+function siteVisitsBookedExpr(query: CallsReportQuery) {
+  return siteVisitsCountExpr(query, "booked");
+}
+
+function siteVisitsConductedExpr(query: CallsReportQuery) {
+  return siteVisitsCountExpr(query, "conducted");
 }
 
 function callsPerUserMetricsSelectFor(query: CallsReportQuery) {
   return {
     ...callsPerUserMetricsSelect,
     siteVisitsBooked: siteVisitsBookedExpr(query),
+    siteVisitsConducted: siteVisitsConductedExpr(query),
   };
 }
 
@@ -459,6 +471,7 @@ function mapCallsPerUserMetricsRow(row: CallsPerUserMetricsRow) {
     maxTalkTimeSeconds: row.maxTalkTimeSeconds,
     totalCalls: row.totalCalls,
     siteVisitsBooked: row.siteVisitsBooked,
+    siteVisitsConducted: row.siteVisitsConducted,
   };
 }
 
@@ -476,6 +489,7 @@ function mapCallsPerUserTotalsRow(row: CallsPerUserTotalsRow) {
     maxTalkTimeSeconds: row.maxTalkTimeSeconds,
     totalCalls: row.totalCalls,
     siteVisitsBooked: row.siteVisitsBooked,
+    siteVisitsConducted: row.siteVisitsConducted,
   };
 }
 
@@ -510,6 +524,7 @@ function buildCallsUserReportCsv(items: CallsPerUserMetricsRow[], totals: CallsP
     "Max TalkTime",
     "Total Calls",
     "Site Visits Booked",
+    "Site Visits Conducted",
   ];
 
   const lines = [headers.join(",")];
@@ -530,6 +545,7 @@ function buildCallsUserReportCsv(items: CallsPerUserMetricsRow[], totals: CallsP
         formatTalkTimeCsv(row.maxTalkTimeSeconds),
         row.totalCalls,
         row.siteVisitsBooked,
+        row.siteVisitsConducted,
       ].join(","),
     );
   }
@@ -549,6 +565,7 @@ function buildCallsUserReportCsv(items: CallsPerUserMetricsRow[], totals: CallsP
       formatTalkTimeCsv(totals.maxTalkTimeSeconds),
       totals.totalCalls,
       totals.siteVisitsBooked,
+      totals.siteVisitsConducted,
     ].join(","),
   );
 
@@ -583,7 +600,7 @@ async function countCallsPerUserGroups(query: CallsReportQuery) {
   return row?.count ?? 0;
 }
 
-function buildSiteVisitsBookedWhere(query: CallsReportQuery) {
+function buildSiteVisitsReportWhere(query: CallsReportQuery, mode: "booked" | "conducted") {
   const scope = leadScopeFromQuery(query);
   const dateFromKey = getIstDateKey(scope.dateFrom);
   const dateToKey = getIstDateKey(scope.dateTo);
@@ -591,7 +608,7 @@ function buildSiteVisitsBookedWhere(query: CallsReportQuery) {
     eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
     gte(siteVisits.visitDate, dateFromKey),
     lte(siteVisits.visitDate, dateToKey),
-    ne(siteVisits.status, "cancelled"),
+    mode === "conducted" ? eq(siteVisits.status, "completed") : ne(siteVisits.status, "cancelled"),
   ];
   const leadFilter = buildReportLeadExistsFilter(query, siteVisits.leadId);
   if (leadFilter) {
@@ -600,8 +617,11 @@ function buildSiteVisitsBookedWhere(query: CallsReportQuery) {
   return and(...filters);
 }
 
-async function fetchSiteVisitsBookedGrandTotal(query: CallsReportQuery) {
-  const visitWhere = buildSiteVisitsBookedWhere(query);
+async function fetchSiteVisitsCountGrandTotal(
+  query: CallsReportQuery,
+  mode: "booked" | "conducted",
+) {
+  const visitWhere = buildSiteVisitsReportWhere(query, mode);
   const userWhere = buildCallsPerUserUserWhere(query);
   const [row] = await db
     .select({ count: sql<number>`count(${siteVisits.id})::int` })
@@ -615,7 +635,7 @@ async function fetchSiteVisitsBookedGrandTotal(query: CallsReportQuery) {
 async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
   const callWhere = buildCallsPerUserCallWhere(query);
   const userWhere = buildCallsPerUserUserWhere(query);
-  const [row, siteVisitsBooked] = await Promise.all([
+  const [row, siteVisitsBooked, siteVisitsConducted] = await Promise.all([
     db
       .select({
         incomingAnswered: callsPerUserMetricsSelect.incomingAnswered,
@@ -634,7 +654,8 @@ async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
       .innerJoin(users, eq(callRecords.userId, users.id))
       .where(and(callWhere, userWhere))
       .then((rows) => rows[0]),
-    fetchSiteVisitsBookedGrandTotal(query),
+    fetchSiteVisitsCountGrandTotal(query, "booked"),
+    fetchSiteVisitsCountGrandTotal(query, "conducted"),
   ]);
 
   return mapCallsPerUserTotalsRow({
@@ -652,6 +673,7 @@ async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
       totalCalls: 0,
     }),
     siteVisitsBooked,
+    siteVisitsConducted,
   });
 }
 
@@ -775,6 +797,8 @@ export const reportService = {
       "Min TalkTime",
       "Max TalkTime",
       "Total Calls",
+      "Site Visits Booked",
+      "Site Visits Conducted",
     ];
 
     const pageSize = 200;
@@ -801,6 +825,7 @@ export const reportService = {
             formatTalkTimeCsv(row.maxTalkTimeSeconds),
             row.totalCalls,
             row.siteVisitsBooked,
+            row.siteVisitsConducted,
           ]
             .map((cell) => escapeCsvCell(cell as unknown as string | number))
             .join(",");
@@ -823,6 +848,7 @@ export const reportService = {
         formatTalkTimeCsv(totals.maxTalkTimeSeconds),
         totals.totalCalls,
         totals.siteVisitsBooked,
+        totals.siteVisitsConducted,
       ]
         .map((cell) => escapeCsvCell(cell as unknown as string | number))
         .join(",");

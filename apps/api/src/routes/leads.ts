@@ -10,6 +10,8 @@ import {
   forbiddenResponse,
 } from "../lib/permissions.js";
 import { validate } from "../lib/validate.js";
+import { normalizeStoredPhone } from "../lib/leadPhone.js";
+import { listPaginationSchema } from "../lib/pagination.js";
 import {
   type ListLeadsQuery,
   addNoteBodySchema,
@@ -27,6 +29,7 @@ import { leadsCreateRateLimit, leadsPatchRateLimit } from "../middleware/rateLim
 import { logAudit } from "../services/auditService.js";
 import { documentService } from "../services/documentService.js";
 import { getAssignmentHistory } from "../services/leadAssignmentService.js";
+import { leadImportService } from "../services/leadImportService.js";
 import { listHotLeads } from "../services/leadScoringService.js";
 import { LeadDuplicatePhoneError, leadService } from "../services/leadService.js";
 import { createProjectUnitService } from "../services/projectUnitService.js";
@@ -270,6 +273,42 @@ leadsRoute.get("/hot", async (c) => {
   return c.json({ ok: true, data: { items, total: items.length } });
 });
 
+leadsRoute.get(
+  "/import-batches",
+  validate("query", listPaginationSchema),
+  async (c) => {
+    const authUser = c.get("authUser") as AuthUser;
+    if (!canBulkUploadLeads(authUser)) {
+      return c.json(forbiddenResponse(), 403);
+    }
+
+    const query = c.req.valid("query");
+    const result = await leadImportService.listBatches({
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+    return c.json({ ok: true, data: result });
+  },
+);
+
+leadsRoute.get("/import-batches/:id/report", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  if (!canBulkUploadLeads(authUser)) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const batchId = c.req.param("id");
+  const report = await leadImportService.getBatchReportCsv(batchId);
+  if (!report) {
+    return c.json({ ok: false, error: { code: "NOT_FOUND", message: "Import batch not found" } }, 404);
+  }
+
+  return c.body(report.content, 200, {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="${report.fileName}"`,
+  });
+});
+
 leadsRoute.post(
   "/bulk-import",
   leadsCreateRateLimit,
@@ -282,9 +321,9 @@ leadsRoute.post(
     }
 
     const body = c.req.valid("json");
-    const requestedAssignees =
-      body.assignToUserIds?.length > 0
-        ? body.assignToUserIds
+    const requestedAssignees: string[] =
+      (body.assignToUserIds?.length ?? 0) > 0
+        ? body.assignToUserIds!
         : body.assignToUserId
           ? [body.assignToUserId]
           : [authUser.id];
@@ -294,14 +333,64 @@ leadsRoute.post(
       return c.json(forbiddenResponse(), 403);
     }
 
-    const result = await leadService.bulkCreateLeads({
-      rows: body.leads,
-      skipDuplicates: body.skipDuplicates,
-      assignedToAgents: requestedAssignees,
-      actingUserId: authUser.id,
+    const parseErrors = body.parseErrors ?? [];
+    const totalCount = body.totalCount ?? body.leads.length + parseErrors.length;
+    const invalidFromClient = body.invalidCount ?? parseErrors.length;
+
+    const uniquePhones = new Set<string>();
+    for (const row of body.leads) {
+      if (typeof row.phone === "string" && row.phone.trim()) {
+        try {
+          uniquePhones.add(normalizeStoredPhone(row.phone));
+        } catch {
+          // ignore invalid phones for unique count
+        }
+      }
+    }
+
+    const batch = await leadImportService.createBatch({
+      uploadedBy: authUser.id,
+      fileName: body.fileName,
+      totalCount,
+      uniqueCount: uniquePhones.size,
+      invalidCount: invalidFromClient,
     });
 
-    return c.json({ ok: true, data: result }, 201);
+    try {
+      const result = await leadService.bulkCreateLeads({
+        rows: body.leads,
+        skipDuplicates: body.skipDuplicates,
+        assignedToAgents: requestedAssignees,
+        actingUserId: authUser.id,
+        batchId: batch.id,
+      });
+
+      await leadImportService.completeBatch(batch.id, {
+        createdCount: result.createdCount,
+        updatedCount: result.updatedCount,
+        skippedCount: result.skippedCount,
+        failedCount: result.failedCount,
+        invalidCount: invalidFromClient,
+        report: {
+          created: result.created,
+          updated: result.updated,
+          skipped: result.skipped,
+          failed: result.failed,
+          parseErrors,
+        },
+      });
+
+      return c.json({ ok: true, data: { ...result, batchId: batch.id } }, 201);
+    } catch (err) {
+      await leadImportService.failBatch(batch.id, {
+        created: [],
+        updated: [],
+        skipped: [],
+        failed: [{ row: 0, message: err instanceof Error ? err.message : "Import failed" }],
+        parseErrors,
+      });
+      throw err;
+    }
   },
 );
 

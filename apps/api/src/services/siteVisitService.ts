@@ -6,6 +6,7 @@ import { db } from "../lib/db.js";
 import { boundPageSize } from "../lib/pagination.js";
 import {
   SiteVisitOverlapError,
+  SiteVisitProjectRequiredError,
   type SiteVisitStatus,
   normalizeVisitTime,
   siteVisitRangesOverlap,
@@ -13,6 +14,7 @@ import {
 } from "../lib/siteVisitTime.js";
 
 export type { SiteVisitStatus };
+export { SiteVisitProjectRequiredError } from "../lib/siteVisitTime.js";
 
 export interface CreateSiteVisitInput {
   leadId: string;
@@ -291,6 +293,12 @@ export const siteVisitService = {
     }
 
     const nextStatus = input.status ?? existing.status;
+    const nextProjectId = input.projectId !== undefined ? input.projectId : existing.projectId;
+
+    if (nextStatus === "completed" && !nextProjectId) {
+      throw new SiteVisitProjectRequiredError();
+    }
+
     const resetReminder =
       visitDate !== existing.visitDate ||
       visitTime !== existing.visitTime ||
@@ -299,7 +307,7 @@ export const siteVisitService = {
     await db
       .update(siteVisits)
       .set({
-        projectId: input.projectId !== undefined ? input.projectId : existing.projectId,
+        projectId: nextProjectId,
         agentId,
         visitDate,
         visitTime,

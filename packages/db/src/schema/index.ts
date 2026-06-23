@@ -668,6 +668,62 @@ export const leadAssignments = pgTable(
   ],
 );
 
+export const leadImportBatches = pgTable(
+  "lead_import_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    uploadedBy: uuid("uploaded_by")
+      .notNull()
+      .references(() => users.id),
+    fileName: text("file_name"),
+    status: text("status").notNull().default("completed"),
+    totalCount: integer("total_count").notNull().default(0),
+    uniqueCount: integer("unique_count").notNull().default(0),
+    createdCount: integer("created_count").notNull().default(0),
+    updatedCount: integer("updated_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    invalidCount: integer("invalid_count").notNull().default(0),
+    reportJson: jsonb("report_json").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "lead_import_batches_status_check",
+      sql`${table.status} in ('initiated', 'completed', 'failed')`,
+    ),
+    index("lead_import_batches_org_id_created_at_idx").on(table.orgId, table.createdAt),
+  ],
+);
+
+export const leadImportBatchItems = pgTable(
+  "lead_import_batch_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id")
+      .notNull()
+      .references(() => leadImportBatches.id, { onDelete: "cascade" }),
+    leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+    rowNumber: integer("row_number").notNull(),
+    outcome: text("outcome").notNull(),
+    phone: text("phone"),
+    message: text("message"),
+  },
+  (table) => [
+    check(
+      "lead_import_batch_items_outcome_check",
+      sql`${table.outcome} in ('created', 'updated', 'skipped', 'failed')`,
+    ),
+    uniqueIndex("lead_import_batch_items_batch_row_idx").on(table.batchId, table.rowNumber),
+    index("lead_import_batch_items_batch_id_idx").on(table.batchId),
+    index("lead_import_batch_items_lead_id_idx").on(table.leadId),
+  ],
+);
+
 export const siteVisits = pgTable(
   "site_visits",
   {

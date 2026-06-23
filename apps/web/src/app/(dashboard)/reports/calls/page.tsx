@@ -294,6 +294,7 @@ export default function CallsReportPage() {
                         maxTalkTimeSeconds: 0,
                         totalCalls: 0,
                         siteVisitsBooked: 0,
+                        siteVisitsConducted: 0,
                       }
                 }
                 total={showUserReport ? userReport.data.total : 0}

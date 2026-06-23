@@ -1,5 +1,6 @@
 "use client";
 
+import { ProjectSelect } from "@/components/projects/project-select";
 import {
   AddToCalendarDropdown,
   siteVisitToCalendarEvent,
@@ -12,11 +13,12 @@ import {
   useUpdateSiteVisit,
   visitStatusColor,
 } from "@/hooks/use-site-visits";
+import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type VisitDetailSlideOverProps = {
   visit: SiteVisit | null;
@@ -35,6 +37,13 @@ export function VisitDetailSlideOver({
   const cancelVisit = useCancelSiteVisit();
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
+  const [completeProjectId, setCompleteProjectId] = useState("");
+
+  useEffect(() => {
+    if (visit) {
+      setCompleteProjectId(visit.projectId ?? "");
+    }
+  }, [visit?.id, visit?.projectId]);
 
   if (!visit) return null;
 
@@ -45,6 +54,23 @@ export function VisitDetailSlideOver({
   async function setStatus(status: SiteVisit["status"]) {
     await updateVisit.mutateAsync({ id: v.id, payload: { status } });
     if (status === "completed") onCompleted?.();
+  }
+
+  async function handleMarkComplete() {
+    if (!completeProjectId) {
+      toast.error("Select which project the client visited before marking complete.");
+      return;
+    }
+
+    try {
+      await updateVisit.mutateAsync({
+        id: v.id,
+        payload: { status: "completed", projectId: completeProjectId },
+      });
+      onCompleted?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not complete visit");
+    }
   }
 
   async function handleReschedule() {
@@ -63,9 +89,15 @@ export function VisitDetailSlideOver({
       description={`${v.visitDate} · ${formatVisitTime(v.visitTime)} · ${v.duration} min`}
       footer={
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => void setStatus("completed")}>
-            Mark complete
-          </Button>
+          {v.status === "scheduled" ? (
+            <Button
+              size="sm"
+              onClick={() => void handleMarkComplete()}
+              disabled={updateVisit.isPending}
+            >
+              Mark complete
+            </Button>
+          ) : null}
           <Button size="sm" variant="secondary" onClick={() => void setStatus("no_show")}>
             No show
           </Button>
@@ -91,6 +123,24 @@ export function VisitDetailSlideOver({
           <p className="text-sm font-medium">Property</p>
           <p className="text-sm text-muted-foreground">{property}</p>
         </div>
+        {v.status === "scheduled" ? (
+          <div className="space-y-2">
+            <Label htmlFor="complete-project">Project visited</Label>
+            <ProjectSelect
+              id="complete-project"
+              value={completeProjectId}
+              onChange={setCompleteProjectId}
+            />
+            <p className="text-xs text-muted-foreground">
+              Required when marking the site visit as complete.
+            </p>
+          </div>
+        ) : v.project ? (
+          <div>
+            <p className="text-sm font-medium">Project visited</p>
+            <p className="text-sm text-muted-foreground">{v.project.name}</p>
+          </div>
+        ) : null}
         <div>
           <p className="text-sm font-medium">Agent</p>
           <p className="text-sm text-muted-foreground">{v.agent?.name ?? "—"}</p>

@@ -93,6 +93,10 @@ export function LeadsBulkImportDialog({
       leads: rows,
       skipDuplicates,
       assignToUserIds,
+      fileName: fileName ?? undefined,
+      totalCount: rows.length + parseErrors.length,
+      invalidCount: parseErrors.length,
+      parseErrors,
     });
 
     if (result.createdCount > 0 || (result.updatedCount ?? 0) > 0) {

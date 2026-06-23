@@ -9,6 +9,7 @@ import {
   LeadsBulkActionsBar,
 } from "@/components/leads/leads-bulk-actions-bar";
 import { LeadsBulkImportDialog } from "@/components/leads/leads-bulk-import-dialog";
+import { LeadsImportTrackerDialog } from "@/components/leads/leads-import-tracker-dialog";
 import { LeadsListFilters } from "@/components/leads/leads-list-filters";
 import { LeadsPageHeaderActions } from "@/components/leads/leads-page-header-actions";
 import { LeadsTable } from "@/components/leads/leads-table";
@@ -45,7 +46,7 @@ import {
 import { getQueryClient } from "@/lib/queryClient";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
-import { AlertCircle, Upload } from "lucide-react";
+import { AlertCircle, History, Upload } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -70,6 +71,7 @@ export function LeadsPageView() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showImportTracker, setShowImportTracker] = useState(false);
   const { canBulkUploadLeads } = usePermissions();
   const [editingLead, setEditingLead] = useState<LeadRow | null>(null);
   const [bulkHint, setBulkHint] = useState(false);
@@ -207,10 +209,16 @@ export function LeadsPageView() {
         </div>
         <div className="flex gap-2">
           {canBulkUploadLeads ? (
-            <Button variant="outline" onClick={() => setShowImportModal(true)}>
-              <Upload className="mr-2 h-4 w-4" />
-              Import leads
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setShowImportTracker(true)}>
+                <History className="mr-2 h-4 w-4" />
+                Upload tracker
+              </Button>
+              <Button variant="outline" onClick={() => setShowImportModal(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import leads
+              </Button>
+            </>
           ) : null}
           <Button onClick={() => setShowForm(true)}>Add Lead</Button>
         </div>
@@ -375,6 +383,8 @@ export function LeadsPageView() {
           void getQueryClient().invalidateQueries({ queryKey: ["leads"] });
         }}
       />
+
+      <LeadsImportTrackerDialog open={showImportTracker} onOpenChange={setShowImportTracker} />
     </div>
   );
 }

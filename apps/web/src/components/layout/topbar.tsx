@@ -187,7 +187,7 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/95 px-6 backdrop-blur-sm transition-all duration-300 dark:border-white/10 dark:bg-black/30 dark:backdrop-blur-md">
+    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200/40 bg-white/75 px-6 shadow-[0_1px_12px_0_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#0a0f1a]/70 dark:backdrop-blur-xl">
       <div className="flex flex-1 items-center gap-4">
         <Breadcrumbs pathname={pathname} />
         <GlobalSearch />

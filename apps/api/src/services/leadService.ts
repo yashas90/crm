@@ -523,11 +523,19 @@ export const leadService = {
     skipDuplicates: boolean;
     assignedToAgents: string[];
     actingUserId: string;
+    batchId?: string;
   }) {
     const created: { row: number; id: string; phone: string }[] = [];
     const updated: { row: number; id: string; phone: string }[] = [];
     const skipped: { row: number; phone: string; reason: string }[] = [];
     const failed: { row: number; message: string }[] = [];
+    const batchItems: {
+      rowNumber: number;
+      outcome: "created" | "updated" | "skipped" | "failed";
+      leadId?: string | null;
+      phone?: string | null;
+      message?: string | null;
+    }[] = [];
 
     for (let index = 0; index < input.rows.length; index++) {
       const rowNumber = index + 1;
@@ -535,9 +543,17 @@ export const leadService = {
 
       if (!parsed.success) {
         const firstIssue = parsed.error.issues[0];
+        const message = firstIssue?.message ?? "Invalid row";
         failed.push({
           row: rowNumber,
-          message: firstIssue?.message ?? "Invalid row",
+          message,
+        });
+        const rawPhone = input.rows[index]?.phone;
+        batchItems.push({
+          rowNumber,
+          outcome: "failed",
+          phone: typeof rawPhone === "string" ? rawPhone : null,
+          message,
         });
         continue;
       }
@@ -559,15 +575,34 @@ export const leadService = {
 
           if (merged) {
             updated.push({ row: rowNumber, id: merged.id, phone: merged.phone ?? storedPhone });
+            batchItems.push({
+              rowNumber,
+              outcome: "updated",
+              leadId: merged.id,
+              phone: merged.phone ?? storedPhone,
+            });
           } else {
             skipped.push({
               row: rowNumber,
               phone: parsed.data.phone,
               reason: "duplicate_phone",
             });
+            batchItems.push({
+              rowNumber,
+              outcome: "skipped",
+              phone: parsed.data.phone,
+              message: "duplicate_phone",
+            });
           }
         } else {
-          failed.push({ row: rowNumber, message: "Phone number already exists for this org" });
+          const message = "Phone number already exists for this org";
+          failed.push({ row: rowNumber, message });
+          batchItems.push({
+            rowNumber,
+            outcome: "failed",
+            phone: parsed.data.phone,
+            message,
+          });
         }
         continue;
       }
@@ -575,12 +610,30 @@ export const leadService = {
       try {
         const lead = await this.createLead(parsed.data, { assignedTo });
         created.push({ row: rowNumber, id: lead.id, phone: lead.phone ?? "" });
+        batchItems.push({
+          rowNumber,
+          outcome: "created",
+          leadId: lead.id,
+          phone: lead.phone ?? storedPhone,
+        });
       } catch (err) {
+        const message = err instanceof Error ? err.message : "Import failed";
         failed.push({
           row: rowNumber,
-          message: err instanceof Error ? err.message : "Import failed",
+          message,
+        });
+        batchItems.push({
+          rowNumber,
+          outcome: "failed",
+          phone: parsed.data.phone,
+          message,
         });
       }
+    }
+
+    if (input.batchId && batchItems.length > 0) {
+      const { leadImportService } = await import("./leadImportService.js");
+      await leadImportService.insertBatchItems(input.batchId, batchItems);
     }
 
     return {

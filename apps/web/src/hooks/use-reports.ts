@@ -63,6 +63,7 @@ export type CallsUserReportRow = {
   maxTalkTimeSeconds: number;
   totalCalls: number;
   siteVisitsBooked: number;
+  siteVisitsConducted: number;
 };
 
 export type CallsUserReportTotals = Omit<CallsUserReportRow, "userId" | "userName">;
