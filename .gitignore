@@ -3,6 +3,7 @@ node_modules
 dist
 .next
 .expo
+apps/mobile/android
 *.tsbuildinfo
 .env
 .env.*

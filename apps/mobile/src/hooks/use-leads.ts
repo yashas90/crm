@@ -206,3 +206,25 @@ export function useLeadScopeCounts() {
     refetchInterval: LIVE_REFETCH_MS,
   });
 }
+
+/** Lighter than scope-counts for the home "My leads" stat (single count query). */
+export function useMyLeadsTotal() {
+  const ready = useAuthReady();
+  const userId = getCurrentUserId();
+  const params = new URLSearchParams({
+    page: "1",
+    pageSize: "1",
+    excludeDuplicates: "true",
+  });
+  if (userId) params.set("assignedTo", userId);
+
+  return useQuery({
+    queryKey: ["leads", "my-total", userId],
+    queryFn: async () => {
+      const data = await apiGet<{ total: number }>(`/api/leads?${params.toString()}`);
+      return data.total;
+    },
+    enabled: ready,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}

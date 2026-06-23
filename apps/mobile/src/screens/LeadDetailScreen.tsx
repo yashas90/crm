@@ -1,9 +1,12 @@
-import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/components/CallLogModal";
 import { ComplianceChip } from "@/components/ComplianceChip";
 import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
 import { LeadContactActions } from "@/components/LeadContactActions";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { TasksSection } from "@/components/TasksSection";
+import {
+  type UpdateLeadStatusPayload,
+  UpdateLeadStatusSheet,
+} from "@/components/UpdateLeadStatusSheet";
 import { WhatsAppTemplateSheet } from "@/components/WhatsAppTemplateSheet";
 import { LeadDocumentsSection } from "@/components/documents/LeadDocumentsSection";
 import { ScheduleVisitSheet } from "@/components/site-visits/ScheduleVisitSheet";
@@ -18,6 +21,7 @@ import {
 } from "@/hooks/use-leads";
 import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
 import { formatVisitTime, useLeadSiteVisits } from "@/hooks/use-site-visits";
+import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import {
@@ -27,7 +31,6 @@ import {
   useUpsertTcfConsent,
 } from "@/hooks/useTcf";
 import { getCurrentUserId, getUser } from "@/lib/auth";
-import { callLogSuccessMessage } from "@/lib/call-log-feedback";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
@@ -75,11 +78,10 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const updateFollowUp = useUpdateLeadFollowUp(leadId);
   const { data: visitsData, refetch: refetchVisits } = useLeadSiteVisits(leadId);
   const addNote = useAddLeadNote(leadId);
-  const [manualLogOpen, setManualLogOpen] = useState(false);
+  const [statusSheetOpen, setStatusSheetOpen] = useState(false);
   const [scheduleVisitVisible, setScheduleVisitVisible] = useState(false);
   const [followUpAt, setFollowUpAt] = useState<string | null>(null);
-  const defaultLogDuration = 60;
-  const [callLoggedToast, setCallLoggedToast] = useState<string | null>(null);
+  const [savedToast, setSavedToast] = useState<string | null>(null);
   const [editVisible, setEditVisible] = useState(false);
   const [whatsappSheetVisible, setWhatsappSheetVisible] = useState(false);
   const [tab, setTab] = useState<"calls" | "notes" | "tasks" | "visits" | "documents">("calls");
@@ -89,19 +91,56 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const messageTemplates = useMessageTemplates({ enabled: whatsappSheetVisible });
   const sessionUser = getUser();
   const insets = useSafeAreaInsets();
+  const teamMembers = useTeamMembers();
+  const canReassign = sessionUser?.role === "admin" || sessionUser?.role === "manager";
 
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
-    onLogged: async (outcome) => {
+    onLogged: async () => {
       await refetchCalls();
       void feedbackCallSaved();
-      setCallLoggedToast(callLogSuccessMessage(outcome));
-      setTimeout(() => setCallLoggedToast(null), 2500);
     },
     onLogError: (err) => {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to log call.");
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to save call.");
     },
   });
+
+  const statusSheetVisible = statusSheetOpen || dialerLog.isPendingLog;
+
+  async function handleStatusSave(payload: UpdateLeadStatusPayload) {
+    if (!lead) return;
+
+    const afterCall = dialerLog.isPendingLog;
+    const noteText = payload.notes?.trim();
+    const noteWithStatus = noteText
+      ? `${payload.statusLabel}: ${noteText}`
+      : `Status updated to ${payload.statusLabel}`;
+
+    try {
+      if (afterCall && dialerLog.pendingLog) {
+        await dialerLog.confirmLog("answered", noteWithStatus);
+      }
+
+      const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
+      if (canReassign && payload.assignedTo && payload.assignedTo !== lead.assignedUser?.id) {
+        patch.assignedTo = payload.assignedTo;
+      }
+
+      await updateLead.mutateAsync({ leadId: lead.id, payload: patch });
+
+      if (!afterCall && noteText) {
+        await addNote.mutateAsync(noteText);
+      }
+
+      await refetch();
+      setStatusSheetOpen(false);
+      dialerLog.dismissPending();
+      setSavedToast("Lead status updated");
+      setTimeout(() => setSavedToast(null), 2500);
+    } catch (err) {
+      Alert.alert("Error", err instanceof Error ? err.message : "Could not update lead.");
+    }
+  }
 
   useRefreshOnFocus(() => Promise.all([refetch(), refetchCalls(), refetchTcf()]));
 
@@ -155,39 +194,6 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     startDial(phone);
   }
 
-  function submitLog(payload: QuickLogPayload, _options?: SubmitOptions) {
-    if (!lead?.phone) return;
-
-    const endedAt = new Date();
-    const startedAt = new Date(endedAt.getTime() - payload.durationSeconds * 1000);
-
-    logCall.mutate(
-      {
-        lead_id: lead.id,
-        phone_number: lead.phone,
-        direction: "outgoing",
-        duration_seconds: payload.durationSeconds,
-        started_at: startedAt.toISOString(),
-        ended_at: endedAt.toISOString(),
-        outcome: payload.outcome,
-        notes: payload.notes,
-        source: "mobile-manual",
-      },
-      {
-        onSuccess: async () => {
-          await refetchCalls();
-          void feedbackCallSaved();
-          setManualLogOpen(false);
-          setCallLoggedToast(callLogSuccessMessage(payload.outcome));
-          setTimeout(() => setCallLoggedToast(null), 2500);
-        },
-        onError: (err) => {
-          Alert.alert("Error", err instanceof Error ? err.message : "Failed to log call.");
-        },
-      },
-    );
-  }
-
   if (isLoading) {
     return (
       <View style={styles.center}>
@@ -224,6 +230,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               <View style={styles.statusChip}>
                 <Text style={styles.statusChipText}>{lead.leadStatus}</Text>
               </View>
+              <Pressable style={styles.changeStatusBtn} onPress={() => setStatusSheetOpen(true)}>
+                <Text style={styles.changeStatusBtnText}>Change status</Text>
+              </Pressable>
             </View>
             <ComplianceChip callConsent={callConsent} />
             {lead.temperature ? (
@@ -316,11 +325,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             await dialWithConsentCheck(lead.phone);
           }}
           onWhatsAppPress={() => setWhatsappSheetVisible(true)}
-          onLogPress={() => setManualLogOpen(true)}
         />
         <Text style={styles.callHint}>
-          Call opens your SIM dialer. When you return to the app, the call log sheet opens
-          automatically.
+          Call opens your SIM dialer. When you return, update the lead status to save the call.
         </Text>
 
         <TcfConsentSection
@@ -506,31 +513,24 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         ) : null}
       </ScrollView>
 
-      <CallLogModal
-        visible={dialerLog.isPendingLog}
-        phoneNumber={dialerLog.pendingLog?.phoneNumber ?? lead.phone ?? undefined}
-        defaultDurationSeconds={dialerLog.pendingLog?.durationSeconds ?? 60}
-        reviewOnly
-        isSubmitting={logCall.isPending}
-        onClose={dialerLog.dismissPending}
-        onSubmit={(payload) => {
-          void dialerLog.confirmLog(payload.outcome, payload.notes);
+      <UpdateLeadStatusSheet
+        visible={statusSheetVisible}
+        currentStatus={lead.leadStatus}
+        currentAssigneeId={lead.assignedUser?.id ?? null}
+        defaultAssigneeId={getCurrentUserId()}
+        assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
+        isSaving={logCall.isPending || updateLead.isPending || addNote.isPending}
+        onClose={() => {
+          setStatusSheetOpen(false);
+          dialerLog.dismissPending();
         }}
+        onSave={(payload) => void handleStatusSave(payload)}
       />
 
-      <CallLogModal
-        visible={manualLogOpen && !dialerLog.isReviewOpen}
-        phoneNumber={lead.phone ?? undefined}
-        defaultDurationSeconds={defaultLogDuration}
-        onClose={() => setManualLogOpen(false)}
-        onSubmit={submitLog}
-        isSubmitting={logCall.isPending}
-      />
-
-      {callLoggedToast ? (
+      {savedToast ? (
         <View style={[styles.callLoggedToast, { bottom: 24 + insets.bottom }]}>
-          <Text style={styles.callLoggedToastText} testID="call-logged-toast">
-            {callLoggedToast}
+          <Text style={styles.callLoggedToastText} testID="lead-status-toast">
+            {savedToast}
           </Text>
         </View>
       ) : null}
@@ -725,6 +725,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
+  },
+  changeStatusBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  changeStatusBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
   },
   tempChip: {
     alignSelf: "flex-start",

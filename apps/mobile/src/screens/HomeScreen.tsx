@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useTodayCallSummary } from "@/hooks/use-calls";
-import { useLeadScopeCounts, useTodayQueue } from "@/hooks/use-leads";
+import { useMyLeadsTotal, useTodayQueue } from "@/hooks/use-leads";
 import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { MainTabParamList } from "@/navigation/types";
@@ -35,11 +35,12 @@ export function HomeScreen({ navigation }: Props) {
   const { data: user } = useCurrentUser();
   const queue = useTodayQueue();
   const summary = useTodayCallSummary();
-  const scope = useLeadScopeCounts();
+  const myLeadsTotal = useMyLeadsTotal();
   const unreadNotifications = useUnreadNotificationCount();
   const firstName = user?.name?.split(" ")[0] ?? "Agent";
 
-  const refreshAll = () => Promise.all([queue.refetch(), summary.refetch(), scope.refetch()]);
+  const refreshAll = () =>
+    Promise.all([queue.refetch(), summary.refetch(), myLeadsTotal.refetch()]);
 
   useRefreshOnFocus(refreshAll);
 
@@ -107,7 +108,7 @@ export function HomeScreen({ navigation }: Props) {
             />
             <StatCard
               icon="people-outline"
-              value={String(scope.data?.my ?? scope.data?.all ?? 0)}
+              value={String(myLeadsTotal.data ?? 0)}
               label="My leads"
               accent="#a5b4fc"
               onPress={() => navigation.navigate("LeadsTab")}

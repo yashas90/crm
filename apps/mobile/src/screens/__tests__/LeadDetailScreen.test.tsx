@@ -41,6 +41,9 @@ jest.mock("@/hooks/use-site-visits", () => ({
 jest.mock("@/hooks/use-documents", () => ({
   useLeadDocuments: () => ({ data: { items: [] }, isLoading: false, refetch: jest.fn() }),
 }));
+jest.mock("@/hooks/use-users", () => ({
+  useTeamMembers: () => ({ data: { items: [] }, isLoading: false }),
+}));
 
 const mockUseLead = useLead as jest.MockedFunction<typeof useLead>;
 const mockUseTcfForLead = useTcfForLead as jest.MockedFunction<typeof useTcfForLead>;
@@ -76,8 +79,16 @@ describe("LeadDetailScreen consent section", () => {
       mutateAsync: jest.fn(),
       isPending: false,
     } as never);
-    mockUseUpdateLead.mockReturnValue({ mutate: jest.fn(), isPending: false } as never);
-    mockUseAddLeadNote.mockReturnValue({ mutate: jest.fn(), isPending: false } as never);
+    mockUseUpdateLead.mockReturnValue({
+      mutate: jest.fn(),
+      mutateAsync: jest.fn(),
+      isPending: false,
+    } as never);
+    mockUseAddLeadNote.mockReturnValue({
+      mutate: jest.fn(),
+      mutateAsync: jest.fn(),
+      isPending: false,
+    } as never);
     mockUseUpsertTcfConsent.mockReturnValue({
       mutate: jest.fn(),
       isPending: false,

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import "./instrument.js";
+import type { Server } from "node:http";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -102,9 +103,15 @@ app.notFound((c) => jsonError(c, "NOT_FOUND", "Route not found", 404));
 
 app.onError(errorHandler);
 
+/** Railway edge keep-alive is 60s; Node defaults to 5s — mismatch causes intermittent 502s on Android. */
+function tuneHttpKeepAlive(server: Server) {
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 70_000;
+}
+
 // Skip binding a port when Vitest imports this module for integration tests.
 if (process.env.VITEST !== "true") {
-  serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+  const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
     logger.info(`PropNinja API listening on http://localhost:${info.port}`);
     startTokenBlocklistRefresh();
     startGoogleAdsLeadSync();
@@ -115,6 +122,7 @@ if (process.env.VITEST !== "true") {
     startLeadScoringJob();
     startDailyFollowUpJobs();
   });
+  tuneHttpKeepAlive(server as Server);
 }
 
 export default app;

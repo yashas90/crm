@@ -37,12 +37,10 @@ export function useBulkLeadActions() {
     onSuccess: async (result, variables) => {
       await invalidateLeads();
       const agentCount = variables.userIds.length;
-      summarizeBulkResult(
-        result,
-        (count) =>
-          agentCount > 1
-            ? `Assigned ${count} lead(s) across ${agentCount} agents`
-            : `Assigned ${count} lead(s)`,
+      summarizeBulkResult(result, (count) =>
+        agentCount > 1
+          ? `Assigned ${count} lead(s) across ${agentCount} agents`
+          : `Assigned ${count} lead(s)`,
       );
     },
   });

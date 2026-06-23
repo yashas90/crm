@@ -1,19 +1,23 @@
-import { CallLogModal, type QuickLogPayload, type SubmitOptions } from "@/components/CallLogModal";
 import { LeadContactActions } from "@/components/LeadContactActions";
+import {
+  type UpdateLeadStatusPayload,
+  UpdateLeadStatusSheet,
+} from "@/components/UpdateLeadStatusSheet";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
-import { type LeadRow, useTodayQueue } from "@/hooks/use-leads";
+import { type LeadRow, useTodayQueue, useUpdateLead } from "@/hooks/use-leads";
 import {
   type SiteVisit,
   formatVisitTime,
   useTodaySiteVisits,
   useUpdateSiteVisit,
 } from "@/hooks/use-site-visits";
+import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
-import { callLogSuccessMessage } from "@/lib/call-log-feedback";
+import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDuration } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
@@ -204,32 +208,33 @@ export function TodayScreen({ route, navigation }: Props) {
   const todayVisits = useTodaySiteVisits();
   const updateVisit = useUpdateSiteVisit();
   const logCall = useLogCall();
+  const updateLead = useUpdateLead();
   const [completingVisitId, setCompletingVisitId] = useState<string | null>(null);
 
   const queueItems = queue.data?.items ?? [];
   const recentCalls = (calls.data?.items ?? []).slice(0, 3);
-  const [logTarget, setLogTarget] = useState<LeadRow | null>(null);
   const insets = useSafeAreaInsets();
   const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
+  const sessionUser = getUser();
+  const teamMembers = useTeamMembers();
+  const canReassign = sessionUser?.role === "admin" || sessionUser?.role === "manager";
 
-  const defaultLogDuration = 60;
-  const [callLoggedToast, setCallLoggedToast] = useState<string | null>(null);
+  const [savedToast, setSavedToast] = useState<string | null>(null);
 
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
     onLogged: async () => {
       await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
       void feedbackCallSaved();
-      setCallLoggedToast(callLogSuccessMessage("answered"));
-      setTimeout(() => setCallLoggedToast(null), 2500);
     },
     onLogError: (err) => {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to log call.");
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to save call.");
     },
   });
 
-  const logTargetIndex = logTarget ? queueItems.findIndex((item) => item.id === logTarget.id) : -1;
-  const hasNextInQueue = logTargetIndex >= 0 && logTargetIndex < queueItems.length - 1;
+  const statusLead = dialerLog.pendingLog
+    ? (queueItems.find((item) => item.id === dialerLog.pendingLog?.leadId) ?? null)
+    : null;
 
   const { planned, overdue } = useMemo(() => {
     let plannedCount = 0;
@@ -284,43 +289,31 @@ export function TodayScreen({ route, navigation }: Props) {
     }
   }
 
-  function handleLogSubmit(payload: QuickLogPayload, options?: SubmitOptions) {
-    if (!logTarget?.phone) return;
+  async function handleStatusSave(payload: UpdateLeadStatusPayload) {
+    const lead = statusLead;
+    if (!lead || !dialerLog.pendingLog) return;
 
-    const target = logTarget;
-    const nextLead = options?.goNext ? queueItems[logTargetIndex + 1] : null;
-    const endedAt = new Date();
-    const startedAt = new Date(endedAt.getTime() - payload.durationSeconds * 1000);
+    const noteText = payload.notes?.trim();
+    const noteWithStatus = noteText
+      ? `${payload.statusLabel}: ${noteText}`
+      : `Status updated to ${payload.statusLabel}`;
 
-    logCall.mutate(
-      {
-        lead_id: target.id,
-        phone_number: target.phone ?? "",
-        direction: "outgoing",
-        duration_seconds: payload.durationSeconds,
-        started_at: startedAt.toISOString(),
-        ended_at: endedAt.toISOString(),
-        outcome: payload.outcome,
-        notes: payload.notes,
-        source: "mobile-manual",
-      },
-      {
-        onSuccess: async () => {
-          await queue.refetch();
-          void feedbackCallSaved();
-          setCallLoggedToast(callLogSuccessMessage(payload.outcome));
-          setTimeout(() => setCallLoggedToast(null), 2500);
-          if (options?.goNext && nextLead) {
-            setLogTarget(nextLead);
-          } else {
-            setLogTarget(null);
-          }
-        },
-        onError: (err) => {
-          Alert.alert("Error", err instanceof Error ? err.message : "Failed to log call.");
-        },
-      },
-    );
+    try {
+      await dialerLog.confirmLog("answered", noteWithStatus);
+
+      const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
+      if (canReassign && payload.assignedTo) {
+        patch.assignedTo = payload.assignedTo;
+      }
+
+      await updateLead.mutateAsync({ leadId: lead.id, payload: patch });
+      await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
+      dialerLog.dismissPending();
+      setSavedToast("Lead status updated");
+      setTimeout(() => setSavedToast(null), 2500);
+    } catch (err) {
+      Alert.alert("Error", err instanceof Error ? err.message : "Could not update lead.");
+    }
   }
 
   const refreshAll = useCallback(
@@ -422,7 +415,6 @@ export function TodayScreen({ route, navigation }: Props) {
               phone={item.phone}
               leadName={`${item.firstName} ${item.lastName}`}
               onCallPress={async () => handleCall(item)}
-              onLogPress={() => setLogTarget(item)}
             />
           </View>
         )}
@@ -465,27 +457,19 @@ export function TodayScreen({ route, navigation }: Props) {
         }
       />
 
-      <CallLogModal
-        visible={dialerLog.isReviewOpen}
-        phoneNumber={dialerLog.review?.phoneNumber}
-        reviewOnly
-        onClose={dialerLog.dismissReview}
-        onSubmit={() => {}}
+      <UpdateLeadStatusSheet
+        visible={dialerLog.isPendingLog}
+        currentStatus={statusLead?.leadStatus ?? null}
+        defaultAssigneeId={getCurrentUserId()}
+        assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
+        isSaving={logCall.isPending || updateLead.isPending}
+        onClose={dialerLog.dismissPending}
+        onSave={(payload) => void handleStatusSave(payload)}
       />
 
-      <CallLogModal
-        visible={Boolean(logTarget) && !dialerLog.isReviewOpen}
-        phoneNumber={logTarget?.phone ?? undefined}
-        defaultDurationSeconds={defaultLogDuration}
-        onClose={() => setLogTarget(null)}
-        onSubmit={handleLogSubmit}
-        isSubmitting={logCall.isPending}
-        showSaveAndNext={hasNextInQueue}
-      />
-
-      {callLoggedToast ? (
+      {savedToast ? (
         <View style={[styles.callLoggedToast, { bottom: 24 + insets.bottom }]}>
-          <Text style={styles.callLoggedToastText}>{callLoggedToast}</Text>
+          <Text style={styles.callLoggedToastText}>{savedToast}</Text>
         </View>
       ) : null}
     </View>

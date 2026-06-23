@@ -44,11 +44,23 @@ export function getApiUrl() {
   return getApiBaseUrl();
 }
 
-export async function apiFetch<T>(
-  path: string,
-  init?: RequestInit & ApiRequestOptions,
-): Promise<T> {
-  const { skipSessionLogout, ...requestInit } = init ?? {};
+const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
+const RETRY_DELAY_MS = 600;
+
+function isTransientFailure(error: unknown): boolean {
+  if (!(error instanceof ApiRequestError)) return false;
+  if (error.code === "NETWORK_ERROR" || error.code === "INVALID_RESPONSE") return true;
+  return error.status !== undefined && TRANSIENT_HTTP_STATUSES.has(error.status);
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptions): Promise<T> {
+  const { skipSessionLogout, ...requestInit } = init;
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -78,6 +90,8 @@ export async function apiFetch<T>(
       response.ok
         ? "Unexpected server response."
         : `Server error (${response.status}). Try again later.`,
+      undefined,
+      response.status,
     );
   }
 
@@ -104,6 +118,22 @@ export async function apiFetch<T>(
   }
 
   return json.data;
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit & ApiRequestOptions,
+): Promise<T> {
+  const options = init ?? {};
+  try {
+    return await apiFetchOnce<T>(path, options);
+  } catch (error) {
+    if (!isTransientFailure(error)) {
+      throw error;
+    }
+    await sleep(RETRY_DELAY_MS);
+    return apiFetchOnce<T>(path, options);
+  }
 }
 
 export function apiGet<T>(path: string, options?: ApiRequestOptions) {
