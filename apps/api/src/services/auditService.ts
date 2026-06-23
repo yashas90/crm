@@ -1,5 +1,5 @@
 import { auditLogs, users } from "@propninja/db";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lt, lte } from "drizzle-orm";
 import type { Context } from "hono";
 import { getClientIp } from "../lib/clientIp.js";
 import type { Database } from "../lib/db.js";
@@ -76,6 +76,9 @@ export function createAuditService(db: Database) {
       if (query.dateTo) {
         filters.push(lte(auditLogs.createdAt, new Date(query.dateTo)));
       }
+      if (query.cursor) {
+        filters.push(lt(auditLogs.createdAt, new Date(query.cursor)));
+      }
 
       const rows = await db
         .select({
@@ -95,7 +98,7 @@ export function createAuditService(db: Database) {
         .orderBy(desc(auditLogs.createdAt))
         .limit(query.limit);
 
-      return rows.map((row) => ({
+      const items = rows.map((row) => ({
         id: row.id,
         userId: row.userId,
         userName: row.userName,
@@ -106,6 +109,10 @@ export function createAuditService(db: Database) {
         metadata: row.metadata ?? {},
         createdAt: row.createdAt.toISOString(),
       }));
+
+      const nextCursor = items.length === query.limit ? items[items.length - 1]!.createdAt : null;
+
+      return { items, nextCursor };
     },
   };
 }

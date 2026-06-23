@@ -22,7 +22,7 @@ auditLogsRoutes.get("/", validate("query", listAuditLogsQuerySchema), async (c) 
 
   const query = c.req.valid("query");
   const service = createAuditService(c.get("db"));
-  const items = await service.list(query);
+  const result = await service.list(query);
 
-  return jsonOk(c, { items });
+  return jsonOk(c, result);
 });

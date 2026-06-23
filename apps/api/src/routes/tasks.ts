@@ -116,16 +116,20 @@ tasksRoutes.post("/bulk", writeRateLimit, validate("json", bulkActionSchema), as
     result = await taskService.bulkComplete(body.taskIds);
   } else if (body.action === "reassign") {
     result = await taskService.bulkReassign(body.taskIds, body.assignedTo!);
-    const notifications = createNotificationService(c.get("db"));
-    for (const taskId of result.succeeded) {
-      const task = await taskService.getById(taskId);
-      if (task?.assignedTo && task.assignedTo !== authUser.id) {
-        await notifications.createNotification(task.assignedTo, NOTIFICATION_TYPES.TASK_ASSIGNED, {
-          taskId: task.id,
-          taskTitle: task.title,
-          leadId: task.leadId ?? undefined,
-        });
-      }
+    if (result.succeeded.length > 0) {
+      const notifications = createNotificationService(c.get("db"));
+      const reassignedTasks = await taskService.getByIds(result.succeeded);
+      await Promise.all(
+        reassignedTasks
+          .filter((task) => task.assignedTo && task.assignedTo !== authUser.id)
+          .map((task) =>
+            notifications.createNotification(task.assignedTo!, NOTIFICATION_TYPES.TASK_ASSIGNED, {
+              taskId: task.id,
+              taskTitle: task.title,
+              leadId: task.leadId ?? undefined,
+            }),
+          ),
+      );
     }
   } else {
     result = await taskService.bulkDelete(body.taskIds);
@@ -137,6 +141,11 @@ tasksRoutes.post("/bulk", writeRateLimit, validate("json", bulkActionSchema), as
 tasksRoutes.post("/", writeRateLimit, validate("json", createTaskSchema), async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const body = c.req.valid("json");
+
+  if (body.assignedTo && body.assignedTo !== authUser.id && authUser.role === "agent") {
+    return jsonError(c, "FORBIDDEN", "Agents can only assign tasks to themselves", 403);
+  }
+
   const assigneeId = body.assignedTo ?? authUser.id;
 
   const task = await taskService.create({
@@ -158,9 +167,13 @@ tasksRoutes.post("/", writeRateLimit, validate("json", createTaskSchema), async 
 });
 
 tasksRoutes.get("/:id", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id")!;
   const task = await taskService.getById(id);
   if (!task) return jsonError(c, "NOT_FOUND", "Task not found", 404);
+  if (authUser.role === "agent" && task.assignedTo !== authUser.id) {
+    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  }
   return jsonOk(c, task);
 });
 
@@ -171,6 +184,12 @@ tasksRoutes.patch("/:id", writeRateLimit, validate("json", updateTaskSchema), as
 
   const existing = await taskService.getById(id);
   if (!existing) return jsonError(c, "NOT_FOUND", "Task not found", 404);
+  if (authUser.role === "agent" && existing.assignedTo !== authUser.id) {
+    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  }
+  if (body.assignedTo && body.assignedTo !== authUser.id && authUser.role === "agent") {
+    return jsonError(c, "FORBIDDEN", "Agents can only assign tasks to themselves", 403);
+  }
 
   const task = await taskService.update(id, body);
   if (!task) return jsonError(c, "NOT_FOUND", "Task not found", 404);

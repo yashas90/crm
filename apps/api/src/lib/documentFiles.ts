@@ -75,5 +75,3 @@ export function buildDocumentFileKey(projectId: string | null, originalName: str
   const safeFilename = buildSafeFilename(originalName);
   return `documents/${folder}/${safeFilename}`;
 }
-
-// TODO: add ClamAV virus scan before persisting uploads to R2.

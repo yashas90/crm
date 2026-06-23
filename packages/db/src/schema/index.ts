@@ -256,6 +256,7 @@ export const leadActivities = pgTable(
       sql`${table.type} in ('call', 'note', 'status_change', 'meeting', 'task', 'follow_up')`,
     ),
     index("lead_activities_lead_id_created_at_idx").on(table.leadId, table.createdAt.desc()),
+    index("lead_activities_org_id_idx").on(table.orgId),
   ],
 );
 
@@ -317,15 +318,21 @@ export const auditLogs = pgTable(
   ],
 );
 
-export const integrationSyncState = pgTable("integration_sync_state", {
-  integration: text("integration").primaryKey(),
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => organizations.id),
-  lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
-  lastError: text("last_error"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const integrationSyncState = pgTable(
+  "integration_sync_state",
+  {
+    integration: text("integration").primaryKey(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("integration_sync_state_integration_org_id_idx").on(table.integration, table.orgId),
+  ],
+);
 
 export const tcfConsents = pgTable(
   "tcf_consents",
@@ -343,6 +350,7 @@ export const tcfConsents = pgTable(
   },
   (table) => [
     check("tcf_consents_consent_type_check", sql`${table.consentType} in ('call', 'sms', 'email')`),
+    index("tcf_consents_lead_id_idx").on(table.leadId),
   ],
 );
 
@@ -456,6 +464,7 @@ export const tasks = pgTable(
     index("tasks_assigned_to_idx").on(table.assignedTo),
     index("tasks_due_at_idx").on(table.dueAt),
     index("tasks_status_idx").on(table.status),
+    index("tasks_org_status_due_at_idx").on(table.orgId, table.status, table.dueAt),
   ],
 );
 
@@ -885,6 +894,7 @@ export const whatsappMessages = pgTable(
   (table) => [
     index("whatsapp_messages_lead_id_idx").on(table.leadId),
     index("whatsapp_messages_wa_message_id_idx").on(table.waMessageId),
+    index("whatsapp_messages_org_id_idx").on(table.orgId),
   ],
 );
 

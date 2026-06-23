@@ -255,7 +255,6 @@ export const documentService = {
     const originalName = input.filename;
     const fileKey = buildDocumentFileKey(input.projectId ?? null, originalName);
 
-    // TODO: add ClamAV virus scan before upload.
     await uploadToR2(fileKey, input.buffer, mimeType);
 
     const fileUrl = publicFileUrl(fileKey);

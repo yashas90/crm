@@ -1160,7 +1160,18 @@ export const leadService = {
 
     const rows = await db
       .select({
-        lead: leads,
+        id: leads.id,
+        firstName: leads.firstName,
+        lastName: leads.lastName,
+        phone: leads.phone,
+        email: leads.email,
+        leadStatus: leads.leadStatus,
+        temperature: leads.temperature,
+        assignedTo: leads.assignedTo,
+        nextFollowupAt: leads.nextFollowupAt,
+        lastContactedAt: leads.lastContactedAt,
+        createdAt: leads.createdAt,
+        followUpCount: leads.followUpCount,
         userName: users.name,
         userId: users.id,
         userEmail: users.email,
@@ -1171,12 +1182,24 @@ export const leadService = {
       .orderBy(asc(leads.nextFollowupAt))
       .limit(100);
 
-    return rows.map(({ lead, userName, userId, userEmail }) => ({
-      ...lead,
-      assignedUser: userId ? { id: userId, name: userName ?? "", email: userEmail ?? "" } : null,
-      daysOverdue: daysOverdue(lead.nextFollowupAt!.toISOString(), now),
-      daysSinceContact: daysSinceContact(lead.lastContactedAt, lead.createdAt, now),
-      followUpCount: lead.followUpCount ?? 0,
+    return rows.map((row) => ({
+      id: row.id,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      phone: row.phone,
+      email: row.email,
+      leadStatus: row.leadStatus,
+      temperature: row.temperature,
+      assignedTo: row.assignedTo,
+      nextFollowupAt: row.nextFollowupAt,
+      lastContactedAt: row.lastContactedAt,
+      createdAt: row.createdAt,
+      assignedUser: row.userId
+        ? { id: row.userId, name: row.userName ?? "", email: row.userEmail ?? "" }
+        : null,
+      daysOverdue: daysOverdue(row.nextFollowupAt!.toISOString(), now),
+      daysSinceContact: daysSinceContact(row.lastContactedAt, row.createdAt, now),
+      followUpCount: row.followUpCount ?? 0,
     }));
   },
 
@@ -1195,7 +1218,18 @@ export const leadService = {
     const now = new Date();
     const rows = await db
       .select({
-        lead: leads,
+        id: leads.id,
+        firstName: leads.firstName,
+        lastName: leads.lastName,
+        phone: leads.phone,
+        email: leads.email,
+        leadStatus: leads.leadStatus,
+        temperature: leads.temperature,
+        assignedTo: leads.assignedTo,
+        nextFollowupAt: leads.nextFollowupAt,
+        lastContactedAt: leads.lastContactedAt,
+        createdAt: leads.createdAt,
+        followUpCount: leads.followUpCount,
         userName: users.name,
         userId: users.id,
         userEmail: users.email,
@@ -1206,12 +1240,24 @@ export const leadService = {
       .orderBy(asc(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`))
       .limit(100);
 
-    return rows.map(({ lead, userName, userId, userEmail }) => ({
-      ...lead,
-      assignedUser: userId ? { id: userId, name: userName ?? "", email: userEmail ?? "" } : null,
-      daysSinceContact: daysSinceContact(lead.lastContactedAt, lead.createdAt, now),
-      daysOverdue: lead.nextFollowupAt ? daysOverdue(lead.nextFollowupAt.toISOString(), now) : 0,
-      followUpCount: lead.followUpCount ?? 0,
+    return rows.map((row) => ({
+      id: row.id,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      phone: row.phone,
+      email: row.email,
+      leadStatus: row.leadStatus,
+      temperature: row.temperature,
+      assignedTo: row.assignedTo,
+      nextFollowupAt: row.nextFollowupAt,
+      lastContactedAt: row.lastContactedAt,
+      createdAt: row.createdAt,
+      assignedUser: row.userId
+        ? { id: row.userId, name: row.userName ?? "", email: row.userEmail ?? "" }
+        : null,
+      daysSinceContact: daysSinceContact(row.lastContactedAt, row.createdAt, now),
+      daysOverdue: row.nextFollowupAt ? daysOverdue(row.nextFollowupAt.toISOString(), now) : 0,
+      followUpCount: row.followUpCount ?? 0,
     }));
   },
 

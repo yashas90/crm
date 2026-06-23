@@ -127,6 +127,17 @@ export const taskService = {
     return row ? mapTaskRow(row) : null;
   },
 
+  async getByIds(ids: string[]) {
+    if (ids.length === 0) return [];
+    const rows = await db
+      .select(taskSelectFields)
+      .from(tasks)
+      .leftJoin(users, eq(tasks.assignedTo, users.id))
+      .leftJoin(leads, eq(tasks.leadId, leads.id))
+      .where(and(inArray(tasks.id, ids), eq(tasks.orgId, SINGLE_TENANT_ORG_ID)));
+    return rows.map(mapTaskRow);
+  },
+
   async list(params: ListTasksParams = {}) {
     const { page = 1, pageSize = 50 } = params;
     const offset = (page - 1) * pageSize;
