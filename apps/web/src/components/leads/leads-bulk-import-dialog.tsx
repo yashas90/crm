@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentMultiSelect } from "@/components/leads/agent-multi-select";
 import {
   Dialog,
   DialogContent,
@@ -25,13 +26,11 @@ import {
   downloadLeadsCsvTemplate,
   parseLeadsCsv,
 } from "@/lib/parse-leads-csv";
+import { roundRobinDistributionLabel } from "@/lib/round-robin";
 import { Button } from "@propninja/ui/button";
 import { Label } from "@propninja/ui/label";
 import { AlertCircle, Download, FileUp, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-const selectClass =
-  "flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 type LeadsBulkImportDialogProps = {
   open: boolean;
@@ -49,7 +48,7 @@ export function LeadsBulkImportDialog({
   const [rows, setRows] = useState<BulkLeadImportRow[]>([]);
   const [parseErrors, setParseErrors] = useState<{ row: number; message: string }[]>([]);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
-  const [assignToUserId, setAssignToUserId] = useState<string>("");
+  const [assignToUserIds, setAssignToUserIds] = useState<string[]>([]);
 
   const { hasPermission, canAssignLead } = usePermissions();
   const { session } = useSession();
@@ -59,7 +58,7 @@ export function LeadsBulkImportDialog({
 
   useEffect(() => {
     if (open && session?.id) {
-      setAssignToUserId(session.id);
+      setAssignToUserIds([session.id]);
     }
   }, [open, session?.id]);
 
@@ -68,7 +67,7 @@ export function LeadsBulkImportDialog({
     setRows([]);
     setParseErrors([]);
     setSkipDuplicates(true);
-    setAssignToUserId(session?.id ?? "");
+    setAssignToUserIds(session?.id ? [session.id] : []);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -88,12 +87,12 @@ export function LeadsBulkImportDialog({
   }
 
   async function handleImport() {
-    if (rows.length === 0) return;
+    if (rows.length === 0 || assignToUserIds.length === 0) return;
 
     const result = await bulkImport.mutateAsync({
       leads: rows,
       skipDuplicates,
-      assignToUserId: assignToUserId || session?.id,
+      assignToUserIds,
     });
 
     if (result.createdCount > 0 || (result.updatedCount ?? 0) > 0) {
@@ -103,6 +102,10 @@ export function LeadsBulkImportDialog({
   }
 
   const previewRows = rows.slice(0, 5);
+  const assignHint =
+    rows.length > 0 && assignToUserIds.length > 1
+      ? roundRobinDistributionLabel(assignToUserIds, rows.length)
+      : "Leads are assigned on import so they appear under My Leads and in the mobile app";
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -122,6 +125,24 @@ export function LeadsBulkImportDialog({
           </p>
         ) : (
           <div className="space-y-4">
+            {canAssignLead ? (
+              <AgentMultiSelect
+                id="bulk-import-assignees"
+                label="Assign imported leads to"
+                users={users ?? []}
+                selectedIds={assignToUserIds}
+                onChange={setAssignToUserIds}
+                hint={assignHint}
+              />
+            ) : (
+              <div className="rounded-xl border border-input bg-muted/30 p-3">
+                <p className="text-sm font-medium">Assign imported leads to</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {session?.name ?? "Your account"} (you)
+                </p>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" onClick={downloadLeadsCsvTemplate}>
                 <Download className="mr-2 h-4 w-4" />
@@ -151,28 +172,6 @@ export function LeadsBulkImportDialog({
                 {fileName} — {rows.length} valid row{rows.length === 1 ? "" : "s"}
                 {parseErrors.length > 0 ? `, ${parseErrors.length} row issue(s)` : ""}
               </p>
-            ) : null}
-
-            {canAssignLead ? (
-              <div className="space-y-2">
-                <Label htmlFor="assign-to">Assign imported leads to</Label>
-                <select
-                  id="assign-to"
-                  className={selectClass}
-                  value={assignToUserId}
-                  onChange={(event) => setAssignToUserId(event.target.value)}
-                >
-                  {(users ?? []).map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name}
-                      {user.id === session?.id ? " (you)" : ""}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  Leads are assigned on import so they appear under My Leads and in the mobile app.
-                </p>
-              </div>
             ) : null}
 
             <div className="flex items-center gap-2">
@@ -246,7 +245,7 @@ export function LeadsBulkImportDialog({
           {canImport ? (
             <Button
               onClick={() => void handleImport()}
-              disabled={rows.length === 0 || bulkImport.isPending}
+              disabled={rows.length === 0 || assignToUserIds.length === 0 || bulkImport.isPending}
             >
               {bulkImport.isPending
                 ? "Importing…"

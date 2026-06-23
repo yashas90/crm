@@ -18,8 +18,8 @@ import {
 } from "@/hooks/use-leads";
 import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
 import { formatVisitTime, useLeadSiteVisits } from "@/hooks/use-site-visits";
+import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
-import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import {
   getCallConsent,
   getChannelConsent,
@@ -75,10 +75,10 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const updateFollowUp = useUpdateLeadFollowUp(leadId);
   const { data: visitsData, refetch: refetchVisits } = useLeadSiteVisits(leadId);
   const addNote = useAddLeadNote(leadId);
-  const [logModalVisible, setLogModalVisible] = useState(false);
+  const [manualLogOpen, setManualLogOpen] = useState(false);
   const [scheduleVisitVisible, setScheduleVisitVisible] = useState(false);
   const [followUpAt, setFollowUpAt] = useState<string | null>(null);
-  const [defaultLogDuration, setDefaultLogDuration] = useState(60);
+  const defaultLogDuration = 60;
   const [callLoggedToast, setCallLoggedToast] = useState<string | null>(null);
   const [editVisible, setEditVisible] = useState(false);
   const [whatsappSheetVisible, setWhatsappSheetVisible] = useState(false);
@@ -90,12 +90,18 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const sessionUser = getUser();
   const insets = useSafeAreaInsets();
 
-  const handleReturnFromDialer = useCallback((elapsedSeconds: number) => {
-    setDefaultLogDuration(elapsedSeconds);
-    setLogModalVisible(true);
-  }, []);
-
-  const { beginCall } = useReturnFromDialerLog(handleReturnFromDialer);
+  const dialerLog = useAutoDialerCallLog({
+    logCall: (payload) => logCall.mutateAsync(payload),
+    onLogged: async () => {
+      await refetchCalls();
+      void feedbackCallSaved();
+      setCallLoggedToast(callLogSuccessMessage("answered"));
+      setTimeout(() => setCallLoggedToast(null), 2500);
+    },
+    onLogError: (err) => {
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to log call.");
+    },
+  });
 
   useRefreshOnFocus(() => Promise.all([refetch(), refetchCalls(), refetchTcf()]));
 
@@ -126,9 +132,15 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   }
 
   async function startDial(phone: string) {
-    // Native SIM dialer (tel:) — same API on iOS and Android.
+    if (!lead) return;
     const opened = await dialPhoneNumber(phone);
-    if (opened) beginCall();
+    if (opened) {
+      dialerLog.beginCall({
+        leadId: lead.id,
+        leadName: `${lead.firstName} ${lead.lastName}`,
+        phoneNumber: phone,
+      });
+    }
   }
 
   async function dialWithConsentCheck(phone: string) {
@@ -165,7 +177,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         onSuccess: async () => {
           await refetchCalls();
           void feedbackCallSaved();
-          setLogModalVisible(false);
+          setManualLogOpen(false);
           setCallLoggedToast(callLogSuccessMessage(payload.outcome));
           setTimeout(() => setCallLoggedToast(null), 2500);
         },
@@ -304,7 +316,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             await dialWithConsentCheck(lead.phone);
           }}
           onWhatsAppPress={() => setWhatsappSheetVisible(true)}
-          onLogPress={() => setLogModalVisible(true)}
+          onLogPress={() => setManualLogOpen(true)}
         />
         <Text style={styles.callHint}>
           Call opens your SIM dialer. When you return to the app, the call log sheet opens
@@ -495,10 +507,18 @@ export function LeadDetailScreen({ route, navigation }: Props) {
       </ScrollView>
 
       <CallLogModal
-        visible={logModalVisible}
+        visible={dialerLog.isReviewOpen}
+        phoneNumber={dialerLog.review?.phoneNumber ?? lead.phone ?? undefined}
+        reviewOnly
+        onClose={dialerLog.dismissReview}
+        onSubmit={() => {}}
+      />
+
+      <CallLogModal
+        visible={manualLogOpen && !dialerLog.isReviewOpen}
         phoneNumber={lead.phone ?? undefined}
         defaultDurationSeconds={defaultLogDuration}
-        onClose={() => setLogModalVisible(false)}
+        onClose={() => setManualLogOpen(false)}
         onSubmit={submitLog}
         isSubmitting={logCall.isPending}
       />

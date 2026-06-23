@@ -130,6 +130,7 @@ export const bulkImportLeadsBodySchema = z.object({
   leads: z.array(z.record(z.string(), z.unknown())).min(1).max(500),
   skipDuplicates: z.boolean().optional().default(true),
   assignToUserId: z.string().uuid().optional(),
+  assignToUserIds: z.array(z.string().uuid()).min(1).max(50).optional(),
 });
 
 export type CreateLeadBody = z.infer<typeof createLeadBodySchema>;

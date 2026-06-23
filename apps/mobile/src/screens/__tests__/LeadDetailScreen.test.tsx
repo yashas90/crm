@@ -1,6 +1,6 @@
 import { useCalls, useLogCall } from "@/hooks/use-calls";
 import { useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
-import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
+import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useTcfForLead, useUpsertTcfConsent } from "@/hooks/useTcf";
 import { LeadDetailScreen } from "@/screens/LeadDetailScreen";
 import { render, screen } from "@testing-library/react-native";
@@ -15,7 +15,7 @@ jest.mock("@/hooks/useTcf", () => {
   };
 });
 jest.mock("@/hooks/use-calls");
-jest.mock("@/hooks/useReturnFromDialerLog");
+jest.mock("@/hooks/useAutoDialerCallLog");
 jest.mock("@/lib/feedback", () => ({
   feedbackCallSaved: jest.fn(),
 }));
@@ -51,19 +51,25 @@ const mockUseCalls = useCalls as jest.MockedFunction<typeof useCalls>;
 const mockUseLogCall = useLogCall as jest.MockedFunction<typeof useLogCall>;
 const mockUseUpdateLead = useUpdateLead as jest.MockedFunction<typeof useUpdateLead>;
 const mockUseAddLeadNote = useAddLeadNote as jest.MockedFunction<typeof useAddLeadNote>;
-const mockUseReturnFromDialerLog = useReturnFromDialerLog as jest.MockedFunction<
-  typeof useReturnFromDialerLog
+const mockUseAutoDialerCallLog = useAutoDialerCallLog as jest.MockedFunction<
+  typeof useAutoDialerCallLog
 >;
 
 const leadId = "11111111-1111-4111-8111-111111111111";
 
 describe("LeadDetailScreen consent section", () => {
   beforeEach(() => {
-    mockUseReturnFromDialerLog.mockReturnValue({
+    mockUseAutoDialerCallLog.mockReturnValue({
       beginCall: jest.fn(),
-      resetCallTracking: jest.fn(),
+      review: null,
+      dismissReview: jest.fn(),
+      isReviewOpen: false,
     });
-    mockUseLogCall.mockReturnValue({ mutate: jest.fn(), isPending: false } as never);
+    mockUseLogCall.mockReturnValue({
+      mutate: jest.fn(),
+      mutateAsync: jest.fn(),
+      isPending: false,
+    } as never);
     mockUseUpdateLead.mockReturnValue({ mutate: jest.fn(), isPending: false } as never);
     mockUseAddLeadNote.mockReturnValue({ mutate: jest.fn(), isPending: false } as never);
     mockUseUpsertTcfConsent.mockReturnValue({

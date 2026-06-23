@@ -278,19 +278,22 @@ leadsRoute.post(
     }
 
     const body = c.req.valid("json");
-    let assignedTo = authUser.id;
+    const requestedAssignees =
+      body.assignToUserIds?.length > 0
+        ? body.assignToUserIds
+        : body.assignToUserId
+          ? [body.assignToUserId]
+          : [authUser.id];
 
-    if (body.assignToUserId && body.assignToUserId !== authUser.id) {
-      if (!canAssignLead(authUser)) {
-        return c.json(forbiddenResponse(), 403);
-      }
-      assignedTo = body.assignToUserId;
+    const assignsToOthers = requestedAssignees.some((id) => id !== authUser.id);
+    if (assignsToOthers && !canAssignLead(authUser)) {
+      return c.json(forbiddenResponse(), 403);
     }
 
     const result = await leadService.bulkCreateLeads({
       rows: body.leads,
       skipDuplicates: body.skipDuplicates,
-      assignedTo,
+      assignedToAgents: requestedAssignees,
       actingUserId: authUser.id,
     });
 

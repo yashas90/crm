@@ -499,7 +499,7 @@ export const leadService = {
   async bulkCreateLeads(input: {
     rows: Record<string, unknown>[];
     skipDuplicates: boolean;
-    assignedTo?: string;
+    assignedToAgents: string[];
     actingUserId: string;
   }) {
     const created: { row: number; id: string; phone: string }[] = [];
@@ -523,13 +523,15 @@ export const leadService = {
       const storedPhone = normalizeStoredPhone(parsed.data.phone);
       const existing = await findLeadByPhone(storedPhone);
 
+      const assignedTo = input.assignedToAgents[index % input.assignedToAgents.length]!;
+
       if (existing) {
         if (input.skipDuplicates) {
           const merged = await this.mergeImportRow({
             leadId: existing.id,
             data: parsed.data,
             storedPhone,
-            assignedTo: input.assignedTo,
+            assignedTo,
             actingUserId: input.actingUserId,
           });
 
@@ -549,7 +551,7 @@ export const leadService = {
       }
 
       try {
-        const lead = await this.createLead(parsed.data, { assignedTo: input.assignedTo });
+        const lead = await this.createLead(parsed.data, { assignedTo });
         created.push({ row: rowNumber, id: lead.id, phone: lead.phone ?? "" });
       } catch (err) {
         failed.push({

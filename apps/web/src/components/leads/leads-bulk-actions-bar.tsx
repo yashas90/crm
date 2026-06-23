@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentMultiSelect } from "@/components/leads/agent-multi-select";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { useBulkLeadActions } from "@/hooks/use-bulk-leads";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useSession } from "@/hooks/use-session";
 import { useUsers } from "@/hooks/use-users";
+import { roundRobinDistributionLabel } from "@/lib/round-robin";
 import { LEAD_STATUSES, type LeadStatus } from "@propninja/types/enums";
 import { Button } from "@propninja/ui/button";
 import { Label } from "@propninja/ui/label";
@@ -46,6 +49,7 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
     ref,
   ) {
     const { canAssignLead, canDeleteLead } = usePermissions();
+    const { session } = useSession();
     const { data: users } = useUsers();
     const bulk = useBulkLeadActions();
 
@@ -53,7 +57,7 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
     const [assignOpen, setAssignOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [status, setStatus] = useState<LeadStatus>("contacted");
-    const [assignUserId, setAssignUserId] = useState("");
+    const [assignUserIds, setAssignUserIds] = useState<string[]>([]);
 
     const selectedCount = selectedIds.length;
     const hasSelection = selectedCount > 0;
@@ -62,11 +66,14 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
       if (!pendingAction || !hasSelection) return;
 
       if (pendingAction === "status") setStatusOpen(true);
-      if (pendingAction === "assign") setAssignOpen(true);
+      if (pendingAction === "assign") {
+        setAssignUserIds(session?.id ? [session.id] : []);
+        setAssignOpen(true);
+      }
       if (pendingAction === "delete") setDeleteOpen(true);
 
       onPendingActionHandled?.();
-    }, [pendingAction, hasSelection, onPendingActionHandled]);
+    }, [pendingAction, hasSelection, onPendingActionHandled, session?.id]);
 
     async function handleStatusSubmit() {
       const result = await bulk.updateStatus.mutateAsync({
@@ -81,13 +88,13 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
     }
 
     async function handleAssignSubmit() {
-      if (!assignUserId) return;
+      if (assignUserIds.length === 0) return;
       const result = await bulk.assign.mutateAsync({
         leadIds: selectedIds,
-        userId: assignUserId,
+        userIds: assignUserIds,
       });
       setAssignOpen(false);
-      setAssignUserId("");
+      setAssignUserIds([]);
       if (result.succeeded.length > 0) {
         onClearSelection();
       }
@@ -151,7 +158,10 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
                     variant="outline"
                     size="sm"
                     disabled={bulk.isBusy}
-                    onClick={() => setAssignOpen(true)}
+                    onClick={() => {
+                      setAssignUserIds(session?.id ? [session.id] : []);
+                      setAssignOpen(true);
+                    }}
                   >
                     Assign To
                   </Button>
@@ -225,32 +235,25 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
             <DialogHeader>
               <DialogTitle>Assign leads</DialogTitle>
               <DialogDescription>
-                Assign {selectedCount} selected lead{selectedCount === 1 ? "" : "s"} to an agent.
+                Assign {selectedCount} selected lead{selectedCount === 1 ? "" : "s"} to one or more
+                agents. Multiple agents split leads evenly (round-robin).
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-2">
-              <Label htmlFor="bulk-assignee">Agent</Label>
-              <select
-                id="bulk-assignee"
-                className={selectClass}
-                value={assignUserId}
-                onChange={(event) => setAssignUserId(event.target.value)}
-              >
-                <option value="">Select agent</option>
-                {users?.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <AgentMultiSelect
+              id="bulk-assign-agents"
+              label="Agents"
+              users={users ?? []}
+              selectedIds={assignUserIds}
+              onChange={setAssignUserIds}
+              hint={roundRobinDistributionLabel(assignUserIds, selectedCount)}
+            />
             <DialogFooter>
               <Button variant="outline" onClick={() => setAssignOpen(false)}>
                 Cancel
               </Button>
               <Button
                 onClick={() => void handleAssignSubmit()}
-                disabled={!assignUserId || bulk.assign.isPending}
+                disabled={assignUserIds.length === 0 || bulk.assign.isPending}
               >
                 {bulk.assign.isPending ? "Assigning..." : "Assign"}
               </Button>

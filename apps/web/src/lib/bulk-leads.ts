@@ -1,6 +1,7 @@
 import { apiDelete, apiPatch, apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import type { BulkLeadImportRow } from "@/lib/parse-leads-csv";
+import { agentForRoundRobinIndex } from "@/lib/round-robin";
 import { toast } from "@/lib/toast";
 import type { LeadStatus } from "@propninja/types/enums";
 
@@ -9,17 +10,18 @@ export type BulkLeadResult = {
   failed: { id: string; message: string }[];
 };
 
-async function runBulk(
-  leadIds: string[],
-  action: (leadId: string) => Promise<void>,
+async function runBulk<T>(
+  items: T[],
+  action: (item: T, index: number) => Promise<void>,
   errorLabel: string,
 ): Promise<BulkLeadResult> {
   const succeeded: string[] = [];
   const failed: BulkLeadResult["failed"] = [];
 
-  for (const id of leadIds) {
+  for (let index = 0; index < items.length; index++) {
+    const id = items[index] as string;
     try {
-      await action(id);
+      await action(items[index]!, index);
       succeeded.push(id);
     } catch (error) {
       const message = getErrorMessage(error, errorLabel);
@@ -39,10 +41,13 @@ export function bulkUpdateLeadStatus(leadIds: string[], leadStatus: LeadStatus) 
   );
 }
 
-export function bulkAssignLeads(leadIds: string[], userId: string) {
+export function bulkAssignLeads(leadIds: string[], userIds: string[]) {
   return runBulk(
     leadIds,
-    (id) => apiPost(`/api/leads/${id}/assign`, { user_id: userId }),
+    (id, index) => {
+      const userId = agentForRoundRobinIndex(userIds, index);
+      return apiPost(`/api/leads/${id}/assign`, { user_id: userId });
+    },
     "Assign failed",
   );
 }
@@ -66,6 +71,7 @@ export function bulkImportLeads(input: {
   leads: BulkLeadImportRow[];
   skipDuplicates?: boolean;
   assignToUserId?: string;
+  assignToUserIds?: string[];
 }) {
   return apiPost<BulkImportLeadsResult>("/api/leads/bulk-import", input);
 }

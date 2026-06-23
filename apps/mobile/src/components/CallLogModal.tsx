@@ -25,6 +25,7 @@ type CallLogModalProps = {
   defaultDurationSeconds?: number;
   isSubmitting?: boolean;
   showSaveAndNext?: boolean;
+  reviewOnly?: boolean;
 };
 
 export function CallLogModal({
@@ -35,6 +36,7 @@ export function CallLogModal({
   defaultDurationSeconds = 60,
   isSubmitting = false,
   showSaveAndNext = false,
+  reviewOnly = false,
 }: CallLogModalProps) {
   const [outcome, setOutcome] = useState<CallOutcome>("answered");
   const [durationSeconds, setDurationSeconds] = useState(String(defaultDurationSeconds));
@@ -76,10 +78,24 @@ export function CallLogModal({
           <View style={styles.sheet}>
             <ScrollView contentContainerStyle={styles.content}>
               <Text style={styles.title} testID="call-log-modal-title">
-                Log call outcome
+                {reviewOnly ? "Call logged" : "Log call outcome"}
               </Text>
               {phoneNumber ? <Text style={styles.subtitle}>{phoneNumber}</Text> : null}
 
+              {reviewOnly ? (
+                <>
+                  <Text style={styles.reviewBody}>
+                    This call was saved automatically and will appear in your reports. Tap Done to
+                    continue.
+                  </Text>
+                  <View style={styles.actions}>
+                    <Pressable style={styles.primaryButton} onPress={onClose}>
+                      <Text style={styles.primaryButtonText}>Done</Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
               <Text style={styles.label}>Outcome</Text>
               <Pressable style={styles.dropdown} onPress={() => setDropdownOpen((open) => !open)}>
                 <Text style={styles.dropdownText}>{CALL_OUTCOME_LABELS[outcome]}</Text>
@@ -187,6 +203,8 @@ export function CallLogModal({
                   </Text>
                 </Pressable>
               ) : null}
+                </>
+              )}
             </ScrollView>
           </View>
         </SafeAreaView>
@@ -216,6 +234,7 @@ const styles = StyleSheet.create({
   content: { padding: 20, gap: 10 },
   title: { color: colors.text, fontSize: 20, fontWeight: "800", textTransform: "uppercase" },
   subtitle: { color: colors.textMuted, marginBottom: 4 },
+  reviewBody: { color: colors.textMuted, fontSize: 15, lineHeight: 22, marginTop: 8 },
   label: {
     color: colors.text,
     fontSize: 11,

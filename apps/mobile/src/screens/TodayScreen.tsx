@@ -11,8 +11,8 @@ import {
   useTodaySiteVisits,
   useUpdateSiteVisit,
 } from "@/hooks/use-site-visits";
+import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
-import { useReturnFromDialerLog } from "@/hooks/useReturnFromDialerLog";
 import { callLogSuccessMessage } from "@/lib/call-log-feedback";
 import { formatDuration } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
@@ -23,7 +23,7 @@ import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { neuCard, neuSticky } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -209,22 +209,24 @@ export function TodayScreen({ route, navigation }: Props) {
   const queueItems = queue.data?.items ?? [];
   const recentCalls = (calls.data?.items ?? []).slice(0, 3);
   const [logTarget, setLogTarget] = useState<LeadRow | null>(null);
-  const pendingLogLeadRef = useRef<LeadRow | null>(null);
   const insets = useSafeAreaInsets();
   const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
 
-  const [defaultLogDuration, setDefaultLogDuration] = useState(60);
+  const defaultLogDuration = 60;
   const [callLoggedToast, setCallLoggedToast] = useState<string | null>(null);
 
-  const openLogForReturn = useCallback((elapsedSeconds: number) => {
-    setDefaultLogDuration(elapsedSeconds);
-    if (pendingLogLeadRef.current) {
-      setLogTarget(pendingLogLeadRef.current);
-      pendingLogLeadRef.current = null;
-    }
-  }, []);
-
-  const { beginCall } = useReturnFromDialerLog(openLogForReturn);
+  const dialerLog = useAutoDialerCallLog({
+    logCall: (payload) => logCall.mutateAsync(payload),
+    onLogged: async () => {
+      await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
+      void feedbackCallSaved();
+      setCallLoggedToast(callLogSuccessMessage("answered"));
+      setTimeout(() => setCallLoggedToast(null), 2500);
+    },
+    onLogError: (err) => {
+      Alert.alert("Error", err instanceof Error ? err.message : "Failed to log call.");
+    },
+  });
 
   const logTargetIndex = logTarget ? queueItems.findIndex((item) => item.id === logTarget.id) : -1;
   const hasNextInQueue = logTargetIndex >= 0 && logTargetIndex < queueItems.length - 1;
@@ -272,12 +274,13 @@ export function TodayScreen({ route, navigation }: Props) {
       Alert.alert("No phone", "This lead has no phone number.");
       return;
     }
-    pendingLogLeadRef.current = lead;
     const opened = await dialPhoneNumber(lead.phone);
     if (opened) {
-      beginCall();
-    } else {
-      pendingLogLeadRef.current = null;
+      dialerLog.beginCall({
+        leadId: lead.id,
+        leadName: `${lead.firstName} ${lead.lastName ?? ""}`.trim(),
+        phoneNumber: lead.phone,
+      });
     }
   }
 
@@ -463,7 +466,15 @@ export function TodayScreen({ route, navigation }: Props) {
       />
 
       <CallLogModal
-        visible={Boolean(logTarget)}
+        visible={dialerLog.isReviewOpen}
+        phoneNumber={dialerLog.review?.phoneNumber}
+        reviewOnly
+        onClose={dialerLog.dismissReview}
+        onSubmit={() => {}}
+      />
+
+      <CallLogModal
+        visible={Boolean(logTarget) && !dialerLog.isReviewOpen}
         phoneNumber={logTarget?.phone ?? undefined}
         defaultDurationSeconds={defaultLogDuration}
         onClose={() => setLogTarget(null)}

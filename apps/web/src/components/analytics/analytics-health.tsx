@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentMultiSelect } from "@/components/leads/agent-multi-select";
 import {
   Dialog,
   DialogContent,
@@ -11,15 +12,12 @@ import {
 import type { AnalyticsLeadPreview, AnalyticsOverview } from "@/hooks/use-analytics";
 import { useBulkLeadActions } from "@/hooks/use-bulk-leads";
 import { useUsers } from "@/hooks/use-users";
+import { roundRobinDistributionLabel } from "@/lib/round-robin";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
-import { Label } from "@propninja/ui/label";
 import { AlertTriangle, Clock, Snowflake, UserX } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-
-const selectClass =
-  "flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function LeadPreviewTable({
   items,
@@ -77,17 +75,18 @@ export function AnalyticsHealth({ health, onAssignComplete }: AnalyticsHealthPro
   const { data: users } = useUsers();
   const bulk = useBulkLeadActions();
   const [assignOpen, setAssignOpen] = useState(false);
-  const [assignUserId, setAssignUserId] = useState("");
+  const [assignUserIds, setAssignUserIds] = useState<string[]>([]);
 
   const unassignedIds = health.unassignedLeads.leadIds;
 
   async function handleAssignAll() {
-    if (!assignUserId || unassignedIds.length === 0) return;
+    if (assignUserIds.length === 0 || unassignedIds.length === 0) return;
     const result = await bulk.assign.mutateAsync({
       leadIds: unassignedIds,
-      userId: assignUserId,
+      userIds: assignUserIds,
     });
     setAssignOpen(false);
+    setAssignUserIds([]);
     if (result.succeeded.length > 0) {
       onAssignComplete?.();
     }
@@ -192,33 +191,25 @@ export function AnalyticsHealth({ health, onAssignComplete }: AnalyticsHealthPro
             <DialogTitle>Assign unassigned leads</DialogTitle>
             <DialogDescription>
               Bulk-assign all {health.unassignedLeads.count} unassigned lead
-              {health.unassignedLeads.count === 1 ? "" : "s"} to an agent.
+              {health.unassignedLeads.count === 1 ? "" : "s"} to one or more agents (round-robin).
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="assign-agent">Agent</Label>
-            <select
-              id="assign-agent"
-              className={selectClass}
-              value={assignUserId}
-              onChange={(e) => setAssignUserId(e.target.value)}
-            >
-              <option value="">Select agent…</option>
-              {agents.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <AgentMultiSelect
+            id="analytics-assign-agents"
+            label="Agents"
+            users={agents}
+            selectedIds={assignUserIds}
+            onChange={setAssignUserIds}
+            hint={roundRobinDistributionLabel(assignUserIds, unassignedIds.length)}
+          />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAssignOpen(false)}>
               Cancel
             </Button>
             <Button
               type="button"
-              onClick={handleAssignAll}
-              disabled={!assignUserId || bulk.assign.isPending}
+              onClick={() => void handleAssignAll()}
+              disabled={assignUserIds.length === 0 || bulk.assign.isPending}
             >
               {bulk.assign.isPending ? "Assigning…" : "Assign all"}
             </Button>

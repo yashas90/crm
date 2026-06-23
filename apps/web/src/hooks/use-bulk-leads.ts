@@ -32,11 +32,18 @@ export function useBulkLeadActions() {
   });
 
   const assign = useMutation({
-    mutationFn: ({ leadIds, userId }: { leadIds: string[]; userId: string }) =>
-      bulkAssignLeads(leadIds, userId),
-    onSuccess: async (result) => {
+    mutationFn: ({ leadIds, userIds }: { leadIds: string[]; userIds: string[] }) =>
+      bulkAssignLeads(leadIds, userIds),
+    onSuccess: async (result, variables) => {
       await invalidateLeads();
-      summarizeBulkResult(result, (count) => `Assigned ${count} lead(s)`);
+      const agentCount = variables.userIds.length;
+      summarizeBulkResult(
+        result,
+        (count) =>
+          agentCount > 1
+            ? `Assigned ${count} lead(s) across ${agentCount} agents`
+            : `Assigned ${count} lead(s)`,
+      );
     },
   });
 
@@ -64,6 +71,7 @@ export function useBulkImportLeads() {
       leads: BulkLeadImportRow[];
       skipDuplicates?: boolean;
       assignToUserId?: string;
+      assignToUserIds?: string[];
     }) => bulkImportLeads(input),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
