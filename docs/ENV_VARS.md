@@ -7,12 +7,14 @@ Last updated: 2026-06-16 (QA audit).
 
 ## Production API URLs
 
-| Environment | URL | Notes |
-|-------------|-----|-------|
-| **US (current)** | `https://crm-production-6cfe.up.railway.app` | Decommission after Mumbai cutover |
-| **Mumbai (target)** | `https://crm-production-e81d.up.railway.app` | Project `propninja-crm-mumbai` — set region to India in dashboard |
+| Role | URL | Notes |
+|------|-----|-------|
+| **Live (APAC)** | `https://crm-production-e81d.up.railway.app` | Railway project `propninja-crm-mumbai` — API + Postgres in **Singapore** |
+| **US (rollback — decommission)** | `https://crm-production-6cfe.up.railway.app` | Old project `propninja-crm` — delete when no longer needed |
 
-See [REGION_MIGRATION.md](./REGION_MIGRATION.md) for cutover steps.
+Web: Vercel `bom1` · Mobile: `EXPO_PUBLIC_API_URL` in `eas.json` · Both point at **e81d** above.
+
+See [REGION_MIGRATION.md](./REGION_MIGRATION.md).
 
 ---
 

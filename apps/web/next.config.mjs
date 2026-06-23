@@ -2,7 +2,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const sentryDsn = process.env.SENTRY_DSN_WEB ?? process.env.NEXT_PUBLIC_SENTRY_DSN_WEB;
 
-const PRODUCTION_API_ORIGIN = "https://crm-production-6cfe.up.railway.app";
+const PRODUCTION_API_ORIGIN = "https://crm-production-e81d.up.railway.app";
 
 function originFromUrl(value) {
   if (!value?.trim()) return "";
