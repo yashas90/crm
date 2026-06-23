@@ -8,7 +8,13 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useLogCall, useTodayCallSummary, useTodayCalls } from "@/hooks/use-calls";
-import { type LeadRow, useAddLeadNote, useTodayQueue, useUpdateLead, useUpdateLeadFollowUp } from "@/hooks/use-leads";
+import {
+  type LeadRow,
+  useAddLeadNote,
+  useTodayQueue,
+  useUpdateLead,
+  useUpdateLeadFollowUp,
+} from "@/hooks/use-leads";
 import { type SiteVisit, formatVisitTime, useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";

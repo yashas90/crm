@@ -128,7 +128,9 @@ export function FollowUpQuickPicker({ value, onChange }: FollowUpQuickPickerProp
           <Text style={styles.applyBtnText}>Set</Text>
         </Pressable>
       </View>
-      <Text style={styles.hint}>Times are in India (Kolkata). Use today&apos;s date to reschedule for later today.</Text>
+      <Text style={styles.hint}>
+        Times are in India (Kolkata). Use today&apos;s date to reschedule for later today.
+      </Text>
     </View>
   );
 }

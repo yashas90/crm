@@ -1,5 +1,5 @@
-import type { OrgUser } from "@/hooks/use-users";
 import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
+import type { OrgUser } from "@/hooks/use-users";
 import { MOBILE_LEAD_STATUS_OPTIONS, formatLeadStatusLabel } from "@/lib/lead-status-options";
 import { colors, radii, shadows, spacing } from "@/theme";
 import type { LeadStatus } from "@propninja/types/enums";
