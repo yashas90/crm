@@ -15,8 +15,9 @@ import { Button } from "@propninja/ui/button";
 import { cn } from "@propninja/ui/lib/utils";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight } from "lucide-react";
 
-const HEADER_CELL = "bg-slate-900 font-semibold text-slate-50";
-const GROUP_BORDER = "border-l-2 border-slate-700";
+const HEADER_CELL = "bg-slate-900 text-center text-xs font-semibold text-slate-50";
+const GROUP_BORDER = "border-l border-slate-700";
+const EMPTY = "--";
 
 type CallsUserReportTableProps = {
   rows: CallsUserReportRow[];
@@ -29,26 +30,44 @@ type CallsUserReportTableProps = {
   className?: string;
 };
 
+function formatCount(value: number, hasActivity: boolean) {
+  if (!hasActivity) return EMPTY;
+  return String(value);
+}
+
+function formatDuration(seconds: number, hasActivity: boolean) {
+  if (!hasActivity) return EMPTY;
+  return formatTalkTime(seconds);
+}
+
 function NumericCell({
   value,
+  hasActivity,
   className,
 }: {
   value: number;
+  hasActivity: boolean;
   className?: string;
 }) {
-  return <TableCell className={cn("text-right tabular-nums", className)}>{value}</TableCell>;
+  return (
+    <TableCell className={cn("text-center tabular-nums", className)}>
+      {formatCount(value, hasActivity)}
+    </TableCell>
+  );
 }
 
 function TalkTimeCell({
   seconds,
+  hasActivity,
   className,
 }: {
   seconds: number;
+  hasActivity: boolean;
   className?: string;
 }) {
   return (
-    <TableCell className={cn("text-right tabular-nums", className)}>
-      {formatTalkTime(seconds)}
+    <TableCell className={cn("text-center tabular-nums", className)}>
+      {formatDuration(seconds, hasActivity)}
     </TableCell>
   );
 }
@@ -57,22 +76,41 @@ function ReportTableHeader() {
   return (
     <TableHeader className="sticky top-0 z-10">
       <TableRow className="border-0 bg-slate-900 hover:bg-slate-900">
-        <TableHead className={cn(HEADER_CELL, "min-w-[10rem]")}>User Name</TableHead>
-        <TableHead className={cn(HEADER_CELL, "text-right")}>Incoming Answered</TableHead>
-        <TableHead className={cn(HEADER_CELL, "text-right")}>Incoming Missed</TableHead>
-        <TableHead className={cn(HEADER_CELL, "text-right")}>Incoming Total</TableHead>
-        <TableHead className={cn(HEADER_CELL, GROUP_BORDER, "text-right")}>
-          Outgoing Answered
+        <TableHead rowSpan={2} className={cn(HEADER_CELL, "min-w-[10rem] text-left align-middle")}>
+          User Name
         </TableHead>
-        <TableHead className={cn(HEADER_CELL, "text-right")}>Outgoing Not Connected</TableHead>
-        <TableHead className={cn(HEADER_CELL, "text-right")}>Outgoing Total</TableHead>
-        <TableHead className={cn(HEADER_CELL, GROUP_BORDER, "text-right")}>
+        <TableHead colSpan={3} className={cn(HEADER_CELL, "border-b border-slate-700")}>
+          Incoming
+        </TableHead>
+        <TableHead
+          colSpan={3}
+          className={cn(HEADER_CELL, GROUP_BORDER, "border-b border-slate-700")}
+        >
+          Outgoing
+        </TableHead>
+        <TableHead rowSpan={2} className={cn(HEADER_CELL, GROUP_BORDER, "align-middle")}>
           Total TalkTime
         </TableHead>
-        <TableHead className={cn(HEADER_CELL, "text-right")}>Avg TalkTime</TableHead>
-        <TableHead className={cn(HEADER_CELL, "text-right")}>Min TalkTime</TableHead>
-        <TableHead className={cn(HEADER_CELL, "text-right")}>Max TalkTime</TableHead>
-        <TableHead className={cn(HEADER_CELL, GROUP_BORDER, "text-right")}>Total Calls</TableHead>
+        <TableHead rowSpan={2} className={cn(HEADER_CELL, "align-middle")}>
+          Avg TalkTime
+        </TableHead>
+        <TableHead rowSpan={2} className={cn(HEADER_CELL, "align-middle")}>
+          Min TalkTime
+        </TableHead>
+        <TableHead rowSpan={2} className={cn(HEADER_CELL, "align-middle")}>
+          Max TalkTime
+        </TableHead>
+        <TableHead rowSpan={2} className={cn(HEADER_CELL, GROUP_BORDER, "align-middle")}>
+          Total Calls
+        </TableHead>
+      </TableRow>
+      <TableRow className="border-0 bg-slate-900 hover:bg-slate-900">
+        <TableHead className={cn(HEADER_CELL, "font-medium")}>Answered</TableHead>
+        <TableHead className={cn(HEADER_CELL, "font-medium")}>Missed</TableHead>
+        <TableHead className={cn(HEADER_CELL, "font-medium")}>Total</TableHead>
+        <TableHead className={cn(HEADER_CELL, GROUP_BORDER, "font-medium")}>Answered</TableHead>
+        <TableHead className={cn(HEADER_CELL, "font-medium")}>Not Connected</TableHead>
+        <TableHead className={cn(HEADER_CELL, "font-medium")}>Total</TableHead>
       </TableRow>
     </TableHeader>
   );
@@ -96,7 +134,7 @@ function CallsReportPagination({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-muted-foreground">
-        Showing {start}-{end} of {total} entries
+        Showing {start} - {end} of {total} entries
       </p>
       <div className="flex items-center gap-1">
         <Button
@@ -172,7 +210,7 @@ function CallsUserReportTableSkeleton({ rowCount }: { rowCount: number }) {
                         : undefined,
                     )}
                   >
-                    <Skeleton className="ml-auto h-4 w-10" />
+                    <Skeleton className="mx-auto h-4 w-10" />
                   </TableCell>
                 ))}
               </TableRow>
@@ -204,9 +242,11 @@ export function CallsUserReportTable({
 
   if (total === 0) {
     return (
-      <p className="text-sm text-muted-foreground">No call activity for the selected filters.</p>
+      <p className="text-sm text-muted-foreground">No users match the selected filters.</p>
     );
   }
+
+  const totalsHaveActivity = totals.totalCalls > 0;
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -214,35 +254,65 @@ export function CallsUserReportTable({
         <Table>
           <ReportTableHeader />
           <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.userId} className="hover:bg-muted/50">
-                <TableCell className="font-medium">{row.userName}</TableCell>
-                <NumericCell value={row.incomingAnswered} />
-                <NumericCell value={row.incomingMissed} />
-                <NumericCell value={row.incomingTotal} />
-                <NumericCell value={row.outgoingAnswered} className={GROUP_BORDER} />
-                <NumericCell value={row.outgoingNotConnected} />
-                <NumericCell value={row.outgoingTotal} />
-                <TalkTimeCell seconds={row.totalTalkTimeSeconds} className={GROUP_BORDER} />
-                <TalkTimeCell seconds={row.avgTalkTimeSeconds} />
-                <TalkTimeCell seconds={row.minTalkTimeSeconds} />
-                <TalkTimeCell seconds={row.maxTalkTimeSeconds} />
-                <NumericCell value={row.totalCalls} className={GROUP_BORDER} />
-              </TableRow>
-            ))}
+            {rows.map((row) => {
+              const hasActivity = row.totalCalls > 0;
+              return (
+                <TableRow key={row.userId} className="hover:bg-muted/50">
+                  <TableCell className="font-medium">{row.userName}</TableCell>
+                  <NumericCell value={row.incomingAnswered} hasActivity={hasActivity} />
+                  <NumericCell value={row.incomingMissed} hasActivity={hasActivity} />
+                  <NumericCell value={row.incomingTotal} hasActivity={hasActivity} />
+                  <NumericCell
+                    value={row.outgoingAnswered}
+                    hasActivity={hasActivity}
+                    className={GROUP_BORDER}
+                  />
+                  <NumericCell value={row.outgoingNotConnected} hasActivity={hasActivity} />
+                  <NumericCell value={row.outgoingTotal} hasActivity={hasActivity} />
+                  <TalkTimeCell
+                    seconds={row.totalTalkTimeSeconds}
+                    hasActivity={hasActivity}
+                    className={GROUP_BORDER}
+                  />
+                  <TalkTimeCell seconds={row.avgTalkTimeSeconds} hasActivity={hasActivity} />
+                  <TalkTimeCell seconds={row.minTalkTimeSeconds} hasActivity={hasActivity} />
+                  <TalkTimeCell seconds={row.maxTalkTimeSeconds} hasActivity={hasActivity} />
+                  <NumericCell
+                    value={row.totalCalls}
+                    hasActivity={hasActivity}
+                    className={GROUP_BORDER}
+                  />
+                </TableRow>
+              );
+            })}
             <TableRow className="border-t-2 bg-muted/30 font-semibold hover:bg-muted/30">
               <TableCell>Total</TableCell>
-              <NumericCell value={totals.incomingAnswered} />
-              <NumericCell value={totals.incomingMissed} />
-              <NumericCell value={totals.incomingTotal} />
-              <NumericCell value={totals.outgoingAnswered} className={GROUP_BORDER} />
-              <NumericCell value={totals.outgoingNotConnected} />
-              <NumericCell value={totals.outgoingTotal} />
-              <TalkTimeCell seconds={totals.totalTalkTimeSeconds} className={GROUP_BORDER} />
-              <TalkTimeCell seconds={totals.avgTalkTimeSeconds} />
-              <TalkTimeCell seconds={totals.minTalkTimeSeconds} />
-              <TalkTimeCell seconds={totals.maxTalkTimeSeconds} />
-              <NumericCell value={totals.totalCalls} className={GROUP_BORDER} />
+              <NumericCell value={totals.incomingAnswered} hasActivity={totalsHaveActivity} />
+              <NumericCell value={totals.incomingMissed} hasActivity={totalsHaveActivity} />
+              <NumericCell value={totals.incomingTotal} hasActivity={totalsHaveActivity} />
+              <NumericCell
+                value={totals.outgoingAnswered}
+                hasActivity={totalsHaveActivity}
+                className={GROUP_BORDER}
+              />
+              <NumericCell
+                value={totals.outgoingNotConnected}
+                hasActivity={totalsHaveActivity}
+              />
+              <NumericCell value={totals.outgoingTotal} hasActivity={totalsHaveActivity} />
+              <TalkTimeCell
+                seconds={totals.totalTalkTimeSeconds}
+                hasActivity={totalsHaveActivity}
+                className={GROUP_BORDER}
+              />
+              <TalkTimeCell seconds={totals.avgTalkTimeSeconds} hasActivity={totalsHaveActivity} />
+              <TalkTimeCell seconds={totals.minTalkTimeSeconds} hasActivity={totalsHaveActivity} />
+              <TalkTimeCell seconds={totals.maxTalkTimeSeconds} hasActivity={totalsHaveActivity} />
+              <NumericCell
+                value={totals.totalCalls}
+                hasActivity={totalsHaveActivity}
+                className={GROUP_BORDER}
+              />
             </TableRow>
           </TableBody>
         </Table>

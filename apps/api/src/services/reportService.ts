@@ -344,33 +344,60 @@ type CallsPerUserMetricsRow = {
 type CallsPerUserTotalsRow = Omit<CallsPerUserMetricsRow, "userId" | "userName">;
 
 const callsPerUserMetricsSelect = {
-  userId: callRecords.userId,
+  userId: users.id,
   userName: users.name,
-  incomingAnswered: sql<number>`count(*) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'completed')::int`,
-  incomingMissed: sql<number>`count(*) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'missed')::int`,
-  incomingTotal: sql<number>`count(*) filter (where ${callRecords.direction} = 'incoming')::int`,
-  outgoingAnswered: sql<number>`count(*) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} = 'completed')::int`,
-  outgoingNotConnected: sql<number>`count(*) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} != 'completed')::int`,
-  outgoingTotal: sql<number>`count(*) filter (where ${callRecords.direction} = 'outgoing')::int`,
+  incomingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'completed')::int`,
+  incomingMissed: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'missed')::int`,
+  incomingTotal: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming')::int`,
+  outgoingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} = 'completed')::int`,
+  outgoingNotConnected: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} != 'completed')::int`,
+  outgoingTotal: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing')::int`,
   totalTalkTimeSeconds: sql<number>`coalesce(sum(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed'), 0)::int`,
   avgTalkTimeSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed' and ${callRecords.durationSeconds} > 0)), 0)::int`,
   minTalkTimeSeconds: sql<number>`coalesce(min(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed' and ${callRecords.durationSeconds} > 0), 0)::int`,
   maxTalkTimeSeconds: sql<number>`coalesce(max(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed'), 0)::int`,
-  totalCalls: sql<number>`count(*)::int`,
+  totalCalls: sql<number>`count(${callRecords.id})::int`,
 };
 
-function buildCallsPerUserWhere(query: CallsReportQuery) {
-  // Per-user report inner-joins users; filter by users.is_active when user_status is set.
-  const userStatusFilters = [];
+function buildCallsPerUserUserWhere(query: CallsReportQuery) {
+  const filters = [eq(users.orgId, SINGLE_TENANT_ORG_ID)];
+
   if (query.userStatus === "active") {
-    userStatusFilters.push(eq(users.isActive, true));
+    filters.push(eq(users.isActive, true));
   } else if (query.userStatus === "inactive") {
-    userStatusFilters.push(eq(users.isActive, false));
+    filters.push(eq(users.isActive, false));
   }
   if (query.userName) {
-    userStatusFilters.push(ilike(users.name, `%${query.userName}%`));
+    filters.push(ilike(users.name, `%${query.userName}%`));
   }
-  return and(callPerUserScopeFilter(query), ...userStatusFilters);
+  if (query.userIds?.length) {
+    filters.push(inArray(users.id, query.userIds));
+  } else if (query.userId) {
+    filters.push(eq(users.id, query.userId));
+  }
+
+  return and(...filters);
+}
+
+function buildCallsPerUserCallJoinOn(query: CallsReportQuery) {
+  const scope = leadScopeFromQuery(query);
+  const conditions = [
+    eq(callRecords.userId, users.id),
+    eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
+    gte(callRecords.startedAt, scope.dateFrom),
+    lte(callRecords.startedAt, scope.dateTo),
+  ];
+
+  const leadFilter = callReportLeadExistsFilter(query);
+  if (leadFilter) {
+    conditions.push(leadFilter);
+  }
+
+  return and(...conditions);
+}
+
+function buildCallsPerUserCallWhere(query: CallsReportQuery) {
+  return callPerUserScopeFilter(query);
 }
 
 function mapCallsPerUserMetricsRow(row: CallsPerUserMetricsRow) {
@@ -484,13 +511,14 @@ async function fetchCallsPerUserRows(
   query: CallsReportQuery,
   pagination?: { limit: number; offset: number },
 ) {
-  const callWhere = buildCallsPerUserWhere(query);
+  const userWhere = buildCallsPerUserUserWhere(query);
+  const callJoinOn = buildCallsPerUserCallJoinOn(query);
   const baseQuery = db
     .select(callsPerUserMetricsSelect)
-    .from(callRecords)
-    .innerJoin(users, eq(callRecords.userId, users.id))
-    .where(callWhere)
-    .groupBy(callRecords.userId, users.name)
+    .from(users)
+    .leftJoin(callRecords, callJoinOn)
+    .where(userWhere)
+    .groupBy(users.id, users.name)
     .orderBy(users.name);
 
   const rows = pagination
@@ -501,21 +529,14 @@ async function fetchCallsPerUserRows(
 }
 
 async function countCallsPerUserGroups(query: CallsReportQuery) {
-  const callWhere = buildCallsPerUserWhere(query);
-  const groupedUsers = db
-    .select({ userId: callRecords.userId })
-    .from(callRecords)
-    .innerJoin(users, eq(callRecords.userId, users.id))
-    .where(callWhere)
-    .groupBy(callRecords.userId, users.name)
-    .as("grouped_users");
-
-  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(groupedUsers);
+  const userWhere = buildCallsPerUserUserWhere(query);
+  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(users).where(userWhere);
   return row?.count ?? 0;
 }
 
 async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
-  const callWhere = buildCallsPerUserWhere(query);
+  const callWhere = buildCallsPerUserCallWhere(query);
+  const userWhere = buildCallsPerUserUserWhere(query);
   const [row] = await db
     .select({
       incomingAnswered: callsPerUserMetricsSelect.incomingAnswered,
@@ -532,7 +553,7 @@ async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
     })
     .from(callRecords)
     .innerJoin(users, eq(callRecords.userId, users.id))
-    .where(callWhere);
+    .where(and(callWhere, userWhere));
 
   return mapCallsPerUserTotalsRow(
     row ?? {

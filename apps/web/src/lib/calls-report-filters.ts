@@ -31,7 +31,7 @@ export function defaultCallsReportFilters(): CallsReportFilterState {
     projectStatus: "",
     projectName: "",
     campaignName: "",
-    datePreset: "last7",
+    datePreset: "today",
   };
 }
 
@@ -59,7 +59,7 @@ export function countActiveCallsReportFilters(filters: CallsReportFilterState): 
   if (filters.projectStatus) count += 1;
   if (filters.projectName) count += 1;
   if (filters.campaignName) count += 1;
-  if (filters.datePreset !== "last7") count += 1;
+  if (filters.datePreset !== "today") count += 1;
   return count;
 }
 
