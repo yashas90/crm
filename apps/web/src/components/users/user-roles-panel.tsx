@@ -92,7 +92,7 @@ export function UserRolesPanel({
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      <div className="border-2 border-black bg-muted/30 p-4">
+      <div className="rounded-xl border border-slate-200/80 bg-muted/30 p-4 dark:border-white/10">
         <h3 className="text-sm font-semibold">Permissions</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           {selectedRole

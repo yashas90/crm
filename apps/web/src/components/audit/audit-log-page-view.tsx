@@ -114,7 +114,7 @@ export function AuditLogPageView() {
         </div>
       </div>
 
-      <div className="grid gap-3 border-2 border-black bg-muted/20 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 rounded-xl border border-slate-200/80 bg-muted/20 p-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 dark:border-white/10">
         <FilterField label="From">
           <Input
             type="date"
@@ -204,7 +204,7 @@ export function AuditLogPageView() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto border-2 border-black">
+      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-white/10">
         {auditQuery.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading audit log…</p>
         ) : auditQuery.isError ? (

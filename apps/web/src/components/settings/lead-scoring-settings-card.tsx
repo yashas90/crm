@@ -78,7 +78,7 @@ export function LeadScoringSettingsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <label className="flex items-center justify-between border-2 border-black bg-muted/20 px-3 py-3 text-sm">
+        <label className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-muted/20 px-3 py-3 text-sm dark:border-white/10">
           <div>
             <Label htmlFor="lead-scoring-enabled" className="font-medium">
               Enable lead scoring
@@ -103,7 +103,7 @@ export function LeadScoringSettingsCard({
 
         <div className="space-y-2">
           <p className="text-sm font-medium">Scoring rules</p>
-          <ul className="space-y-1 border-2 border-black bg-muted/10 p-3 text-sm">
+          <ul className="space-y-1 rounded-lg border border-slate-200/80 bg-muted/10 p-3 text-sm dark:border-white/10">
             {SCORING_RULES.map((rule) => (
               <li key={rule.label} className="flex justify-between gap-3">
                 <span className="text-muted-foreground">{rule.label}</span>

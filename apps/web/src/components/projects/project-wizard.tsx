@@ -164,7 +164,10 @@ function WizardSkeleton() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 4 }, (_, index) => (
-        <div key={index} className="space-y-3 border-2 border-black p-5">
+        <div
+          key={index}
+          className="space-y-3 rounded-xl border border-slate-200/80 p-5 dark:border-white/10"
+        >
           <Skeleton className="h-5 w-40" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />

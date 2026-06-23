@@ -97,8 +97,8 @@ export const OverviewKpiStrip = memo(function OverviewKpiStrip({ strip }: Overvi
         <div
           key={item.label}
           className={cn(
-            "min-w-[9.5rem] shrink-0 border-2 border-black bg-white p-4 shadow-[4px_4px_0_0_#000]",
-            "transition-all duration-200 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_0_#000]",
+            "min-w-[9.5rem] shrink-0 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5",
+            "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
             item.href && "cursor-pointer",
           )}
           role={item.href ? "link" : undefined}
@@ -117,7 +117,7 @@ export const OverviewKpiStrip = memo(function OverviewKpiStrip({ strip }: Overvi
         >
           <span
             className={cn(
-              "mb-2 inline-block border border-black px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+              "mb-2 inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
               item.accentBg,
             )}
           >

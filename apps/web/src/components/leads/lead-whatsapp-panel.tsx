@@ -38,7 +38,10 @@ export function LeadWhatsAppPanel({ leadId }: LeadWhatsAppPanelProps) {
         ) : (
           <ul className="space-y-2">
             {items.map((message) => (
-              <li key={message.id} className="border-2 border-black bg-muted/15 px-3 py-2 text-sm">
+              <li
+                key={message.id}
+                className="rounded-lg border border-slate-200/80 bg-muted/15 px-3 py-2 text-sm dark:border-white/10"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{message.template.name}</span>
                   <span

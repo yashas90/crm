@@ -206,7 +206,7 @@ export function RemindersPanel({
                   <li key={item.id}>
                     <Link
                       href={`/leads/${item.id}`}
-                      className="block border-2 border-black bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40"
+                      className="block rounded-lg border border-slate-200/80 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40 dark:border-white/10"
                     >
                       <p className="truncate text-sm font-medium">{item.leadName}</p>
                       <p className="text-xs text-muted-foreground">
@@ -232,7 +232,7 @@ export function RemindersPanel({
                   <button
                     type="button"
                     onClick={() => setSelectedDate(dateKey)}
-                    className="w-full border-2 border-black bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                    className="w-full rounded-lg border border-slate-200/80 bg-muted/20 px-3 py-2 text-left transition-colors hover:bg-muted/40 dark:border-white/10"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium">{formatDayLabel(dateKey)}</span>
@@ -279,7 +279,7 @@ export function RemindersPanel({
                         return next;
                       })
                     }
-                    className="mt-1 h-5 w-5 border-2 border-black accent-black"
+                    className="mt-1 h-5 w-5 rounded border-slate-300 accent-[#204060]"
                   />
                   <div>
                     <Link

@@ -53,7 +53,7 @@ export function ProjectBlocksInfoStep({
 
   return (
     <div className="space-y-4">
-      <section className="space-y-4 border-2 border-black bg-card p-5 shadow-[2px_2px_0_0_#000]">
+      <section className="space-y-4 rounded-xl border border-slate-200/80 bg-card p-5 shadow-sm dark:border-white/10">
         <div>
           <h2 className="text-base font-semibold">Blocks Overview</h2>
           <p className="text-sm text-muted-foreground">

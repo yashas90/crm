@@ -78,7 +78,7 @@ export function LeadActivityTimeline({ activities }: LeadActivityTimelineProps) 
             >
               <Icon className="h-4 w-4" />
             </div>
-            <div className="min-w-0 flex-1 border-2 border-black bg-muted/20 p-3 transition-all duration-200 hover:shadow-[2px_2px_0_0_#000]">
+            <div className="min-w-0 flex-1 rounded-lg border border-slate-200/80 bg-muted/20 p-3 transition-all duration-200 hover:shadow-sm dark:border-white/10">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <p className="text-sm font-semibold">{title}</p>
                 <span className="text-xs text-muted-foreground">

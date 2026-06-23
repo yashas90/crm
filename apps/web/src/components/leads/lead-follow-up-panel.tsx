@@ -38,7 +38,7 @@ export function LeadFollowUpPanel({
   }
 
   return (
-    <div className="space-y-4 border-2 border-black bg-card p-4">
+    <div className="space-y-4 rounded-xl border border-slate-200/80 bg-card p-4 dark:border-white/10">
       <div>
         <h3 className="text-sm font-semibold">Follow-up</h3>
         <p className="text-xs text-muted-foreground">

@@ -275,7 +275,7 @@ export const UsersTable = memo(function UsersTable({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden border-2 border-black">
+      <div className="overflow-hidden rounded-xl border border-slate-200/80 dark:border-white/10">
         <div className="max-h-[calc(100vh-16rem)] overflow-auto">
           <Table aria-busy={isLoading} aria-label="Users">
             <TableHeader className="sticky top-0 z-10">

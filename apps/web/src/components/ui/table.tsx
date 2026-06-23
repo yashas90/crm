@@ -2,7 +2,7 @@ import { cn } from "@propninja/ui/lib/utils";
 
 export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="relative w-full overflow-auto border-2 border-black shadow-[4px_4px_0_0_#000]">
+    <div className="relative w-full overflow-auto rounded-xl border border-slate-200/80 shadow-sm dark:border-white/10">
       <table
         className={cn("neubrutal-table w-full border-collapse caption-bottom text-sm", className)}
         {...props}

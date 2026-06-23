@@ -164,7 +164,10 @@ export default function SecuritySettingsPage() {
           ) : (
             <div className="space-y-3">
               {security.data?.exportEvents.map((event) => (
-                <div key={event.id} className="border-2 border-black bg-muted/20 px-3 py-2 text-sm">
+                <div
+                  key={event.id}
+                  className="rounded-lg border border-slate-200/80 bg-muted/20 px-3 py-2 text-sm dark:border-white/10"
+                >
                   <p className="font-medium">
                     {event.userName ?? "Unknown user"} exported {event.entityType}
                     {event.entityName ? `: ${event.entityName}` : ""}
@@ -194,7 +197,7 @@ export default function SecuritySettingsPage() {
             security.data?.items.map((alert) => (
               <div
                 key={alert.id}
-                className="flex flex-col gap-2 border-2 border-black bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-2 rounded-lg border border-slate-200/80 bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-white/10"
               >
                 <div className="text-sm">
                   <p className="font-medium">{alert.alertType}</p>

@@ -149,7 +149,7 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">IANA timezone, e.g. Asia/Kolkata.</p>
               </div>
 
-              <div className="grid gap-2 border-2 border-black bg-muted/20 p-3 text-sm">
+              <div className="grid gap-2 rounded-lg border border-slate-200/80 bg-muted/20 p-3 text-sm dark:border-white/10">
                 <p>
                   <span className="text-muted-foreground">Slug:</span> {org.data.slug}
                 </p>

@@ -47,7 +47,7 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4 border-2 border-black bg-card p-5 shadow-[2px_2px_0_0_#000]">
+    <section className="space-y-4 rounded-xl border border-slate-200/80 bg-card p-5 shadow-sm dark:border-white/10">
       <h2 className="text-base font-semibold tracking-tight">{title}</h2>
       {children}
     </section>

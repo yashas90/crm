@@ -360,7 +360,7 @@ export const LeadsTable = memo(function LeadsTable({
 
   return (
     <>
-      <div className="overflow-hidden border-2 border-black">
+      <div className="overflow-hidden rounded-xl border border-slate-200/80 dark:border-white/10">
         <div className="max-h-[calc(100vh-14rem)] overflow-auto">
           <Table aria-busy={isLoading} aria-label="Leads">
             <LeadsTableHeader

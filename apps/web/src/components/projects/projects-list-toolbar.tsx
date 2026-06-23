@@ -63,7 +63,7 @@ export function ProjectsListToolbar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-2 border-black bg-background p-3 lg:flex-row lg:items-center",
+        "flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-background p-3 lg:flex-row lg:items-center dark:border-white/10",
         className,
       )}
     >
@@ -100,7 +100,7 @@ export function ProjectsListToolbar({
           </Button>
 
           {columnsOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-56 border-2 border-black bg-white p-3 shadow-[4px_4px_0_0_#000]">
+            <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-[#0f1623]">
               <p className="mb-2 text-xs font-medium text-muted-foreground">Visible columns</p>
               <ul className="space-y-2">
                 {PROJECTS_TABLE_COLUMNS.map((column) => {

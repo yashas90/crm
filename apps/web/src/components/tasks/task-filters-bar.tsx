@@ -28,7 +28,7 @@ export function TaskFiltersBar({ filters, onChange, showAssignee = true }: TaskF
   const { data: users } = useUsers();
 
   return (
-    <div className="flex flex-wrap items-end gap-3 border-2 border-black bg-muted/20 p-4">
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/80 bg-muted/20 p-4 dark:border-white/10">
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <Filter className="h-4 w-4" />
         Filters

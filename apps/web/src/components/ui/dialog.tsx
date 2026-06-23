@@ -51,7 +51,12 @@ export function DialogContent({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("border-2 border-black bg-white p-6 shadow-[6px_6px_0_0_#000]", className)}>
+    <div
+      className={cn(
+        "rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-[#0f1623]",
+        className,
+      )}
+    >
       {children}
     </div>
   );

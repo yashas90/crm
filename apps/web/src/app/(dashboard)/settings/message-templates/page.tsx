@@ -225,7 +225,7 @@ export default function MessageTemplatesSettingsPage() {
                   </Button>
                 </div>
               </div>
-              <div className="border-2 border-black bg-muted/20 p-4">
+              <div className="rounded-lg border border-slate-200/80 bg-muted/20 p-4 dark:border-white/10">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Live preview
                 </p>

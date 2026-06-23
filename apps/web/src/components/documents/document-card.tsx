@@ -29,7 +29,7 @@ export function DocumentCard({ document, onShare, showDelete }: DocumentCardProp
   }
 
   return (
-    <div className="overflow-hidden border-2 border-black bg-card shadow-[2px_2px_0_0_#000]">
+    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-card shadow-sm dark:border-white/10">
       <div className="aspect-[4/3] overflow-hidden border-b border-border">
         <DocumentThumbnail
           fileType={document.fileType}

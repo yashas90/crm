@@ -148,7 +148,7 @@ export function ProjectInventoryStep({ projectId, readOnly = false }: ProjectInv
         </div>
       </div>
 
-      <div className="overflow-x-auto border-2 border-black">
+      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-white/10">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="border-b border-black bg-muted/40 text-left text-muted-foreground">
             <tr>
@@ -248,7 +248,7 @@ function SummaryBar({
   ];
 
   return (
-    <div className="flex flex-wrap gap-4 border-2 border-black bg-muted/20 px-5 py-4">
+    <div className="flex flex-wrap gap-4 rounded-xl border border-slate-200/80 bg-muted/20 px-5 py-4 dark:border-white/10">
       {items.map((item) => (
         <div key={item.label} className="text-center">
           <div className={cn("text-2xl font-bold tabular-nums", item.className)}>{item.count}</div>
@@ -542,7 +542,7 @@ function BulkAddModal({
         aria-label="Close"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative z-10 w-full max-w-md border-2 border-black bg-background p-6 shadow-xl">
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200/80 bg-background p-6 shadow-xl dark:border-white/10">
         <h3 className="text-lg font-semibold">Add units in bulk</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Create a range of units with shared floor, BHK, area, and price.

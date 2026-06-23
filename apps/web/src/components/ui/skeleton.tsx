@@ -2,7 +2,7 @@ import { cn } from "@propninja/ui/lib/utils";
 
 export function Skeleton({ className }: { className?: string }) {
   return (
-    <div className={cn("animate-pulse border-2 border-black/20 bg-neutral-200/60", className)} />
+    <div className={cn("animate-pulse rounded-md bg-neutral-200/60 dark:bg-white/10", className)} />
   );
 }
 

@@ -23,7 +23,7 @@ export function ProjectWizardSteps({
     <div className="space-y-2">
       <nav
         aria-label="Project wizard steps"
-        className="overflow-x-auto border-2 border-black bg-muted/20 p-1"
+        className="overflow-x-auto rounded-xl border border-slate-200/80 bg-muted/20 p-1 dark:border-white/10"
       >
         <ol className="flex min-w-max items-center gap-1">
           {visibleWizardSteps().map((step, index) => {

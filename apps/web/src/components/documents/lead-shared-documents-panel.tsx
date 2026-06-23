@@ -67,7 +67,7 @@ export function LeadSharedDocumentsPanel({
       ) : items.length === 0 ? (
         <p className="text-sm text-muted-foreground">No documents shared yet.</p>
       ) : (
-        <div className="overflow-x-auto border-2 border-black">
+        <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-white/10">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
               <tr>

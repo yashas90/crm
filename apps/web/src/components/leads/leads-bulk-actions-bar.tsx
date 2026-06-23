@@ -119,7 +119,7 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
         <div
           ref={ref}
           className={cn(
-            "border-2 border-black bg-muted/20 p-3",
+            "rounded-xl border border-slate-200/80 bg-muted/20 p-3 dark:border-white/10",
             hasSelection && "border-primary/30 bg-primary/5",
             className,
           )}

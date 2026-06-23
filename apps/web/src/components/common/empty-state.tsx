@@ -26,7 +26,7 @@ export function EmptyState({
   return (
     <Card className={cn("border-dashed bg-neutral-50", className)}>
       <CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center border-2 border-black bg-[#FEF08A] shadow-[3px_3px_0_0_#000]">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 shadow-sm dark:border-white/10 dark:bg-white/10">
           {icon ?? <Inbox className="h-7 w-7" />}
         </div>
         <h3 className="font-heading text-lg font-bold uppercase">{title}</h3>

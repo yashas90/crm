@@ -11,7 +11,7 @@ import { Label } from "@propninja/ui/label";
 import { cn } from "@propninja/ui/lib/utils";
 
 const selectClass =
-  "h-10 min-w-[9rem] border-2 border-black bg-white px-2.5 text-sm font-medium shadow-[2px_2px_0_0_#000] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]";
+  "h-10 min-w-[9rem] rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]/20 dark:border-white/10 dark:bg-white/5";
 
 type DashboardFilterBarProps = {
   value: DashboardFilterValue;
@@ -25,7 +25,7 @@ export function DashboardFilterBar({ value, onChange, className }: DashboardFilt
   return (
     <div
       className={cn(
-        "flex flex-wrap items-end gap-3 border-2 border-black bg-white p-4 shadow-[4px_4px_0_0_#000]",
+        "flex flex-wrap items-end gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5",
         className,
       )}
     >

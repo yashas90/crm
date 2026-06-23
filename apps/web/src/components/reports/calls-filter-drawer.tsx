@@ -242,7 +242,7 @@ export function CallsFilterDrawer({
               </div>
             </div>
 
-            <div className="space-y-3 border-2 border-black bg-muted/10 p-4">
+            <div className="space-y-3 rounded-xl border border-slate-200/80 bg-muted/10 p-4 dark:border-white/10">
               <Label>Date filters</Label>
               <div className="flex flex-wrap gap-2">
                 {DATE_PRESETS.map((preset) => {

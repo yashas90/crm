@@ -59,7 +59,7 @@ export function LeadOwnershipHistory({ assignments, isLoading }: LeadOwnershipHi
               >
                 <ArrowRightLeft className="h-4 w-4" />
               </div>
-              <div className="min-w-0 flex-1 border-2 border-black bg-muted/20 p-3">
+              <div className="min-w-0 flex-1 rounded-lg border border-slate-200/80 bg-muted/20 p-3 dark:border-white/10">
                 <p className="text-sm font-semibold">{formatOwnershipEntry(assignment)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {fromLabel} → {assignment.toAgentName}

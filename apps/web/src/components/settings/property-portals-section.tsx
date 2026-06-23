@@ -144,7 +144,7 @@ function PortalWebhookRow({ webhook }: { webhook: PortalWebhook }) {
 
   return (
     <>
-      <div className="border-2 border-black p-4">
+      <div className="rounded-xl border border-slate-200/80 p-4 dark:border-white/10">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -180,7 +180,7 @@ function PortalWebhookRow({ webhook }: { webhook: PortalWebhook }) {
               <TestTube2 className="mr-2 h-4 w-4" />
               Test Webhook
             </Button>
-            <div className="flex items-center gap-2 border-2 border-black px-3 py-2">
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
               <Label htmlFor={`portal-active-${webhook.id}`} className="text-sm">
                 Active
               </Label>
@@ -383,7 +383,7 @@ export function PropertyPortalsSection() {
             </div>
 
             {previewMutation.data?.preview ? (
-              <div className="border-2 border-black bg-muted/30 p-3 text-sm">
+              <div className="rounded-lg border border-slate-200/80 bg-muted/30 p-3 text-sm dark:border-white/10">
                 <p className="mb-2 font-medium">Mapped preview</p>
                 <p>
                   {previewMutation.data.preview.firstName} {previewMutation.data.preview.lastName} ·{" "}

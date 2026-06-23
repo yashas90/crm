@@ -25,7 +25,12 @@ type StatCardProps = {
 
 function StatCard({ label, value, accent }: StatCardProps) {
   return (
-    <div className={cn("border-2 border-black bg-muted/30 px-3 py-2", accent)}>
+    <div
+      className={cn(
+        "rounded-lg border border-slate-200/80 bg-muted/30 px-3 py-2 dark:border-white/10",
+        accent,
+      )}
+    >
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>

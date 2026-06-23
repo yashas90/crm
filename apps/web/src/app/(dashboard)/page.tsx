@@ -223,7 +223,7 @@ function AgentDashboard() {
 
           <section>
             {recentActivities.isLoading ? (
-              <Skeleton className="h-40 w-full rounded-none border-2 border-black" />
+              <Skeleton className="h-40 w-full rounded-xl" />
             ) : recentActivities.isError ? (
               <EmptyState
                 title="Couldn't load activity"

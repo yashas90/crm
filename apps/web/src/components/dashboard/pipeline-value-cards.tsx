@@ -22,7 +22,7 @@ export function PipelineValueCards({ pipeline }: { pipeline: PipelineStage[] }) 
         return (
           <div
             key={stage.status}
-            className="border-2 border-black bg-white p-5 shadow-[4px_4px_0_0_#000] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_0_#000]"
+            className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5"
           >
             <p className="font-heading text-xs font-bold uppercase tracking-wide text-neutral-600">
               {stage.status}

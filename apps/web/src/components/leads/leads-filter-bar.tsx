@@ -10,7 +10,7 @@ import { CalendarDays, Columns3, Filter, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const dateSelectClass =
-  "h-9 rounded-sm border-2 border-black bg-white px-2.5 text-sm font-medium shadow-[2px_2px_0_0_#000] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]";
+  "h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]/20 dark:border-white/10 dark:bg-white/5";
 
 type LeadsFilterBarProps = {
   searchDraft: string;
@@ -119,7 +119,7 @@ export function LeadsFilterBar({
           </Button>
 
           {dateOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-64 border-2 border-black bg-white p-3 shadow-[4px_4px_0_0_#000]">
+            <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-[#0f1623]">
               <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-600">
                 Created date
               </p>
@@ -198,7 +198,7 @@ export function LeadsFilterBar({
           </Button>
 
           {columnsOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-56 border-2 border-black bg-white p-3 shadow-[4px_4px_0_#000]">
+            <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-[#0f1623]">
               <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-600">
                 Visible columns
               </p>

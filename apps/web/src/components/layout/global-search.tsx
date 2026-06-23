@@ -25,7 +25,7 @@ export function GlobalSearch() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search leads…"
         aria-label="Search leads"
-        className="h-9 w-56 border-2 border-black pl-9 shadow-[2px_2px_0_0_#000] md:w-64"
+        className="h-9 w-56 rounded-full border-slate-200 pl-9 shadow-sm focus-visible:border-[#204060]/40 focus-visible:ring-2 focus-visible:ring-[#204060]/20 md:w-64 dark:border-white/10"
       />
     </form>
   );

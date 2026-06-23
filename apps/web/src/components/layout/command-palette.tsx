@@ -149,7 +149,7 @@ export function CommandPalette() {
     >
       <dialog
         open
-        className="w-full max-w-lg border-2 border-black bg-white p-0 shadow-[8px_8px_0_0_#204060]"
+        className="w-full max-w-lg rounded-2xl border border-slate-200/80 bg-white p-0 shadow-xl dark:border-white/10 dark:bg-[#0f1623]"
         aria-label="Command palette"
         onMouseDown={(e) => e.stopPropagation()}
         onCancel={(e) => {
@@ -157,7 +157,7 @@ export function CommandPalette() {
           setOpen(false);
         }}
       >
-        <div className="flex items-center gap-2 border-b-2 border-black bg-[#FEF08A] px-4 py-3">
+        <div className="flex items-center gap-2 border-b border-slate-200/80 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
           <Search className="h-5 w-5 shrink-0" />
           <Input
             autoFocus
@@ -169,7 +169,7 @@ export function CommandPalette() {
             placeholder="Jump to page or search leads…"
             className="h-10 border-0 bg-transparent shadow-none focus-visible:ring-0"
           />
-          <kbd className="hidden rounded border-2 border-black bg-white px-2 py-0.5 text-xs font-bold sm:inline">
+          <kbd className="hidden rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium sm:inline dark:border-white/10 dark:bg-white/10">
             ESC
           </kbd>
         </div>

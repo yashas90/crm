@@ -93,7 +93,7 @@ export default function WhatsAppSettingsPage() {
               approved.
             </p>
           ) : (
-            <div className="overflow-x-auto border-2 border-black">
+            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-white/10">
               <table className="min-w-full text-sm">
                 <thead className="bg-muted/40 text-left">
                   <tr>

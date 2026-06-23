@@ -86,7 +86,7 @@ export function ProjectUnitsInfoStep({
 
   return (
     <div className="space-y-4">
-      <section className="border-2 border-black bg-card p-5 shadow-[2px_2px_0_0_#000]">
+      <section className="rounded-xl border border-slate-200/80 bg-card p-5 shadow-sm dark:border-white/10">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">Unit Types</h2>
