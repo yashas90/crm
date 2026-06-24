@@ -20,10 +20,6 @@ const dbMocks = vi.hoisted(() => {
     passwordHashUpdates: [] as string[],
   };
 
-  function filterTokens(where: (row: (typeof state.tokens)[number]) => boolean) {
-    return state.tokens.filter(where);
-  }
-
   const tx = {
     select: () => ({
       from: () => ({

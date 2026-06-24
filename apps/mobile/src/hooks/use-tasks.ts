@@ -89,6 +89,22 @@ export function useMyOpenTasks() {
   });
 }
 
+export const useTeamOpenTasks = useMyOpenTasks;
+
+export function useTeamTasksDueToday() {
+  const ready = useAuthReady();
+  const today = new Date().toISOString().split("T")[0];
+  return useQuery({
+    queryKey: ["tasks", "team", "due-today"],
+    queryFn: () =>
+      apiGet<{ items: Task[]; total: number; page: number; pageSize: number }>(
+        `/api/tasks?status=open&dueBefore=${today}T23:59:59Z&pageSize=100`,
+      ),
+    enabled: ready,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
 export function useOpenTaskCount() {
   const { data } = useMyTasks();
   const total = data?.total ?? 0;

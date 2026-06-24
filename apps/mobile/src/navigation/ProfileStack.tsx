@@ -33,7 +33,6 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
         {({ navigation }) => (
           <ProfileScreen
             onLogout={onLogout}
-            onOpenCallLogs={(dateFilter) => navigation.navigate("CallLogsScreen", { dateFilter })}
             onOpenUserManagement={() => navigation.navigate("UserManagementScreen")}
             onOpenProjects={() => navigation.navigate("ProjectsScreen")}
           />

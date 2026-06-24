@@ -11,6 +11,15 @@ export type TeamStackParamList = {
   TeamCallLogsScreen: undefined;
 };
 
+export type ProfileStackParamList = {
+  ProfileScreen: undefined;
+  CallLogsScreen: { dateFilter?: string } | undefined;
+  UserManagementScreen: undefined;
+  ProjectsScreen: undefined;
+  ProjectDetailScreen: { projectId: string; projectName?: string };
+  ProjectUnitScreen: { projectId: string; unitId: string; unitNumber?: string };
+};
+
 export type MainTabParamList = {
   LeadsTab: NavigatorScreenParams<LeadsStackParamList> | undefined;
   TodayTab: { focusQueue?: boolean } | undefined;
@@ -18,4 +27,6 @@ export type MainTabParamList = {
   TasksTab: undefined;
   NotificationsTab: undefined;
   ProfileTab: undefined;
+  PipelineTab: undefined;
+  VisitsTab: undefined;
 };

@@ -26,6 +26,16 @@ export const typography = {
     fontWeight: "700" as const,
     letterSpacing: -0.3,
   },
+  h2: {
+    fontSize: 20,
+    fontWeight: "700" as const,
+    letterSpacing: -0.2,
+  },
+  h3: {
+    fontSize: 17,
+    fontWeight: "600" as const,
+    letterSpacing: -0.1,
+  },
   subheading: {
     fontSize: 16,
     fontWeight: "600" as const,
@@ -47,6 +57,8 @@ export const radii = {
   sm: 8,
   md: 12,
   lg: 16,
+  xl: 24,
+  full: 9999,
   pill: 999,
 };
 

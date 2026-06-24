@@ -1,6 +1,13 @@
 import { colors, spacing } from "@/theme";
 import { neuInput } from "@/theme/neubrutal";
-import { StyleSheet, Text, TextInput, type TextInputProps, View } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  type TextInputProps,
+  type TextStyle,
+  View,
+} from "react-native";
 
 type TextFieldProps = TextInputProps & {
   label?: string;
@@ -32,7 +39,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    ...neuInput,
+    ...(neuInput as TextStyle),
     color: colors.text,
     fontSize: 16,
     fontWeight: "500",

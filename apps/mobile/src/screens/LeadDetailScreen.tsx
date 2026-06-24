@@ -34,6 +34,7 @@ import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
+import { buildLeadStatusPatch } from "@/lib/lead-status-options";
 import { scoreBadgeStyle } from "@/lib/leadScore";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
@@ -114,10 +115,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     const noteText = payload.notes?.trim();
 
     try {
-      const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
-      if (canReassign && payload.assignedTo && payload.assignedTo !== lead.assignedUser?.id) {
-        patch.assignedTo = payload.assignedTo;
-      }
+      const patch = buildLeadStatusPatch(payload, lead, { canReassign });
 
       await updateLead.mutateAsync({ leadId: lead.id, payload: patch });
 
@@ -352,7 +350,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             onChange={(iso) => {
               setFollowUpAt(iso);
               updateFollowUp.mutate(
-                { nextFollowupAt: iso },
+                { nextFollowupAt: iso as string },
                 {
                   onError: (err) =>
                     Alert.alert(

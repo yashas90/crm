@@ -21,6 +21,8 @@ export type LeadRow = {
   nextFollowupAt: string | null;
   lastContactedAt?: string | null;
   score?: number;
+  leadSource?: string | null;
+  assignedUser?: { id: string; name: string; email: string } | null;
 };
 
 export type LeadActivity = {
@@ -80,7 +82,7 @@ function useAuthReady() {
   return status === "authenticated" && Boolean(getCurrentUserId());
 }
 
-export function useLeads(query: LeadsQuery = {}) {
+export function useLeads(query: LeadsQuery = {}, options?: { enabled?: boolean }) {
   const ready = useAuthReady();
   const params = buildLeadsParams(query, query.page ?? "1");
 
@@ -90,7 +92,7 @@ export function useLeads(query: LeadsQuery = {}) {
       apiGet<{ items: LeadRow[]; page: number; pageSize: number; total: number }>(
         `/api/leads?${params.toString()}`,
       ),
-    enabled: ready,
+    enabled: ready && (options?.enabled ?? true),
     refetchInterval: LIVE_REFETCH_MS,
   });
 }

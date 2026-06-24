@@ -49,7 +49,7 @@ export function CompleteSiteVisitSheet({
 
     try {
       await updateVisit.mutateAsync({
-        id: visit.id,
+        id: visit!.id,
         payload: { status: "completed", projectId: selectedProjectId },
       });
       onCompleted?.();

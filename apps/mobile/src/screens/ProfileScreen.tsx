@@ -24,6 +24,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ProfileScreenProps = {
   onLogout: () => void;
+  onOpenUserManagement?: () => void;
+  onOpenProjects?: () => void;
 };
 
 export function ProfileScreen({ onLogout }: ProfileScreenProps) {
@@ -105,7 +107,7 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
         )}
       </Card>
 
-      <Text style={styles.sectionTitle}>App</Text>
+      <Text style={screenStyles.sectionTitle}>App</Text>
       <Card>
         {__DEV__ ? <InfoRow icon="globe-outline" label="API" value={getApiUrl()} mono /> : null}
         <InfoRow

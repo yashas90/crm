@@ -3,7 +3,7 @@ import type { UserRole } from "@propninja/types/permissions";
 
 export function useRole(): UserRole {
   const { user } = useAuth();
-  return user?.role ?? "agent";
+  return (user?.role ?? "agent") as UserRole;
 }
 
 export function useIsAgent() {

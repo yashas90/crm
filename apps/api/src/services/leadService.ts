@@ -25,11 +25,13 @@ import {
   sql,
 } from "drizzle-orm";
 import { adLeadsOnlyFilter } from "../lib/adLeadFilters.js";
+import { applyAdvancedLeadFilters } from "../lib/applyAdvancedLeadFilters.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
 import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.js";
 import { inferFollowupType } from "../lib/followupType.js";
+import type { LeadAdvancedListQuery } from "../lib/leadAdvancedListQuery.js";
 import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
@@ -48,7 +50,7 @@ type LeadStatus =
 const NA_STATUSES: LeadStatus[] = ["not_interested", "dropped"];
 type Temperature = "cold" | "warm" | "hot";
 
-export interface ListLeadsParams {
+export type ListLeadsParams = {
   status?: LeadStatus;
   search?: string;
   page?: number;
@@ -74,7 +76,7 @@ export interface ListLeadsParams {
   adLeadsOnly?: boolean;
   /** Return leads whose tags share at least one value with this list. */
   tags?: string[];
-}
+} & LeadAdvancedListQuery;
 
 /** Last 10 digits — treats +91… and local 10-digit numbers as the same phone. */
 const leadPhoneKeySql = sql`RIGHT(regexp_replace(COALESCE(${leads.phone}, ''), '[^0-9]', '', 'g'), 10)`;
@@ -264,7 +266,7 @@ function buildListWhere(params: ListLeadsParams) {
   } else if (params.teamLeadsExcludingUser) {
     whereClauses.push(isNotNull(leads.assignedTo));
     whereClauses.push(ne(leads.assignedTo, params.teamLeadsExcludingUser));
-  } else if (params.assignedTo) {
+  } else if (params.assignedTo && !params.assignWithHistory) {
     whereClauses.push(eq(leads.assignedTo, params.assignedTo));
   }
 
@@ -331,13 +333,20 @@ function buildListWhere(params: ListLeadsParams) {
   }
 
   if (params.search?.trim()) {
-    const term = `%${params.search.trim()}%`;
+    const trimmed = params.search.trim();
+    const term = `%${trimmed}%`;
+    const phoneTerms = new Set<string>([term]);
+    for (const variant of phoneMatchVariants(trimmed)) {
+      phoneTerms.add(`%${variant}%`);
+    }
+
+    const phoneClauses = [...phoneTerms].map((phoneTerm) => ilike(leads.phone, phoneTerm));
     whereClauses.push(
       or(
         ilike(leads.firstName, term),
         ilike(leads.lastName, term),
         ilike(leads.email, term),
-        ilike(leads.phone, term),
+        ...phoneClauses,
       )!,
     );
   }
@@ -355,6 +364,8 @@ function buildListWhere(params: ListLeadsParams) {
   if (params.reEnquiredOnly) {
     whereClauses.push(reEnquiredLeadSql());
   }
+
+  applyAdvancedLeadFilters(params, whereClauses);
 
   return and(...whereClauses);
 }
@@ -897,7 +908,8 @@ export const leadService = {
     if (payload.notes !== undefined) update.notes = payload.notes;
     if (payload.tags !== undefined) update.tags = payload.tags;
     if (payload.nextFollowupAt !== undefined) {
-      update.nextFollowupAt = new Date(payload.nextFollowupAt);
+      update.nextFollowupAt =
+        payload.nextFollowupAt == null ? null : new Date(payload.nextFollowupAt);
     }
     if (payload.estimatedValue !== undefined) {
       update.estimatedValue =

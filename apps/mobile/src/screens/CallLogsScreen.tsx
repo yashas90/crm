@@ -105,13 +105,15 @@ export function CallLogsScreen({ navigation, route }: Props) {
 
 function CallLogsScreenContent({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const [dateFilter, setDateFilter] = useState<CallDateFilter>(route.params?.dateFilter ?? "week");
+  const [dateFilter, setDateFilter] = useState<CallDateFilter>(
+    (route.params?.dateFilter as CallDateFilter) ?? "week",
+  );
   const [outcomeFilter, setOutcomeFilter] = useState<CallOutcomeFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (route.params?.dateFilter) {
-      setDateFilter(route.params.dateFilter);
+      setDateFilter(route.params.dateFilter as CallDateFilter);
     }
   }, [route.params?.dateFilter]);
 

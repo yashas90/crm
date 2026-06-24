@@ -27,7 +27,7 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
 
   async function setStatus(status: SiteVisit["status"]) {
     try {
-      await updateVisit.mutateAsync({ id: visit.id, payload: { status } });
+      await updateVisit.mutateAsync({ id: visit!.id, payload: { status } });
       onClose();
     } catch (err) {
       Alert.alert("Error", err instanceof Error ? err.message : "Update failed");
@@ -42,7 +42,7 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
   }
 
   async function openMaps() {
-    const address = visit.propertyAddress ?? visit.propertyLabel;
+    const address = visit!.propertyAddress ?? visit!.propertyLabel;
     if (!address) {
       Alert.alert("No address", "No property address on this visit.");
       return;

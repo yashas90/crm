@@ -37,7 +37,19 @@ export function runWithSessionLogoutSuppressed<T>(fn: () => Promise<T>): Promise
 
 export type ApiRequestOptions = {
   skipSessionLogout?: boolean;
+  skipOfflineQueue?: boolean;
 };
+
+export class QueuedOfflineError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QueuedOfflineError";
+  }
+}
+
+export function isQueuedOfflineError(err: unknown): err is QueuedOfflineError {
+  return err instanceof QueuedOfflineError;
+}
 
 /** Resolved at request time (not module load) for correct release/dev URLs. */
 export function getApiUrl() {
@@ -154,4 +166,8 @@ export function apiPatch<T>(path: string, body: unknown, options?: ApiRequestOpt
     body: JSON.stringify(body),
     ...options,
   });
+}
+
+export function apiDelete<T>(path: string, options?: ApiRequestOptions) {
+  return apiFetch<T>(path, { method: "DELETE", ...options });
 }
