@@ -10,6 +10,8 @@ describe("normalizeLeadStageInput", () => {
   it("maps display labels", () => {
     expect(normalizeLeadStageInput("Site Visit")).toBe("qualified");
     expect(normalizeLeadStageInput("Negotiation")).toBe("negotiation");
+    expect(normalizeLeadStageInput("Not Interested")).toBe("not_interested");
+    expect(normalizeLeadStageInput("Booked")).toBe("won");
   });
 
   it("rejects unknown values", () => {

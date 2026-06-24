@@ -1,7 +1,7 @@
 import { LEAD_STATUSES, LEAD_TEMPERATURES } from "@propninja/types/enums";
 import { z } from "zod";
 import { leadAdvancedListQuerySchema } from "../leadAdvancedListQuery.js";
-import { normalizeLeadStageInput } from "../leadStage.js";
+import { normalizeLeadStageInput, normalizeLeadStatusInput } from "../leadStage.js";
 
 const leadStatusSchema = z.enum(LEAD_STATUSES);
 const temperatureSchema = z.enum(LEAD_TEMPERATURES);
@@ -99,16 +99,37 @@ const leadWritableFieldsSchema = z.object({
 /** Create requires firstName + phone; all other fields optional. */
 export const createLeadBodySchema = leadWritableFieldsSchema;
 
-export const updateLeadBodySchema = leadWritableFieldsSchema
-  .partial()
-  .extend({
-    estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
-    assignedTo: z.string().uuid().nullable().optional(),
-    nextFollowupAt: z.string().datetime({ offset: true }).nullable().optional(),
-    /** Mobile pipeline alias for leadStatus (e.g. qualified = Site Visit). */
-    stage: z.string().optional(),
-  })
-  .transform((data) => {
+/** Coerce legacy mobile PATCH bodies before Zod validation. */
+export function preprocessUpdateLeadBody(input: unknown): unknown {
+  if (typeof input !== "object" || input === null) return input;
+  const body = { ...(input as Record<string, unknown>) };
+
+  // Mobile-only UI fields — never validated server-side.
+  body.statusLabel = undefined;
+
+  if (body.assignedTo === "" || body.assignedTo === null) {
+    body.assignedTo = undefined;
+  }
+
+  if (typeof body.leadStatus === "string") {
+    const normalized = normalizeLeadStatusInput(body.leadStatus);
+    if (normalized) body.leadStatus = normalized;
+  }
+
+  return body;
+}
+
+const updateLeadFieldsSchema = leadWritableFieldsSchema.partial().extend({
+  estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
+  assignedTo: z.string().uuid().nullable().optional(),
+  nextFollowupAt: z.string().datetime({ offset: true }).nullable().optional(),
+  /** Mobile pipeline alias for leadStatus (e.g. qualified = Site Visit). */
+  stage: z.string().optional(),
+});
+
+export const updateLeadBodySchema = z.preprocess(
+  preprocessUpdateLeadBody,
+  updateLeadFieldsSchema.transform((data) => {
     const { stage, leadStatus, email, ...rest } = data;
     const resolvedStatus =
       leadStatus ?? (stage ? (normalizeLeadStageInput(stage) ?? undefined) : undefined);
@@ -118,7 +139,8 @@ export const updateLeadBodySchema = leadWritableFieldsSchema
       ...(email === "" ? {} : email !== undefined ? { email } : {}),
       ...(resolvedStatus !== undefined ? { leadStatus: resolvedStatus } : {}),
     };
-  });
+  }),
+);
 
 export const assignLeadBodySchema = z.object({
   user_id: z.string().uuid(),

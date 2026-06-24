@@ -36,7 +36,8 @@ describe("MOBILE_LEAD_STATUS_OPTIONS", () => {
 });
 
 describe("buildLeadStatusPatch", () => {
-  const lead = { assignedUser: { id: "user-1" } };
+  const lead = { assignedUser: { id: "550e8400-e29b-41d4-a716-446655440001" } };
+  const otherUser = "550e8400-e29b-41d4-a716-446655440002";
 
   it("always includes leadStatus", () => {
     const patch = buildLeadStatusPatch({ leadStatus: "contacted" }, lead, { canReassign: false });
@@ -44,23 +45,34 @@ describe("buildLeadStatusPatch", () => {
   });
 
   it("includes assignedTo when manager changes assignee", () => {
-    const patch = buildLeadStatusPatch({ leadStatus: "contacted", assignedTo: "user-2" }, lead, {
+    const patch = buildLeadStatusPatch({ leadStatus: "contacted", assignedTo: otherUser }, lead, {
       canReassign: true,
     });
-    expect(patch.assignedTo).toBe("user-2");
+    expect(patch.assignedTo).toBe(otherUser);
   });
 
   it("skips assignedTo when same as current", () => {
-    const patch = buildLeadStatusPatch({ leadStatus: "contacted", assignedTo: "user-1" }, lead, {
-      canReassign: true,
-    });
+    const patch = buildLeadStatusPatch(
+      { leadStatus: "contacted", assignedTo: lead.assignedUser!.id },
+      lead,
+      { canReassign: true },
+    );
     expect(patch.assignedTo).toBeUndefined();
   });
 
   it("skips assignedTo when canReassign is false", () => {
-    const patch = buildLeadStatusPatch({ leadStatus: "contacted", assignedTo: "user-2" }, lead, {
+    const patch = buildLeadStatusPatch({ leadStatus: "contacted", assignedTo: otherUser }, lead, {
       canReassign: false,
     });
+    expect(patch.assignedTo).toBeUndefined();
+  });
+
+  it("skips assignedTo when not a valid uuid", () => {
+    const patch = buildLeadStatusPatch(
+      { leadStatus: "contacted", assignedTo: "not-a-uuid" },
+      lead,
+      { canReassign: true },
+    );
     expect(patch.assignedTo).toBeUndefined();
   });
 

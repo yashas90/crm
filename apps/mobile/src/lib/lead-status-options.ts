@@ -23,6 +23,13 @@ export function formatLeadStatusLabel(status: string | null | undefined): string
   return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | null | undefined): value is string {
+  return Boolean(value && UUID_RE.test(value));
+}
+
 export function buildLeadStatusPatch(
   payload: {
     leadStatus: LeadStatus;
@@ -35,7 +42,11 @@ export function buildLeadStatusPatch(
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
 
-  if (options.canReassign && payload.assignedTo && payload.assignedTo !== lead.assignedUser?.id) {
+  if (
+    options.canReassign &&
+    isUuid(payload.assignedTo) &&
+    payload.assignedTo !== lead.assignedUser?.id
+  ) {
     patch.assignedTo = payload.assignedTo;
   }
 

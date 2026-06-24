@@ -109,6 +109,33 @@ describe("updateLeadBodySchema", () => {
 
   it("rejects display labels instead of enum slugs", () => {
     const parsed = updateLeadBodySchema.safeParse({ leadStatus: "Not Interested" });
-    expect(parsed.success).toBe(false);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.leadStatus).toBe("not_interested");
+    }
+  });
+
+  it("accepts legacy mobile status patch with nextFollowupAt null and statusLabel", () => {
+    const parsed = updateLeadBodySchema.safeParse({
+      leadStatus: "not_interested",
+      nextFollowupAt: null,
+      statusLabel: "Not Interested",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.leadStatus).toBe("not_interested");
+      expect(parsed.data.nextFollowupAt).toBeNull();
+    }
+  });
+
+  it("ignores empty assignedTo from mobile", () => {
+    const parsed = updateLeadBodySchema.safeParse({
+      leadStatus: "not_interested",
+      assignedTo: "",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.assignedTo).toBeUndefined();
+    }
   });
 });

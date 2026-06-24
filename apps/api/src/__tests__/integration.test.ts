@@ -171,6 +171,39 @@ describe("API integration", () => {
     expect(json.data.phone).toBe(phone);
   });
 
+  it("PATCH /api/leads/:id accepts mobile Not Interested status payloads", async ({ skip }) => {
+    if (!hasDb) skip();
+
+    const phone = `+9197${Date.now().toString().slice(-8)}`;
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const createRes = await app.request("/api/leads", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ firstName: "Mobile", lastName: "Status", phone }),
+    });
+    expect(createRes.status).toBe(201);
+    const created = (await createRes.json()) as { data: { id: string } };
+
+    const patchRes = await app.request(`/api/leads/${created.data.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        leadStatus: "Not Interested",
+        nextFollowupAt: null,
+        statusLabel: "Not Interested",
+        assignedTo: "",
+      }),
+    });
+    expect(patchRes.status).toBe(200);
+    const patched = (await patchRes.json()) as { data: { leadStatus: string; assignedTo: null } };
+    expect(patched.data.leadStatus).toBe("not_interested");
+    expect(patched.data.assignedTo).toBeNull();
+  });
+
   it("POST /api/leads rejects duplicate phone", async ({ skip }) => {
     if (!hasDb) skip();
 
