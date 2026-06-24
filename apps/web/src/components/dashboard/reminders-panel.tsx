@@ -70,7 +70,7 @@ function buildMonthGrid(year: number, month: number) {
 function groupByDate(items: UpcomingFollowup[]) {
   const map = new Map<string, UpcomingFollowup[]>();
   for (const item of items) {
-    const key = getIstDateKey(item.nextFollowupAt);
+    const key = getIstDateKey(new Date(item.nextFollowupAt));
     const list = map.get(key) ?? [];
     list.push(item);
     map.set(key, list);

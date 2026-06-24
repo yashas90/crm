@@ -55,7 +55,7 @@ function LeadCard({
               return (
                 <TempIcon
                   className={cn("h-3.5 w-3.5 shrink-0", className)}
-                  title={lead.temperature}
+                  aria-label={lead.temperature}
                 />
               );
             })()
