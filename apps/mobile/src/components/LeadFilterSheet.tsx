@@ -105,7 +105,7 @@ export function LeadFilterSheet({ visible, filters, onClose, onApply }: LeadFilt
   const { data: teamMembers } = useTeamMembers();
   const role = normalizeRole(getUser()?.role ?? "agent");
   const isManager = role === "admin" || role === "manager";
-  const agents = teamMembers?.data?.items ?? [];
+  const agents = teamMembers?.items ?? [];
 
   const [draft, setDraft] = useState(filters);
   const [showProject, setShowProject] = useState(false);
