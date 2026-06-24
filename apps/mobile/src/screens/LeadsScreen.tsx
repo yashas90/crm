@@ -3,14 +3,14 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-leads";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { getCurrentUserId } from "@/lib/auth";
 import {
   type MobileLeadFilters,
   countActiveMobileLeadFilters,
   defaultMobileLeadFilters,
   mobileFiltersToApiParams,
 } from "@/lib/leads-advanced-filters";
-import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
-import { getCurrentUserId } from "@/lib/auth";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT, TAB_BAR_SCROLL_PADDING } from "@/theme/layout";

@@ -1,13 +1,13 @@
+import { useTeamMembers } from "@/hooks/use-users";
+import { getUser, normalizeRole } from "@/lib/auth";
 import {
   type MobileLeadFilters,
   type MobileLeadScope,
   defaultMobileLeadFilters,
 } from "@/lib/leads-advanced-filters";
-import { TAG_PRESET_OPTIONS } from "@propninja/types/filters";
-import { useTeamMembers } from "@/hooks/use-users";
-import { getUser, normalizeRole } from "@/lib/auth";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { LEAD_STATUSES } from "@propninja/types/enums";
+import { TAG_PRESET_OPTIONS } from "@propninja/types/filters";
 import { useEffect, useState } from "react";
 import {
   Modal,
@@ -72,7 +72,13 @@ function AgentPicker({
       </Pressable>
       {open ? (
         <View style={styles.optionList}>
-          <Pressable style={styles.optionRow} onPress={() => { onChange(""); setOpen(false); }}>
+          <Pressable
+            style={styles.optionRow}
+            onPress={() => {
+              onChange("");
+              setOpen(false);
+            }}
+          >
             <Text style={styles.optionText}>Any agent</Text>
           </Pressable>
           {options.map((opt) => (
@@ -123,9 +129,7 @@ export function LeadFilterSheet({ visible, filters, onClose, onApply }: LeadFilt
       const has = current.tagPresets.includes(id);
       return {
         ...current,
-        tagPresets: has
-          ? current.tagPresets.filter((t) => t !== id)
-          : [...current.tagPresets, id],
+        tagPresets: has ? current.tagPresets.filter((t) => t !== id) : [...current.tagPresets, id],
       };
     });
   }
@@ -243,9 +247,7 @@ export function LeadFilterSheet({ visible, filters, onClose, onApply }: LeadFilt
                   style={[styles.chip, draft.status === status && styles.chipActive]}
                   onPress={() => patch({ status })}
                 >
-                  <Text
-                    style={[styles.chipText, draft.status === status && styles.chipTextActive]}
-                  >
+                  <Text style={[styles.chipText, draft.status === status && styles.chipTextActive]}>
                     {STATUS_LABELS[status] ?? status}
                   </Text>
                 </Pressable>

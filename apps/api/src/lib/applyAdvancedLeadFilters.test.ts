@@ -8,10 +8,7 @@ const AGENT_C = "550e8400-e29b-41d4-a716-446655440003";
 describe("applyAdvancedLeadFilters", () => {
   it("adds assignment history clause when assignWithHistory and assignedTo", () => {
     const clauses: unknown[] = [];
-    applyAdvancedLeadFilters(
-      { assignedTo: AGENT_A, assignWithHistory: true },
-      clauses as never,
-    );
+    applyAdvancedLeadFilters({ assignedTo: AGENT_A, assignWithHistory: true }, clauses as never);
     expect(clauses).toHaveLength(1);
   });
 

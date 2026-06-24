@@ -1,29 +1,29 @@
 "use client";
 
-import { ProjectSelect } from "@/components/projects/project-select";
 import { LeadsScopeTabs } from "@/components/leads/leads-scope-tabs";
+import { ProjectSelect } from "@/components/projects/project-select";
+import { useSession } from "@/hooks/use-session";
+import { useUsers } from "@/hooks/use-users";
 import {
   AD_LEADS_FILTER_VALUE,
   AD_PLATFORM_SOURCE_OPTIONS,
   OTHER_LEAD_SOURCE_OPTIONS,
 } from "@/lib/lead-sources";
 import {
+  type SavedLeadFilter,
   TAG_PRESET_OPTIONS,
   addSavedLeadFilter,
   defaultLeadsAdvancedFilters,
   loadSavedLeadFilters,
-  type SavedLeadFilter,
 } from "@/lib/leads-advanced-filters";
 import type { LeadsScope } from "@/lib/leads-scope";
 import type { LeadsStage } from "@/lib/leads-stage";
-import { defaultLeadsUrlFilters, type LeadsUrlFilters } from "@/lib/leads-url-filters";
-import { useUsers } from "@/hooks/use-users";
-import { useSession } from "@/hooks/use-session";
+import { type LeadsUrlFilters, defaultLeadsUrlFilters } from "@/lib/leads-url-filters";
+import { LEAD_STATUSES } from "@propninja/types/enums";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
 import { cn } from "@propninja/ui/lib/utils";
-import { LEAD_STATUSES } from "@propninja/types/enums";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -42,9 +42,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h4 className="text-sm font-semibold text-teal-700 dark:text-teal-400">{children}</h4>
-  );
+  return <h4 className="text-sm font-semibold text-teal-700 dark:text-teal-400">{children}</h4>;
 }
 
 function FilterGrid({ children }: { children: React.ReactNode }) {
@@ -112,9 +110,7 @@ export function LeadFilterDialog({
       const has = current.tagPresets.includes(id);
       return {
         ...current,
-        tagPresets: has
-          ? current.tagPresets.filter((t) => t !== id)
-          : [...current.tagPresets, id],
+        tagPresets: has ? current.tagPresets.filter((t) => t !== id) : [...current.tagPresets, id],
       };
     });
   }
@@ -151,7 +147,9 @@ export function LeadFilterDialog({
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
             <h2 className="text-xl font-bold">Lead Filter</h2>
-            <p className="text-sm text-muted-foreground">Refine leads by agent, status, project, and more.</p>
+            <p className="text-sm text-muted-foreground">
+              Refine leads by agent, status, project, and more.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -320,7 +318,11 @@ export function LeadFilterDialog({
                   ))}
                 </select>
               </div>
-              <FieldInput label="Sub status" value={draft.subStatus} onChange={(v) => patch({ subStatus: v })} />
+              <FieldInput
+                label="Sub status"
+                value={draft.subStatus}
+                onChange={(v) => patch({ subStatus: v })}
+              />
               <div className="space-y-1">
                 <Label>Source</Label>
                 <select
@@ -349,7 +351,11 @@ export function LeadFilterDialog({
                   ))}
                 </select>
               </div>
-              <FieldInput label="Sub-Source" value={draft.subSource} onChange={(v) => patch({ subSource: v })} />
+              <FieldInput
+                label="Sub-Source"
+                value={draft.subSource}
+                onChange={(v) => patch({ subSource: v })}
+              />
             </FilterGrid>
           </section>
 
@@ -392,7 +398,11 @@ export function LeadFilterDialog({
                 onChange={(v) => patch({ propertySubType: v })}
               />
               <FieldInput label="BHK" value={draft.bhk} onChange={(v) => patch({ bhk: v })} />
-              <FieldInput label="BHK Type" value={draft.bhkType} onChange={(v) => patch({ bhkType: v })} />
+              <FieldInput
+                label="BHK Type"
+                value={draft.bhkType}
+                onChange={(v) => patch({ bhkType: v })}
+              />
               <FieldInput
                 label="Possession from"
                 type="date"
@@ -411,14 +421,42 @@ export function LeadFilterDialog({
           <section className="space-y-3">
             <SectionTitle>Location</SectionTitle>
             <FilterGrid>
-              <FieldInput label="City" value={draft.filterCity} onChange={(v) => patch({ filterCity: v })} />
-              <FieldInput label="State" value={draft.filterState} onChange={(v) => patch({ filterState: v })} />
-              <FieldInput label="Locality" value={draft.locality} onChange={(v) => patch({ locality: v })} />
-              <FieldInput label="Country" value={draft.country} onChange={(v) => patch({ country: v })} />
+              <FieldInput
+                label="City"
+                value={draft.filterCity}
+                onChange={(v) => patch({ filterCity: v })}
+              />
+              <FieldInput
+                label="State"
+                value={draft.filterState}
+                onChange={(v) => patch({ filterState: v })}
+              />
+              <FieldInput
+                label="Locality"
+                value={draft.locality}
+                onChange={(v) => patch({ locality: v })}
+              />
+              <FieldInput
+                label="Country"
+                value={draft.country}
+                onChange={(v) => patch({ country: v })}
+              />
               <FieldInput label="Zone" value={draft.zone} onChange={(v) => patch({ zone: v })} />
-              <FieldInput label="Latitude" value={draft.latitude} onChange={(v) => patch({ latitude: v })} />
-              <FieldInput label="Longitude" value={draft.longitude} onChange={(v) => patch({ longitude: v })} />
-              <FieldInput label="Radius (km)" value={draft.radiusKm} onChange={(v) => patch({ radiusKm: v })} />
+              <FieldInput
+                label="Latitude"
+                value={draft.latitude}
+                onChange={(v) => patch({ latitude: v })}
+              />
+              <FieldInput
+                label="Longitude"
+                value={draft.longitude}
+                onChange={(v) => patch({ longitude: v })}
+              />
+              <FieldInput
+                label="Radius (km)"
+                value={draft.radiusKm}
+                onChange={(v) => patch({ radiusKm: v })}
+              />
               <FieldInput
                 label="Country Code"
                 value={draft.countryCode}

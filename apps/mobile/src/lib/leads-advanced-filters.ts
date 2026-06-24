@@ -38,9 +38,7 @@ export function countActiveMobileLeadFilters(filters: MobileLeadFilters): number
 }
 
 /** Map mobile filter state to flat API query params for GET /api/leads. */
-export function mobileFiltersToApiParams(
-  filters: MobileLeadFilters,
-): Record<string, string> {
+export function mobileFiltersToApiParams(filters: MobileLeadFilters): Record<string, string> {
   const out: Record<string, string> = {};
   const setBool = (key: string, value?: boolean) => {
     if (value) out[key] = "true";

@@ -2,8 +2,8 @@
 
 import { EmptyState } from "@/components/common/empty-state";
 import { LeadEditModal } from "@/components/leads/lead-edit-modal";
-import { LeadForm } from "@/components/leads/lead-form";
 import { LeadFilterDialog } from "@/components/leads/lead-filter-dialog";
+import { LeadForm } from "@/components/leads/lead-form";
 import {
   type BulkActionIntent,
   LeadsBulkActionsBar,
