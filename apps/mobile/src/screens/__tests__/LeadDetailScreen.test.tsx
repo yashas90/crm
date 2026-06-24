@@ -1,5 +1,5 @@
 import { useCalls, useLogCall } from "@/hooks/use-calls";
-import { useAddLeadNote, useLead, useUpdateLead } from "@/hooks/use-leads";
+import { useAddLeadNote, useLead, useUpdateLead, useUpdateLeadFollowUp } from "@/hooks/use-leads";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useTcfForLead, useUpsertTcfConsent } from "@/hooks/useTcf";
 import { LeadDetailScreen } from "@/screens/LeadDetailScreen";
@@ -54,6 +54,9 @@ const mockUseCalls = useCalls as jest.MockedFunction<typeof useCalls>;
 const mockUseLogCall = useLogCall as jest.MockedFunction<typeof useLogCall>;
 const mockUseUpdateLead = useUpdateLead as jest.MockedFunction<typeof useUpdateLead>;
 const mockUseAddLeadNote = useAddLeadNote as jest.MockedFunction<typeof useAddLeadNote>;
+const mockUseUpdateLeadFollowUp = useUpdateLeadFollowUp as jest.MockedFunction<
+  typeof useUpdateLeadFollowUp
+>;
 const mockUseAutoDialerCallLog = useAutoDialerCallLog as jest.MockedFunction<
   typeof useAutoDialerCallLog
 >;
@@ -87,6 +90,11 @@ describe("LeadDetailScreen consent section", () => {
       isPending: false,
     } as never);
     mockUseAddLeadNote.mockReturnValue({
+      mutate: jest.fn(),
+      mutateAsync: jest.fn(),
+      isPending: false,
+    } as never);
+    mockUseUpdateLeadFollowUp.mockReturnValue({
       mutate: jest.fn(),
       mutateAsync: jest.fn(),
       isPending: false,

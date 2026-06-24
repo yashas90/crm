@@ -9,6 +9,8 @@ module.exports = {
     ...preset.moduleNameMapper,
     "^@/(.*)$": "<rootDir>/src/$1",
     "^@react-native/js-polyfills/error-guard$": "<rootDir>/src/test/mocks/error-guard.js",
+    // Resolve TypeScript ESM .js imports to .ts sources (workspace packages use .js extensions)
+    "^(\\.{1,2}/.+)\\.js$": "$1",
   },
   testMatch: ["**/__tests__/**/*.(test|spec).(ts|tsx)"],
   transformIgnorePatterns: ["/node_modules/react-native-reanimated/plugin/"],
