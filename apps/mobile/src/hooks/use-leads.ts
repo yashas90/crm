@@ -56,7 +56,50 @@ type LeadsQuery = {
   search?: string;
   status?: string;
   temperature?: string;
+  source?: string;
   assignedTo?: string;
+  unassigned?: string;
+  teamLeads?: string;
+  assignWithHistory?: string;
+  assignedFrom?: string;
+  assignedBy?: string;
+  originalOwner?: string;
+  subStatus?: string;
+  subSource?: string;
+  tagPresets?: string;
+  meetingDone?: string;
+  meetingNotDone?: string;
+  siteVisitDone?: string;
+  siteVisitNotDone?: string;
+  projectStatus?: string;
+  projectId?: string;
+  hasProject?: string;
+  possessionFrom?: string;
+  possessionTo?: string;
+  city?: string;
+  state?: string;
+  locality?: string;
+  country?: string;
+  zone?: string;
+  latitude?: string;
+  longitude?: string;
+  radiusKm?: string;
+  countryCode?: string;
+  altCountryCode?: string;
+  customerCountry?: string;
+  propertyStatus?: string;
+  propertyType?: string;
+  propertySubType?: string;
+  bhk?: string;
+  bhkType?: string;
+  minBudgetFrom?: string;
+  minBudgetTo?: string;
+  maxBudgetFrom?: string;
+  maxBudgetTo?: string;
+  carpetAreaFrom?: string;
+  carpetAreaTo?: string;
+  builtUpAreaFrom?: string;
+  builtUpAreaTo?: string;
   page?: string;
   pageSize?: string;
   excludeDuplicates?: string;
@@ -64,16 +107,66 @@ type LeadsQuery = {
 
 export type { LeadsQuery };
 
+const QUERY_KEYS: (keyof LeadsQuery)[] = [
+  "search",
+  "status",
+  "temperature",
+  "source",
+  "assignedTo",
+  "unassigned",
+  "teamLeads",
+  "assignWithHistory",
+  "assignedFrom",
+  "assignedBy",
+  "originalOwner",
+  "subStatus",
+  "subSource",
+  "tagPresets",
+  "meetingDone",
+  "meetingNotDone",
+  "siteVisitDone",
+  "siteVisitNotDone",
+  "projectStatus",
+  "projectId",
+  "hasProject",
+  "possessionFrom",
+  "possessionTo",
+  "city",
+  "state",
+  "locality",
+  "country",
+  "zone",
+  "latitude",
+  "longitude",
+  "radiusKm",
+  "countryCode",
+  "altCountryCode",
+  "customerCountry",
+  "propertyStatus",
+  "propertyType",
+  "propertySubType",
+  "bhk",
+  "bhkType",
+  "minBudgetFrom",
+  "minBudgetTo",
+  "maxBudgetFrom",
+  "maxBudgetTo",
+  "carpetAreaFrom",
+  "carpetAreaTo",
+  "builtUpAreaFrom",
+  "builtUpAreaTo",
+];
+
 function buildLeadsParams(query: LeadsQuery, page: number | string) {
   const params = new URLSearchParams({
     page: String(page),
     pageSize: query.pageSize ?? LEADS_PAGE_SIZE,
     excludeDuplicates: query.excludeDuplicates ?? "true",
   });
-  if (query.assignedTo) params.set("assignedTo", query.assignedTo);
-  if (query.search) params.set("search", query.search);
-  if (query.status) params.set("status", query.status);
-  if (query.temperature) params.set("temperature", query.temperature);
+  for (const key of QUERY_KEYS) {
+    const value = query[key];
+    if (value) params.set(key, value);
+  }
   return params;
 }
 

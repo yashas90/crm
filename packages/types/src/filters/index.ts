@@ -46,3 +46,16 @@ export type ReportFilter = {
   leadStatus?: LeadStatus[];
   groupBy?: "day" | "week" | "month";
 };
+
+export type {
+  LeadsAdvancedFilters,
+  LeadListAdvancedApiQuery,
+  TagPresetId,
+} from "./leads-advanced.js";
+export {
+  TAG_PRESET_OPTIONS,
+  advancedFiltersToApiQuery,
+  countActiveAdvancedFilters,
+  defaultLeadsAdvancedFilters,
+  tagPresetsToApiParam,
+} from "./leads-advanced.js";

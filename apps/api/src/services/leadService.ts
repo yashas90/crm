@@ -76,7 +76,7 @@ export type ListLeadsParams = {
   adLeadsOnly?: boolean;
   /** Return leads whose tags share at least one value with this list. */
   tags?: string[];
-} & LeadAdvancedListQuery;
+} & Partial<LeadAdvancedListQuery>;
 
 /** Last 10 digits — treats +91… and local 10-digit numbers as the same phone. */
 const leadPhoneKeySql = sql`RIGHT(regexp_replace(COALESCE(${leads.phone}, ''), '[^0-9]', '', 'g'), 10)`;
@@ -139,11 +139,11 @@ export interface UpdateLeadInput {
     temperature: Temperature;
     notes: string;
     tags: string[];
-    nextFollowupAt: string;
+    nextFollowupAt: string | null;
     estimatedValue: number | null;
     projectName: string;
     projectId: string | null;
-    assignedTo: string;
+    assignedTo: string | null;
     reason: string;
   }>;
 }

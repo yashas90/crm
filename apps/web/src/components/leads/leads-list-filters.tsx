@@ -2,7 +2,6 @@
 
 import { LeadsAdSourceTabs } from "@/components/leads/leads-ad-source-tabs";
 import { LeadsFilterBar } from "@/components/leads/leads-filter-bar";
-import { LeadsScopeTabs } from "@/components/leads/leads-scope-tabs";
 import { LeadsSourceChips } from "@/components/leads/leads-source-chips";
 import { LeadsStageBar } from "@/components/leads/leads-stage-bar";
 import type { LeadsDatePreset } from "@/lib/leads-date-filters";
@@ -35,10 +34,10 @@ type LeadsListFiltersProps = {
 };
 
 export function LeadsListFilters({
-  scope,
-  onScopeChange,
-  scopeCounts,
-  scopeCountsLoading,
+  scope: _scope,
+  onScopeChange: _onScopeChange,
+  scopeCounts: _scopeCounts,
+  scopeCountsLoading: _scopeCountsLoading,
   stage,
   onStageChange,
   stageCounts,
@@ -61,13 +60,6 @@ export function LeadsListFilters({
       className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       aria-label="Lead filters"
     >
-      <LeadsScopeTabs
-        value={scope}
-        onChange={onScopeChange}
-        counts={scopeCounts}
-        isLoadingCounts={scopeCountsLoading}
-        isAdmin={isAdmin}
-      />
       <LeadsSourceChips
         value={filters.source}
         adLeadsOnly={filters.adLeadsOnly}

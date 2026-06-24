@@ -56,7 +56,7 @@ export function useUpdateLeadStage() {
 
   return useMutation({
     mutationFn: ({ leadId, stage }: { leadId: string; stage: LeadStatus }) =>
-      apiPatch(`/api/leads/${leadId}`, { stage }),
+      apiPatch(`/api/leads/${leadId}`, { leadStatus: stage }),
     onMutate: async ({ leadId, stage }) => {
       await queryClient.cancelQueries({ queryKey: ["pipeline"] });
       const snapshots = queryClient.getQueriesData<PipelineCache>({ queryKey: ["pipeline"] });

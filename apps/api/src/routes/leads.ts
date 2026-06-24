@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { notifyLeadAssigned } from "../lib/leadAssignmentNotifications.js";
+import { advancedListQueryToServiceParams } from "../lib/leadListQueryMap.js";
 import { normalizeStoredPhone } from "../lib/leadPhone.js";
 import { listPaginationSchema } from "../lib/pagination.js";
 import {
@@ -135,6 +136,7 @@ leadsRoute.get("/scope-counts", async (c) => {
       tags: query.tags,
       dateFrom: query.dateFrom,
       dateTo: query.dateTo,
+      ...advancedListQueryToServiceParams(query),
     },
     {
       userId: authUser.id,
@@ -187,6 +189,7 @@ leadsRoute.get("/stage-counts", async (c) => {
     unassigned: query.unassigned,
     deletedOnly: query.deletedOnly,
     ...leadDuplicateFilters(query),
+    ...advancedListQueryToServiceParams(query),
   });
 
   return c.json({ ok: true, data });
@@ -242,6 +245,7 @@ leadsRoute.get("/", async (c) => {
     reEnquiredOnly: query.reEnquiredOnly,
     naLeadsOnly: authUser.role === "admin" ? query.naLeadsOnly : false,
     ...leadDuplicateFilters(query),
+    ...advancedListQueryToServiceParams(query),
   });
 
   return c.json({ ok: true, data });

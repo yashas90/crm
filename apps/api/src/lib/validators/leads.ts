@@ -1,77 +1,81 @@
 import { LEAD_STATUSES, LEAD_TEMPERATURES } from "@propninja/types/enums";
 import { z } from "zod";
+import { leadAdvancedListQuerySchema } from "../leadAdvancedListQuery.js";
+import { normalizeLeadStageInput } from "../leadStage.js";
 
 const leadStatusSchema = z.enum(LEAD_STATUSES);
 const temperatureSchema = z.enum(LEAD_TEMPERATURES);
 
 /** Matches camelCase query params used by web/mobile clients. */
-export const listLeadsQuerySchema = z.object({
-  status: leadStatusSchema.optional(),
-  search: z.string().optional(),
-  page: z.coerce.number().min(1).default(1),
-  pageSize: z.coerce.number().min(1).max(500).default(20),
-  assignedTo: z.string().uuid().optional(),
-  projectId: z.string().uuid().optional(),
-  importBatchId: z.string().uuid().optional(),
-  temperature: temperatureSchema.optional(),
-  source: z.string().optional(),
-  dateFrom: z.string().datetime({ offset: true }).optional(),
-  dateTo: z.string().datetime({ offset: true }).optional(),
-  followUpDueBefore: z.string().datetime({ offset: true }).optional(),
-  followUpDueAfter: z.string().datetime({ offset: true }).optional(),
-  orderByFollowUp: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  unassigned: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  activeOnly: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  deletedOnly: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  teamLeads: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  duplicatesOnly: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  excludeDuplicates: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  reEnquiredOnly: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  adLeads: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  naLeadsOnly: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((v) => v === "true"),
-  tags: z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .transform((value) => {
-      if (!value) return undefined;
-      const parts = Array.isArray(value) ? value : [value];
-      const tags = parts
-        .flatMap((part) => part.split(","))
-        .map((tag) => tag.trim())
-        .filter(Boolean);
-      return tags.length > 0 ? tags : undefined;
-    }),
-});
+export const listLeadsQuerySchema = z
+  .object({
+    status: leadStatusSchema.optional(),
+    search: z.string().optional(),
+    page: z.coerce.number().min(1).default(1),
+    pageSize: z.coerce.number().min(1).max(500).default(20),
+    assignedTo: z.string().uuid().optional(),
+    projectId: z.string().uuid().optional(),
+    importBatchId: z.string().uuid().optional(),
+    temperature: temperatureSchema.optional(),
+    source: z.string().optional(),
+    dateFrom: z.string().datetime({ offset: true }).optional(),
+    dateTo: z.string().datetime({ offset: true }).optional(),
+    followUpDueBefore: z.string().datetime({ offset: true }).optional(),
+    followUpDueAfter: z.string().datetime({ offset: true }).optional(),
+    orderByFollowUp: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    unassigned: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    activeOnly: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    deletedOnly: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    teamLeads: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    duplicatesOnly: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    excludeDuplicates: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    reEnquiredOnly: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    adLeads: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    naLeadsOnly: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    tags: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .transform((value) => {
+        if (!value) return undefined;
+        const parts = Array.isArray(value) ? value : [value];
+        const tags = parts
+          .flatMap((part) => part.split(","))
+          .map((tag) => tag.trim())
+          .filter(Boolean);
+        return tags.length > 0 ? tags : undefined;
+      }),
+  })
+  .merge(leadAdvancedListQuerySchema);
 
 const leadWritableFieldsSchema = z.object({
   firstName: z.string().min(1),
@@ -95,9 +99,26 @@ const leadWritableFieldsSchema = z.object({
 /** Create requires firstName + phone; all other fields optional. */
 export const createLeadBodySchema = leadWritableFieldsSchema;
 
-export const updateLeadBodySchema = leadWritableFieldsSchema.partial().extend({
-  estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
-});
+export const updateLeadBodySchema = leadWritableFieldsSchema
+  .partial()
+  .extend({
+    estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
+    assignedTo: z.string().uuid().nullable().optional(),
+    nextFollowupAt: z.string().datetime({ offset: true }).nullable().optional(),
+    /** Mobile pipeline alias for leadStatus (e.g. qualified = Site Visit). */
+    stage: z.string().optional(),
+  })
+  .transform((data) => {
+    const { stage, leadStatus, email, ...rest } = data;
+    const resolvedStatus =
+      leadStatus ?? (stage ? (normalizeLeadStageInput(stage) ?? undefined) : undefined);
+
+    return {
+      ...rest,
+      ...(email === "" ? {} : email !== undefined ? { email } : {}),
+      ...(resolvedStatus !== undefined ? { leadStatus: resolvedStatus } : {}),
+    };
+  });
 
 export const assignLeadBodySchema = z.object({
   user_id: z.string().uuid(),

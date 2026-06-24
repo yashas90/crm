@@ -267,6 +267,13 @@
       "when": 1750700000000,
       "tag": "0037_naleads_status",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1750800000000,
+      "tag": "0040_lead_filter_fields",
+      "breakpoints": true
     }
   ]
 }

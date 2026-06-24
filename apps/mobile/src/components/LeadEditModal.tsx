@@ -78,7 +78,11 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
       leadSource: leadSource || undefined,
       secondaryPhone: secondaryPhone.trim() || undefined,
       tags: tagList,
-      nextFollowupAt: nextFollowupAt ?? null,
+      ...(nextFollowupAt
+        ? { nextFollowupAt }
+        : lead.nextFollowupAt
+          ? { nextFollowupAt: null }
+          : {}),
     });
   }
 

@@ -1,4 +1,12 @@
 import { normalizeLeadSourceValue } from "@/lib/lead-sources";
+import {
+  type LeadsAdvancedFilters,
+  appendAdvancedFiltersToParams,
+  countActiveAdvancedFilters,
+  defaultLeadsAdvancedFilters,
+  parseAdvancedFiltersFromParams,
+} from "@/lib/leads-advanced-filters";
+import { advancedFiltersToFlatApiParams } from "@/lib/leads-advanced-filters";
 import { type LeadsDatePreset, inferDatePresetFromRange } from "@/lib/leads-date-filters";
 import { type LeadsScope, scopeFromSearchParams, scopeToQueryParams } from "@/lib/leads-scope";
 import {
@@ -10,7 +18,7 @@ import {
 } from "@/lib/leads-stage";
 import { toApiRange } from "@/lib/report-filters";
 
-export type LeadsUrlFilters = {
+export type LeadsUrlFilters = LeadsAdvancedFilters & {
   search: string;
   status: string;
   temperature: string;
@@ -29,6 +37,7 @@ export type LeadsUrlFilters = {
 };
 
 export const defaultLeadsUrlFilters = (): LeadsUrlFilters => ({
+  ...defaultLeadsAdvancedFilters(),
   search: "",
   status: "",
   temperature: "",
@@ -71,6 +80,7 @@ export function parseLeadsSearchParams(params: URLSearchParams): LeadsUrlFilters
   const scopeParam = params.get("scope");
 
   return {
+    ...parseAdvancedFiltersFromParams(params),
     search: params.get("search") ?? "",
     status: params.get("status") ?? "",
     temperature: params.get("temperature") ?? "",
@@ -143,6 +153,8 @@ export function buildLeadsSearchParams(
     }
   }
 
+  appendAdvancedFiltersToParams(params, filters);
+
   return params.toString();
 }
 
@@ -154,6 +166,7 @@ export function countAdvancedLeadsFilters(filters: LeadsUrlFilters) {
   if (filters.followUpFilter) count += 1;
   if (tagsFilterToApiParam(filters.tags)) count += 1;
   if (filters.importBatchId) count += 1;
+  count += countActiveAdvancedFilters(filters);
   return count;
 }
 
@@ -270,5 +283,6 @@ export function leadsFiltersToQuery(
     orderByFollowUp: stageParams.orderByFollowUp,
     page: String(options?.page ?? 1),
     pageSize: String(options?.pageSize ?? DEFAULT_LEADS_PAGE_SIZE),
+    ...advancedFiltersToFlatApiParams(filters),
   };
 }

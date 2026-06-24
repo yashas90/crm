@@ -23,6 +23,7 @@ import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDuration } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
+import { buildLeadStatusPatch } from "@/lib/lead-status-options";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -285,10 +286,7 @@ export function TodayScreen({ route, navigation }: Props) {
     const afterCall = dialerLog.isPendingLog;
 
     try {
-      const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
-      if (canReassign && payload.assignedTo) {
-        patch.assignedTo = payload.assignedTo;
-      }
+      const patch = buildLeadStatusPatch(payload, lead, { canReassign });
 
       await updateLead.mutateAsync({ leadId: lead.id, payload: patch });
 

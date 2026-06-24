@@ -3,7 +3,7 @@
 import { EmptyState } from "@/components/common/empty-state";
 import { LeadEditModal } from "@/components/leads/lead-edit-modal";
 import { LeadForm } from "@/components/leads/lead-form";
-import { LeadsAdvancedFiltersSheet } from "@/components/leads/leads-advanced-filters-sheet";
+import { LeadFilterDialog } from "@/components/leads/lead-filter-dialog";
 import {
   type BulkActionIntent,
   LeadsBulkActionsBar,
@@ -170,6 +170,18 @@ export function LeadsPageView() {
   const handleSearchSubmit = () => {
     setFilters((current) => ({ ...current, search: searchDraft.trim() }));
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters((current) => {
+        const next = searchDraft.trim();
+        if (current.search === next) return current;
+        return { ...current, search: next };
+      });
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchDraft]);
 
   const handleDatePresetChange = (
     preset: LeadsDatePreset,
@@ -371,12 +383,19 @@ export function LeadsPageView() {
         </section>
       )}
 
-      <LeadsAdvancedFiltersSheet
+      <LeadFilterDialog
         open={advancedOpen}
         onOpenChange={setAdvancedOpen}
         filters={filters}
-        onApply={setFilters}
+        scope={scope}
+        onScopeChange={setScope}
+        scopeCounts={scopeCounts.data}
+        scopeCountsLoading={scopeCountsLoading}
         onStageChange={setStage}
+        onApply={(nextFilters, nextScope) => {
+          setFilters(nextFilters);
+          setScope(nextScope);
+        }}
       />
 
       <LeadEditModal

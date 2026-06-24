@@ -56,6 +56,12 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@propninja/ui", "@propninja/types"],
+  webpack: (config) => {
+    config.resolve.extensionAlias = {
+      ".js": [".ts", ".tsx", ".js", ".jsx"],
+    };
+    return config;
+  },
   env: {
     NEXT_PUBLIC_SENTRY_DSN_WEB: sentryDsn ?? "",
     NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),

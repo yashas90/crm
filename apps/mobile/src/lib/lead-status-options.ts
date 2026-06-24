@@ -22,3 +22,34 @@ export function formatLeadStatusLabel(status: string | null | undefined): string
   if (match) return match.label;
   return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
 }
+
+const STATUSES_CLEARING_FOLLOW_UP = new Set<LeadStatus>([
+  "not_interested",
+  "dropped",
+  "lost",
+  "won",
+]);
+
+export function buildLeadStatusPatch(
+  payload: {
+    leadStatus: LeadStatus;
+    assignedTo?: string;
+  },
+  lead: {
+    assignedUser?: { id: string } | null;
+    nextFollowupAt?: string | null;
+  },
+  options: { canReassign: boolean },
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
+
+  if (options.canReassign && payload.assignedTo && payload.assignedTo !== lead.assignedUser?.id) {
+    patch.assignedTo = payload.assignedTo;
+  }
+
+  if (STATUSES_CLEARING_FOLLOW_UP.has(payload.leadStatus) && lead.nextFollowupAt) {
+    patch.nextFollowupAt = null;
+  }
+
+  return patch;
+}

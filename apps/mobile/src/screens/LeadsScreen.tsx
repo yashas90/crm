@@ -1,7 +1,14 @@
+import { LeadFilterSheet } from "@/components/LeadFilterSheet";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-leads";
+import {
+  type MobileLeadFilters,
+  countActiveMobileLeadFilters,
+  defaultMobileLeadFilters,
+  mobileFiltersToApiParams,
+} from "@/lib/leads-advanced-filters";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
 import type { LeadsStackParamList } from "@/navigation/types";
@@ -11,7 +18,7 @@ import { neuCard } from "@/theme/neubrutal";
 import { formatStatusLabel, statusStyle, temperatureStyle } from "@/theme/status";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -81,22 +88,34 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
 
 export function LeadsScreen({ navigation }: Props) {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [chip, setChip] = useState<FilterChip>("all");
+  const [leadFilters, setLeadFilters] = useState<MobileLeadFilters>(defaultMobileLeadFilters);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const fabBottom = TAB_BAR_HEIGHT + insets.bottom + spacing.md;
   const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom + 72;
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const queryParams = useMemo(() => {
-    const params: Omit<LeadsQuery, "page"> = {};
-    if (search.trim()) params.search = search.trim();
-    if (chip === "hot") params.temperature = "hot";
-    if (chip === "new") params.status = "new";
-    if (chip === "mine") {
+    const params: Omit<LeadsQuery, "page"> = {
+      ...mobileFiltersToApiParams(leadFilters),
+    };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (chip === "hot" && !params.temperature) params.temperature = "hot";
+    if (chip === "new" && !params.status) params.status = "new";
+    if (chip === "mine" && !params.assignedTo) {
       const userId = getCurrentUserId();
       if (userId) params.assignedTo = userId;
     }
     return params;
-  }, [search, chip]);
+  }, [debouncedSearch, chip, leadFilters]);
+
+  const activeFilterCount = countActiveMobileLeadFilters(leadFilters);
 
   const {
     data,
@@ -147,15 +166,29 @@ export function LeadsScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <View style={styles.searchWrap}>
-        <Ionicons name="search" size={18} color={colors.textMuted} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search name or phone"
-          placeholderTextColor={colors.textMuted}
-          value={search}
-          onChangeText={setSearch}
-        />
+      <View style={styles.searchRow}>
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={18} color={colors.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search name or phone"
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+        <Pressable
+          style={styles.filterBtn}
+          onPress={() => setFilterSheetOpen(true)}
+          accessibilityLabel="Open lead filters"
+        >
+          <Ionicons name="options-outline" size={22} color={colors.text} />
+          {activeFilterCount > 0 ? (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          ) : null}
+        </Pressable>
       </View>
 
       <View style={styles.chipsRow}>
@@ -171,6 +204,13 @@ export function LeadsScreen({ navigation }: Props) {
           </Pressable>
         ))}
       </View>
+
+      <LeadFilterSheet
+        visible={filterSheetOpen}
+        filters={leadFilters}
+        onClose={() => setFilterSheetOpen(false)}
+        onApply={setLeadFilters}
+      />
 
       <FlatList
         style={styles.list}
@@ -233,11 +273,17 @@ const styles = StyleSheet.create({
   },
   headerTitle: { ...typography.heading, color: colors.text },
   headerSub: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
-  searchWrap: {
+  searchRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.sm,
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
+  },
+  searchWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.card,
     borderRadius: radii.pill,
     borderWidth: 2,
@@ -252,6 +298,30 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
   },
+  filterBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.neuSm,
+  },
+  filterBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
   chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
