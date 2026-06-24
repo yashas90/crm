@@ -58,7 +58,7 @@ export function UpdateLeadStatusSheet({
     if (!visible) return;
     setSelectedLabel(null);
     setNotes("");
-    setAssigneeId(defaultAssigneeId ?? currentAssigneeId ?? null);
+    setAssigneeId(currentAssigneeId ?? defaultAssigneeId ?? null);
     setAssignOpen(false);
     setNextFollowupAt(null);
   }, [visible, currentAssigneeId, defaultAssigneeId]);

@@ -513,7 +513,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         visible={statusSheetVisible}
         currentStatus={lead.leadStatus}
         currentAssigneeId={lead.assignedUser?.id ?? null}
-        defaultAssigneeId={getCurrentUserId()}
+        defaultAssigneeId={lead.assignedUser?.id ?? getCurrentUserId()}
         assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
         isSaving={updateLead.isPending || updateFollowUp.isPending || addNote.isPending}
         onClose={() => {

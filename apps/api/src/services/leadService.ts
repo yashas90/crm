@@ -48,6 +48,9 @@ type LeadStatus =
   | "dropped";
 
 const NA_STATUSES: LeadStatus[] = ["not_interested", "dropped"];
+
+/** Status changes that should clear any scheduled follow-up. */
+const FOLLOW_UP_CLEARING_STATUSES: LeadStatus[] = ["won", "lost", "not_interested", "dropped"];
 type Temperature = "cold" | "warm" | "hot";
 
 export type ListLeadsParams = {
@@ -938,6 +941,14 @@ export const leadService = {
       payload.assignedTo === undefined;
     if (becomingNaLead) {
       update.assignedTo = null;
+    }
+
+    const statusClearsFollowUp =
+      payload.leadStatus !== undefined &&
+      payload.leadStatus !== existing.leadStatus &&
+      FOLLOW_UP_CLEARING_STATUSES.includes(payload.leadStatus);
+    if (statusClearsFollowUp && existing.nextFollowupAt) {
+      update.nextFollowupAt = null;
     }
 
     const assignmentChanged =

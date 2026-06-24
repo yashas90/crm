@@ -457,7 +457,8 @@ export function TodayScreen({ route, navigation }: Props) {
       <UpdateLeadStatusSheet
         visible={dialerLog.isPendingLog}
         currentStatus={statusLead?.leadStatus ?? null}
-        defaultAssigneeId={getCurrentUserId()}
+        currentAssigneeId={statusLead?.assignedUser?.id ?? null}
+        defaultAssigneeId={statusLead?.assignedUser?.id ?? getCurrentUserId()}
         assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
         isSaving={updateLead.isPending || updateFollowUp.isPending || addNote.isPending}
         onClose={dialerLog.dismissPending}
