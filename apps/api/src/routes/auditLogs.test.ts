@@ -37,7 +37,7 @@ vi.mock("../middleware/auth.js", () => ({
 describe("GET /api/audit-logs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.list.mockResolvedValue([]);
+    mocks.list.mockResolvedValue({ items: [], nextCursor: null });
   });
 
   async function appWithRoutes() {
@@ -70,19 +70,22 @@ describe("GET /api/audit-logs", () => {
 
   it("returns audit log data for admins", async () => {
     mocks.isAdmin.mockReturnValue(true);
-    mocks.list.mockResolvedValue([
-      {
-        id: "log-1",
-        userId: "admin-1",
-        userName: "Admin",
-        userEmail: "admin@test.com",
-        action: "LEAD_CREATED",
-        entityType: "lead",
-        entityId: "lead-1",
-        metadata: {},
-        createdAt: new Date().toISOString(),
-      },
-    ]);
+    mocks.list.mockResolvedValue({
+      items: [
+        {
+          id: "log-1",
+          userId: "admin-1",
+          userName: "Admin",
+          userEmail: "admin@test.com",
+          action: "LEAD_CREATED",
+          entityType: "lead",
+          entityId: "lead-1",
+          metadata: {},
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      nextCursor: null,
+    });
 
     const app = await appWithRoutes();
     const res = await app.request("/api/audit-logs?page=1&pageSize=50");

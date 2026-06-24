@@ -4,7 +4,7 @@ const BUNDLE_ID = "com.propninja.crm";
 const EAS_PROJECT_ID = "fe2ff218-2069-40bb-ab90-e694a50777e2";
 const EXPO_OWNER = "propninjacrm";
 /** Production API — also set in eas.json preview/production env for release builds. */
-const PRODUCTION_API_URL = "https://crm-production-e81d.up.railway.app";
+const PRODUCTION_API_URL = "https://crm-production-6cfe.up.railway.app";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,

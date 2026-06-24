@@ -22,7 +22,7 @@ import {
   visibleProjectsDataColumnCount,
 } from "@/lib/projects-table-columns";
 import { cn } from "@propninja/ui/lib/utils";
-import { Building2, Copy, Eye, Pencil, Trash2 } from "lucide-react";
+import { Building2, Eye, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ReactNode, memo, useCallback, useMemo, useState } from "react";
 
@@ -191,12 +191,6 @@ const ProjectTableRow = memo(function ProjectTableRow({
             label={`View ${project.name}`}
             className="bg-blue-500"
             onClick={() => onView(project.id)}
-          />
-          <ActionIconButton
-            icon={<Copy className="h-3.5 w-3.5" />}
-            label="Coming soon"
-            className="bg-violet-500"
-            disabled
           />
           <ActionIconButton
             icon={<Trash2 className="h-3.5 w-3.5" />}
