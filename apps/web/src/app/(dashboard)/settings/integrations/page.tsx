@@ -5,15 +5,10 @@ import { PropertyPortalsSection } from "@/components/settings/property-portals-s
 import { Badge } from "@/components/ui/badge";
 import { useIntegrationsStatus } from "@/hooks/use-integrations-status";
 import { usePermissions } from "@/hooks/use-permissions";
-import { useSession } from "@/hooks/use-session";
-import { apiDelete, apiGet, apiPost } from "@/lib/apiClient";
-import { getErrorMessage } from "@/lib/errors";
-import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Megaphone, RefreshCw } from "lucide-react";
+import { Megaphone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
 function StatusBadge({ status }: { status: "live" | "not_configured" | undefined }) {
@@ -33,89 +28,6 @@ function IntegrationMetaRow({ label, value }: { label: string; value: string }) 
     <p className="text-sm">
       <span className="text-muted-foreground">{label}:</span> {value}
     </p>
-  );
-}
-
-type GCalStatus = { connected: boolean; calendarId: string | null; connectedAt: string | null };
-type GCalConnectData = { url: string };
-
-function GoogleCalendarSection() {
-  const { session } = useSession();
-  const qc = useQueryClient();
-
-  const status = useQuery({
-    queryKey: ["gcal-status"],
-    queryFn: () => apiGet<GCalStatus>("/api/google-calendar/status"),
-  });
-
-  const connect = useMutation({
-    mutationFn: () => apiGet<GCalConnectData>("/api/google-calendar/connect"),
-    onSuccess: (data) => {
-      window.location.href = data.url;
-    },
-    onError: (err) => toast.error(getErrorMessage(err, "Failed to start Google auth")),
-  });
-
-  const disconnect = useMutation({
-    mutationFn: () => apiDelete("/api/google-calendar/disconnect"),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["gcal-status"] });
-      toast.success("Google Calendar disconnected");
-    },
-    onError: (err) => toast.error(getErrorMessage(err, "Failed to disconnect")),
-  });
-
-  const gcal = status.data;
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="h-1 w-full bg-gradient-to-r from-green-500 to-emerald-600" />
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-        <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarDays className="h-4 w-4 text-emerald-600" />
-            Google Calendar
-          </CardTitle>
-          <CardDescription>Sync site visits to your Google Calendar.</CardDescription>
-        </div>
-        <Badge variant={gcal?.connected ? "default" : "secondary"}>
-          {gcal?.connected ? "Connected" : "Not connected"}
-        </Badge>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        {gcal?.connected ? (
-          <>
-            <p className="text-muted-foreground">
-              Connected as <strong>{session?.email}</strong>
-              {gcal.connectedAt
-                ? ` · since ${new Date(gcal.connectedAt).toLocaleDateString()}`
-                : ""}
-            </p>
-            <p className="text-muted-foreground">
-              Calendar: <span className="font-mono">{gcal.calendarId ?? "primary"}</span>
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => disconnect.mutate()}
-              disabled={disconnect.isPending}
-            >
-              {disconnect.isPending ? "Disconnecting…" : "Disconnect"}
-            </Button>
-          </>
-        ) : (
-          <>
-            <p className="text-muted-foreground">
-              Connect your Google account to push site visit events to Google Calendar. Requires
-              GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the API server.
-            </p>
-            <Button size="sm" onClick={() => connect.mutate()} disabled={connect.isPending}>
-              {connect.isPending ? "Redirecting…" : "Connect Google Calendar"}
-            </Button>
-          </>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
