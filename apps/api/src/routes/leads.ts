@@ -35,6 +35,7 @@ import { listHotLeads } from "../services/leadScoringService.js";
 import { LeadDuplicatePhoneError, leadService } from "../services/leadService.js";
 import { createProjectUnitService } from "../services/projectUnitService.js";
 import { whatsappService } from "../services/whatsappService.js";
+import { autoAssignLead } from "./assignmentRules.js";
 
 export const leadsRoute = new Hono();
 
@@ -404,9 +405,18 @@ leadsRoute.post("/", leadsCreateRateLimit, validate("json", createLeadBodySchema
   const authUser = c.get("authUser") as AuthUser;
   try {
     const body = c.req.valid("json");
-    const lead = await leadService.createLead(body, {
-      assignedTo: authUser.role === "agent" ? authUser.id : undefined,
-    });
+
+    // Auto-assign via rules when admin/manager creates a lead without explicit assignee
+    let assignedTo = authUser.role === "agent" ? authUser.id : undefined;
+    if (!assignedTo && authUser.role !== "agent") {
+      const autoAssignee = await autoAssignLead(c.get("db"), {
+        leadSource: body.leadSource,
+        city: body.city,
+      });
+      if (autoAssignee) assignedTo = autoAssignee;
+    }
+
+    const lead = await leadService.createLead(body, { assignedTo });
     return c.json({ ok: true, data: lead }, 201);
   } catch (err) {
     if (err instanceof LeadDuplicatePhoneError) {
@@ -565,6 +575,24 @@ leadsRoute.patch("/:id", leadsPatchRateLimit, async (c) => {
           code: "VALIDATION_ERROR",
           message: "Invalid body",
           details: parsed.error.flatten(),
+        },
+      },
+      400,
+    );
+  }
+
+  const terminalStatuses = ["lost", "not_interested"];
+  if (
+    parsed.data.leadStatus &&
+    terminalStatuses.includes(parsed.data.leadStatus) &&
+    !parsed.data.closeReason
+  ) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `closeReason is required when marking a lead as ${parsed.data.leadStatus}`,
         },
       },
       400,

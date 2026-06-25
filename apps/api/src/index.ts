@@ -22,11 +22,15 @@ import { authenticatedUserRateLimit, publicIpRateLimitMiddleware } from "./middl
 import { requestContextMiddleware } from "./middleware/requestContext.js";
 import { sentryRequestMiddleware, sentryUserMiddleware } from "./middleware/sentry.js";
 import { adminRoutes } from "./routes/admin.js";
+import { agentTargetsRoutes } from "./routes/agentTargets.js";
 import { analyticsRoutes } from "./routes/analytics.js";
+import { assignmentRulesRoutes } from "./routes/assignmentRules.js";
 import { auditLogsRoutes } from "./routes/auditLogs.js";
 import { authRoutes } from "./routes/auth.js";
 import { callsRoute } from "./routes/calls.js";
 import { documentViewRoutes, documentsRoutes } from "./routes/documents.js";
+import { emailRoutes } from "./routes/email.js";
+import { funnelRoutes } from "./routes/funnel.js";
 import { healthRoutes } from "./routes/health.js";
 import { integrationsRoutes } from "./routes/integrations.js";
 import { metaIntegrationsRoute } from "./routes/integrationsMeta.js";
@@ -40,6 +44,7 @@ import { projectsRoutes } from "./routes/projects.js";
 import { reportsRoutes } from "./routes/reports.js";
 import { securityRoutes } from "./routes/security.js";
 import { siteVisitsRoutes } from "./routes/siteVisits.js";
+import { slaRoutes } from "./routes/sla.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { tcfRoutes } from "./routes/tcf.js";
 import { userRolesRoutes } from "./routes/userRoles.js";
@@ -98,6 +103,11 @@ app.route("/api/documents", documentsRoutes);
 app.route("/api/whatsapp", whatsappRoute);
 app.route("/api/message-templates", messageTemplatesRoutes);
 app.route("/api/security", securityRoutes);
+app.route("/api/agent-targets", agentTargetsRoutes);
+app.route("/api/assignment-rules", assignmentRulesRoutes);
+app.route("/api/email", emailRoutes);
+app.route("/api/sla", slaRoutes);
+app.route("/api/reports/funnel", funnelRoutes);
 
 app.notFound((c) => jsonError(c, "NOT_FOUND", "Route not found", 404));
 

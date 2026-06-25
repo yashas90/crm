@@ -125,6 +125,8 @@ const updateLeadFieldsSchema = leadWritableFieldsSchema.partial().extend({
   nextFollowupAt: z.string().datetime({ offset: true }).nullable().optional(),
   /** Mobile pipeline alias for leadStatus (e.g. qualified = Site Visit). */
   stage: z.string().optional(),
+  closeReason: z.string().optional(),
+  closeReasonNote: z.string().max(500).optional(),
 });
 
 export const updateLeadBodySchema = z.preprocess(

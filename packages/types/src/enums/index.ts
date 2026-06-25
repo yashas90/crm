@@ -49,3 +49,45 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const CONSENT_TYPES = ["call", "sms", "email"] as const;
 
 export type ConsentType = (typeof CONSENT_TYPES)[number];
+
+export const LEAD_CLOSE_REASONS = [
+  "budget_issue",
+  "not_serious",
+  "competitor",
+  "location_mismatch",
+  "project_mismatch",
+  "no_response",
+  "already_purchased",
+  "future_requirement",
+  "other",
+] as const;
+
+export type LeadCloseReason = (typeof LEAD_CLOSE_REASONS)[number];
+
+export const LEAD_CLOSE_REASON_LABELS: Record<LeadCloseReason, string> = {
+  budget_issue: "Budget Issue",
+  not_serious: "Not Serious",
+  competitor: "Went to Competitor",
+  location_mismatch: "Location Mismatch",
+  project_mismatch: "Project Mismatch",
+  no_response: "No Response",
+  already_purchased: "Already Purchased",
+  future_requirement: "Future Requirement",
+  other: "Other",
+};
+
+export const VISIT_OUTCOMES = [
+  "very_interested",
+  "needs_time",
+  "not_interested",
+  "revisit_required",
+] as const;
+
+export type VisitOutcome = (typeof VISIT_OUTCOMES)[number];
+
+export const VISIT_OUTCOME_LABELS: Record<VisitOutcome, string> = {
+  very_interested: "Very Interested",
+  needs_time: "Needs More Time",
+  not_interested: "Not Interested",
+  revisit_required: "Revisit Required",
+};

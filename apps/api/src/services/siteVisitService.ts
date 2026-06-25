@@ -36,6 +36,8 @@ export interface UpdateSiteVisitInput {
   status?: SiteVisitStatus;
   notes?: string | null;
   propertyAddress?: string | null;
+  outcome?: string | null;
+  outcomeNote?: string | null;
 }
 
 export interface ListSiteVisitsParams {
@@ -61,6 +63,8 @@ const visitSelectFields = {
   status: siteVisits.status,
   notes: siteVisits.notes,
   propertyAddress: siteVisits.propertyAddress,
+  outcome: siteVisits.outcome,
+  outcomeNote: siteVisits.outcomeNote,
   reminderSent: siteVisits.reminderSent,
   createdAt: siteVisits.createdAt,
   updatedAt: siteVisits.updatedAt,
@@ -91,6 +95,8 @@ function mapVisitRow(row: {
   status: string;
   notes: string | null;
   propertyAddress: string | null;
+  outcome: string | null;
+  outcomeNote: string | null;
   reminderSent: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -113,6 +119,8 @@ function mapVisitRow(row: {
     notes: row.notes,
     propertyAddress: row.propertyAddress,
     propertyLabel: property,
+    outcome: row.outcome,
+    outcomeNote: row.outcomeNote,
     reminderSent: row.reminderSent,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -316,6 +324,8 @@ export const siteVisitService = {
         notes: input.notes !== undefined ? input.notes : existing.notes,
         propertyAddress:
           input.propertyAddress !== undefined ? input.propertyAddress : existing.propertyAddress,
+        outcome: input.outcome !== undefined ? input.outcome : existing.outcome,
+        outcomeNote: input.outcomeNote !== undefined ? input.outcomeNote : existing.outcomeNote,
         reminderSent: resetReminder ? false : existing.reminderSent,
         updatedAt: new Date(),
       })

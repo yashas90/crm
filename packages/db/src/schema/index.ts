@@ -118,6 +118,10 @@ export const leads = pgTable(
     score: integer("score").notNull().default(0),
     scoreUpdatedAt: timestamp("score_updated_at", { withTimezone: true }),
     whatsappRepliedAt: timestamp("whatsapp_replied_at", { withTimezone: true }),
+    closeReason: text("close_reason"),
+    closeReasonNote: text("close_reason_note"),
+    lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
+    slaBreachedAt: timestamp("sla_breached_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -438,6 +442,84 @@ export const portalWebhooks = pgTable(
       sql`${table.portalName} in ('99acres', 'magicbricks', 'housing', 'indiamrt', 'other')`,
     ),
     index("portal_webhooks_portal_name_idx").on(table.portalName),
+  ],
+);
+
+export const agentTargets = pgTable(
+  "agent_targets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    month: text("month").notNull(),
+    targetCalls: integer("target_calls").notNull().default(0),
+    targetSiteVisits: integer("target_site_visits").notNull().default(0),
+    targetBookings: integer("target_bookings").notNull().default(0),
+    targetRevenue: numeric("target_revenue", { precision: 16, scale: 2 }).notNull().default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("agent_targets_user_month_idx").on(table.orgId, table.userId, table.month),
+    index("agent_targets_org_month_idx").on(table.orgId, table.month),
+  ],
+);
+
+export const leadAssignmentRules = pgTable(
+  "lead_assignment_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    strategy: text("strategy").notNull().default("round_robin"),
+    conditions: jsonb("conditions").$type<Record<string, unknown>>().notNull().default({}),
+    assigneeIds: text("assignee_ids").array().notNull().default([]),
+    priority: integer("priority").notNull().default(0),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("lead_assignment_rules_org_id_idx").on(table.orgId, table.isActive)],
+);
+
+export const assignmentRuleState = pgTable("assignment_rule_state", {
+  ruleId: uuid("rule_id")
+    .primaryKey()
+    .references(() => leadAssignmentRules.id, { onDelete: "cascade" }),
+  lastAssignedIndex: integer("last_assigned_index").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const emailLogs = pgTable(
+  "email_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    leadId: uuid("lead_id").references(() => leads.id),
+    sentBy: uuid("sent_by")
+      .notNull()
+      .references(() => users.id),
+    toEmail: text("to_email").notNull(),
+    subject: text("subject").notNull(),
+    body: text("body").notNull(),
+    status: text("status").notNull().default("sent"),
+    error: text("error"),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("email_logs_lead_id_idx").on(table.leadId),
+    index("email_logs_org_id_idx").on(table.orgId),
   ],
 );
 
@@ -766,6 +848,8 @@ export const siteVisits = pgTable(
     visitTime: text("visit_time").notNull(),
     duration: integer("duration").notNull().default(60),
     status: text("status").notNull().default("scheduled"),
+    outcome: text("outcome"),
+    outcomeNote: text("outcome_note"),
     notes: text("notes"),
     propertyAddress: text("property_address"),
     reminderSent: boolean("reminder_sent").notNull().default(false),

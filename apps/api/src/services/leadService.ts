@@ -148,6 +148,8 @@ export interface UpdateLeadInput {
     projectId: string | null;
     assignedTo: string | null;
     reason: string;
+    closeReason: string;
+    closeReasonNote: string;
   }>;
 }
 
@@ -932,6 +934,11 @@ export const leadService = {
     if (payload.assignedTo !== undefined) {
       update.assignedTo = payload.assignedTo;
     }
+    if (payload.closeReason !== undefined) update.closeReason = payload.closeReason;
+    if (payload.closeReasonNote !== undefined) update.closeReasonNote = payload.closeReasonNote;
+
+    // Track last activity time on every update
+    update.lastActivityAt = new Date();
 
     // Auto-unassign when status changes to not_interested or dropped
     const becomingNaLead =

@@ -40,6 +40,11 @@ const updateSiteVisitSchema = z.object({
   visitTime: visitTimeSchema.optional(),
   duration: z.number().int().min(15).max(480).optional(),
   status: z.enum(["scheduled", "completed", "cancelled", "no_show"]).optional(),
+  outcome: z
+    .enum(["very_interested", "needs_time", "not_interested", "revisit_required"])
+    .nullable()
+    .optional(),
+  outcomeNote: z.string().max(1000).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   propertyAddress: z.string().max(500).nullable().optional(),
 });
