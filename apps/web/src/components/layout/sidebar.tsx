@@ -81,8 +81,8 @@ export function Sidebar() {
     ready && role ? navItems.filter((item) => item.roles.includes(role)) : DEFAULT_NAV;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-slate-200/50 bg-white/90 shadow-[1px_0_24px_0_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#0a0f1a]/80 dark:backdrop-blur-xl dark:shadow-none">
-      <div className="border-b border-slate-200/80 px-5 py-5 dark:border-white/10">
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-slate-200/50 bg-white/90 shadow-[1px_0_24px_0_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 dark:border-slate-700/60 dark:bg-[#0f172a] dark:shadow-[1px_0_32px_0_rgba(0,0,0,0.4)]">
+      <div className="border-b border-slate-200/80 px-5 py-5 dark:border-slate-700/60">
         <AppLogo />
         <p className="mt-2 text-xs font-medium text-slate-400 dark:text-slate-500">
           Real estate CRM
@@ -104,19 +104,19 @@ export function Sidebar() {
                 className={cn(
                   "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                   active
-                    ? "bg-gradient-to-r from-[#204060]/[0.12] via-[#204060]/[0.07] to-transparent text-[#204060] shadow-[inset_0_0_0_1px_rgba(32,64,96,0.1)] dark:from-white/15 dark:via-white/8 dark:to-transparent dark:text-[var(--gold)]"
-                    : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/8 dark:hover:text-white",
+                    ? "bg-gradient-to-r from-[#204060]/[0.12] via-[#204060]/[0.07] to-transparent text-[#204060] shadow-[inset_0_0_0_1px_rgba(32,64,96,0.1)] dark:from-indigo-500/20 dark:via-indigo-500/10 dark:to-transparent dark:text-indigo-300 dark:shadow-[inset_0_0_0_1px_rgba(99,102,241,0.2)]"
+                    : "text-slate-500 hover:bg-slate-100/70 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700/50 dark:hover:text-slate-100",
                 )}
               >
                 {active && (
-                  <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-[#204060] dark:bg-[var(--gold)]" />
+                  <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-[#204060] dark:bg-indigo-400" />
                 )}
                 <Icon
                   className={cn(
                     "h-4 w-4 shrink-0 transition-all duration-200",
                     active
-                      ? "scale-110 text-[#204060] dark:text-[var(--gold)]"
-                      : "text-slate-400 group-hover:scale-105 group-hover:text-slate-600 dark:group-hover:text-white",
+                      ? "scale-110 text-[#204060] dark:text-indigo-400"
+                      : "text-slate-400 group-hover:scale-105 group-hover:text-slate-600 dark:group-hover:text-slate-200",
                   )}
                 />
                 <span className="truncate">{label}</span>
@@ -128,12 +128,12 @@ export function Sidebar() {
 
       {/* User profile card */}
       {ready && session && (
-        <div className="border-t border-slate-200/80 p-3 dark:border-white/10">
+        <div className="border-t border-slate-200/80 p-3 dark:border-slate-700/60">
           <Link
             href="/settings"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#204060] to-[#2d5a8a] text-xs font-bold text-white shadow-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 text-xs font-bold text-white shadow-sm dark:from-indigo-500 dark:to-violet-700">
               {getInitials(session.name ?? "?")}
             </div>
             <div className="min-w-0 flex-1">

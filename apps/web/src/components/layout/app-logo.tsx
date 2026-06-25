@@ -14,8 +14,8 @@ export function AppLogo({ className, compact }: { className?: string; compact?: 
         priority
       />
       {!compact ? (
-        <span className="font-heading text-lg font-bold uppercase tracking-tight text-[#204060]">
-          Prop<span className="text-[#C02020]">Ninja</span>
+        <span className="font-heading text-lg font-bold uppercase tracking-tight text-[#204060] dark:text-white">
+          Prop<span className="text-[#C02020] dark:text-indigo-400">Ninja</span>
         </span>
       ) : null}
     </Link>

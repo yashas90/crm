@@ -23,14 +23,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <div className="relative min-h-screen bg-[#F4F7FB] text-slate-900 transition-all duration-300 dark:bg-[#0A0F1C] dark:text-white">
+    <div className="relative min-h-screen bg-[#F4F7FB] text-slate-900 transition-all duration-300 dark:bg-[#0f172a] dark:text-slate-100">
       <div className="absolute inset-0 z-0 hidden dark:block pointer-events-none">
-        <img
-          src="https://images.unsplash.com/photo-1515703944563-dbcfbf121b3d?auto=format&w=1440&q=80&fit=crop"
-          className="w-full h-full object-cover opacity-10 blur-sm"
-          alt="Luxury Architecture"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0A0F1C]/80 to-[#0A0F1C]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(99,102,241,0.08)_0%,_transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_rgba(139,92,246,0.06)_0%,_transparent_60%)]" />
       </div>
 
       <div className="relative z-10">

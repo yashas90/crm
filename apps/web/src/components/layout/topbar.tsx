@@ -88,7 +88,7 @@ function UserAvatar({ name }: { name: string }) {
     .toUpperCase();
 
   return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#204060] to-[#2d5a8a] text-sm font-semibold text-white shadow-sm">
+    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-700 text-sm font-semibold text-white shadow-sm dark:from-indigo-500 dark:to-violet-700">
       {initials}
     </div>
   );
@@ -132,7 +132,7 @@ function UserMenu({ user, onSignOut }: { user: SessionUser | null; onSignOut: ()
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg dark:border-white/10 dark:bg-[#0f1623]">
+        <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg dark:border-slate-700 dark:bg-[#1e293b]">
           <div className="border-b border-slate-100 px-4 py-2.5 dark:border-white/10">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">{user?.name}</p>
             <p className="text-xs capitalize text-slate-500 dark:text-slate-400">{user?.role}</p>
@@ -187,7 +187,7 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200/40 bg-white/75 px-6 shadow-[0_1px_12px_0_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#0a0f1a]/70 dark:backdrop-blur-xl">
+    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200/40 bg-white/75 px-6 shadow-[0_1px_12px_0_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 dark:border-slate-700/60 dark:bg-[#0f172a]/90 dark:backdrop-blur-xl dark:shadow-[0_1px_24px_0_rgba(0,0,0,0.4)]">
       <div className="flex flex-1 items-center gap-4">
         <Breadcrumbs pathname={pathname} />
         <GlobalSearch />
