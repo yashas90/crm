@@ -186,6 +186,7 @@ export function useCreateUser() {
       await queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(`User ${user.name} created successfully`);
     },
+    onError: (err) => toast.error(getErrorMessage(err, "Failed to create user")),
   });
 }
 
@@ -221,6 +222,7 @@ export function useUpdateUser() {
       await queryClient.setQueryData(["users", "detail", user.id], user);
       toast.success("User updated");
     },
+    onError: (err) => toast.error(getErrorMessage(err, "Failed to update user")),
   });
 }
 

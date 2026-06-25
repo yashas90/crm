@@ -241,6 +241,7 @@ export function useCreateProject() {
       await queryClient.setQueryData(["projects", "detail", project.id], project);
       toast.success("Project created");
     },
+    onError: () => toast.error("Failed to create project"),
   });
 }
 
@@ -261,6 +262,7 @@ export function useUpdateProject() {
       await queryClient.setQueryData(["projects", "detail", project.id], project);
       toast.success("Project saved");
     },
+    onError: () => toast.error("Failed to save project"),
   });
 }
 
@@ -274,6 +276,7 @@ export function useDeleteProject() {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast.success("Project deleted");
     },
+    onError: () => toast.error("Failed to delete project"),
   });
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { apiGet, apiPatch } from "@/lib/apiClient";
+import { toast } from "@/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type OverdueLead = {
@@ -42,7 +43,9 @@ export function useUpdateLeadFollowUp(leadId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
       void queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
+      toast.success("Follow-up updated");
     },
+    onError: () => toast.error("Failed to update follow-up"),
   });
 }
 

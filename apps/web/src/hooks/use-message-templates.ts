@@ -1,4 +1,5 @@
 import { ApiRequestError, apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { toast } from "@/lib/toast";
 import type { MessageTemplateCategory } from "@propninja/types/message-templates";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -49,7 +50,9 @@ export function useCreateMessageTemplate() {
       apiPost<MessageTemplate>("/api/message-templates", body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+      toast.success("Template created");
     },
+    onError: () => toast.error("Failed to create template"),
   });
 }
 
@@ -68,7 +71,9 @@ export function useUpdateMessageTemplate() {
     }) => apiPatch<MessageTemplate>(`/api/message-templates/${id}`, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+      toast.success("Template updated");
     },
+    onError: () => toast.error("Failed to update template"),
   });
 }
 
@@ -78,7 +83,9 @@ export function useDeactivateMessageTemplate() {
     mutationFn: (id: string) => apiDelete<MessageTemplate>(`/api/message-templates/${id}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+      toast.success("Template deactivated");
     },
+    onError: () => toast.error("Failed to deactivate template"),
   });
 }
 

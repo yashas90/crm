@@ -142,7 +142,16 @@ export function DocumentsLibraryScreen() {
                       {
                         text: "Delete",
                         style: "destructive",
-                        onPress: () => void deleteDoc.mutateAsync(item.id).then(() => refetch()),
+                        onPress: () =>
+                          void deleteDoc
+                            .mutateAsync(item.id)
+                            .then(() => refetch())
+                            .catch((err: unknown) =>
+                              Alert.alert(
+                                "Delete failed",
+                                err instanceof Error ? err.message : "Try again",
+                              ),
+                            ),
                       },
                     ])
                   }

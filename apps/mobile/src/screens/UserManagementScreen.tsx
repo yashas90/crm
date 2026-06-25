@@ -12,6 +12,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -53,11 +54,15 @@ function UserManagementContent({ navigation: _navigation }: Props) {
 
   const saveEdit = async () => {
     if (!selected) return;
-    await updateUser.mutateAsync({
-      userId: selected.id,
-      payload: { role: editRole, isActive: editActive },
-    });
-    setSelected(null);
+    try {
+      await updateUser.mutateAsync({
+        userId: selected.id,
+        payload: { role: editRole, isActive: editActive },
+      });
+      setSelected(null);
+    } catch (err) {
+      Alert.alert("Update failed", err instanceof Error ? err.message : "Try again");
+    }
   };
 
   return (

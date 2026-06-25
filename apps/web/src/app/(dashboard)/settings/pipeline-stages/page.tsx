@@ -81,6 +81,7 @@ export default function PipelineStagesPage() {
     mutationFn: (reordered: { id: string; position: number }[]) =>
       apiPut("/api/pipeline-stages/reorder", { stages: reordered }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pipeline-stages"] }),
+    onError: () => toast.error("Failed to reorder stages"),
   });
 
   if (!isAdmin) {

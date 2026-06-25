@@ -44,5 +44,6 @@ export function useUpsertTcfConsent(leadId: string) {
       await queryClient.invalidateQueries({ queryKey: ["tcf", "consent", leadId] });
       toast.success("Consent updated");
     },
+    onError: () => toast.error("Failed to update consent"),
   });
 }

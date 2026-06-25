@@ -1,6 +1,7 @@
 "use client";
 
 import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { toast } from "@/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type PortalName = "99acres" | "magicbricks" | "housing" | "indiamrt" | "other";
@@ -57,7 +58,9 @@ export function useCreatePortalWebhook() {
       apiPost<PortalWebhook>("/api/admin/portal-webhooks", body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: portalWebhooksKey });
+      toast.success("Portal webhook created");
     },
+    onError: () => toast.error("Failed to create portal webhook"),
   });
 }
 
@@ -76,7 +79,9 @@ export function useUpdatePortalWebhook() {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: portalWebhooksKey });
+      toast.success("Portal webhook updated");
     },
+    onError: () => toast.error("Failed to update portal webhook"),
   });
 }
 
@@ -87,6 +92,7 @@ export function useTestPortalWebhookPreview() {
       fieldMapping?: PortalFieldMapping;
       payload: Record<string, unknown>;
     }) => apiPost<{ preview: PortalLeadPreview }>("/api/admin/portal-webhooks/test-preview", body),
+    onError: () => toast.error("Failed to preview webhook payload"),
   });
 }
 
@@ -97,5 +103,6 @@ export function useTestPortalWebhookById() {
         `/api/admin/portal-webhooks/${id}/test`,
         {},
       ),
+    onError: () => toast.error("Failed to test webhook"),
   });
 }

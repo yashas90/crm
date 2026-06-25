@@ -299,7 +299,9 @@ export function useUpdateLead(leadId: string) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast.success("Lead updated");
     },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update lead"),
   });
 }
 
@@ -321,7 +323,9 @@ export function useLogCall() {
       await queryClient.invalidateQueries({ queryKey: ["calls"] });
       await queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] });
       await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Call logged");
     },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to log call"),
   });
 }
 
@@ -334,6 +338,7 @@ export function useDeleteLead() {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast.success("Lead archived");
     },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to archive lead"),
   });
 }
 
@@ -346,6 +351,7 @@ export function useAddLeadNote(leadId: string) {
       await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
       toast.success("Note saved");
     },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to save note"),
   });
 }
 

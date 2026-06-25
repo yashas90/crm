@@ -3,6 +3,7 @@ import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -30,7 +31,11 @@ export function TaskDetailSheet({ taskId, visible, onClose, onViewLead }: TaskDe
 
   function handleComplete() {
     if (!task) return;
-    completeTask.mutate(task.id, { onSuccess: onClose });
+    completeTask.mutate(task.id, {
+      onSuccess: onClose,
+      onError: (err) =>
+        Alert.alert("Error", err instanceof Error ? err.message : "Failed to complete task"),
+    });
   }
 
   return (
