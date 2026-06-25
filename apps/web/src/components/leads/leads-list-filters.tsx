@@ -53,7 +53,7 @@ export function LeadsListFilters({
   advancedFilterCount,
   onAdLeadsOnlyChange,
   onSourceChange,
-  isAdmin = false,
+  isAdmin: _isAdmin,
 }: LeadsListFiltersProps) {
   return (
     <section

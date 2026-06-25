@@ -17,12 +17,28 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const TERMINAL_STATUSES: LeadStatus[] = ["lost", "not_interested"];
+
+const CLOSE_REASON_OPTIONS = [
+  { value: "budget_issue", label: "Budget Issue" },
+  { value: "not_serious", label: "Not Serious" },
+  { value: "competitor", label: "Went to Competitor" },
+  { value: "location_mismatch", label: "Location Mismatch" },
+  { value: "project_mismatch", label: "Project Mismatch" },
+  { value: "no_response", label: "No Response" },
+  { value: "already_purchased", label: "Already Purchased" },
+  { value: "future_requirement", label: "Future Requirement" },
+  { value: "other", label: "Other" },
+];
+
 export type UpdateLeadStatusPayload = {
   leadStatus: LeadStatus;
   statusLabel: string;
   notes?: string;
   assignedTo?: string;
   nextFollowupAt?: string | null;
+  closeReason?: string;
+  closeReasonNote?: string;
 };
 
 type UpdateLeadStatusSheetProps = {
@@ -51,6 +67,8 @@ export function UpdateLeadStatusSheet({
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const [nextFollowupAt, setNextFollowupAt] = useState<string | null>(null);
+  const [closeReason, setCloseReason] = useState<string | null>(null);
+  const [closeReasonNote, setCloseReasonNote] = useState("");
 
   const showAssignee = assigneeOptions.length > 0;
 
@@ -61,10 +79,13 @@ export function UpdateLeadStatusSheet({
     setAssigneeId(currentAssigneeId ?? defaultAssigneeId ?? null);
     setAssignOpen(false);
     setNextFollowupAt(null);
+    setCloseReason(null);
+    setCloseReasonNote("");
   }, [visible, currentAssigneeId, defaultAssigneeId]);
 
   const selectedOption = MOBILE_LEAD_STATUS_OPTIONS.find((o) => o.label === selectedLabel);
   const showFollowUpPicker = selectedOption?.label === "Callback";
+  const isTerminal = selectedOption ? TERMINAL_STATUSES.includes(selectedOption.value) : false;
   const assigneeName =
     assigneeOptions.find((u) => u.id === assigneeId)?.name ??
     (assigneeId ? "Selected agent" : "You");
@@ -75,12 +96,18 @@ export function UpdateLeadStatusSheet({
       Alert.alert("Callback time required", "Pick when to call this lead back.");
       return;
     }
+    if (isTerminal && !closeReason) {
+      Alert.alert("Close reason required", "Select a reason for closing this lead.");
+      return;
+    }
     onSave({
       leadStatus: selectedOption.value,
       statusLabel: selectedOption.label,
       notes: notes.trim() || undefined,
       assignedTo: assigneeId && /^[0-9a-f-]{36}$/i.test(assigneeId) ? assigneeId : undefined,
       nextFollowupAt: showFollowUpPicker ? nextFollowupAt : undefined,
+      closeReason: isTerminal && closeReason ? closeReason : undefined,
+      closeReasonNote: isTerminal && closeReasonNote.trim() ? closeReasonNote.trim() : undefined,
     });
   }
 
@@ -166,6 +193,38 @@ export function UpdateLeadStatusSheet({
                 <>
                   <Text style={styles.sectionLabel}>Callback time</Text>
                   <FollowUpQuickPicker value={nextFollowupAt} onChange={setNextFollowupAt} />
+                </>
+              ) : null}
+
+              {isTerminal ? (
+                <>
+                  <Text style={styles.sectionLabel}>
+                    Close reason <Text style={{ color: "#ef4444" }}>*</Text>
+                  </Text>
+                  <View style={styles.chipGrid}>
+                    {CLOSE_REASON_OPTIONS.map((opt) => {
+                      const active = closeReason === opt.value;
+                      return (
+                        <Pressable
+                          key={opt.value}
+                          style={[styles.chip, active && styles.chipActive]}
+                          onPress={() => setCloseReason(opt.value)}
+                        >
+                          <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                            {opt.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.sectionLabel}>Close note (optional)</Text>
+                  <TextInput
+                    style={styles.notesInput}
+                    placeholder="Additional detail…"
+                    placeholderTextColor={colors.textMuted}
+                    value={closeReasonNote}
+                    onChangeText={setCloseReasonNote}
+                  />
                 </>
               ) : null}
 

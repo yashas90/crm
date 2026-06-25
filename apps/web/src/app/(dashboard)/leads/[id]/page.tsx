@@ -8,6 +8,7 @@ import { LeadCallsPanel } from "@/components/leads/lead-calls-panel";
 import { ProjectChip, StatusChip, TemperatureChip } from "@/components/leads/lead-chips";
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
 import { LeadEditForm } from "@/components/leads/lead-edit-form";
+import { LeadEmailPanel } from "@/components/leads/lead-email-panel";
 import { LeadFollowUpPanel } from "@/components/leads/lead-follow-up-panel";
 import { LeadOwnershipHistory } from "@/components/leads/lead-ownership-history";
 import { LeadScoreBadge, LeadScoreBreakdownTooltip } from "@/components/leads/lead-score-badge";
@@ -450,6 +451,7 @@ export default function LeadDetailPage() {
                   <TabsTrigger value="calls">Calls</TabsTrigger>
                   <TabsTrigger value="site-visits">Site visits</TabsTrigger>
                   <TabsTrigger value="documents">Documents</TabsTrigger>
+                  <TabsTrigger value="email">Email</TabsTrigger>
                   <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
                   <TabsTrigger value="activity">Activity chart</TabsTrigger>
                   <TabsTrigger value="compliance">Compliance</TabsTrigger>
@@ -476,6 +478,9 @@ export default function LeadDetailPage() {
                     leadName={`${lead.firstName} ${lead.lastName}`}
                     leadPhone={lead.phone}
                   />
+                </TabsContent>
+                <TabsContent value="email" className="pt-4">
+                  <LeadEmailPanel leadId={leadId} leadEmail={lead.email} />
                 </TabsContent>
                 <TabsContent value="whatsapp" className="space-y-4 pt-4">
                   <div className="flex justify-end">

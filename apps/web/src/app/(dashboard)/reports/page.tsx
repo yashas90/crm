@@ -35,6 +35,9 @@ export default function ReportsPage() {
           <Button variant="outline" asChild>
             <Link href="/reports/team">Team performance →</Link>
           </Button>
+          <Button variant="outline" asChild>
+            <Link href="/reports/funnel">Conversion funnel →</Link>
+          </Button>
         </div>
       </div>
 

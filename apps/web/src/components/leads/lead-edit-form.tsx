@@ -14,6 +14,20 @@ import { useEffect, useState } from "react";
 
 import { parseDatetimeLocalAsIst, toDatetimeLocalIst } from "@propninja/types/ist";
 
+const TERMINAL_STATUSES = ["lost", "not_interested"] as const;
+
+const CLOSE_REASON_OPTIONS = [
+  { value: "budget_issue", label: "Budget Issue" },
+  { value: "not_serious", label: "Not Serious" },
+  { value: "competitor", label: "Went to Competitor" },
+  { value: "location_mismatch", label: "Location Mismatch" },
+  { value: "project_mismatch", label: "Project Mismatch" },
+  { value: "no_response", label: "No Response" },
+  { value: "already_purchased", label: "Already Purchased" },
+  { value: "future_requirement", label: "Future Requirement" },
+  { value: "other", label: "Other" },
+] as const;
+
 const STATUSES = [
   "new",
   "contacted",
@@ -71,7 +85,11 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
   const [nextFollowupAt, setNextFollowupAt] = useState(toDatetimeLocalIst(lead.nextFollowupAt));
   const [estimatedValue, setEstimatedValue] = useState(lead.estimatedValue ?? "");
   const [projectId, setProjectId] = useState(lead.projectId ?? "");
+  const [closeReason, setCloseReason] = useState("");
+  const [closeReasonNote, setCloseReasonNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const isTerminal = TERMINAL_STATUSES.includes(leadStatus as (typeof TERMINAL_STATUSES)[number]);
 
   useEffect(() => {
     setFirstName(lead.firstName);
@@ -103,6 +121,8 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
         state: state || undefined,
         leadSource: leadSource ? normalizeLeadSourceValue(leadSource) : undefined,
         leadStatus,
+        closeReason: isTerminal && closeReason ? closeReason : undefined,
+        closeReasonNote: isTerminal && closeReasonNote ? closeReasonNote : undefined,
         temperature: temperature || undefined,
         notes: notes || undefined,
         tags: tags
@@ -206,6 +226,38 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
           ))}
         </select>
       </div>
+      {isTerminal ? (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="closeReason">
+              Close reason <span className="text-destructive">*</span>
+            </Label>
+            <select
+              id="closeReason"
+              className={selectClass}
+              value={closeReason}
+              onChange={(e) => setCloseReason(e.target.value)}
+              required
+            >
+              <option value="">Select reason…</option>
+              {CLOSE_REASON_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="closeReasonNote">Close note</Label>
+            <Input
+              id="closeReasonNote"
+              placeholder="Optional detail…"
+              value={closeReasonNote}
+              onChange={(e) => setCloseReasonNote(e.target.value)}
+            />
+          </div>
+        </>
+      ) : null}
       <div className="space-y-2">
         <Label htmlFor="temperature">Temperature</Label>
         <select

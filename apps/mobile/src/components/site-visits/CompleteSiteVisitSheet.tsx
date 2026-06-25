@@ -21,6 +21,13 @@ type CompleteSiteVisitSheetProps = {
   onCompleted?: () => void;
 };
 
+const OUTCOME_OPTIONS = [
+  { value: "very_interested", label: "Very Interested" },
+  { value: "needs_time", label: "Needs Time" },
+  { value: "not_interested", label: "Not Interested" },
+  { value: "revisit_required", label: "Revisit Required" },
+] as const;
+
 export function CompleteSiteVisitSheet({
   visible,
   visit,
@@ -30,12 +37,16 @@ export function CompleteSiteVisitSheet({
   const updateVisit = useUpdateSiteVisit();
   const projects = useProjectsList();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [outcomeNote, setOutcomeNote] = useState("");
 
   useEffect(() => {
     if (visible && visit) {
       setSelectedProjectId(visit.projectId ?? null);
+      setOutcome(null);
+      setOutcomeNote("");
     }
-  }, [visible, visit?.id, visit?.projectId]);
+  }, [visible, visit]);
 
   if (!visit) return null;
 
@@ -50,7 +61,12 @@ export function CompleteSiteVisitSheet({
     try {
       await updateVisit.mutateAsync({
         id: visit!.id,
-        payload: { status: "completed", projectId: selectedProjectId },
+        payload: {
+          status: "completed",
+          projectId: selectedProjectId,
+          outcome: outcome ?? undefined,
+          outcomeNote: outcomeNote.trim() || undefined,
+        },
       });
       onCompleted?.();
       onClose();
@@ -97,6 +113,24 @@ export function CompleteSiteVisitSheet({
               ListEmptyComponent={<Text style={styles.errorText}>No active projects found.</Text>}
             />
           )}
+
+          <Text style={styles.prompt}>Visit outcome (optional)</Text>
+          <View style={styles.outcomeGrid}>
+            {OUTCOME_OPTIONS.map((opt) => {
+              const active = outcome === opt.value;
+              return (
+                <Pressable
+                  key={opt.value}
+                  style={[styles.outcomeChip, active && styles.outcomeChipActive]}
+                  onPress={() => setOutcome(active ? null : opt.value)}
+                >
+                  <Text style={[styles.outcomeChipText, active && styles.outcomeChipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
 
           <View style={styles.actions}>
             <Pressable
@@ -176,4 +210,16 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: { color: colors.text, fontWeight: "600" },
   btnDisabled: { opacity: 0.6 },
+  outcomeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: spacing.sm },
+  outcomeChip: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radii.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.background,
+  },
+  outcomeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  outcomeChipText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  outcomeChipTextActive: { color: "#fff" },
 });

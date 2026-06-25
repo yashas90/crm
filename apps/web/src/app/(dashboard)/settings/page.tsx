@@ -197,6 +197,48 @@ export default function SettingsPage() {
       {ready && (isAdmin || session?.role === "manager") ? (
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Agent Targets</CardTitle>
+            <CardDescription>Set monthly call, visit, and booking goals per agent.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/agent-targets">Manage agent targets</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {ready && (isAdmin || session?.role === "manager") ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Assignment Rules</CardTitle>
+            <CardDescription>Auto-assign new leads by source, city, or area.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/assignment-rules">Manage assignment rules</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {ready && isAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Pipeline Stages</CardTitle>
+            <CardDescription>Customize your pipeline board columns and colors.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/pipeline-stages">Manage pipeline stages</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {ready && (isAdmin || session?.role === "manager") ? (
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Message templates</CardTitle>
             <CardDescription>
               WhatsApp message presets for agents (client-side wa.me links, not Meta API).

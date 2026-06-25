@@ -31,6 +31,7 @@ import { callsRoute } from "./routes/calls.js";
 import { documentViewRoutes, documentsRoutes } from "./routes/documents.js";
 import { emailRoutes } from "./routes/email.js";
 import { funnelRoutes } from "./routes/funnel.js";
+import { googleCalendarRoutes } from "./routes/googleCalendar.js";
 import { healthRoutes } from "./routes/health.js";
 import { integrationsRoutes } from "./routes/integrations.js";
 import { metaIntegrationsRoute } from "./routes/integrationsMeta.js";
@@ -40,6 +41,8 @@ import { leadsRoute } from "./routes/leads.js";
 import { messageTemplatesRoutes } from "./routes/messageTemplates.js";
 import { notificationsRoutes } from "./routes/notifications.js";
 import { orgRoutes } from "./routes/org.js";
+import { pipelineStagesRoutes } from "./routes/pipelineStages.js";
+import { projectComparisonRoutes } from "./routes/projectComparison.js";
 import { projectsRoutes } from "./routes/projects.js";
 import { reportsRoutes } from "./routes/reports.js";
 import { securityRoutes } from "./routes/security.js";
@@ -108,6 +111,9 @@ app.route("/api/assignment-rules", assignmentRulesRoutes);
 app.route("/api/email", emailRoutes);
 app.route("/api/sla", slaRoutes);
 app.route("/api/reports/funnel", funnelRoutes);
+app.route("/api/pipeline-stages", pipelineStagesRoutes);
+app.route("/api/google-calendar", googleCalendarRoutes);
+app.route("/api/projects/compare", projectComparisonRoutes);
 
 app.notFound((c) => jsonError(c, "NOT_FOUND", "Route not found", 404));
 
