@@ -79,8 +79,7 @@ export function UpdateLeadStatusSheet({
       leadStatus: selectedOption.value,
       statusLabel: selectedOption.label,
       notes: notes.trim() || undefined,
-      assignedTo:
-        assigneeId && /^[0-9a-f-]{36}$/i.test(assigneeId) ? assigneeId : undefined,
+      assignedTo: assigneeId && /^[0-9a-f-]{36}$/i.test(assigneeId) ? assigneeId : undefined,
       nextFollowupAt: showFollowUpPicker ? nextFollowupAt : undefined,
     });
   }
