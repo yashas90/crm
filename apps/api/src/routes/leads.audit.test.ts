@@ -51,6 +51,11 @@ vi.mock("../services/whatsappService.js", () => ({
 vi.mock("../middleware/rateLimit.js", () => ({
   leadsCreateRateLimit: async (_c: unknown, next: () => Promise<void>) => next(),
   leadsPatchRateLimit: async (_c: unknown, next: () => Promise<void>) => next(),
+  writeRateLimit: async (_c: unknown, next: () => Promise<void>) => next(),
+}));
+
+vi.mock("../routes/assignmentRules.js", () => ({
+  autoAssignLead: vi.fn().mockResolvedValue(null),
 }));
 
 describe("lead routes audit logging", () => {

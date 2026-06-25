@@ -243,7 +243,7 @@ export default function PipelineStagesPage() {
                       color: stage.color,
                       position: stage.position,
                       isDefault: stage.isDefault,
-                      mapsToStatus: stage.mapsToStatus ?? "",
+                      mapsToStatus: stage.mapsToStatus ?? null,
                     })
                   }
                 >

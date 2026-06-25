@@ -107,6 +107,8 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
     setNextFollowupAt(toDatetimeLocalIst(lead.nextFollowupAt));
     setEstimatedValue(lead.estimatedValue ?? "");
     setProjectId(lead.projectId ?? "");
+    setCloseReason("");
+    setCloseReasonNote("");
   }, [lead]);
 
   const mutation = useMutation({
