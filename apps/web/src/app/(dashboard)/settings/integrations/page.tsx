@@ -286,7 +286,7 @@ export default function IntegrationsSettingsPage() {
         </div>
       )}
 
-      <GoogleCalendarSection />
+      {/* Google Calendar sync is not yet implemented — hidden until feature is complete */}
     </div>
   );
 }

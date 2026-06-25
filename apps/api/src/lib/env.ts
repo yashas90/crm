@@ -17,7 +17,7 @@ const envSchema = z
     DEMO_ORG_SLUG: z.string().min(1).default("demo"),
     ALLOW_DEMO_AUTH: z
       .enum(["true", "false"])
-      .default("true")
+      .default("false")
       .transform((v) => v === "true"),
     AUTH_JWT_SECRET: z.string().min(16, "AUTH_JWT_SECRET is required (min 16 characters)"),
     /** Optional — enables Sentry error tracking when set. */

@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useTodayCallSummary } from "@/hooks/use-calls";
-import { useMyLeadsTotal, useTodayQueue } from "@/hooks/use-leads";
+import { type HotLead, useHotLeads, useMyLeadsTotal, useTodayQueue } from "@/hooks/use-leads";
 import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { MainTabParamList } from "@/navigation/types";
@@ -36,11 +36,12 @@ export function HomeScreen({ navigation }: Props) {
   const queue = useTodayQueue();
   const summary = useTodayCallSummary();
   const myLeadsTotal = useMyLeadsTotal();
+  const hotLeads = useHotLeads(5);
   const unreadNotifications = useUnreadNotificationCount();
   const firstName = user?.name?.split(" ")[0] ?? "Agent";
 
   const refreshAll = () =>
-    Promise.all([queue.refetch(), summary.refetch(), myLeadsTotal.refetch()]);
+    Promise.all([queue.refetch(), summary.refetch(), myLeadsTotal.refetch(), hotLeads.refetch()]);
 
   useRefreshOnFocus(refreshAll);
 
@@ -145,6 +146,26 @@ export function HomeScreen({ navigation }: Props) {
             }
           />
         </View>
+
+        {(hotLeads.data?.items.length ?? 0) > 0 ? (
+          <>
+            <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>🔥 Hot leads</Text>
+            <View style={styles.hotList}>
+              {hotLeads.data!.items.map((lead) => (
+                <HotLeadRow
+                  key={lead.id}
+                  lead={lead}
+                  onPress={() =>
+                    navigation.navigate("LeadsTab", {
+                      screen: "LeadDetailScreen",
+                      params: { leadId: lead.id },
+                    })
+                  }
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -190,6 +211,28 @@ function ActionTile({
       <Text style={styles.actionLabel}>{label}</Text>
       <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </Card>
+  );
+}
+
+function HotLeadRow({ lead, onPress }: { lead: HotLead; onPress: () => void }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.hotRow, pressed && styles.pressed]}
+      onPress={onPress}
+    >
+      <View style={styles.hotScoreBadge}>
+        <Text style={styles.hotScoreText}>{lead.score}</Text>
+      </View>
+      <View style={styles.hotMeta}>
+        <Text style={styles.hotName} numberOfLines={1}>
+          {lead.firstName} {lead.lastName}
+        </Text>
+        <Text style={styles.hotPhone} numberOfLines={1}>
+          {lead.phone ?? "No phone"}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+    </Pressable>
   );
 }
 
@@ -276,4 +319,28 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   actionLabel: { flex: 1, color: colors.text, fontSize: 15, fontWeight: "600" },
+  hotList: { gap: spacing.xs },
+  hotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    ...shadows.cardSm,
+  },
+  hotScoreBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.sm,
+    backgroundColor: colors.hot,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hotScoreText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  hotMeta: { flex: 1 },
+  hotName: { color: colors.text, fontWeight: "700", fontSize: 14 },
+  hotPhone: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
 });

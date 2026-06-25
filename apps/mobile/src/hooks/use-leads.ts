@@ -303,6 +303,27 @@ export function useLeadScopeCounts() {
 }
 
 /** Lighter than scope-counts for the home "My leads" stat (single count query). */
+export type HotLead = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  score: number;
+  temperature: string | null;
+  nextFollowupAt: string | null;
+  assignedUser?: { id: string; name: string; email: string } | null;
+};
+
+export function useHotLeads(limit = 5) {
+  const ready = useAuthReady();
+  return useQuery({
+    queryKey: ["leads", "hot", limit] as const,
+    queryFn: () => apiGet<{ items: HotLead[]; total: number }>(`/api/leads/hot?limit=${limit}`),
+    enabled: ready,
+    staleTime: 60_000,
+  });
+}
+
 export function useMyLeadsTotal() {
   const ready = useAuthReady();
   const userId = getCurrentUserId();

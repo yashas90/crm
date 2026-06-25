@@ -20,6 +20,7 @@ import { authMiddleware } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { authenticatedUserRateLimit, publicIpRateLimitMiddleware } from "./middleware/rateLimit.js";
 import { requestContextMiddleware } from "./middleware/requestContext.js";
+import { securityHeadersMiddleware } from "./middleware/securityHeaders.js";
 import { sentryRequestMiddleware, sentryUserMiddleware } from "./middleware/sentry.js";
 import { adminRoutes } from "./routes/admin.js";
 import { agentTargetsRoutes } from "./routes/agentTargets.js";
@@ -59,6 +60,7 @@ const app = new Hono();
 app.use("*", requestContextMiddleware);
 app.use("*", sentryRequestMiddleware);
 app.use("*", publicIpRateLimitMiddleware);
+app.use("*", securityHeadersMiddleware);
 
 const corsOrigins = resolveCorsOrigins();
 if (env.NODE_ENV === "production") {
