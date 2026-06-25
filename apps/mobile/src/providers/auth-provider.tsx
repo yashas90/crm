@@ -1,4 +1,4 @@
-import { setUnauthorizedHandler } from "@/lib/apiClient";
+import { apiPost, setUnauthorizedHandler } from "@/lib/apiClient";
 import {
   type SessionUser,
   clearAuth,
@@ -73,6 +73,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    try {
+      await apiPost("/api/auth/logout", {});
+    } catch {
+      // Token revocation best-effort — proceed with local logout regardless
+    }
     await clearAuth();
     setUser(null);
     setStatus("unauthenticated");

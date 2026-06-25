@@ -7,7 +7,15 @@ import { neuCard } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export function LoginScreen() {
@@ -16,6 +24,9 @@ export function LoginScreen() {
   const [password, setPassword] = useState(__DEV__ ? "admin" : "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"login" | "forgot" | "forgot-sent">("login");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function handleLogin() {
     setError(null);
@@ -30,6 +41,18 @@ export function LoginScreen() {
       setError(err instanceof Error ? err.message : "Unable to sign in");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    setResetLoading(true);
+    try {
+      await apiPost("/api/auth/forgot-password", { email: resetEmail.trim() });
+    } catch {
+      // Always show success — do not reveal whether the email exists
+    } finally {
+      setResetLoading(false);
+      setMode("forgot-sent");
     }
   }
 
@@ -56,40 +79,91 @@ export function LoginScreen() {
             <Text style={styles.subtitle}>Real estate CRM for field agents</Text>
           </View>
 
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Sign in</Text>
-            <TextField
-              label="Email"
-              inputTestID="login-email"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              placeholder="you@company.com"
-            />
-            <TextField
-              label="Password"
-              inputTestID="login-password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoComplete="password"
-              placeholder="••••••••"
-            />
-            {error ? (
-              <View style={styles.errorBox}>
-                <Ionicons name="alert-circle" size={18} color={colors.danger} />
-                <Text style={styles.errorText}>{error}</Text>
+          {mode === "login" ? (
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>Sign in</Text>
+              <TextField
+                label="Email"
+                inputTestID="login-email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                placeholder="you@company.com"
+              />
+              <TextField
+                label="Password"
+                inputTestID="login-password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="password"
+                placeholder="••••••••"
+              />
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle" size={18} color={colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+              <Button
+                label="Sign in"
+                testID="login-submit"
+                onPress={() => void handleLogin()}
+                loading={loading}
+              />
+              <Pressable
+                onPress={() => {
+                  setResetEmail(email);
+                  setMode("forgot");
+                }}
+                style={styles.forgotLink}
+              >
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
+            </View>
+          ) : mode === "forgot" ? (
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>Reset password</Text>
+              <Text style={styles.forgotDesc}>
+                Enter your account email and we&apos;ll send a reset link.
+              </Text>
+              <TextField
+                label="Email"
+                value={resetEmail}
+                onChangeText={setResetEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                placeholder="you@company.com"
+              />
+              <Button
+                label="Send reset link"
+                onPress={() => void handleForgotPassword()}
+                loading={resetLoading}
+              />
+              <Pressable onPress={() => setMode("login")} style={styles.forgotLink}>
+                <Text style={styles.forgotText}>Back to sign in</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.formCard}>
+              <View style={styles.sentIcon}>
+                <Ionicons name="mail-outline" size={32} color={colors.primary} />
               </View>
-            ) : null}
-            <Button
-              label="Sign in"
-              testID="login-submit"
-              onPress={() => void handleLogin()}
-              loading={loading}
-            />
-          </View>
+              <Text style={styles.formTitle}>Check your email</Text>
+              <Text style={styles.forgotDesc}>
+                If <Text style={{ fontWeight: "700" }}>{resetEmail}</Text> is registered, a reset
+                link has been sent. The link expires in 1 hour.
+              </Text>
+              <Button
+                label="Back to sign in"
+                variant="secondary"
+                onPress={() => setMode("login")}
+              />
+            </View>
+          )}
 
           {__DEV__ ? <Text style={styles.hint}>Dev: agent1@demo.propninja / admin</Text> : null}
         </ScrollView>
@@ -137,4 +211,13 @@ const styles = StyleSheet.create({
   },
   errorText: { color: colors.text, flex: 1, fontSize: 14, fontWeight: "600" },
   hint: { color: colors.textMuted, textAlign: "center", marginTop: spacing.lg, fontSize: 13 },
+  forgotLink: { alignItems: "center", marginTop: spacing.md, paddingVertical: spacing.xs },
+  forgotText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
+  forgotDesc: {
+    color: colors.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: spacing.md,
+  },
+  sentIcon: { alignItems: "center", marginBottom: spacing.md },
 });
