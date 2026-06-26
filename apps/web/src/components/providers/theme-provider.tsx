@@ -16,7 +16,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = localStorage.getItem("propninja_theme") as Theme | null;
-    const initial = stored ?? "dark";
+    const initial: Theme = stored === "light" ? "light" : "dark";
+    if (stored !== initial) localStorage.setItem("propninja_theme", initial);
     setTheme(initial);
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);

@@ -1,6 +1,6 @@
 try {
   const theme = localStorage.getItem("propninja_theme");
-  if (theme === "dark") {
+  if (theme !== "light") {
     document.documentElement.classList.add("dark");
   }
 } catch {
