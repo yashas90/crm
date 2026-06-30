@@ -581,29 +581,19 @@ leadsRoute.patch("/:id", leadsPatchRateLimit, async (c) => {
     );
   }
 
-  const terminalStatuses = ["lost", "not_interested"];
-  if (
+  const terminalStatuses = ["lost", "not_interested"] as const;
+  const updatePayload =
     parsed.data.leadStatus &&
-    terminalStatuses.includes(parsed.data.leadStatus) &&
+    (terminalStatuses as readonly string[]).includes(parsed.data.leadStatus) &&
     !parsed.data.closeReason
-  ) {
-    return c.json(
-      {
-        ok: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: `closeReason is required when marking a lead as ${parsed.data.leadStatus}`,
-        },
-      },
-      400,
-    );
-  }
+      ? { ...parsed.data, closeReason: "other" }
+      : parsed.data;
 
   try {
     const updated = await leadService.updateLead({
       leadId: id,
       actingUserId: authUser.id,
-      payload: parsed.data,
+      payload: updatePayload,
     });
 
     if (

@@ -1,5 +1,8 @@
 import type { LeadStatus } from "@propninja/types/enums";
 
+/** Statuses that require closeReason on PATCH /api/leads/:id (must match API route). */
+export const TERMINAL_LEAD_STATUSES_REQUIRING_CLOSE_REASON = ["lost", "not_interested"] as const;
+
 export type MobileLeadStatusOption = {
   label: string;
   value: LeadStatus;
@@ -33,6 +36,8 @@ export function buildLeadStatusPatch(
   payload: {
     leadStatus: LeadStatus;
     assignedTo?: string;
+    closeReason?: string;
+    closeReasonNote?: string;
   },
   lead: {
     assignedUser?: { id: string } | null;
@@ -40,6 +45,16 @@ export function buildLeadStatusPatch(
   options: { canReassign: boolean },
 ): Record<string, unknown> {
   const patch: Record<string, unknown> = { leadStatus: payload.leadStatus };
+
+  if (
+    (TERMINAL_LEAD_STATUSES_REQUIRING_CLOSE_REASON as readonly string[]).includes(
+      payload.leadStatus,
+    )
+  ) {
+    patch.closeReason = payload.closeReason?.trim() || "other";
+    const note = payload.closeReasonNote?.trim();
+    if (note) patch.closeReasonNote = note;
+  }
 
   if (
     options.canReassign &&

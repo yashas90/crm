@@ -1,4 +1,5 @@
 import { type SiteVisit, formatVisitTime, useCreateSiteVisit } from "@/hooks/use-site-visits";
+import { useProjectsList } from "@/hooks/use-projects";
 import {
   addSiteVisitToDeviceCalendar,
   formatVisitManualDetails,
@@ -38,11 +39,13 @@ export function ScheduleVisitSheet({
   onScheduled,
 }: ScheduleVisitSheetProps) {
   const createVisit = useCreateSiteVisit();
+  const projects = useProjectsList();
   const [visitDate, setVisitDate] = useState(() => getIstDateKey());
   const [visitTime, setVisitTime] = useState("10:00");
   const [duration, setDuration] = useState("60");
   const [notes, setNotes] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [confirmedVisit, setConfirmedVisit] = useState<SiteVisit | null>(null);
   const [calendarToast, setCalendarToast] = useState(false);
   const [addingToCalendar, setAddingToCalendar] = useState(false);
@@ -53,6 +56,7 @@ export function ScheduleVisitSheet({
     setDuration("60");
     setNotes("");
     setPropertyAddress("");
+    setSelectedProjectId(null);
     setConfirmedVisit(null);
     setCalendarToast(false);
   }
@@ -63,9 +67,15 @@ export function ScheduleVisitSheet({
   }
 
   async function handleConfirm() {
+    if (!selectedProjectId) {
+      Alert.alert("Project required", "Select which project this site visit is for.");
+      return;
+    }
+
     try {
       const created = await createVisit.mutateAsync({
         leadId,
+        projectId: selectedProjectId,
         visitDate,
         visitTime,
         duration: Number(duration) || 60,
@@ -161,6 +171,35 @@ export function ScheduleVisitSheet({
             <>
               <Text style={styles.title}>Schedule site visit</Text>
               {leadName ? <Text style={styles.subtitle}>{leadName}</Text> : null}
+
+              <Text style={styles.label}>Project</Text>
+              {projects.isLoading ? (
+                <Text style={styles.hint}>Loading projects…</Text>
+              ) : projects.isError ? (
+                <Text style={styles.hint}>Could not load projects. Try again later.</Text>
+              ) : (projects.data ?? []).length === 0 ? (
+                <Text style={styles.hint}>No active projects. Add a project in the web app first.</Text>
+              ) : (
+                <View style={styles.projectList}>
+                  {(projects.data ?? []).map((project) => {
+                    const selected = selectedProjectId === project.id;
+                    return (
+                      <Pressable
+                        key={project.id}
+                        style={[styles.projectRow, selected && styles.projectRowSelected]}
+                        onPress={() => setSelectedProjectId(project.id)}
+                      >
+                        <Text
+                          style={[styles.projectName, selected && styles.projectNameSelected]}
+                        >
+                          {project.name}
+                        </Text>
+                        {selected ? <Text style={styles.checkmark}>✓</Text> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
 
               <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
               <TextInput
@@ -271,4 +310,22 @@ const styles = StyleSheet.create({
   doneBtn: { alignItems: "center", paddingVertical: spacing.md },
   doneBtnText: { color: colors.textMuted, fontWeight: "600" },
   cancel: { color: colors.textMuted, textAlign: "center", paddingVertical: spacing.md },
+  projectList: { gap: spacing.xs, marginBottom: spacing.sm },
+  projectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+  },
+  projectRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}14`,
+  },
+  projectName: { color: colors.text, fontWeight: "500", flex: 1 },
+  projectNameSelected: { color: colors.primary, fontWeight: "700" },
+  checkmark: { color: colors.primary, fontWeight: "700", fontSize: 16 },
+  hint: { color: colors.textMuted, fontSize: 12, marginBottom: spacing.sm },
 });

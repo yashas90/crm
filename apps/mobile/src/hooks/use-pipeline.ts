@@ -2,6 +2,7 @@ import type { LeadRow } from "@/hooks/use-leads";
 import { useIsManager } from "@/hooks/use-role";
 import { apiGet, apiPatch } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
+import { buildLeadStatusPatch } from "@/lib/lead-status-options";
 import { useAuth } from "@/providers/auth-provider";
 import type { LeadStatus } from "@propninja/types/enums";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -56,7 +57,10 @@ export function useUpdateLeadStage() {
 
   return useMutation({
     mutationFn: ({ leadId, stage }: { leadId: string; stage: LeadStatus }) =>
-      apiPatch(`/api/leads/${leadId}`, { leadStatus: stage }),
+      apiPatch(
+        `/api/leads/${leadId}`,
+        buildLeadStatusPatch({ leadStatus: stage }, {}, { canReassign: false }),
+      ),
     onMutate: async ({ leadId, stage }) => {
       await queryClient.cancelQueries({ queryKey: ["pipeline"] });
       const snapshots = queryClient.getQueriesData<PipelineCache>({ queryKey: ["pipeline"] });

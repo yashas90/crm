@@ -87,4 +87,22 @@ describe("buildLeadStatusPatch", () => {
     const patch = buildLeadStatusPatch({ leadStatus: "contacted" }, lead, { canReassign: false });
     expect(patch).toEqual({ leadStatus: "contacted" });
   });
+
+  it("includes closeReason for terminal statuses", () => {
+    const patch = buildLeadStatusPatch(
+      { leadStatus: "not_interested", closeReason: "budget_issue", closeReasonNote: "Too high" },
+      lead,
+      { canReassign: false },
+    );
+    expect(patch).toEqual({
+      leadStatus: "not_interested",
+      closeReason: "budget_issue",
+      closeReasonNote: "Too high",
+    });
+  });
+
+  it("defaults closeReason to other when terminal status has no reason", () => {
+    const patch = buildLeadStatusPatch({ leadStatus: "lost" }, lead, { canReassign: false });
+    expect(patch).toEqual({ leadStatus: "lost", closeReason: "other" });
+  });
 });
