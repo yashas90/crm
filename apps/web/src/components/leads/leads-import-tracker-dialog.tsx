@@ -52,7 +52,7 @@ export function LeadsImportTrackerDialog({
 }: LeadsImportTrackerDialogProps) {
   const [page, setPage] = useState(1);
   const pageSize = 10;
-  const batches = useLeadImportBatches(page, pageSize);
+  const batches = useLeadImportBatches(page, pageSize, { enabled: open });
   const downloadReport = useDownloadLeadImportReport();
 
   const total = batches.data?.total ?? 0;

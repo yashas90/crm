@@ -91,10 +91,10 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
       <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-12">
         <div className="min-w-0 space-y-12 lg:col-span-9">
           <header>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white md:text-3xl">
               Command Centre
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               Funnel performance for {rangeLabelLower}.
               {overview.isFetching && overviewData ? (
                 <span className="ml-2 text-xs">Updating…</span>
@@ -167,8 +167,8 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
 
           <section className="space-y-4">
             <div>
-              <h3 className="text-lg font-semibold">Calls &amp; activity</h3>
-              <p className="text-sm text-muted-foreground">
+              <h3 className="text-lg font-semibold text-foreground">Calls &amp; activity</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
                 Call outcomes and touchpoints on leads for {rangeLabelLower}.
               </p>
             </div>
@@ -210,8 +210,8 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
             <>
               <section className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Today at a glance</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <h3 className="text-lg font-semibold text-foreground">Today at a glance</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Key metrics for {rangeLabelLower}.
                   </p>
                 </div>
@@ -220,8 +220,8 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
 
               <section className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Pipeline by status</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <h3 className="text-lg font-semibold text-foreground">Pipeline by status</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Key stages with estimated value and activity trend.
                   </p>
                 </div>
@@ -230,8 +230,8 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
 
               <section className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Revenue</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <h3 className="text-lg font-semibold text-foreground">Revenue</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Won deal value for the selected period.
                   </p>
                 </div>
@@ -240,8 +240,8 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
 
               <section className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Pipeline health</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <h3 className="text-lg font-semibold text-foreground">Pipeline health</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Stage mix and activity for {rangeLabelLower}.
                   </p>
                 </div>
@@ -258,8 +258,8 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
 
               <section className="space-y-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Team snapshot</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <h3 className="text-lg font-semibold text-foreground">Team snapshot</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     Leads owned, calls, and deals won in the selected period. See{" "}
                     <Link href="/reports/team" className="font-medium text-primary hover:underline">
                       Team performance

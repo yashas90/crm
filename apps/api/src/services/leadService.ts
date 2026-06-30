@@ -27,6 +27,7 @@ import {
 import { adLeadsOnlyFilter } from "../lib/adLeadFilters.js";
 import { applyAdvancedLeadFilters } from "../lib/applyAdvancedLeadFilters.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
+import { toCsv } from "../lib/csv.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
 import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.js";
@@ -392,31 +393,58 @@ export const leadService = {
       excludeDuplicates: baseParams.duplicatesOnly ? false : (baseParams.excludeDuplicates ?? true),
     };
 
-    const [active, newLeads, pending, scheduled, overdue, eoi] = await Promise.all([
-      countLeadsWhere({ ...deduped, activeOnly: true }),
-      countLeadsWhere({ ...deduped, status: "new" }),
-      countLeadsWhere({ ...deduped, status: "contacted" }),
-      countLeadsWhere({
-        ...deduped,
-        followUpDueAfter: now,
-        activeOnly: true,
-      }),
-      countLeadsWhere({
-        ...deduped,
-        followUpDueBefore: now,
-        activeOnly: true,
-      }),
-      countLeadsWhere({ ...deduped, status: "qualified" }),
-    ]);
+    const sharedWhere = buildListWhere({
+      ...deduped,
+      status: undefined,
+      activeOnly: undefined,
+      followUpDueBefore: undefined,
+      followUpDueAfter: undefined,
+      deletedOnly: false,
+    });
+
+    const activeStatuses = sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
+
+    const [row] = await db
+      .select({
+        active: sql<number>`count(*)::int filter (where ${activeStatuses})`,
+        new: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "new")})`,
+        pending: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "contacted")})`,
+        scheduled: sql<number>`count(*)::int filter (where ${and(
+          activeStatuses,
+          isNotNull(leads.nextFollowupAt),
+          gt(leads.nextFollowupAt, new Date(now)),
+        )})`,
+        overdue: sql<number>`count(*)::int filter (where ${and(
+          activeStatuses,
+          isNotNull(leads.nextFollowupAt),
+          lte(leads.nextFollowupAt, new Date(now)),
+        )})`,
+        eoi: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "qualified")})`,
+      })
+      .from(leads)
+      .where(sharedWhere);
 
     return {
-      active,
-      new: newLeads,
-      pending,
-      scheduled,
-      overdue,
-      eoi,
+      active: row?.active ?? 0,
+      new: row?.new ?? 0,
+      pending: row?.pending ?? 0,
+      scheduled: row?.scheduled ?? 0,
+      overdue: row?.overdue ?? 0,
+      eoi: row?.eoi ?? 0,
     };
+  },
+
+  async getTabCounts(
+    scopeParams: ListLeadsParams,
+    stageParams: ListLeadsParams,
+    options?: { userId?: string; isAgent?: boolean; isAdmin?: boolean },
+  ) {
+    const [rawScope, stage] = await Promise.all([
+      this.getScopeCounts(scopeParams, options),
+      this.getStageCounts(stageParams),
+    ]);
+    const scope = options?.isAdmin ? rawScope : { ...rawScope, naleads: undefined };
+    return { scope, stage };
   },
 
   async getScopeCounts(
@@ -1239,7 +1267,7 @@ export const leadService = {
       eq(leads.orgId, SINGLE_TENANT_ORG_ID),
       isNull(leads.deletedAt),
       sql`${leads.leadStatus} not in ('won', 'lost')`,
-      lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff),
+      lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff.toISOString()),
     ];
     if (assignedTo) {
       filters.push(eq(leads.assignedTo, assignedTo));
@@ -1298,7 +1326,7 @@ export const leadService = {
       eq(leads.orgId, SINGLE_TENANT_ORG_ID),
       isNull(leads.deletedAt),
       sql`${leads.leadStatus} not in ('won', 'lost')`,
-      lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff),
+      lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff.toISOString()),
     );
 
     const [totalRow] = await db
@@ -1403,7 +1431,7 @@ export const leadService = {
           and(
             base,
             sql`${leads.leadStatus} not in ('won', 'lost')`,
-            lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff),
+            lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff.toISOString()),
           ),
         ),
     ]);
@@ -1413,5 +1441,62 @@ export const leadService = {
       overdueFollowUps: overdueFollowUps?.count ?? 0,
       coldLeads: coldLeads?.count ?? 0,
     };
+  },
+
+  async exportCsv(params: ListLeadsParams & { maxRows?: number }) {
+    const whereClause = buildListWhere({
+      ...params,
+      excludeDuplicates: params.excludeDuplicates ?? true,
+    });
+    const limit = params.maxRows ?? 10_000;
+    const rows = await db
+      .select({
+        id: leads.id,
+        firstName: leads.firstName,
+        lastName: leads.lastName,
+        phone: leads.phone,
+        email: leads.email,
+        leadStatus: leads.leadStatus,
+        temperature: leads.temperature,
+        leadSource: leads.leadSource,
+        city: leads.city,
+        assignedTo: leads.assignedTo,
+        createdAt: leads.createdAt,
+      })
+      .from(leads)
+      .where(whereClause)
+      .orderBy(desc(leads.createdAt))
+      .limit(limit);
+
+    const csv = toCsv(
+      [
+        "ID",
+        "First Name",
+        "Last Name",
+        "Phone",
+        "Email",
+        "Status",
+        "Temperature",
+        "Source",
+        "City",
+        "Assigned To",
+        "Created At",
+      ],
+      rows.map((row) => [
+        row.id,
+        row.firstName,
+        row.lastName ?? "",
+        row.phone,
+        row.email ?? "",
+        row.leadStatus,
+        row.temperature ?? "",
+        row.leadSource ?? "",
+        row.city ?? "",
+        row.assignedTo ?? "",
+        row.createdAt.toISOString(),
+      ]),
+    );
+
+    return { csv, rowCount: rows.length };
   },
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { apiDelete, apiDownload, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import type { LeadScopeCounts } from "@/lib/leads-scope";
 import { toast } from "@/lib/toast";
 import { getIstDayBounds } from "@propninja/types/ist";
@@ -31,6 +31,7 @@ export type LeadRow = {
   nextFollowupAt?: string | null;
   assignedUser?: { id: string; name: string; email: string } | null;
   tags?: string[] | null;
+  score?: number | null;
   customFields?: Record<string, unknown> | null;
   createdAt: string;
 };
@@ -167,7 +168,7 @@ export function leadsListQueryKey(params: LeadsQueryParams) {
 }
 
 function sharedCountsQueryKey(
-  prefix: "scope-counts" | "stage-counts",
+  prefix: "scope-counts" | "stage-counts" | "tab-counts",
   params: Record<string, string | undefined>,
 ) {
   return [
@@ -190,6 +191,10 @@ function sharedCountsQueryKey(
   ] as const;
 }
 
+export function leadTabCountsQueryKey(params: Record<string, string | undefined>) {
+  return sharedCountsQueryKey("tab-counts", params);
+}
+
 export type LeadStageCounts = {
   active: number;
   new: number;
@@ -200,6 +205,14 @@ export type LeadStageCounts = {
 };
 
 export type { LeadScopeCounts } from "@/lib/leads-scope";
+
+function leadsQueryMeta(options?: { suppressErrorToast?: boolean; errorContext?: string }) {
+  if (!options?.suppressErrorToast && !options?.errorContext) return undefined;
+  return {
+    ...(options.suppressErrorToast ? { suppressErrorToast: true } : {}),
+    ...(options.errorContext ? { errorContext: options.errorContext } : {}),
+  };
+}
 
 export function useLeadScopeCounts(
   params: Omit<
@@ -215,7 +228,7 @@ export function useLeadScopeCounts(
     | "page"
     | "pageSize"
   >,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; suppressErrorToast?: boolean; errorContext?: string },
 ) {
   const query = buildQuery(params);
 
@@ -225,6 +238,7 @@ export function useLeadScopeCounts(
     enabled: options?.enabled !== false,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
+    meta: leadsQueryMeta(options),
   });
 }
 
@@ -239,7 +253,7 @@ export function useLeadStageCounts(
     | "page"
     | "pageSize"
   >,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; suppressErrorToast?: boolean; errorContext?: string },
 ) {
   const query = buildQuery(params);
 
@@ -249,12 +263,44 @@ export function useLeadStageCounts(
     enabled: options?.enabled !== false,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
+    meta: leadsQueryMeta(options),
+  });
+}
+
+export type LeadTabCounts = {
+  scope: LeadScopeCounts;
+  stage: LeadStageCounts;
+};
+
+/** Single round-trip for scope + stage tab badges (replaces parallel scope/stage count queries). */
+export function useLeadTabCounts(
+  params: Omit<
+    LeadsQueryParams,
+    | "status"
+    | "activeOnly"
+    | "followUpDueBefore"
+    | "followUpDueAfter"
+    | "orderByFollowUp"
+    | "page"
+    | "pageSize"
+  >,
+  options?: { enabled?: boolean; suppressErrorToast?: boolean; errorContext?: string },
+) {
+  const query = buildQuery(params);
+
+  return useQuery({
+    queryKey: sharedCountsQueryKey("tab-counts", params),
+    queryFn: () => apiGet<LeadTabCounts>(`/api/leads/tab-counts${query}`),
+    enabled: options?.enabled !== false,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    meta: leadsQueryMeta(options),
   });
 }
 
 export function useLeads(
   params: LeadsQueryParams,
-  options?: { enabled?: boolean; suppressErrorToast?: boolean },
+  options?: { enabled?: boolean; suppressErrorToast?: boolean; errorContext?: string },
 ) {
   const query = buildQuery(params);
 
@@ -264,7 +310,7 @@ export function useLeads(
     enabled: options?.enabled !== false,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
-    meta: options?.suppressErrorToast ? { suppressErrorToast: true } : undefined,
+    meta: leadsQueryMeta(options),
   });
 }
 
@@ -386,4 +432,14 @@ export function followUpQueryParams(filter: "" | "due_today" | "overdue" | "upco
 export function filterUpcomingLeads(items: LeadRow[]) {
   const { end } = getIstDayBounds(0);
   return items.filter((lead) => lead.nextFollowupAt && new Date(lead.nextFollowupAt) > end);
+}
+
+export async function exportLeadsCsv(query: LeadsQueryParams) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") search.set(key, String(value));
+  }
+  const qs = search.toString();
+  const date = new Date().toISOString().slice(0, 10);
+  await apiDownload(`/api/leads/export${qs ? `?${qs}` : ""}`, `leads-${date}.csv`);
 }

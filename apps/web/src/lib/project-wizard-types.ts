@@ -20,6 +20,9 @@ export type ProjectBlocksInfo = {
 export type ProjectGalleryItem = {
   id: string;
   name: string;
+  url?: string;
+  fileKey?: string;
+  mimeType?: string;
   placeholder?: boolean;
 };
 

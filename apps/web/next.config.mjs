@@ -17,14 +17,17 @@ function buildContentSecurityPolicy() {
   const apiOrigin = originFromUrl(process.env.NEXT_PUBLIC_API_URL) || PRODUCTION_API_ORIGIN;
   const sentryOrigin = originFromUrl(sentryDsn);
 
+  const r2Origin = originFromUrl(process.env.NEXT_PUBLIC_R2_PUBLIC_URL);
   const connectSrc = ["'self'", apiOrigin, sentryOrigin, "https://*.ingest.sentry.io"]
     .filter(Boolean)
     .join(" ");
 
+  const imgSrc = ["'self'", "data:", "blob:", r2Origin].filter(Boolean).join(" ");
+
   return [
     "default-src 'self'",
     `connect-src ${connectSrc}`,
-    "img-src 'self' data: blob:",
+    `img-src ${imgSrc}`,
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",

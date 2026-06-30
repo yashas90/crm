@@ -1,5 +1,6 @@
 "use client";
 
+import { LeadScoringSettingsCard } from "@/components/settings/lead-scoring-settings-card";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
 import { ApiRequestError, apiGet, apiPatch } from "@/lib/apiClient";
@@ -9,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@prop
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Plug } from "lucide-react";
+import { ClipboardList, Plug, Shield } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -83,7 +84,9 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Account</CardTitle>
-          <CardDescription>Signed-in user from your JWT session.</CardDescription>
+          <CardDescription>
+            Signed-in user profile (JWT in HttpOnly cookie on API domain).
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
@@ -222,6 +225,43 @@ export default function SettingsPage() {
         </Card>
       ) : null}
 
+      <LeadScoringSettingsCard org={org.data} canUpdate={canUpdateOrg} queryClient={queryClient} />
+
+      {ready && isAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Security</CardTitle>
+            <CardDescription>
+              Failed logins, export monitoring, and active sessions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/security">
+                <Shield className="mr-2 h-4 w-4" />
+                Security dashboard
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {ready && (isAdmin || session?.role === "manager") ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Booking management</CardTitle>
+            <CardDescription>
+              Reserve and book inventory units; link leads to units and generate booking PDFs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/projects">Manage project inventory</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {ready && isAdmin ? (
         <Card>
           <CardHeader>
@@ -231,6 +271,20 @@ export default function SettingsPage() {
           <CardContent>
             <Button asChild variant="outline" size="sm">
               <Link href="/settings/pipeline-stages">Manage pipeline stages</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {ready && isAdmin ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">WhatsApp templates</CardTitle>
+            <CardDescription>Meta Business API template sync and approval status.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/whatsapp">Manage WhatsApp templates</Link>
             </Button>
           </CardContent>
         </Card>

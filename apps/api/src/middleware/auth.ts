@@ -2,6 +2,7 @@ import { users } from "@propninja/db";
 import { eq } from "drizzle-orm";
 import type { Context, Next } from "hono";
 import { jwtVerify } from "jose";
+import { getAuthCookie } from "../lib/authCookie.js";
 import { getDb } from "../lib/db.js";
 import { getJwtSecret } from "../lib/jwt.js";
 import { isJtiBlocked, isUserSessionRevoked } from "../lib/tokenBlocklist.js";
@@ -32,6 +33,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
   const path = new URL(c.req.url).pathname;
   if (
     path === "/api/auth/login" ||
+    path === "/api/auth/refresh" ||
     path === "/api/auth/forgot-password" ||
     path === "/api/auth/reset-password" ||
     path.startsWith("/api/auth/reset-password/") ||
@@ -46,7 +48,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
     return;
   }
 
-  const token = bearerToken(c);
+  const token = bearerToken(c) ?? getAuthCookie(c) ?? null;
   if (!token) {
     return c.json(
       { ok: false, error: { code: "UNAUTHORIZED", message: "Missing or invalid token" } },

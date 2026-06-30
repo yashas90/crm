@@ -182,7 +182,7 @@ describe("GET /api/tasks/:id", () => {
   it("agent cannot access task assigned to another", async () => {
     mocks.getById.mockResolvedValue({ ...SAMPLE_TASK, assignedTo: OTHER_USER_ID });
     const res = await agentApp.request(`/api/tasks/${TASK_ID}`);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   it("returns 404 for missing task", async () => {
@@ -215,7 +215,7 @@ describe("PATCH /api/tasks/:id", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Hack" }),
     });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   it("agent cannot reassign task to another user", async () => {

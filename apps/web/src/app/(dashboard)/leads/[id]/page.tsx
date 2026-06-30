@@ -15,6 +15,7 @@ import { LeadScoreBadge, LeadScoreBreakdownTooltip } from "@/components/leads/le
 import { LeadTagsEditor } from "@/components/leads/lead-tags-editor";
 import { LeadWhatsAppPanel } from "@/components/leads/lead-whatsapp-panel";
 import { LogCallDialog } from "@/components/leads/log-call-dialog";
+import { SendSmsDialog } from "@/components/leads/send-sms-dialog";
 import { SendWhatsAppTemplateDialog } from "@/components/leads/send-whatsapp-template-dialog";
 import { ComplianceChip, TcfConsentPanel } from "@/components/leads/tcf-consent-panel";
 import { WhatsAppMessagePickerDialog } from "@/components/leads/whatsapp-message-picker-dialog";
@@ -87,6 +88,7 @@ export default function LeadDetailPage() {
   const [showDelete, setShowDelete] = useState(false);
   const [showLogCall, setShowLogCall] = useState(false);
   const [showWhatsAppSend, setShowWhatsAppSend] = useState(false);
+  const [showSmsSend, setShowSmsSend] = useState(false);
   const [whatsappPickerPhone, setWhatsappPickerPhone] = useState<string | null>(null);
   const { session } = useSession();
   const messageTemplates = useMessageTemplates({ enabled: Boolean(whatsappPickerPhone) });
@@ -94,6 +96,7 @@ export default function LeadDetailPage() {
 
   const { ready, canDeleteLead } = usePermissions();
   const callConsent = tcfData?.consents.call?.consented ?? null;
+  const smsConsent = tcfData?.consents.sms?.consented ?? null;
 
   if (isLoading) {
     return <p className="text-muted-foreground">Loading lead...</p>;
@@ -452,6 +455,7 @@ export default function LeadDetailPage() {
                   <TabsTrigger value="site-visits">Site visits</TabsTrigger>
                   <TabsTrigger value="documents">Documents</TabsTrigger>
                   <TabsTrigger value="email">Email</TabsTrigger>
+                  <TabsTrigger value="sms">SMS</TabsTrigger>
                   <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
                   <TabsTrigger value="activity">Activity chart</TabsTrigger>
                   <TabsTrigger value="compliance">Compliance</TabsTrigger>
@@ -481,6 +485,18 @@ export default function LeadDetailPage() {
                 </TabsContent>
                 <TabsContent value="email" className="pt-4">
                   <LeadEmailPanel leadId={leadId} leadEmail={lead.email} />
+                </TabsContent>
+                <TabsContent value="sms" className="space-y-4 pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-muted-foreground">
+                      {smsConsent
+                        ? "SMS consent granted — outbound messages are allowed."
+                        : "SMS consent required before sending messages."}
+                    </p>
+                    <Button size="sm" onClick={() => setShowSmsSend(true)} disabled={!lead.phone}>
+                      Send SMS
+                    </Button>
+                  </div>
                 </TabsContent>
                 <TabsContent value="whatsapp" className="space-y-4 pt-4">
                   <div className="flex justify-end">
@@ -532,6 +548,15 @@ export default function LeadDetailPage() {
         lead={lead}
         open={showWhatsAppSend}
         onOpenChange={setShowWhatsAppSend}
+      />
+
+      <SendSmsDialog
+        leadId={leadId}
+        leadName={`${lead.firstName} ${lead.lastName}`.trim()}
+        phone={lead.phone}
+        smsConsent={smsConsent}
+        open={showSmsSend}
+        onOpenChange={setShowSmsSend}
       />
 
       {whatsappPickerPhone && lead ? (

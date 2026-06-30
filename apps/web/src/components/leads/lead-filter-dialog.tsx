@@ -73,7 +73,7 @@ export function LeadFilterDialog({
   onApply,
 }: LeadFilterDialogProps) {
   const { isAdmin } = useSession();
-  const { data: users } = useUsers();
+  const { data: users } = useUsers(undefined, { enabled: open });
   const [draft, setDraft] = useState(filters);
   const [draftScope, setDraftScope] = useState(scope);
   const [savedFilters, setSavedFilters] = useState<SavedLeadFilter[]>([]);

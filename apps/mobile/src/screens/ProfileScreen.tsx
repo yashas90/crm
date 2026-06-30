@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { useCurrentUser } from "@/hooks/use-auth";
 import { useTodayCallSummary } from "@/hooks/use-calls";
 import { useLeadScopeCounts } from "@/hooks/use-leads";
+import { useIsAdmin, useIsAgent } from "@/hooks/use-role";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { getApiUrl } from "@/lib/apiClient";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
@@ -26,9 +27,21 @@ type ProfileScreenProps = {
   onLogout: () => void;
   onOpenUserManagement?: () => void;
   onOpenProjects?: () => void;
+  onOpenDocuments?: () => void;
+  onOpenCallLogs?: () => void;
+  onOpenSiteVisits?: () => void;
 };
 
-export function ProfileScreen({ onLogout }: ProfileScreenProps) {
+export function ProfileScreen({
+  onLogout,
+  onOpenUserManagement,
+  onOpenProjects,
+  onOpenDocuments,
+  onOpenCallLogs,
+  onOpenSiteVisits,
+}: ProfileScreenProps) {
+  const isAdmin = useIsAdmin();
+  const isAgent = useIsAgent();
   const [loggingOut, setLoggingOut] = useState(false);
   const { data: user, isLoading, refetch, isRefetching } = useCurrentUser();
   const { data: callSummary, refetch: refetchCalls } = useTodayCallSummary();
@@ -94,6 +107,45 @@ export function ProfileScreen({ onLogout }: ProfileScreenProps) {
           <Text style={screenStyles.statLabel}>Open tasks</Text>
         </View>
       </View>
+
+      <Text style={screenStyles.sectionTitle}>Workspace</Text>
+      <Card>
+        {onOpenProjects ? (
+          <Button label="Projects & inventory" variant="secondary" onPress={onOpenProjects} />
+        ) : null}
+        {onOpenDocuments ? (
+          <Button
+            label="Document library"
+            variant="secondary"
+            onPress={onOpenDocuments}
+            style={styles.linkBtn}
+          />
+        ) : null}
+        {onOpenSiteVisits ? (
+          <Button
+            label="Site visits"
+            variant="secondary"
+            onPress={onOpenSiteVisits}
+            style={styles.linkBtn}
+          />
+        ) : null}
+        {isAgent && onOpenCallLogs ? (
+          <Button
+            label="Call logs"
+            variant="secondary"
+            onPress={onOpenCallLogs}
+            style={styles.linkBtn}
+          />
+        ) : null}
+        {isAdmin && onOpenUserManagement ? (
+          <Button
+            label="User management"
+            variant="secondary"
+            onPress={onOpenUserManagement}
+            style={styles.linkBtn}
+          />
+        ) : null}
+      </Card>
 
       <Text style={screenStyles.sectionTitle}>Account</Text>
       <Card>

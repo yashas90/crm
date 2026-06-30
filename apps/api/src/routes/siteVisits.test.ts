@@ -27,6 +27,12 @@ vi.mock("../services/notificationService.js", () => ({
   createNotificationService: () => ({ createNotification: vi.fn() }),
 }));
 
+const getLeadById = vi.fn();
+
+vi.mock("../services/leadService.js", () => ({
+  leadService: { getLeadById },
+}));
+
 const agentUser = {
   id: "00000000-0000-4000-8000-000000000001",
   email: "agent@demo.test",
@@ -78,6 +84,10 @@ describe("POST /api/site-visits overlap", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    getLeadById.mockResolvedValue({
+      id: "00000000-0000-4000-8000-000000000010",
+      assignedTo: agentUser.id,
+    });
     const { siteVisitsRoutes } = await import("../routes/siteVisits.js");
     const { SiteVisitOverlapError } = await import("../lib/siteVisitTime.js");
     create.mockRejectedValue(new SiteVisitOverlapError());

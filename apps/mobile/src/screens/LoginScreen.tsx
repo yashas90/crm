@@ -34,9 +34,10 @@ export function LoginScreen() {
     try {
       const data = await apiPost<{
         token: string;
+        refreshToken: string;
         user: { id: string; email: string; name: string; role: string };
       }>("/api/auth/login", { email: email.trim(), password });
-      await login(data.token, data.user);
+      await login(data.token, data.user, data.refreshToken);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in");
     } finally {

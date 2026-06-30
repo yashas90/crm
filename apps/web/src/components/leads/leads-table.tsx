@@ -2,6 +2,7 @@
 
 import { EmptyState } from "@/components/common/empty-state";
 import { LeadNoteModal } from "@/components/leads/lead-note-modal";
+import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
 import { LeadsTablePagination } from "@/components/leads/leads-table-pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -200,6 +201,16 @@ const LeadsTableRow = memo(function LeadsTableRow({
         </TableCell>
       ) : null}
 
+      {columnsToShow.score ? (
+        <TableCell>
+          {typeof lead.score === "number" ? (
+            <LeadScoreBadge score={lead.score} showPoints />
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </TableCell>
+      ) : null}
+
       {columnsToShow.project ? (
         <TableCell className="text-sm">{lead.projectName ?? "—"}</TableCell>
       ) : null}
@@ -283,6 +294,7 @@ function LeadsTableHeader({
         ) : null}
         {columnsToShow.source ? <TableHead className="bg-muted/95">Source</TableHead> : null}
         {columnsToShow.status ? <TableHead className="bg-muted/95">Status</TableHead> : null}
+        {columnsToShow.score ? <TableHead className="bg-muted/95">Score</TableHead> : null}
         {columnsToShow.project ? <TableHead className="bg-muted/95">Project(s)</TableHead> : null}
         {columnsToShow.actions ? (
           <TableHead className="bg-muted/95 text-right">Actions</TableHead>

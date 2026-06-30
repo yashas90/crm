@@ -378,8 +378,8 @@ export default function CallsReportPage() {
         <Card className={selectedDate ? "ring-2 ring-primary" : undefined}>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-base">Call details</CardTitle>
-              <p className="text-sm text-muted-foreground">
+              <CardTitle className="text-base text-foreground">Call details</CardTitle>
+              <p className="text-sm font-medium text-foreground/80">
                 {selectedDate
                   ? `Showing calls on ${selectedDate}`
                   : `All calls in ${labelRange.from} → ${labelRange.to}`}

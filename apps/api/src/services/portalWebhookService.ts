@@ -19,7 +19,9 @@ import { incrementRateLimit } from "../lib/rateLimitStore.js";
 import type { CreateLeadInput } from "../lib/validators/leads.js";
 import { createLeadBodySchema } from "../lib/validators/leads.js";
 import { portalMappedLeadSchema } from "../lib/validators/portalWebhook.js";
+import { autoAssignLead } from "../routes/assignmentRules.js";
 import { logAudit } from "./auditService.js";
+import { recalculateLeadScore } from "./leadScoringService.js";
 import { leadService } from "./leadService.js";
 import { SECURITY_ALERT_TYPES, createSecurityAlert } from "./securityAlertService.js";
 
@@ -347,8 +349,15 @@ export function createPortalWebhookService(db: Database) {
         leadId = merged.id;
         await recordPortalActivity(db, leadId, webhook.portalName as PortalName, payload);
       } else {
-        const created = await leadService.createLead(sanitized.data);
+        const autoAssignee = await autoAssignLead(db, {
+          leadSource,
+          city: sanitized.data.city,
+        });
+        const created = await leadService.createLead(sanitized.data, {
+          assignedTo: autoAssignee ?? undefined,
+        });
         leadId = created.id;
+        void recalculateLeadScore(leadId).catch(() => undefined);
         await recordPortalActivity(db, leadId, webhook.portalName as PortalName, payload);
       }
 

@@ -36,7 +36,7 @@ export function DashboardSection({
         <div>
           <NeuSectionHeading title={title} className="mb-2" />
           {description ? (
-            <p className="text-sm font-medium text-neutral-600">{description}</p>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{description}</p>
           ) : null}
         </div>
       ) : null}

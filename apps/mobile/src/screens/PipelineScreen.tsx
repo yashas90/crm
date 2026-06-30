@@ -2,6 +2,7 @@ import { PipelineColumn } from "@/components/pipeline/PipelineColumn";
 import { ErrorState } from "@/components/ui/ErrorState";
 import type { LeadRow } from "@/hooks/use-leads";
 import { type PipelineFilter, usePipelineLeads, useUpdateLeadStage } from "@/hooks/use-pipeline";
+import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useIsManager } from "@/hooks/use-role";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -59,10 +60,17 @@ export function PipelineScreen({ navigation }: Props) {
   const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const pipeline = usePipelineLeads(filter);
+  const stagesQuery = usePipelineStages();
   const updateStage = useUpdateLeadStage();
 
+  const stageConfig = stagesQuery.data ?? {
+    all: PIPELINE_STAGES,
+    active: ACTIVE_PIPELINE_STAGES,
+    closed: CLOSED_PIPELINE_STAGES,
+  };
+
   const leads = pipeline.data?.items ?? [];
-  const board = useMemo(() => groupLeadsByStage(leads), [leads]);
+  const board = useMemo(() => groupLeadsByStage(leads, stageConfig.all), [leads, stageConfig.all]);
   const truncated = (pipeline.data?.total ?? 0) > leads.length;
 
   const refetch = useCallback(() => pipeline.refetch(), [pipeline]);
@@ -148,21 +156,21 @@ export function PipelineScreen({ navigation }: Props) {
             contentContainerStyle={styles.boardContent}
             nestedScrollEnabled
           >
-            {ACTIVE_PIPELINE_STAGES.map((stage) => (
+            {stageConfig.active.map((stage) => (
               <PipelineColumn
                 key={stage.key}
                 stage={stage}
-                leads={board[stage.key]}
+                leads={board[stage.key] ?? []}
                 showAssignee={isManager}
                 onLeadPress={handleLeadPress}
                 onLeadLongPress={setStagePickerLead}
               />
             ))}
-            {CLOSED_PIPELINE_STAGES.map((stage) => (
+            {stageConfig.closed.map((stage) => (
               <PipelineColumn
                 key={stage.key}
                 stage={stage}
-                leads={board[stage.key]}
+                leads={board[stage.key] ?? []}
                 collapsed={stage.key === "won" ? !wonExpanded : !lostExpanded}
                 showAssignee={isManager}
                 onToggleCollapse={() => {
@@ -186,15 +194,17 @@ export function PipelineScreen({ navigation }: Props) {
                 {stagePickerLead.firstName} {stagePickerLead.lastName}
               </Text>
             ) : null}
-            {PIPELINE_STAGES.filter((s) => s.key !== stagePickerLead?.leadStatus).map((stage) => (
-              <Pressable
-                key={stage.key}
-                style={styles.modalOption}
-                onPress={() => void handleStageSelect(stage.key)}
-              >
-                <Text style={styles.modalOptionText}>{stage.label}</Text>
-              </Pressable>
-            ))}
+            {stageConfig.all
+              .filter((s) => s.key !== stagePickerLead?.leadStatus)
+              .map((stage) => (
+                <Pressable
+                  key={stage.key}
+                  style={styles.modalOption}
+                  onPress={() => void handleStageSelect(stage.key)}
+                >
+                  <Text style={styles.modalOptionText}>{stage.label}</Text>
+                </Pressable>
+              ))}
           </View>
         </Pressable>
       </Modal>

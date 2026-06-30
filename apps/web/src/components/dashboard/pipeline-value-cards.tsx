@@ -22,13 +22,15 @@ export function PipelineValueCards({ pipeline }: { pipeline: PipelineStage[] }) 
         return (
           <div
             key={stage.status}
-            className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5"
+            className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-600 dark:bg-slate-800/90"
           >
-            <p className="font-heading text-xs font-bold uppercase tracking-wide text-neutral-600">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               {stage.status}
             </p>
-            <p className="mt-2 font-heading text-4xl font-bold tracking-tighter">{stage.count}</p>
-            <p className="mt-1 text-xs font-medium text-neutral-600">
+            <p className="mt-2 text-4xl font-bold tabular-nums text-slate-900 dark:text-white">
+              {stage.count}
+            </p>
+            <p className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">
               ₹{stage.total_value.toLocaleString("en-IN")} pipeline value
             </p>
             <p

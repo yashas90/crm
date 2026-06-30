@@ -28,7 +28,7 @@ If you discover a security vulnerability in PropNinja CRM:
 | **Call logs** | Duration, outcome, agent, linked lead | PostgreSQL |
 | **Documents** | PDFs/images in Cloudflare R2; metadata in PostgreSQL | R2 (private bucket) + signed URLs (1 h expiry) |
 | **Audit & security** | Login events, export events, device security events | PostgreSQL |
-| **Sessions** | JWT (HS256, 8 h TTL); revoked JTIs in `token_blocklist` | Client + PostgreSQL blocklist |
+| **Sessions** | Access JWT (15 min, HttpOnly cookie on web); refresh tokens (7 d, hashed in `auth_refresh_sessions`); revoked JTIs in `token_blocklist` | API cookie / SecureStore + PostgreSQL |
 
 ### Protection measures
 
@@ -47,10 +47,10 @@ If you discover a security vulnerability in PropNinja CRM:
 
 | Client | Token storage | Other local data |
 |--------|---------------|------------------|
-| **Web** | JWT + user profile in `localStorage` (`propninja_token`, `propninja_user`); lightweight session marker cookie for middleware | Theme preference only |
-| **Mobile** | Expo SecureStore | Offline call-log queue (lead IDs / API paths, no raw phone numbers) |
+| **Web** | HttpOnly `auth_token` cookie on API domain; user profile cache in `localStorage` (`propninja_user` only); `propninja_session` marker cookie for Next.js middleware | Theme preference, saved filter presets |
+| **Mobile** | Expo SecureStore (access + refresh tokens) | Offline call-log queue (lead IDs / API paths, no raw phone numbers) |
 
-Web JWT in `localStorage` is a known trade-off mitigated by HTTPS, short JWT TTL, CSP, and SameSite cookies for the session marker. A future hardening option is httpOnly cookie-based sessions.
+Web auth uses **HttpOnly cookies** for JWTs (not readable from JavaScript). Mutating API requests from the web app require `X-Requested-With: XMLHttpRequest` when using cookie auth (CSRF mitigation). Mobile uses Bearer tokens and is exempt.
 
 ---
 

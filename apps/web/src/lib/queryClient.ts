@@ -7,13 +7,21 @@ function showErrorToast(message: string) {
   void import("@/lib/toast").then(({ toast }) => toast.error(message));
 }
 
+function queryErrorFallback(query: { meta?: Record<string, unknown> }) {
+  const context = query.meta?.errorContext;
+  if (typeof context === "string" && context.length > 0) {
+    return `Could not load ${context}`;
+  }
+  return "Failed to load data";
+}
+
 export function makeQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
         if (query.meta?.suppressErrorToast) return;
         if (isForbiddenError(error)) return;
-        showErrorToast(getErrorMessage(error, "Failed to load data"));
+        showErrorToast(getErrorMessage(error, queryErrorFallback(query)));
       },
     }),
     defaultOptions: {

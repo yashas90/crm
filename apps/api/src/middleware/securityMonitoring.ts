@@ -1,6 +1,6 @@
 import type { Context, Next } from "hono";
 import { getClientIp } from "../lib/clientIp.js";
-import { blockIp, isIpBlocked } from "../lib/ipBlocklist.js";
+import { blockIpSync, isIpBlocked } from "../lib/ipBlocklist.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { SECURITY_ALERT_TYPES, createSecurityAlert } from "../services/securityAlertService.js";
 
@@ -45,7 +45,7 @@ export const ipBlocklistMiddleware = async (c: Context, next: Next) => {
   }
 
   const ip = getClientIp(c);
-  if (ip && isIpBlocked(ip)) {
+  if (ip && (await isIpBlocked(ip))) {
     return c.json(
       { ok: false, error: { code: "IP_BLOCKED", message: "Too many requests. Try again later." } },
       429,
@@ -60,13 +60,13 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
   const path = new URL(c.req.url).pathname;
   const method = c.req.method;
 
-  if (method === "GET" && path.startsWith("/api/leads")) {
+  if (method === "GET" && (path.startsWith("/api/leads") || path === "/api/leads/export")) {
     const ip = getClientIp(c) ?? "unknown";
     const ipWindow = getIpWindow(ip);
     ipWindow.hits += 1;
 
     if (ipWindow.hits > IP_LEADS_HIT_THRESHOLD) {
-      blockIp(ip);
+      blockIpSync(ip);
       const db = c.get("db");
       if (db) {
         void createSecurityAlert(db, {
@@ -87,7 +87,7 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
 
   await next();
 
-  if (method !== "GET" || !path.startsWith("/api/leads")) return;
+  if (method !== "GET" || (!path.startsWith("/api/leads") && path !== "/api/leads/export")) return;
 
   const authUser = c.get("authUser") as AuthUser | undefined;
   if (!authUser) return;

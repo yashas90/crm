@@ -6,6 +6,14 @@ import { cn } from "@propninja/ui/lib/utils";
 import { useRouter } from "next/navigation";
 import { memo } from "react";
 
+const PILL_LABEL =
+  "mb-2 inline-block rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-900";
+
+const KPI_VALUE = "text-3xl font-bold tabular-nums tracking-normal text-slate-900 dark:text-white";
+
+const KPI_CARD =
+  "min-w-[9.5rem] shrink-0 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-800/90";
+
 type KpiItem = {
   label: string;
   value: number;
@@ -97,8 +105,8 @@ export const OverviewKpiStrip = memo(function OverviewKpiStrip({ strip }: Overvi
         <div
           key={item.label}
           className={cn(
-            "min-w-[9.5rem] shrink-0 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/5",
-            "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+            KPI_CARD,
+            "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:hover:bg-slate-800",
             item.href && "cursor-pointer",
           )}
           role={item.href ? "link" : undefined}
@@ -115,17 +123,8 @@ export const OverviewKpiStrip = memo(function OverviewKpiStrip({ strip }: Overvi
               : undefined
           }
         >
-          <span
-            className={cn(
-              "mb-2 inline-block rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-              item.accentBg,
-            )}
-          >
-            {item.label}
-          </span>
-          <p className="font-heading text-3xl font-bold tracking-tighter tabular-nums">
-            {item.value}
-          </p>
+          <span className={cn(PILL_LABEL, item.accentBg)}>{item.label}</span>
+          <p className={KPI_VALUE}>{item.value}</p>
         </div>
       ))}
     </div>

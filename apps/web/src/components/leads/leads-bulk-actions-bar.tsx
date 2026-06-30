@@ -50,7 +50,7 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
   ) {
     const { canAssignLead, canDeleteLead } = usePermissions();
     const { session } = useSession();
-    const { data: users } = useUsers();
+    const { data: users } = useUsers(undefined, { enabled: canAssignLead });
     const bulk = useBulkLeadActions();
 
     const [statusOpen, setStatusOpen] = useState(false);

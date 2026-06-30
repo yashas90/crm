@@ -299,3 +299,58 @@ export function useToggleProjectAvailability() {
     },
   });
 }
+
+function getApiUrlForUpload(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+  if (process.env.NODE_ENV === "production") {
+    return (configured ?? "").replace(/\/$/, "");
+  }
+  return configured?.replace(/\/$/, "") ?? "http://localhost:3001";
+}
+
+export function useUploadProjectGalleryImage(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(
+        `${getApiUrlForUpload()}/api/projects/${projectId}/gallery/upload`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        },
+      );
+      const json = await response.json();
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error?.message ?? "Upload failed");
+      }
+      return json.data as {
+        item: ProjectGalleryInfo["items"][number];
+        gallery: ProjectGalleryInfo;
+      };
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["projects", "detail", projectId] });
+      toast.success("Image uploaded");
+    },
+  });
+}
+
+export function useDeleteProjectGalleryItem(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (itemId: string) => {
+      return apiDelete<{ gallery: ProjectGalleryInfo }>(
+        `/api/projects/${projectId}/gallery/${itemId}`,
+      );
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["projects", "detail", projectId] });
+      toast.success("Image removed");
+    },
+  });
+}

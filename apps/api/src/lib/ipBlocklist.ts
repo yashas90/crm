@@ -1,28 +1,74 @@
-const blockedIps = new Map<string, number>();
+import { getRedis, isRedisEnabled } from "./redis.js";
 
+const MEMORY_BLOCKS = new Map<string, number>();
+const REDIS_PREFIX = "ipblock:";
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
-export function blockIp(ip: string, durationMs = ONE_HOUR_MS): void {
-  blockedIps.set(ip, Date.now() + durationMs);
+function memoryBlock(ip: string, durationMs: number) {
+  MEMORY_BLOCKS.set(ip, Date.now() + durationMs);
 }
 
-export function isIpBlocked(ip: string): boolean {
-  const until = blockedIps.get(ip);
+function memoryIsBlocked(ip: string): boolean {
+  const until = MEMORY_BLOCKS.get(ip);
   if (!until) return false;
   if (Date.now() >= until) {
-    blockedIps.delete(ip);
+    MEMORY_BLOCKS.delete(ip);
     return false;
   }
   return true;
 }
 
+export async function blockIp(ip: string, durationMs = ONE_HOUR_MS): Promise<void> {
+  memoryBlock(ip, durationMs);
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.set(`${REDIS_PREFIX}${ip}`, String(Date.now() + durationMs), "PX", durationMs);
+  } catch {
+    // Fall back to in-memory only.
+  }
+}
+
+/** Sync wrapper for hot paths that cannot await (legacy callers). */
+export function blockIpSync(ip: string, durationMs = ONE_HOUR_MS): void {
+  void blockIp(ip, durationMs);
+}
+
+export async function isIpBlocked(ip: string): Promise<boolean> {
+  if (memoryIsBlocked(ip)) return true;
+  const redis = getRedis();
+  if (!redis) return false;
+  try {
+    const value = await redis.get(`${REDIS_PREFIX}${ip}`);
+    if (!value) return false;
+    const until = Number(value);
+    if (!Number.isFinite(until) || Date.now() >= until) {
+      await redis.del(`${REDIS_PREFIX}${ip}`);
+      return false;
+    }
+    memoryBlock(ip, until - Date.now());
+    return true;
+  } catch {
+    return memoryIsBlocked(ip);
+  }
+}
+
+/** Sync check — memory cache only (used before Redis warms). */
+export function isIpBlockedSync(ip: string): boolean {
+  return memoryIsBlocked(ip);
+}
+
 export function clearExpiredIpBlocks(): void {
   const now = Date.now();
-  for (const [ip, until] of blockedIps) {
-    if (now >= until) blockedIps.delete(ip);
+  for (const [ip, until] of MEMORY_BLOCKS) {
+    if (now >= until) MEMORY_BLOCKS.delete(ip);
   }
 }
 
 export function getIpBlockExpiry(ip: string): number | undefined {
-  return blockedIps.get(ip);
+  return MEMORY_BLOCKS.get(ip);
+}
+
+export function isDistributedIpBlocklistEnabled(): boolean {
+  return isRedisEnabled();
 }

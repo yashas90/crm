@@ -20,12 +20,22 @@ const envSchema = z
       .default("false")
       .transform((v) => v === "true"),
     AUTH_JWT_SECRET: z.string().min(16, "AUTH_JWT_SECRET is required (min 16 characters)"),
+    /** JWT access-token lifetime (jose duration string, e.g. 15m, 8h). */
+    JWT_EXPIRES_IN: z.string().min(1).default("15m"),
+    /** Refresh-token lifetime (duration string, e.g. 7d). */
+    JWT_REFRESH_EXPIRES_IN: z.string().min(1).default("7d"),
     /** Optional — enables Sentry error tracking when set. */
     SENTRY_DSN: z.string().url().optional(),
     /** Git commit SHA for Sentry release tracking (set automatically on Railway). */
     RAILWAY_GIT_COMMIT_SHA: z.string().min(1).optional(),
     /** Optional — Redis URL for distributed rate limiting (falls back to in-memory when unset). */
     REDIS_URL: z.string().min(1).optional(),
+    /** Optional — dedicated key for encrypting OAuth tokens at rest (falls back to AUTH_JWT_SECRET). */
+    TOKEN_ENCRYPTION_KEY: z.string().min(16).optional(),
+    /** Twilio SMS — optional; required to send outbound SMS after TCF consent. */
+    TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+    TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
+    TWILIO_FROM_NUMBER: z.string().min(1).optional(),
     /** When true, META_VERIFY_TOKEN and META_APP_SECRET are required at startup. */
     META_WEBHOOK_ENABLED: z
       .enum(["true", "false"])

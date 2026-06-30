@@ -1,5 +1,5 @@
-import { type SiteVisit, formatVisitTime, useCreateSiteVisit } from "@/hooks/use-site-visits";
 import { useProjectsList } from "@/hooks/use-projects";
+import { type SiteVisit, formatVisitTime, useCreateSiteVisit } from "@/hooks/use-site-visits";
 import {
   addSiteVisitToDeviceCalendar,
   formatVisitManualDetails,
@@ -178,7 +178,9 @@ export function ScheduleVisitSheet({
               ) : projects.isError ? (
                 <Text style={styles.hint}>Could not load projects. Try again later.</Text>
               ) : (projects.data ?? []).length === 0 ? (
-                <Text style={styles.hint}>No active projects. Add a project in the web app first.</Text>
+                <Text style={styles.hint}>
+                  No active projects. Add a project in the web app first.
+                </Text>
               ) : (
                 <View style={styles.projectList}>
                   {(projects.data ?? []).map((project) => {
@@ -189,9 +191,7 @@ export function ScheduleVisitSheet({
                         style={[styles.projectRow, selected && styles.projectRowSelected]}
                         onPress={() => setSelectedProjectId(project.id)}
                       >
-                        <Text
-                          style={[styles.projectName, selected && styles.projectNameSelected]}
-                        >
+                        <Text style={[styles.projectName, selected && styles.projectNameSelected]}>
                           {project.name}
                         </Text>
                         {selected ? <Text style={styles.checkmark}>✓</Text> : null}

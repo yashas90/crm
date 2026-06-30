@@ -136,8 +136,11 @@ function usersScopeCountsQueryKey(search?: string) {
 }
 
 /** Dropdown helper — returns up to 100 users. */
-export function useUsers(role?: string) {
-  const list = useUsersList({ role, status: "all", page: 1, pageSize: 100 });
+export function useUsers(role?: string, options?: { enabled?: boolean }) {
+  const list = useUsersList(
+    { role, status: "all", page: 1, pageSize: 100 },
+    { enabled: options?.enabled },
+  );
   return {
     ...list,
     data: list.data?.items,

@@ -2,12 +2,26 @@ import { users } from "@propninja/db";
 import { eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
+import {
+  getAuthCookie,
+  getRefreshCookie,
+  setAuthCookie,
+  setRefreshCookie,
+} from "../lib/authCookie.js";
+import { getClientIp } from "../lib/clientIp.js";
 import { getDb } from "../lib/db.js";
+import { clearAuthSession, issueAuthSession } from "../lib/issueAuthSession.js";
 import { issueAuthToken } from "../lib/issueAuthToken.js";
 import { decodeJwtPayload } from "../lib/jwtPayload.js";
-import { honoLoginIpRateLimit } from "../lib/loginBruteForce.js";
+import {
+  clearEmailLoginAttempts,
+  honoLoginIpRateLimit,
+  loginEmailRateLimit,
+  recordEmailLoginAttempt,
+} from "../lib/loginBruteForce.js";
 import { verifyPassword } from "../lib/password.js";
 import { jsonError, jsonOk } from "../lib/response.js";
+import { refreshTokenBlocklistCache } from "../lib/tokenBlocklist.js";
 import { validate } from "../lib/validate.js";
 import { changePasswordSchema } from "../lib/validators/users.js";
 import type { AuthUser } from "../middleware/auth.js";
@@ -19,6 +33,11 @@ import {
   requestPasswordReset,
   validatePasswordResetToken,
 } from "../services/passwordResetService.js";
+import {
+  revokeRefreshToken,
+  rotateRefreshSession,
+  validateRefreshToken,
+} from "../services/refreshTokenService.js";
 import { addTokenToBlocklist, revokeAllUserSessions } from "../services/tokenRevocationService.js";
 
 export const authRoutes = new Hono();
@@ -37,68 +56,79 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(8),
 });
 
-authRoutes.post("/login", loginRateLimit, honoLoginIpRateLimit(), async (c) => {
-  const body = await c.req.json();
-  const parsed = loginSchema.safeParse(body);
+authRoutes.post(
+  "/login",
+  loginRateLimit,
+  honoLoginIpRateLimit(),
+  loginEmailRateLimit(),
+  async (c) => {
+    const body = await c.req.json();
+    const parsed = loginSchema.safeParse(body);
 
-  if (!parsed.success) {
-    return c.json(
-      {
-        ok: false,
-        error: { code: "VALIDATION_ERROR", message: "Invalid credentials payload" },
+    if (!parsed.success) {
+      return c.json(
+        {
+          ok: false,
+          error: { code: "VALIDATION_ERROR", message: "Invalid credentials payload" },
+        },
+        400,
+      );
+    }
+
+    const { email, password } = parsed.data;
+    const db = getDb();
+    const normalizedEmail = email.trim().toLowerCase();
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.email}) = ${normalizedEmail}`)
+      .limit(1);
+
+    if (!row?.isActive || !row.passwordHash) {
+      recordEmailLoginAttempt(normalizedEmail);
+      return c.json(
+        { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid email or password" } },
+        401,
+      );
+    }
+
+    const valid = await verifyPassword(password, row.passwordHash);
+    if (!valid) {
+      recordEmailLoginAttempt(normalizedEmail);
+      return c.json(
+        { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid email or password" } },
+        401,
+      );
+    }
+
+    clearEmailLoginAttempts(normalizedEmail);
+
+    const role = row.role as AuthUser["role"];
+    const { token, refreshToken } = await issueAuthSession(c, {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      role,
+    });
+
+    await recordSuccessfulLogin(c, db, row.id);
+
+    return c.json({
+      ok: true,
+      data: {
+        token,
+        refreshToken,
+        user: {
+          id: row.id,
+          email: row.email,
+          name: row.name,
+          role,
+          isFirstLogin: row.isFirstLogin,
+        },
       },
-      400,
-    );
-  }
-
-  const { email, password } = parsed.data;
-  const db = getDb();
-  const normalizedEmail = email.trim().toLowerCase();
-  const [row] = await db
-    .select()
-    .from(users)
-    .where(sql`lower(${users.email}) = ${normalizedEmail}`)
-    .limit(1);
-
-  if (!row?.isActive || !row.passwordHash) {
-    return c.json(
-      { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid email or password" } },
-      401,
-    );
-  }
-
-  const valid = await verifyPassword(password, row.passwordHash);
-  if (!valid) {
-    return c.json(
-      { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid email or password" } },
-      401,
-    );
-  }
-
-  const role = row.role as AuthUser["role"];
-  const { token } = await issueAuthToken({
-    id: row.id,
-    email: row.email,
-    name: row.name,
-    role,
-  });
-
-  await recordSuccessfulLogin(c, db, row.id);
-
-  return c.json({
-    ok: true,
-    data: {
-      token,
-      user: {
-        id: row.id,
-        email: row.email,
-        name: row.name,
-        role,
-        isFirstLogin: row.isFirstLogin,
-      },
-    },
-  });
-});
+    });
+  },
+);
 
 authRoutes.get("/me", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
@@ -159,16 +189,23 @@ authRoutes.post("/change-password", validate("json", changePasswordSchema), asyn
   }
 
   await revokeAllUserSessions(authUser.id);
+  await refreshTokenBlocklistCache();
 
-  const { token } = await issueAuthToken({
-    id: row.id,
-    email: row.email,
-    name: row.name,
-    role: row.role as AuthUser["role"],
-  });
+  const issuedAtSec = Math.floor(Date.now() / 1000) + 1;
+  const { token, refreshToken } = await issueAuthSession(
+    c,
+    {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      role: row.role as AuthUser["role"],
+    },
+    { issuedAtSec },
+  );
 
   return jsonOk(c, {
     token,
+    refreshToken,
     user: {
       id: row.id,
       email: row.email,
@@ -198,8 +235,20 @@ authRoutes.post("/push-token", async (c) => {
 
 authRoutes.post("/logout", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
+  const db = getDb();
   const authHeader = c.req.header("Authorization");
-  const currentToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+  const currentToken =
+    (authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null) ??
+    getAuthCookie(c) ??
+    null;
+
+  const body = await c.req.json().catch(() => ({}));
+  const refreshToken =
+    (typeof body === "object" && body && "refreshToken" in body
+      ? (body as { refreshToken?: string }).refreshToken
+      : null) ??
+    getRefreshCookie(c) ??
+    null;
 
   if (currentToken) {
     const { jti } = decodeJwtPayload(currentToken);
@@ -214,7 +263,61 @@ authRoutes.post("/logout", async (c) => {
     }
   }
 
+  if (refreshToken) {
+    await revokeRefreshToken(db, refreshToken);
+  }
+
+  clearAuthSession(c);
+
   return jsonOk(c, { message: "Logged out" });
+});
+
+const refreshSchema = z.object({
+  refreshToken: z.string().min(1).optional(),
+});
+
+authRoutes.post("/refresh", async (c) => {
+  const db = getDb();
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = refreshSchema.safeParse(body);
+  const refreshToken =
+    (parsed.success ? parsed.data.refreshToken : undefined) ?? getRefreshCookie(c) ?? null;
+
+  if (!refreshToken) {
+    return jsonError(c, "UNAUTHORIZED", "Missing refresh token", 401);
+  }
+
+  const session = await validateRefreshToken(db, refreshToken);
+  if (!session) {
+    clearAuthSession(c);
+    return jsonError(c, "UNAUTHORIZED", "Invalid or expired refresh token", 401);
+  }
+
+  const newRefreshToken = await rotateRefreshSession(db, session.sessionId, session.userId, {
+    userAgent: c.req.header("user-agent"),
+    ipAddress: getClientIp(c),
+  });
+
+  const { token } = await issueAuthToken({
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    role: session.user.role,
+  });
+
+  setAuthCookie(c, token);
+  setRefreshCookie(c, newRefreshToken);
+
+  return jsonOk(c, {
+    token,
+    refreshToken: newRefreshToken,
+    user: {
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      role: session.user.role,
+    },
+  });
 });
 
 authRoutes.post("/forgot-password", validate("json", forgotPasswordSchema), async (c) => {

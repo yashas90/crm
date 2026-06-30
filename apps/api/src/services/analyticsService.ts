@@ -21,6 +21,10 @@ import { leadService } from "./leadService.js";
 
 type DateRange = { dateFrom: Date; dateTo: Date };
 
+function toDateKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 type KpiValue = {
   value: number;
   previousValue: number;
@@ -127,8 +131,8 @@ async function countSiteVisits(status: "scheduled" | "completed", range: DateRan
       and(
         eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
         eq(siteVisits.status, status),
-        gte(siteVisits.visitDate, sql`${range.dateFrom}::date`),
-        lte(siteVisits.visitDate, sql`${range.dateTo}::date`),
+        gte(siteVisits.visitDate, sql`${toDateKey(range.dateFrom)}::date`),
+        lte(siteVisits.visitDate, sql`${toDateKey(range.dateTo)}::date`),
       ),
     );
   return row?.count ?? 0;
@@ -403,8 +407,8 @@ async function fetchLeaderboard(range: DateRange) {
   const visitsDoneWhere = and(
     eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
     eq(siteVisits.status, "completed"),
-    gte(siteVisits.visitDate, sql`${range.dateFrom}::date`),
-    lte(siteVisits.visitDate, sql`${range.dateTo}::date`),
+    gte(siteVisits.visitDate, sql`${toDateKey(range.dateFrom)}::date`),
+    lte(siteVisits.visitDate, sql`${toDateKey(range.dateTo)}::date`),
     isNotNull(siteVisits.agentId),
   );
 

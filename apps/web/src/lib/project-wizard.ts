@@ -1,5 +1,5 @@
-/** Set true when object-storage uploads and gallery API are implemented. */
-export const PROJECT_GALLERY_ENABLED = false;
+/** Gallery uploads are enabled when R2 is configured on the API. */
+export const PROJECT_GALLERY_ENABLED = true;
 
 export const PROJECT_WIZARD_STEPS = [
   { id: "basic", label: "Basic Details" },

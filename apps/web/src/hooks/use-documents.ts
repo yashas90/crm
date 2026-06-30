@@ -1,7 +1,6 @@
 "use client";
 
 import { apiDelete, apiGet, apiPost } from "@/lib/apiClient";
-import { getToken } from "@/lib/auth";
 import { toast } from "@/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -87,13 +86,9 @@ export function leadDocumentsQueryKey(leadId: string) {
 }
 
 export async function apiUploadDocument(formData: FormData): Promise<Document> {
-  const token = getToken();
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-
   const response = await fetch(`${getApiUrl()}/api/documents/upload`, {
     method: "POST",
-    headers,
+    credentials: "include",
     body: formData,
   });
 

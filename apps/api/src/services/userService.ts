@@ -9,6 +9,7 @@ import {
   assertCanRemoveAdminPrivileges,
   countActiveAdmins,
   isLastActiveAdmin,
+  isRemovingAdminPrivileges,
 } from "../lib/lastAdminGuard.js";
 import { hashPassword } from "../lib/password.js";
 import { validatePasswordPolicy } from "../lib/passwordPolicy.js";
@@ -319,11 +320,17 @@ export function createUserService(db: Database) {
         throw notFound("User not found");
       }
 
+      await assertCanRemoveAdminPrivileges(db, existing, payload);
+
       if (actingUserId && actingUserId === id) {
-        if (payload.isActive === false) {
+        if (payload.isActive === false && !isRemovingAdminPrivileges(existing, payload)) {
           throw forbidden("You cannot deactivate your own account");
         }
-        if (payload.role && payload.role !== existing.role) {
+        if (
+          payload.role !== undefined &&
+          payload.role !== existing.role &&
+          !isRemovingAdminPrivileges(existing, payload)
+        ) {
           throw forbidden("You cannot change your own role");
         }
       }
@@ -353,8 +360,6 @@ export function createUserService(db: Database) {
           throw conflict("This username is already taken", "USERNAME_IN_USE");
         }
       }
-
-      await assertCanRemoveAdminPrivileges(db, existing, payload);
 
       const update: Partial<typeof users.$inferInsert> = {};
 

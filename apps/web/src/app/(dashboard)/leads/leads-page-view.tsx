@@ -15,13 +15,15 @@ import { LeadsPageHeaderActions } from "@/components/leads/leads-page-header-act
 import { LeadsTable } from "@/components/leads/leads-table";
 import {
   type LeadRow,
+  exportLeadsCsv,
+  leadTabCountsQueryKey,
   leadsListQueryKey,
-  useLeadScopeCounts,
-  useLeadStageCounts,
+  useLeadTabCounts,
   useLeads,
 } from "@/hooks/use-leads";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
+import { getErrorMessage } from "@/lib/errors";
 import { formatLeadSourceDisplay } from "@/lib/lead-sources";
 import { type LeadsDatePreset, resolveLeadsDatePreset } from "@/lib/leads-date-filters";
 import type { LeadsScope } from "@/lib/leads-scope";
@@ -44,9 +46,10 @@ import {
   parseLeadsPageUrl,
 } from "@/lib/leads-url-filters";
 import { getQueryClient } from "@/lib/queryClient";
+import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
-import { AlertCircle, History, Upload } from "lucide-react";
+import { AlertCircle, Download, History, Upload } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -72,8 +75,9 @@ export function LeadsPageView() {
   const [showForm, setShowForm] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showImportTracker, setShowImportTracker] = useState(false);
-  const { canBulkUploadLeads } = usePermissions();
+  const { canBulkUploadLeads, canExportLeads } = usePermissions();
   const [editingLead, setEditingLead] = useState<LeadRow | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [bulkHint, setBulkHint] = useState(false);
   const [pendingBulkAction, setPendingBulkAction] = useState<BulkActionIntent | null>(null);
   const bulkBarRef = useRef<HTMLDivElement>(null);
@@ -148,21 +152,55 @@ export function LeadsPageView() {
     }
   }
 
-  const { data, isLoading, isError, isFetching } = useLeads(leadsQuery, {
+  const tabCountsParams = useMemo(
+    () => ({
+      ...sharedFiltersQuery,
+      assignedTo: baseQuery.assignedTo,
+      unassigned: baseQuery.unassigned,
+      deletedOnly: baseQuery.deletedOnly,
+      teamLeads: baseQuery.teamLeads,
+      duplicatesOnly: baseQuery.duplicatesOnly,
+      excludeDuplicates: baseQuery.excludeDuplicates,
+      naLeadsOnly: baseQuery.naLeadsOnly,
+    }),
+    [sharedFiltersQuery, baseQuery],
+  );
+
+  const { data, isLoading, isError, isFetching, error } = useLeads(leadsQuery, {
     enabled: listEnabled,
     suppressErrorToast: true,
+    errorContext: "leads",
   });
 
-  const scopeCounts = useLeadScopeCounts(sharedFiltersQuery, { enabled: listEnabled });
-  const stageCounts = useLeadStageCounts(baseQuery, { enabled: listEnabled });
+  const tabCounts = useLeadTabCounts(tabCountsParams, {
+    enabled: listEnabled,
+    suppressErrorToast: true,
+    errorContext: "lead counts",
+  });
 
-  const scopeCountsLoading = scopeCounts.isLoading && !scopeCounts.data;
-  const stageCountsLoading = stageCounts.isLoading && !stageCounts.data;
+  const scopeCountsLoading = tabCounts.isLoading && !tabCounts.data;
+  const stageCountsLoading = tabCounts.isLoading && !tabCounts.data;
   const tableLoading = !data && (isLoading || isFetching);
 
   const handleRetryLeads = useCallback(() => {
     void getQueryClient().invalidateQueries({ queryKey: leadsListQueryKey(leadsQuery) });
   }, [leadsQuery]);
+
+  const handleRetryCounts = useCallback(() => {
+    void getQueryClient().invalidateQueries({ queryKey: leadTabCountsQueryKey(tabCountsParams) });
+  }, [tabCountsParams]);
+
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      await exportLeadsCsv(leadsQuery);
+      toast.success("Leads exported");
+    } catch {
+      toast.error("Export failed");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const displayLeads = data?.items ?? [];
   const advancedFilterCount = countAdvancedLeadsFilters(filters);
@@ -220,6 +258,12 @@ export function LeadsPageView() {
           <LeadsPageHeaderActions onUpdateClick={handlePageUpdateClick} />
         </div>
         <div className="flex gap-2">
+          {canExportLeads ? (
+            <Button variant="outline" disabled={isExporting} onClick={() => void handleExportCsv()}>
+              <Download className="mr-2 h-4 w-4" />
+              {isExporting ? "Exporting…" : "Export CSV"}
+            </Button>
+          ) : null}
           {canBulkUploadLeads ? (
             <>
               <Button variant="outline" onClick={() => setShowImportTracker(true)}>
@@ -236,14 +280,26 @@ export function LeadsPageView() {
         </div>
       </div>
 
+      {tabCounts.isError && !tabCounts.data ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{getErrorMessage(tabCounts.error, "Could not load lead tab counts.")}</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRetryCounts}>
+            Retry counts
+          </Button>
+        </div>
+      ) : null}
+
       <LeadsListFilters
         scope={scope}
         onScopeChange={setScope}
-        scopeCounts={scopeCounts.data}
+        scopeCounts={tabCounts.data?.scope}
         scopeCountsLoading={scopeCountsLoading}
         stage={stage}
         onStageChange={setStage}
-        stageCounts={stageCounts.data}
+        stageCounts={tabCounts.data?.stage}
         stageCountsLoading={stageCountsLoading}
         searchDraft={searchDraft}
         onSearchDraftChange={setSearchDraft}
@@ -340,8 +396,8 @@ export function LeadsPageView() {
 
       {isError && !data ? (
         <EmptyState
-          title="Could not load leads."
-          description="Check your connection and try again."
+          title="Could not load leads"
+          description={getErrorMessage(error, "Check your connection and try again.")}
           actionLabel="Retry"
           onActionClick={handleRetryLeads}
           icon={<AlertCircle className="h-7 w-7" />}
@@ -389,7 +445,7 @@ export function LeadsPageView() {
         filters={filters}
         scope={scope}
         onScopeChange={setScope}
-        scopeCounts={scopeCounts.data}
+        scopeCounts={tabCounts.data?.scope}
         scopeCountsLoading={scopeCountsLoading}
         onStageChange={setStage}
         onApply={(nextFilters, nextScope) => {

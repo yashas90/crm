@@ -98,6 +98,8 @@ describe("API endpoint coverage", () => {
       });
       expect(res.status).toBe(200);
       okEnvelope.parse(await jsonBody(res));
+      const refreshed = await login("admin@propninja.local");
+      tokens.admin = refreshed.token;
     });
 
     it("GET /api/auth/login-history — returns array", async ({ skip }) => {
@@ -331,7 +333,8 @@ describe("API endpoint coverage", () => {
         },
         body: JSON.stringify({
           name: `QA Project ${Date.now()}`,
-          status: "active",
+          status: "ongoing",
+          projectType: "residential",
         }),
       });
       expect(res.status).toBe(201);
@@ -475,9 +478,9 @@ describe("API endpoint coverage", () => {
       expect(res.status).toBe(200);
     });
 
-    it("GET /api/audit-log", async ({ skip }) => {
+    it("GET /api/audit-logs", async ({ skip }) => {
       if (!hasDb) skip();
-      const res = await app.request("/api/audit-log?page=1&pageSize=10", {
+      const res = await app.request("/api/audit-logs?page=1&pageSize=10", {
         headers: { Authorization: `Bearer ${tokens.admin}` },
       });
       expect(res.status).toBe(200);

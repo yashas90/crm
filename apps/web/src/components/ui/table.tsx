@@ -44,5 +44,13 @@ export function TableHead({ className, ...props }: React.ThHTMLAttributes<HTMLTa
 }
 
 export function TableCell({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("border border-black px-4 py-3 align-middle", className)} {...props} />;
+  return (
+    <td
+      className={cn(
+        "border border-black px-4 py-3 align-middle text-foreground dark:text-slate-50",
+        className,
+      )}
+      {...props}
+    />
+  );
 }

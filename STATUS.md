@@ -23,7 +23,7 @@ High-level snapshot of what v1.0 delivers, what is explicitly out of scope, and 
 - Hono + Zod validation; Vitest unit + integration tests (integration tests need Postgres)
 
 ### Web
-- Auth: login (demo prefill in dev only), disabled registration, JWT in localStorage, **`propninja_session` cookie + Next.js middleware** for dashboard route gating, client session guard in dashboard shell
+- Auth: login (demo prefill in dev only), disabled registration, **HttpOnly JWT cookie** + `propninja_session` middleware, client session guard in dashboard shell
 - Dashboard: manager/admin overview; agent-specific home
 - Leads: list, filters, scopes (including duplicate / re-enquired), page sizes 10–500, **CSV bulk import**, bulk status/assign/archive, create, edit, detail, delete (admin)
 - **Projects** — list, wizard, edit, delete, availability
@@ -64,7 +64,7 @@ These are **not** planned for v1.0 and should not be assumed available:
 | Advanced analytics / ML | Operational reports only; no forecasting, scoring, or ML pipelines |
 | Project gallery files | Wizard step stores placeholder metadata only; no blob upload |
 | Push / email / SMS notifications | In-app notifications only |
-| Org profile edit | `GET /api/org` only; no `PATCH` yet |
+| Org profile edit | `GET` and `PATCH /api/org` for admins/managers with `org_profile:update` |
 | Mobile manager reports | No reports screens on mobile |
 
 Also deferred: public self-registration, mobile SMS/email TCF editing, native Android call-log auto-sync, user hard-delete API, OAuth connect UI for integrations (env-only config today).

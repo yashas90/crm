@@ -45,6 +45,7 @@ describe("LoginScreen", () => {
 
     mockApiPost.mockResolvedValue({
       token: "test-token",
+      refreshToken: "test-refresh",
       user: {
         id: "user-1",
         email: "agent@demo.test",
@@ -68,12 +69,16 @@ describe("LoginScreen", () => {
     });
 
     await waitFor(() => {
-      expect(login).toHaveBeenCalledWith("test-token", {
-        id: "user-1",
-        email: "agent@demo.test",
-        name: "Agent One",
-        role: "agent",
-      });
+      expect(login).toHaveBeenCalledWith(
+        "test-token",
+        {
+          id: "user-1",
+          email: "agent@demo.test",
+          name: "Agent One",
+          role: "agent",
+        },
+        "test-refresh",
+      );
     });
   });
 });

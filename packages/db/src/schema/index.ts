@@ -785,6 +785,27 @@ export const loginEvents = pgTable(
   (table) => [index("login_events_user_id_idx").on(table.userId, table.createdAt)],
 );
 
+export const authRefreshSessions = pgTable(
+  "auth_refresh_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    userAgent: text("user_agent"),
+    ipAddress: text("ip_address"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("auth_refresh_sessions_token_hash_idx").on(table.tokenHash),
+    index("auth_refresh_sessions_user_id_idx").on(table.userId),
+    index("auth_refresh_sessions_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
 export const leadAssignments = pgTable(
   "lead_assignments",
   {

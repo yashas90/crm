@@ -1,6 +1,6 @@
 -- Track bulk CSV lead uploads and link imported leads for outcome reporting.
 
-CREATE TABLE lead_import_batches (
+CREATE TABLE IF NOT EXISTS lead_import_batches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES organizations(id),
   uploaded_by uuid NOT NULL REFERENCES users(id),
@@ -20,10 +20,10 @@ CREATE TABLE lead_import_batches (
     CHECK (status IN ('initiated', 'completed', 'failed'))
 );
 
-CREATE INDEX lead_import_batches_org_id_created_at_idx
+CREATE INDEX IF NOT EXISTS lead_import_batches_org_id_created_at_idx
   ON lead_import_batches (org_id, created_at DESC);
 
-CREATE TABLE lead_import_batch_items (
+CREATE TABLE IF NOT EXISTS lead_import_batch_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id uuid NOT NULL REFERENCES lead_import_batches(id) ON DELETE CASCADE,
   lead_id uuid REFERENCES leads(id) ON DELETE SET NULL,
@@ -36,5 +36,5 @@ CREATE TABLE lead_import_batch_items (
   UNIQUE (batch_id, row_number)
 );
 
-CREATE INDEX lead_import_batch_items_batch_id_idx ON lead_import_batch_items (batch_id);
-CREATE INDEX lead_import_batch_items_lead_id_idx ON lead_import_batch_items (lead_id);
+CREATE INDEX IF NOT EXISTS lead_import_batch_items_batch_id_idx ON lead_import_batch_items (batch_id);
+CREATE INDEX IF NOT EXISTS lead_import_batch_items_lead_id_idx ON lead_import_batch_items (lead_id);

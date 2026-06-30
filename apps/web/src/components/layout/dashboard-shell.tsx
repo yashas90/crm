@@ -8,10 +8,11 @@ import { Topbar } from "@/components/layout/topbar";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { ensureSessionCookie, isAuthenticated } from "@/lib/auth";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   useNotificationSound();
 
   useEffect(() => {
@@ -32,10 +33,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="relative z-10">
         <FirstLoginModal />
         <CommandPalette />
-        <Sidebar />
-        <div className="pl-64">
-          <Topbar />
-          <main className="p-6 lg:p-8">
+        <Sidebar mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
+        <div className="md:pl-64">
+          <Topbar onMenuClick={() => setSidebarOpen(true)} />
+          <main className="p-4 md:p-6 lg:p-8">
             <div className="mx-auto max-w-7xl">
               <AppErrorBoundary>{children as ReactNode}</AppErrorBoundary>
             </div>

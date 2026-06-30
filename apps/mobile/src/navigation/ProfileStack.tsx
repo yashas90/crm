@@ -1,9 +1,11 @@
 import type { ProfileStackParamList } from "@/navigation/types";
 import { CallLogsScreen } from "@/screens/CallLogsScreen";
+import { DocumentsLibraryScreen } from "@/screens/DocumentsLibraryScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { ProjectDetailScreen } from "@/screens/ProjectDetailScreen";
 import { ProjectUnitScreen } from "@/screens/ProjectUnitScreen";
 import { ProjectsScreen } from "@/screens/ProjectsScreen";
+import { SiteVisitsCalendarScreen } from "@/screens/SiteVisitsCalendarScreen";
 import { UserManagementScreen } from "@/screens/UserManagementScreen";
 import { navigationTheme } from "@/theme";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -35,13 +37,26 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
             onLogout={onLogout}
             onOpenUserManagement={() => navigation.navigate("UserManagementScreen")}
             onOpenProjects={() => navigation.navigate("ProjectsScreen")}
+            onOpenDocuments={() => navigation.navigate("DocumentsLibraryScreen")}
+            onOpenCallLogs={() => navigation.navigate("CallLogsScreen")}
+            onOpenSiteVisits={() => navigation.navigate("SiteVisitsCalendarScreen")}
           />
         )}
       </Stack.Screen>
       <Stack.Screen
+        name="DocumentsLibraryScreen"
+        component={DocumentsLibraryScreen}
+        options={{ title: "Documents", ...detailScreenOptions }}
+      />
+      <Stack.Screen
         name="CallLogsScreen"
         component={CallLogsScreen}
         options={{ title: "Call Logs", ...detailScreenOptions }}
+      />
+      <Stack.Screen
+        name="SiteVisitsCalendarScreen"
+        component={SiteVisitsCalendarScreen}
+        options={{ title: "Site visits", ...detailScreenOptions }}
       />
       <Stack.Screen
         name="UserManagementScreen"

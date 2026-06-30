@@ -4,23 +4,26 @@ import type { Server } from "node:http";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { startDailyFollowUpJobs } from "./jobs/dailyFollowUpJob.js";
-import { startFollowupReminderJob } from "./jobs/followUpReminderJob.js";
 import { startFollowupNotificationJob } from "./jobs/followupNotificationJob.js";
 import { startGoogleAdsLeadSync } from "./jobs/googleAdsLeadJob.js";
-import { startLeadScoringJob } from "./jobs/leadScoringJob.js";
 import { startReportEmailJob } from "./jobs/reportEmailJob.js";
-import { startSiteVisitReminderJob } from "./jobs/siteVisitReminderJob.js";
+import { startBackgroundJobs } from "./jobs/startBackgroundJobs.js";
 import { resolveCorsOrigins } from "./lib/cors.js";
 import { env } from "./lib/env.js";
 import { logger } from "./lib/logger.js";
 import { jsonError } from "./lib/response.js";
 import { startTokenBlocklistRefresh } from "./lib/tokenBlocklist.js";
 import { authMiddleware } from "./middleware/auth.js";
+import { csrfProtectionMiddleware } from "./middleware/csrfProtection.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { authenticatedUserRateLimit, publicIpRateLimitMiddleware } from "./middleware/rateLimit.js";
 import { requestContextMiddleware } from "./middleware/requestContext.js";
+import { responseCacheMiddleware } from "./middleware/responseCache.js";
 import { securityHeadersMiddleware } from "./middleware/securityHeaders.js";
+import {
+  ipBlocklistMiddleware,
+  securityMonitoringMiddleware,
+} from "./middleware/securityMonitoring.js";
 import { sentryRequestMiddleware, sentryUserMiddleware } from "./middleware/sentry.js";
 import { adminRoutes } from "./routes/admin.js";
 import { agentTargetsRoutes } from "./routes/agentTargets.js";
@@ -49,6 +52,7 @@ import { reportsRoutes } from "./routes/reports.js";
 import { securityRoutes } from "./routes/security.js";
 import { siteVisitsRoutes } from "./routes/siteVisits.js";
 import { slaRoutes } from "./routes/sla.js";
+import { smsRoutes } from "./routes/sms.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { tcfRoutes } from "./routes/tcf.js";
 import { userRolesRoutes } from "./routes/userRoles.js";
@@ -73,7 +77,7 @@ app.use(
     origin: corsOrigins,
     credentials: true,
     allowMethods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowHeaders: ["Authorization", "Content-Type", "Accept"],
+    allowHeaders: ["Authorization", "Content-Type", "Accept", "X-Requested-With"],
     maxAge: 86_400,
   }),
 );
@@ -84,7 +88,12 @@ app.route("/api/integrations/portal", portalIntegrationsRoute);
 app.route("/api/integrations/whatsapp", whatsappIntegrationsRoute);
 app.route("/api/documents", documentViewRoutes);
 
+app.use("/api/*", ipBlocklistMiddleware);
+app.use("/api/*", csrfProtectionMiddleware);
+
 app.use("/api/*", authMiddleware);
+app.use("/api/*", securityMonitoringMiddleware);
+app.use("/api/*", responseCacheMiddleware);
 app.use("/api/*", authenticatedUserRateLimit);
 app.use("/api/*", sentryUserMiddleware);
 
@@ -106,6 +115,7 @@ app.route("/api/admin", adminRoutes);
 app.route("/api/site-visits", siteVisitsRoutes);
 app.route("/api/documents", documentsRoutes);
 app.route("/api/whatsapp", whatsappRoute);
+app.route("/api/sms", smsRoutes);
 app.route("/api/message-templates", messageTemplatesRoutes);
 app.route("/api/security", securityRoutes);
 app.route("/api/agent-targets", agentTargetsRoutes);
@@ -134,11 +144,8 @@ if (process.env.VITEST !== "true") {
     startTokenBlocklistRefresh();
     startGoogleAdsLeadSync();
     startFollowupNotificationJob();
-    startFollowupReminderJob();
-    startSiteVisitReminderJob();
     startReportEmailJob();
-    startLeadScoringJob();
-    startDailyFollowUpJobs();
+    void startBackgroundJobs();
   });
   tuneHttpKeepAlive(server as Server);
 }

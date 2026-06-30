@@ -54,7 +54,7 @@ export function LeadsBulkImportDialog({
   const { session } = useSession();
   const canImport = hasPermission("leads:bulk_upload");
   const bulkImport = useBulkImportLeads();
-  const { data: users } = useUsers();
+  const { data: users } = useUsers(undefined, { enabled: open });
 
   useEffect(() => {
     if (open && session?.id) {

@@ -25,7 +25,7 @@ type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 type AuthContextValue = {
   status: AuthStatus;
   user: SessionUser | null;
-  login: (token: string, user: SessionUser) => Promise<void>;
+  login: (token: string, user: SessionUser, refreshToken?: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -64,17 +64,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, [status]);
 
-  const login = useCallback(async (token: string, sessionUser: SessionUser) => {
-    await persistAuth(token, sessionUser);
-    setUser(sessionUser);
-    setStatus("authenticated");
-    await queryClient.invalidateQueries();
-    void registerPushToken();
-  }, []);
+  const login = useCallback(
+    async (token: string, sessionUser: SessionUser, refreshToken?: string) => {
+      await persistAuth(token, sessionUser, refreshToken);
+      setUser(sessionUser);
+      setStatus("authenticated");
+      await queryClient.invalidateQueries();
+      void registerPushToken();
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
+    const refreshToken = (await import("@/lib/auth")).getRefreshToken();
     try {
-      await apiPost("/api/auth/logout", {});
+      await apiPost("/api/auth/logout", refreshToken ? { refreshToken } : {});
     } catch {
       // Token revocation best-effort — proceed with local logout regardless
     }

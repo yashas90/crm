@@ -45,25 +45,34 @@ export function CallsListTable({ calls, showLead = false }: CallsListTableProps)
       </TableHeader>
       <TableBody>
         {calls.map((call) => (
-          <TableRow key={call.id}>
-            <TableCell>{new Date(call.startedAt).toLocaleString()}</TableCell>
+          <TableRow key={call.id} className="dark:hover:bg-slate-800/60">
+            <TableCell className="whitespace-nowrap tabular-nums font-medium text-foreground">
+              {new Date(call.startedAt).toLocaleString()}
+            </TableCell>
             {showLead ? (
               <TableCell>
                 {call.lead ? (
-                  <Link href={`/leads/${call.lead.id}`} className="text-primary hover:underline">
+                  <Link
+                    href={`/leads/${call.lead.id}`}
+                    className="font-medium text-primary hover:underline"
+                  >
                     {call.lead.firstName} {call.lead.lastName}
                   </Link>
                 ) : (
-                  call.phoneNumber
+                  <span className="text-foreground">{call.phoneNumber}</span>
                 )}
               </TableCell>
             ) : null}
-            <TableCell className="capitalize">{call.direction}</TableCell>
-            <TableCell className="capitalize">{call.status}</TableCell>
-            <TableCell>{formatDuration(call.durationSeconds)}</TableCell>
-            <TableCell>{call.disposition ?? "—"}</TableCell>
-            <TableCell>{call.userName ?? "—"}</TableCell>
-            <TableCell className="max-w-[200px] truncate">{call.notes ?? "—"}</TableCell>
+            <TableCell className="capitalize text-foreground">{call.direction}</TableCell>
+            <TableCell className="capitalize text-foreground">{call.status}</TableCell>
+            <TableCell className="tabular-nums font-semibold text-foreground">
+              {formatDuration(call.durationSeconds)}
+            </TableCell>
+            <TableCell className="text-foreground">{call.disposition ?? "—"}</TableCell>
+            <TableCell className="text-foreground">{call.userName ?? "—"}</TableCell>
+            <TableCell className="max-w-[200px] truncate text-foreground">
+              {call.notes ?? "—"}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

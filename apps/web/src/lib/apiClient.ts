@@ -1,6 +1,7 @@
-import { getToken } from "@/lib/auth";
+import { clearSession, getToken } from "@/lib/auth";
 
 let cachedApiUrl: string | undefined;
+let refreshPromise: Promise<boolean> | null = null;
 
 function resolveApiUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
@@ -41,27 +42,82 @@ export class ApiRequestError extends Error {
   }
 }
 
+async function tryRefreshSession(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${getApiUrl()}/api/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        cache: "no-store",
+      });
+      if (!response.ok) return false;
+      const json = (await response.json()) as ApiSuccess<unknown> | ApiError;
+      return json.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
+  const method = (init?.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string> | undefined),
   };
+  if (MUTATING_METHODS.has(method)) {
+    headers["X-Requested-With"] = "XMLHttpRequest";
+  }
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${getApiUrl()}${path}`, {
+  async function executeRequest(): Promise<Response> {
+    return fetch(`${getApiUrl()}${path}`, {
+      credentials: "include",
       ...init,
       headers,
     });
+  }
+
+  let response: Response;
+  try {
+    response = await executeRequest();
   } catch {
     throw new ApiRequestError(
       "NETWORK_ERROR",
       "Unable to reach the server. Check your connection and API URL.",
     );
+  }
+
+  if (
+    response.status === 401 &&
+    path !== "/api/auth/login" &&
+    path !== "/api/auth/refresh" &&
+    path !== "/api/auth/logout"
+  ) {
+    const refreshed = await tryRefreshSession();
+    if (refreshed) {
+      try {
+        response = await executeRequest();
+      } catch {
+        throw new ApiRequestError(
+          "NETWORK_ERROR",
+          "Unable to reach the server. Check your connection and API URL.",
+        );
+      }
+    }
   }
 
   const raw = await response.text();
@@ -103,18 +159,37 @@ export async function apiDownload(path: string, filename: string) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${getApiUrl()}${path}`, {
+  async function executeDownload(): Promise<Response> {
+    return fetch(`${getApiUrl()}${path}`, {
       method: "GET",
+      credentials: "include",
       headers,
       cache: "no-store",
     });
+  }
+
+  let response: Response;
+  try {
+    response = await executeDownload();
   } catch {
     throw new ApiRequestError(
       "NETWORK_ERROR",
       "Unable to reach the server. Check your connection and API URL.",
     );
+  }
+
+  if (response.status === 401) {
+    const refreshed = await tryRefreshSession();
+    if (refreshed) {
+      try {
+        response = await executeDownload();
+      } catch {
+        throw new ApiRequestError(
+          "NETWORK_ERROR",
+          "Unable to reach the server. Check your connection and API URL.",
+        );
+      }
+    }
   }
 
   if (!response.ok) {

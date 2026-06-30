@@ -113,6 +113,10 @@ vi.mock("@/components/leads/lead-ownership-history", () => ({
   LeadOwnershipHistory: () => null,
 }));
 
+vi.mock("@/components/leads/send-sms-dialog", () => ({
+  SendSmsDialog: () => null,
+}));
+
 describe("LeadDetailPage", () => {
   it("renders hero section with lead name and status chips", () => {
     render(<LeadDetailPage />);

@@ -101,11 +101,17 @@ export function useBulkImportLeads() {
   });
 }
 
-export function useLeadImportBatches(page: number, pageSize = 10) {
+export function useLeadImportBatches(
+  page: number,
+  pageSize = 10,
+  options?: { enabled?: boolean; suppressErrorToast?: boolean },
+) {
   return useQuery({
     queryKey: ["leads", "import-batches", page, pageSize],
     queryFn: () => fetchLeadImportBatches({ page, pageSize }),
+    enabled: options?.enabled !== false,
     placeholderData: keepPreviousData,
+    meta: options?.suppressErrorToast ? { suppressErrorToast: true } : undefined,
   });
 }
 
@@ -115,6 +121,7 @@ export function useLeadImportBatchOptions(enabled = true) {
     queryFn: () => fetchLeadImportBatches({ page: 1, pageSize: 100 }),
     enabled,
     staleTime: 60_000,
+    meta: { suppressErrorToast: true },
   });
 }
 

@@ -2,10 +2,11 @@ import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { useIsManager } from "@/hooks/use-role";
 import { useOpenTaskCount } from "@/hooks/use-tasks";
 import { LeadsStack } from "@/navigation/LeadsStack";
+import { ProfileStack } from "@/navigation/ProfileStack";
 import { TeamStack } from "@/navigation/TeamStack";
 import type { MainTabParamList } from "@/navigation/types";
 import { NotificationsScreen } from "@/screens/NotificationsScreen";
-import { ProfileScreen } from "@/screens/ProfileScreen";
+import { PipelineScreen } from "@/screens/PipelineScreen";
 import { TasksScreen } from "@/screens/TasksScreen";
 import { TodayScreen } from "@/screens/TodayScreen";
 import { colors, navigationTheme } from "@/theme";
@@ -74,6 +75,16 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           tabBarIcon: ({ focused }) => tabIcon("people-outline", focused),
         }}
       />
+      <Tab.Screen
+        name="PipelineTab"
+        component={PipelineScreen}
+        options={{
+          title: "Pipeline",
+          tabBarIcon: ({ focused }) => tabIcon("git-network-outline", focused),
+          headerShown: true,
+          ...navigationTheme,
+        }}
+      />
       {isManager ? (
         <Tab.Screen
           name="TeamTab"
@@ -137,11 +148,10 @@ export function MainTabs({ onLogout }: MainTabsProps) {
         options={{
           title: "Profile",
           tabBarIcon: ({ focused }) => tabIcon("person-circle-outline", focused),
-          headerShown: true,
-          ...navigationTheme,
+          headerShown: false,
         }}
       >
-        {() => <ProfileScreen onLogout={onLogout} />}
+        {() => <ProfileStack onLogout={onLogout} />}
       </Tab.Screen>
     </Tab.Navigator>
   );

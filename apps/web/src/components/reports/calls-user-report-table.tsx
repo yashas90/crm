@@ -15,9 +15,12 @@ import { Button } from "@propninja/ui/button";
 import { cn } from "@propninja/ui/lib/utils";
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight } from "lucide-react";
 
-const HEADER_CELL = "bg-slate-900 text-center text-xs font-semibold text-slate-50";
-const GROUP_BORDER = "border-l border-slate-700";
-const EMPTY = "--";
+const HEADER_CELL =
+  "bg-slate-900 text-center text-xs font-semibold uppercase tracking-wide text-white dark:bg-slate-950";
+const GROUP_BORDER = "border-l border-slate-300 dark:border-slate-600";
+const DATA_CELL =
+  "text-center tabular-nums text-sm font-semibold text-slate-900 dark:text-slate-50";
+const EMPTY = "—";
 
 type CallsUserReportTableProps = {
   rows: CallsUserReportRow[];
@@ -50,7 +53,9 @@ function NumericCell({
   className?: string;
 }) {
   return (
-    <TableCell className={cn("text-center tabular-nums", className)}>
+    <TableCell
+      className={cn(DATA_CELL, !hasActivity && "font-normal text-muted-foreground", className)}
+    >
       {formatCount(value, hasActivity)}
     </TableCell>
   );
@@ -66,7 +71,9 @@ function TalkTimeCell({
   className?: string;
 }) {
   return (
-    <TableCell className={cn("text-center tabular-nums", className)}>
+    <TableCell
+      className={cn(DATA_CELL, !hasActivity && "font-normal text-muted-foreground", className)}
+    >
       {formatDuration(seconds, hasActivity)}
     </TableCell>
   );
@@ -139,7 +146,7 @@ function CallsReportPagination({
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm font-medium text-foreground">
         Showing {start} - {end} of {total} entries
       </p>
       <div className="flex items-center gap-1">
@@ -165,7 +172,7 @@ function CallsReportPagination({
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="min-w-[5rem] text-center text-sm tabular-nums">
+        <span className="min-w-[5rem] text-center text-sm font-semibold tabular-nums text-foreground">
           Page {page} / {totalPages}
         </span>
         <Button
@@ -261,8 +268,8 @@ export function CallsUserReportTable({
             {rows.map((row) => {
               const hasCallActivity = row.totalCalls > 0;
               return (
-                <TableRow key={row.userId} className="hover:bg-muted/50">
-                  <TableCell className="font-medium">{row.userName}</TableCell>
+                <TableRow key={row.userId} className="hover:bg-muted/50 dark:hover:bg-slate-800/60">
+                  <TableCell className="font-semibold text-foreground">{row.userName}</TableCell>
                   <NumericCell value={row.incomingAnswered} hasActivity={hasCallActivity} />
                   <NumericCell value={row.incomingMissed} hasActivity={hasCallActivity} />
                   <NumericCell value={row.incomingTotal} hasActivity={hasCallActivity} />
@@ -298,8 +305,8 @@ export function CallsUserReportTable({
                 </TableRow>
               );
             })}
-            <TableRow className="border-t-2 bg-muted/30 font-semibold hover:bg-muted/30">
-              <TableCell>Total</TableCell>
+            <TableRow className="border-t-2 bg-slate-100 font-semibold hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800/80">
+              <TableCell className="font-bold text-foreground">Total</TableCell>
               <NumericCell value={totals.incomingAnswered} hasActivity={totalsHaveActivity} />
               <NumericCell value={totals.incomingMissed} hasActivity={totalsHaveActivity} />
               <NumericCell value={totals.incomingTotal} hasActivity={totalsHaveActivity} />

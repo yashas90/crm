@@ -3,6 +3,7 @@ export type LeadsTableColumnId =
   | "assignedTo"
   | "source"
   | "status"
+  | "score"
   | "project"
   | "actions";
 
@@ -13,6 +14,7 @@ export const LEADS_TABLE_COLUMNS: { id: LeadsTableColumnId; label: string }[] = 
   { id: "assignedTo", label: "Assigned To" },
   { id: "source", label: "Source" },
   { id: "status", label: "Status" },
+  { id: "score", label: "Score" },
   { id: "project", label: "Project(s)" },
   { id: "actions", label: "Actions" },
 ];
@@ -22,6 +24,7 @@ export const DEFAULT_LEADS_COLUMN_VISIBILITY: LeadsColumnVisibility = {
   assignedTo: true,
   source: true,
   status: true,
+  score: true,
   project: true,
   actions: true,
 };

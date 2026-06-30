@@ -1,5 +1,5 @@
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
-import { getToken } from "@/lib/auth";
+import { clearAuth, getRefreshToken, getToken, updateTokens } from "@/lib/auth";
 
 export type ApiSuccess<T> = { ok: true; data: T };
 export type ApiError = {
@@ -22,6 +22,7 @@ export class ApiRequestError extends Error {
 type UnauthorizedHandler = () => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 let sessionLogoutSuppressed = false;
+let refreshPromise: Promise<boolean> | null = null;
 
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
   unauthorizedHandler = handler;
@@ -71,14 +72,50 @@ function sleep(ms: number) {
   });
 }
 
+export async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${getApiUrl()}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!response.ok) return false;
+      const json = (await response.json()) as
+        | ApiSuccess<{
+            token: string;
+            refreshToken: string;
+          }>
+        | ApiError;
+      if (!json.ok) return false;
+      await updateTokens(json.data.token, json.data.refreshToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptions): Promise<T> {
   const { skipSessionLogout, ...requestInit } = init;
   const token = getToken();
+  const method = (requestInit.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
     ...(requestInit.headers as Record<string, string> | undefined),
   };
+  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    headers["X-Requested-With"] = "XMLHttpRequest";
+  }
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -140,6 +177,19 @@ export async function apiFetch<T>(
   try {
     return await apiFetchOnce<T>(path, options);
   } catch (error) {
+    if (
+      error instanceof ApiRequestError &&
+      error.status === 401 &&
+      path !== "/api/auth/login" &&
+      path !== "/api/auth/refresh" &&
+      !options.skipSessionLogout
+    ) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        return apiFetchOnce<T>(path, options);
+      }
+    }
+
     if (!isTransientFailure(error)) {
       throw error;
     }

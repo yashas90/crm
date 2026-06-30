@@ -95,9 +95,13 @@ export function TodayKpiRow({ kpis }: TodayKpiRowProps) {
                 <Icon className="h-6 w-6" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-muted-foreground">{item.title}</p>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                  {item.title}
+                </p>
                 <div className="mt-1 flex items-end gap-2">
-                  <p className="text-3xl font-bold tracking-tight">{item.value}</p>
+                  <p className="text-3xl font-bold tabular-nums tracking-normal text-slate-900 dark:text-white">
+                    {item.value}
+                  </p>
                   {item.trend !== undefined ? (
                     <span
                       className={cn(
@@ -114,7 +118,7 @@ export function TodayKpiRow({ kpis }: TodayKpiRowProps) {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{item.hint}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.hint}</p>
               </div>
             </CardContent>
           </Card>

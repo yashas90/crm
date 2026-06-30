@@ -18,3 +18,4 @@ apps/mobile/store/google-service-account.json
 apps/mobile/store/*.p8
 apps/mobile/store/submit.env
 apps/mobile/credentials.json
+.env*

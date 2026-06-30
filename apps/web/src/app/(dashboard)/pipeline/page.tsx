@@ -1,29 +1,14 @@
 "use client";
 
 import { type LeadRow, useLeads } from "@/hooks/use-leads";
+import { type PipelineStageView, usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { apiPatch } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
+import { Button } from "@propninja/ui/button";
 import { cn } from "@propninja/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Flame, Phone, Snowflake, Sun, User } from "lucide-react";
+import { CalendarClock, Flame, Phone, Settings2, Snowflake, Sun, User } from "lucide-react";
 import Link from "next/link";
-
-const STAGES = [
-  { key: "new", label: "New", color: "bg-slate-100 border-slate-200 dark:bg-slate-800/60" },
-  { key: "contacted", label: "Contacted", color: "bg-blue-50 border-blue-200 dark:bg-blue-900/20" },
-  {
-    key: "qualified",
-    label: "Qualified",
-    color: "bg-violet-50 border-violet-200 dark:bg-violet-900/20",
-  },
-  {
-    key: "negotiation",
-    label: "Negotiation",
-    color: "bg-amber-50 border-amber-200 dark:bg-amber-900/20",
-  },
-  { key: "won", label: "Won", color: "bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20" },
-  { key: "lost", label: "Lost", color: "bg-rose-50 border-rose-200 dark:bg-rose-900/20" },
-] as const;
 
 const TEMP_ICONS: Record<string, { icon: typeof Flame; className: string }> = {
   hot: { icon: Flame, className: "text-rose-500" },
@@ -33,9 +18,11 @@ const TEMP_ICONS: Record<string, { icon: typeof Flame; className: string }> = {
 
 function LeadCard({
   lead,
+  stages,
   onStatusChange,
 }: {
   lead: LeadRow;
+  stages: PipelineStageView[];
   onStatusChange: (id: string, status: string) => void;
 }) {
   const isOverdue = lead.nextFollowupAt ? new Date(lead.nextFollowupAt) < new Date() : false;
@@ -95,16 +82,18 @@ function LeadCard({
       ) : null}
 
       <div className="mt-2 flex flex-wrap gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {STAGES.filter((s) => s.key !== lead.leadStatus).map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            onClick={() => onStatusChange(lead.id, s.key)}
-            className="rounded px-1.5 py-0.5 text-[10px] bg-muted hover:bg-muted-foreground/20 text-muted-foreground"
-          >
-            → {s.label}
-          </button>
-        ))}
+        {stages
+          .filter((s) => s.key !== lead.leadStatus)
+          .map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => onStatusChange(lead.id, s.key)}
+              className="rounded px-1.5 py-0.5 text-[10px] bg-muted hover:bg-muted-foreground/20 text-muted-foreground"
+            >
+              → {s.label}
+            </button>
+          ))}
       </div>
     </div>
   );
@@ -114,11 +103,13 @@ function KanbanColumn({
   stage,
   leads,
   total,
+  stages,
   onStatusChange,
 }: {
-  stage: (typeof STAGES)[number];
+  stage: PipelineStageView;
   leads: LeadRow[];
   total: number;
+  stages: PipelineStageView[];
   onStatusChange: (id: string, status: string) => void;
 }) {
   const totalValue = leads.reduce(
@@ -128,7 +119,7 @@ function KanbanColumn({
 
   return (
     <div className="flex min-w-[220px] flex-1 flex-col gap-2">
-      <div className={cn("rounded-xl border px-3 py-2", stage.color)}>
+      <div className={cn("rounded-xl border px-3 py-2", stage.color)} style={stage.colorStyle}>
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">{stage.label}</span>
           <span className="rounded-full bg-background/80 px-2 py-0.5 text-xs font-bold">
@@ -147,7 +138,7 @@ function KanbanColumn({
         style={{ maxHeight: "calc(100vh - 260px)" }}
       >
         {leads.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} onStatusChange={onStatusChange} />
+          <LeadCard key={lead.id} lead={lead} stages={stages} onStatusChange={onStatusChange} />
         ))}
         {leads.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/40 py-8 text-center text-xs text-muted-foreground">
@@ -161,9 +152,10 @@ function KanbanColumn({
 
 export default function PipelinePage() {
   const qc = useQueryClient();
+  const { data: stages = [], isLoading: stagesLoading } = usePipelineStages();
 
   const params = { pageSize: "200", activeOnly: "true" };
-  const { data, isLoading } = useLeads(params);
+  const { data, isLoading: leadsLoading } = useLeads(params);
   const leads = data?.items ?? [];
 
   async function handleStatusChange(id: string, status: string) {
@@ -177,8 +169,10 @@ export default function PipelinePage() {
   }
 
   const byStage = Object.fromEntries(
-    STAGES.map((s) => [s.key, leads.filter((l) => l.leadStatus === s.key)]),
+    stages.map((s) => [s.key, leads.filter((l) => l.leadStatus === s.key)]),
   );
+
+  const isLoading = stagesLoading || leadsLoading;
 
   return (
     <div className="space-y-4">
@@ -187,7 +181,13 @@ export default function PipelinePage() {
           <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
           <p className="text-muted-foreground">Visual overview of leads across all stages.</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <Button asChild variant="outline" size="sm" className="h-8 gap-1.5">
+            <Link href="/settings/pipeline-stages">
+              <Settings2 className="h-3.5 w-3.5" />
+              Configure stages
+            </Link>
+          </Button>
           <Flame className="h-4 w-4 text-orange-500" />
           <span>Hover a card to move stages</span>
         </div>
@@ -197,10 +197,11 @@ export default function PipelinePage() {
         <p className="text-muted-foreground">Loading pipeline...</p>
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4">
-          {STAGES.map((stage) => (
+          {stages.map((stage) => (
             <KanbanColumn
               key={stage.key}
               stage={stage}
+              stages={stages}
               leads={byStage[stage.key] ?? []}
               total={byStage[stage.key]?.length ?? 0}
               onStatusChange={handleStatusChange}

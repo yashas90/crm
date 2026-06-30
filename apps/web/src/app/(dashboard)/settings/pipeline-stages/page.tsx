@@ -62,6 +62,7 @@ export default function PipelineStagesPage() {
       s.id ? apiPatch(`/api/pipeline-stages/${s.id}`, s) : apiPost("/api/pipeline-stages", s),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pipeline-stages"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
       setEditing(null);
       toast.success("Stage saved");
     },
@@ -72,6 +73,7 @@ export default function PipelineStagesPage() {
     mutationFn: (id: string) => apiDelete(`/api/pipeline-stages/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pipeline-stages"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
       toast.success("Stage deleted");
     },
     onError: (err) => toast.error(getErrorMessage(err, "Failed to delete stage")),

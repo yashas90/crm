@@ -1,6 +1,15 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
+import { z } from "zod";
+import {
+  GalleryFileValidationError,
+  MAX_GALLERY_IMAGE_BYTES,
+  galleryItemId,
+  uploadGalleryImage,
+} from "../lib/galleryFiles.js";
+import { parseDocumentMultipart } from "../lib/multipartUpload.js";
 import { canManageProjects, canViewProjects } from "../lib/permissions.js";
+import { isR2Configured } from "../lib/r2Storage.js";
 import { jsonError, jsonOk } from "../lib/response.js";
 import { validate } from "../lib/validate.js";
 import { uuidParamSchema } from "../lib/validators/common.js";
@@ -160,3 +169,79 @@ projectsRoutes.post(
 );
 
 projectsRoutes.route("/:id/units", projectUnitsRoutes);
+
+projectsRoutes.post(
+  "/:id/gallery/upload",
+  writeRateLimit,
+  validate("param", uuidParamSchema),
+  async (c) => {
+    const denied = requireManage(c);
+    if (denied) return denied;
+
+    if (!isR2Configured()) {
+      return jsonError(c, "STORAGE_NOT_CONFIGURED", "Image storage is not configured", 503);
+    }
+
+    const { id: projectId } = c.req.valid("param");
+    const db = c.get("db");
+    const service = createProjectService(db);
+
+    try {
+      const project = await service.getProjectById(projectId);
+      const { file } = await parseDocumentMultipart(c.req.raw, MAX_GALLERY_IMAGE_BYTES);
+      const uploaded = await uploadGalleryImage(projectId, file.filename, file.buffer);
+
+      const existingItems = project.gallery?.items ?? [];
+      const item = {
+        id: galleryItemId(uploaded.fileKey),
+        name: uploaded.name,
+        url: uploaded.url,
+        fileKey: uploaded.fileKey,
+        mimeType: uploaded.mimeType,
+      };
+
+      const updated = await service.updateProject(projectId, {
+        gallery: { items: [...existingItems, item] },
+      });
+
+      return jsonOk(c, { item, gallery: updated.gallery }, undefined, 201);
+    } catch (error) {
+      if (error instanceof GalleryFileValidationError) {
+        return jsonError(c, error.code, error.message, 400);
+      }
+      throw error;
+    }
+  },
+);
+
+projectsRoutes.delete(
+  "/:id/gallery/:itemId",
+  writeRateLimit,
+  validate(
+    "param",
+    z.object({
+      id: z.string().uuid(),
+      itemId: z.string().min(1),
+    }),
+  ),
+  async (c) => {
+    const denied = requireManage(c);
+    if (denied) return denied;
+
+    const { id: projectId, itemId } = c.req.valid("param");
+    const service = createProjectService(c.get("db"));
+    const project = await service.getProjectById(projectId);
+    const items = project.gallery?.items ?? [];
+    const nextItems = items.filter((item) => item.id !== itemId);
+
+    if (nextItems.length === items.length) {
+      return jsonError(c, "NOT_FOUND", "Gallery item not found", 404);
+    }
+
+    const updated = await service.updateProject(projectId, {
+      gallery: { items: nextItems },
+    });
+
+    return jsonOk(c, { gallery: updated.gallery });
+  },
+);

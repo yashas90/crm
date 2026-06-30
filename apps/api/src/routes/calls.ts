@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { mapCallOutcome } from "../lib/callOutcomes.js";
+import { canEditLead } from "../lib/permissions.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { callsLogRateLimit } from "../middleware/rateLimit.js";
 import { callService } from "../services/callService.js";
+import { leadService } from "../services/leadService.js";
 
 export const callsRoute = new Hono();
 
@@ -95,6 +97,12 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
   const data = parsed.data;
   const leadId = data.lead_id ?? data.leadId;
   const phoneNumber = data.phone_number ?? data.phoneNumber!;
+
+  const lead = leadId ? await leadService.getLeadById(leadId) : null;
+  if (!lead || !canEditLead(authUser, { assignedTo: lead.assignedTo })) {
+    return c.json({ ok: false, error: { code: "NOT_FOUND", message: "Lead not found" } }, 404);
+  }
+
   const durationSeconds = data.duration_seconds ?? Math.round((data.duration ?? 0) * 60);
   const mapped = mapCallOutcome(data.outcome);
   const endedAt = data.ended_at ? new Date(data.ended_at) : new Date();

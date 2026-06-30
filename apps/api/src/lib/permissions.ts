@@ -72,6 +72,10 @@ export function canViewUsers(user: AuthUser): boolean {
   return hasPermission(user, "users:view") || hasPermission(user, "users:view_for_filter");
 }
 
+export function canListUsers(user: AuthUser): boolean {
+  return hasPermission(user, "users:view");
+}
+
 export function canViewOrgProfile(user: AuthUser): boolean {
   return hasPermission(user, "org_profile:view");
 }
@@ -109,6 +113,10 @@ export function canDeleteLead(user: AuthUser): boolean {
   return hasPermission(user, "leads:delete");
 }
 
+export function canExportLeads(user: AuthUser): boolean {
+  return hasPermission(user, "leads:export");
+}
+
 export function canBulkUploadLeads(user: AuthUser): boolean {
   return hasPermission(user, "leads:bulk_upload") && hasPermission(user, "leads:create");
 }
@@ -125,5 +133,13 @@ export function forbiddenResponse() {
   return {
     ok: false as const,
     error: { code: "FORBIDDEN" as const, message: "Access denied" },
+  };
+}
+
+/** Hide lead existence from unauthorized callers (anti-enumeration). */
+export function leadNotFoundResponse() {
+  return {
+    ok: false as const,
+    error: { code: "NOT_FOUND" as const, message: "Lead not found" },
   };
 }

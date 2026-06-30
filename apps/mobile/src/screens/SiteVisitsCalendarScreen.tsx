@@ -8,16 +8,14 @@ import {
   useSiteVisitsCalendar,
 } from "@/hooks/use-site-visits";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
-import type { MainTabParamList } from "@/navigation/types";
-import { colors, radii, spacing, typography } from "@/theme";
-import { TAB_BAR_HEIGHT } from "@/theme/layout";
+import type { ProfileStackParamList } from "@/navigation/types";
+import { colors, radii, spacing } from "@/theme";
 import { getIstDateKey, getIstWeekBounds } from "@propninja/types/ist";
-import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type Props = BottomTabScreenProps<MainTabParamList, "VisitsTab">;
+type Props = NativeStackScreenProps<ProfileStackParamList, "SiteVisitsCalendarScreen">;
 
 function weekRange() {
   const { start, end } = getIstWeekBounds();
@@ -25,7 +23,6 @@ function weekRange() {
 }
 
 export function SiteVisitsCalendarScreen(_props: Props) {
-  const insets = useSafeAreaInsets();
   const { dateFrom, dateTo } = weekRange();
   const { data, isLoading, refetch, isRefetching } = useSiteVisitsCalendar(dateFrom, dateTo);
   const [selected, setSelected] = useState<SiteVisit | null>(null);
@@ -40,12 +37,7 @@ export function SiteVisitsCalendarScreen(_props: Props) {
   }, [data?.dates]);
 
   return (
-    <View style={[styles.container, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom }]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Team visits</Text>
-        <Text style={styles.subtitle}>This week · color-coded by agent</Text>
-      </View>
-
+    <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -99,15 +91,6 @@ export function SiteVisitsCalendarScreen(_props: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  title: { ...typography.heading, color: colors.text, fontSize: 22 },
-  subtitle: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
   content: { padding: spacing.md, gap: spacing.md },
   dayBlock: { gap: spacing.sm },
   dayTitle: { color: colors.primary, fontWeight: "700", fontSize: 14 },

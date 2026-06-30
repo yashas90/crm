@@ -271,8 +271,50 @@
     {
       "idx": 38,
       "version": "7",
-      "when": 1750800000000,
+      "when": 1780632546726,
+      "tag": "0038_lead_import_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1780632546727,
+      "tag": "0039_backend_perf_and_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1780632546728,
       "tag": "0040_lead_filter_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1780632546729,
+      "tag": "0041_new_features",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1780632546730,
+      "tag": "0042_pipeline_stages_gcal",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1780632546731,
+      "tag": "0043_auth_refresh_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1780632546732,
+      "tag": "0044_lead_search_trgm",
       "breakpoints": true
     }
   ]

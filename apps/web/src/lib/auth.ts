@@ -1,4 +1,4 @@
-import { apiGet } from "@/lib/apiClient";
+import { apiGet, apiPost } from "@/lib/apiClient";
 
 export type SessionUser = {
   id: string;
@@ -8,12 +8,12 @@ export type SessionUser = {
   isFirstLogin?: boolean;
 };
 
-/** Lightweight marker cookie for Next.js middleware (JWT remains in localStorage). */
+/** Lightweight marker cookie for Next.js middleware (JWT is HttpOnly on the API domain). */
 export const SESSION_COOKIE_NAME = "propninja_session";
 export const SESSION_COOKIE_VALUE = "1";
 
-const TOKEN_KEY = "propninja_token";
 const USER_KEY = "propninja_user";
+/** Align with refresh-token lifetime so middleware stays valid while refresh works. */
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
 function sessionCookieAttributes(maxAge = SESSION_MAX_AGE_SECONDS) {
@@ -34,12 +34,12 @@ export function clearSessionCookie() {
 
 /** Backfill cookie for sessions created before middleware shipped. */
 export function ensureSessionCookie() {
-  if (getToken()) setSessionCookie();
+  if (getSession()) setSessionCookie();
 }
 
+/** JWT is stored in an HttpOnly cookie — not readable from JavaScript. */
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return null;
 }
 
 export function getSession(): SessionUser | null {
@@ -53,25 +53,35 @@ export function getSession(): SessionUser | null {
   }
 }
 
-export function setAuth(token: string, user: SessionUser) {
-  localStorage.setItem(TOKEN_KEY, token);
+export function setAuth(_token: string, user: SessionUser) {
+  localStorage.removeItem("propninja_token");
   localStorage.setItem(USER_KEY, JSON.stringify(user));
   setSessionCookie();
 }
 
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem("propninja_token");
   localStorage.removeItem(USER_KEY);
   clearSessionCookie();
 }
 
-export function isAuthenticated() {
-  return Boolean(getToken());
+/** Revoke HttpOnly API session and clear local web session state. */
+export async function logoutSession() {
+  try {
+    await apiPost("/api/auth/logout", {});
+  } catch {
+    // Best-effort — clear local state even if API is unreachable
+  }
+  clearSession();
 }
 
-/** Refresh the cached user from GET /api/auth/me (requires a stored token). */
+export function isAuthenticated() {
+  return Boolean(getSession());
+}
+
+/** Refresh the cached user from GET /api/auth/me (uses HttpOnly session cookie). */
 export async function fetchCurrentUser(): Promise<SessionUser | null> {
-  if (!getToken()) return null;
+  if (!getSession()) return null;
   try {
     const user = await apiGet<SessionUser>("/api/auth/me");
     localStorage.setItem(USER_KEY, JSON.stringify(user));

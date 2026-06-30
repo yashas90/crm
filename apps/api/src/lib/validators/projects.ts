@@ -64,6 +64,9 @@ export const projectBlocksInfoSchema = z.object({
 export const projectGalleryItemSchema = z.object({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
+  url: z.string().url().optional(),
+  fileKey: z.string().trim().min(1).optional(),
+  mimeType: z.string().trim().min(1).optional(),
   placeholder: z.boolean().optional(),
 });
 

@@ -4,12 +4,14 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
 import { listPaginationSchema } from "../lib/pagination.js";
+import { canEditLead } from "../lib/permissions.js";
 import { jsonError, jsonOk } from "../lib/response.js";
 import { SiteVisitOverlapError, SiteVisitProjectRequiredError } from "../lib/siteVisitTime.js";
 import { validate } from "../lib/validate.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
 import { auditFromContext } from "../services/auditService.js";
+import { leadService } from "../services/leadService.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 import { siteVisitService } from "../services/siteVisitService.js";
 
@@ -69,10 +71,25 @@ const listSiteVisitsSchema = listPaginationSchema.extend({
 });
 
 const calendarSchema = z.object({
-  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  dateFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  dateTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   agentId: z.string().uuid().optional(),
 });
+
+function defaultCalendarMonthRange(now = new Date()) {
+  const dateFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const dateTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+  return {
+    dateFrom: dateFrom.toISOString().slice(0, 10),
+    dateTo: dateTo.toISOString().slice(0, 10),
+  };
+}
 
 function resolveAgentFilter(authUser: AuthUser, agentId?: string) {
   if (authUser.role === "agent") return authUser.id;
@@ -108,9 +125,10 @@ siteVisitsRoutes.get("/calendar", async (c) => {
   }
 
   const agentId = resolveAgentFilter(authUser, parsed.data.agentId);
+  const defaults = defaultCalendarMonthRange();
   const data = await siteVisitService.calendar({
-    dateFrom: parsed.data.dateFrom,
-    dateTo: parsed.data.dateTo,
+    dateFrom: parsed.data.dateFrom ?? defaults.dateFrom,
+    dateTo: parsed.data.dateTo ?? defaults.dateTo,
     agentId,
   });
 
@@ -170,6 +188,14 @@ siteVisitsRoutes.post("/", writeRateLimit, validate("json", createSiteVisitSchem
 
   if (authUser.role === "agent" && body.agentId && body.agentId !== authUser.id) {
     return jsonError(c, "FORBIDDEN", "Agents cannot schedule visits for others", 403);
+  }
+
+  const lead = await leadService.getLeadById(body.leadId);
+  if (!lead) {
+    return jsonError(c, "NOT_FOUND", "Lead not found", 404);
+  }
+  if (!canEditLead(authUser, { assignedTo: lead.assignedTo })) {
+    return jsonError(c, "NOT_FOUND", "Lead not found", 404);
   }
 
   try {

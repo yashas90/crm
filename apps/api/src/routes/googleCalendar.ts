@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
+import { decryptSecret, encryptSecret } from "../lib/tokenEncryption.js";
 import { validate } from "../lib/validate.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
@@ -105,16 +106,16 @@ googleCalendarRoutes.get("/callback", async (c) => {
     .values({
       userId: state,
       orgId: SINGLE_TENANT_ORG_ID,
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      accessToken: encryptSecret(tokens.access_token),
+      refreshToken: encryptSecret(tokens.refresh_token),
       expiresAt,
       scope: tokens.scope,
     })
     .onConflictDoUpdate({
       target: googleCalendarTokens.userId,
       set: {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
+        accessToken: encryptSecret(tokens.access_token),
+        refreshToken: encryptSecret(tokens.refresh_token),
         expiresAt,
         scope: tokens.scope,
         updatedAt: new Date(),
@@ -168,7 +169,7 @@ export async function getValidAccessToken(
   if (!token) return null;
 
   if (token.expiresAt > new Date(Date.now() + 60_000)) {
-    return token.accessToken;
+    return decryptSecret(token.accessToken);
   }
 
   // Refresh the token
@@ -178,7 +179,7 @@ export async function getValidAccessToken(
     body: new URLSearchParams({
       client_id: getClientId(),
       client_secret: getClientSecret(),
-      refresh_token: token.refreshToken,
+      refresh_token: decryptSecret(token.refreshToken),
       grant_type: "refresh_token",
     }),
   });
@@ -190,7 +191,11 @@ export async function getValidAccessToken(
 
   await db
     .update(googleCalendarTokens)
-    .set({ accessToken: data.access_token, expiresAt, updatedAt: new Date() })
+    .set({
+      accessToken: encryptSecret(data.access_token),
+      expiresAt,
+      updatedAt: new Date(),
+    })
     .where(eq(googleCalendarTokens.userId, userId));
 
   return data.access_token;

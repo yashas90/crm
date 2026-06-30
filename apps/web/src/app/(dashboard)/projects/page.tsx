@@ -131,12 +131,21 @@ export default function ProjectsPage() {
           </p>
         </div>
         {canManage ? (
-          <Button asChild>
-            <Link href="/projects/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Project
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {selectedIds.length >= 2 ? (
+              <Button asChild variant="outline">
+                <Link href={`/projects/compare?ids=${selectedIds.join(",")}`}>
+                  Compare selected
+                </Link>
+              </Button>
+            ) : null}
+            <Button asChild>
+              <Link href="/projects/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Project
+              </Link>
+            </Button>
+          </div>
         ) : null}
       </div>
 

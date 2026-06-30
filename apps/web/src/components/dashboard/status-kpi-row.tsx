@@ -88,7 +88,9 @@ export const StatusKpiRow = memo(function StatusKpiRow({ items }: StatusKpiRowPr
               >
                 {label}
               </span>
-              <p className="text-2xl font-bold tabular-nums">{item.count}</p>
+              <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
+                {item.count}
+              </p>
             </CardContent>
           </Card>
         );

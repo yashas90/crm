@@ -1,11 +1,13 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
+import { canViewLead } from "../lib/permissions.js";
 import { jsonError, jsonOk } from "../lib/response.js";
 import { endOfTodayIso } from "../lib/taskNotes.js";
 import { validate } from "../lib/validate.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
+import { leadService } from "../services/leadService.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 import { taskService } from "../services/taskService.js";
 
@@ -86,6 +88,19 @@ function resolveListParams(
   return params;
 }
 
+function agentCanAccessTask(authUser: AuthUser, task: { assignedTo: string | null }) {
+  return authUser.role !== "agent" || task.assignedTo === authUser.id;
+}
+
+async function filterTaskIdsForAgent(authUser: AuthUser, taskIds: string[]) {
+  if (authUser.role !== "agent") return taskIds;
+  const tasks = await taskService.getByIds(taskIds);
+  const allowed = new Set(
+    tasks.filter((task) => task.assignedTo === authUser.id).map((task) => task.id),
+  );
+  return taskIds.filter((id) => allowed.has(id));
+}
+
 tasksRoutes.get("/", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const parsed = listTasksSchema.safeParse(c.req.query());
@@ -113,9 +128,15 @@ tasksRoutes.post("/bulk", writeRateLimit, validate("json", bulkActionSchema), as
 
   let result: { succeeded: string[]; failed: string[] };
   if (body.action === "complete") {
-    result = await taskService.bulkComplete(body.taskIds);
+    const accessible = await filterTaskIdsForAgent(authUser, body.taskIds);
+    const denied = body.taskIds.filter((id) => !accessible.includes(id));
+    result = await taskService.bulkComplete(accessible);
+    result.failed.push(...denied);
   } else if (body.action === "reassign") {
-    result = await taskService.bulkReassign(body.taskIds, body.assignedTo!);
+    const accessible = await filterTaskIdsForAgent(authUser, body.taskIds);
+    const denied = body.taskIds.filter((id) => !accessible.includes(id));
+    result = await taskService.bulkReassign(accessible, body.assignedTo!);
+    result.failed.push(...denied);
     if (result.succeeded.length > 0) {
       const notifications = createNotificationService(c.get("db"));
       const reassignedTasks = await taskService.getByIds(result.succeeded);
@@ -141,6 +162,13 @@ tasksRoutes.post("/bulk", writeRateLimit, validate("json", bulkActionSchema), as
 tasksRoutes.post("/", writeRateLimit, validate("json", createTaskSchema), async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const body = c.req.valid("json");
+
+  if (body.leadId) {
+    const lead = await leadService.getLeadById(body.leadId);
+    if (!lead || !canViewLead(authUser, { assignedTo: lead.assignedTo })) {
+      return jsonError(c, "NOT_FOUND", "Lead not found", 404);
+    }
+  }
 
   if (body.assignedTo && body.assignedTo !== authUser.id && authUser.role === "agent") {
     return jsonError(c, "FORBIDDEN", "Agents can only assign tasks to themselves", 403);
@@ -171,8 +199,8 @@ tasksRoutes.get("/:id", async (c) => {
   const id = c.req.param("id")!;
   const task = await taskService.getById(id);
   if (!task) return jsonError(c, "NOT_FOUND", "Task not found", 404);
-  if (authUser.role === "agent" && task.assignedTo !== authUser.id) {
-    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  if (!agentCanAccessTask(authUser, task)) {
+    return jsonError(c, "NOT_FOUND", "Task not found", 404);
   }
   return jsonOk(c, task);
 });
@@ -184,8 +212,8 @@ tasksRoutes.patch("/:id", writeRateLimit, validate("json", updateTaskSchema), as
 
   const existing = await taskService.getById(id);
   if (!existing) return jsonError(c, "NOT_FOUND", "Task not found", 404);
-  if (authUser.role === "agent" && existing.assignedTo !== authUser.id) {
-    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  if (!agentCanAccessTask(authUser, existing)) {
+    return jsonError(c, "NOT_FOUND", "Task not found", 404);
   }
   if (body.assignedTo && body.assignedTo !== authUser.id && authUser.role === "agent") {
     return jsonError(c, "FORBIDDEN", "Agents can only assign tasks to themselves", 403);
@@ -213,6 +241,12 @@ tasksRoutes.post("/:id/notes", writeRateLimit, validate("json", addNoteSchema), 
   const id = c.req.param("id")!;
   const body = c.req.valid("json");
 
+  const existing = await taskService.getById(id);
+  if (!existing) return jsonError(c, "NOT_FOUND", "Task not found", 404);
+  if (!agentCanAccessTask(authUser, existing)) {
+    return jsonError(c, "NOT_FOUND", "Task not found", 404);
+  }
+
   const result = await taskService.addNote(id, {
     text: body.text,
     authorId: authUser.id,
@@ -223,7 +257,14 @@ tasksRoutes.post("/:id/notes", writeRateLimit, validate("json", addNoteSchema), 
 });
 
 async function handleComplete(c: Context) {
+  const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id")!;
+  const existing = await taskService.getById(id);
+  if (!existing) return jsonError(c, "NOT_FOUND", "Task not found", 404);
+  if (!agentCanAccessTask(authUser, existing)) {
+    return jsonError(c, "NOT_FOUND", "Task not found", 404);
+  }
+
   const task = await taskService.complete(id);
   if (!task) return jsonError(c, "NOT_FOUND", "Task not found", 404);
   const full = await taskService.getById(id);

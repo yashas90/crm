@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
-import { canViewUsers, isAdmin } from "../lib/permissions.js";
+import { canListUsers, canViewUsers, hasPermission, isAdmin } from "../lib/permissions.js";
 import { jsonError, jsonOk } from "../lib/response.js";
 import { resolveUserRoleFields } from "../lib/role-mapping.js";
 import { validate } from "../lib/validate.js";
@@ -36,6 +36,14 @@ function requireUpdateUser(c: Context) {
   return null;
 }
 
+function requireListUsers(c: Context) {
+  const authUser = c.get("authUser");
+  if (!canListUsers(authUser)) {
+    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  }
+  return null;
+}
+
 function requireViewUsers(c: Context) {
   const authUser = c.get("authUser");
   if (!canViewUsers(authUser)) {
@@ -44,8 +52,16 @@ function requireViewUsers(c: Context) {
   return null;
 }
 
+function requireExportUsers(c: Context) {
+  const authUser = c.get("authUser");
+  if (!hasPermission(authUser, "users:export")) {
+    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  }
+  return null;
+}
+
 usersRoutes.get("/scope-counts", async (c) => {
-  const denied = requireViewUsers(c);
+  const denied = requireListUsers(c);
   if (denied) return denied;
 
   const parsed = userScopeCountsQuerySchema.safeParse(c.req.query());
@@ -60,7 +76,7 @@ usersRoutes.get("/scope-counts", async (c) => {
 });
 
 usersRoutes.get("/", validate("query", listUsersQuerySchema), async (c) => {
-  const denied = requireViewUsers(c);
+  const denied = requireListUsers(c);
   if (denied) return denied;
 
   const query = c.req.valid("query");
@@ -99,7 +115,7 @@ usersRoutes.post("/", writeRateLimit, validate("json", createUserSchema), async 
 });
 
 usersRoutes.get("/export", async (c) => {
-  const denied = requireViewUsers(c);
+  const denied = requireExportUsers(c);
   if (denied) return denied;
 
   const parsed = userExportQuerySchema.safeParse(c.req.query());
@@ -129,6 +145,18 @@ usersRoutes.get("/:id", validate("param", uuidParamSchema), async (c) => {
   const user = await service.getById(id);
 
   return jsonOk(c, user);
+});
+
+usersRoutes.delete("/:id", validate("param", uuidParamSchema), async (c) => {
+  const denied = requireAdmin(c);
+  if (denied) return denied;
+
+  return jsonError(
+    c,
+    "METHOD_NOT_ALLOWED",
+    "User deletion is not supported. Deactivate users via PATCH instead.",
+    405,
+  );
 });
 
 usersRoutes.patch(

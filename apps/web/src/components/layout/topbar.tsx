@@ -5,9 +5,9 @@ import { GlobalSearch } from "@/components/layout/global-search";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { useTheme } from "@/components/providers/theme-provider";
 import { Badge } from "@/components/ui/badge";
-import { type SessionUser, clearSession, fetchCurrentUser, getSession } from "@/lib/auth";
+import { type SessionUser, fetchCurrentUser, getSession, logoutSession } from "@/lib/auth";
 import { cn } from "@propninja/ui/lib/utils";
-import { ChevronRight, Home, LogOut, Moon, Settings, Sun, User } from "lucide-react";
+import { ChevronRight, Home, LogOut, Menu, Moon, Settings, Sun, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -24,7 +24,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/reports/revenue": "Revenue Pipeline",
   "/reports/team": "Team Performance",
   "/users": "Users",
+  "/documents": "Documents",
+  "/site-visits": "Site Visits",
+  "/analytics": "Analytics",
   "/settings": "Settings",
+  "/settings/security": "Security",
   "/settings/integrations": "Integrations",
 };
 
@@ -168,7 +172,7 @@ function UserMenu({ user, onSignOut }: { user: SessionUser | null; onSignOut: ()
   );
 }
 
-export function Topbar() {
+export function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
@@ -182,13 +186,22 @@ export function Topbar() {
   }, []);
 
   function handleSignOut() {
-    clearSession();
-    router.push("/login");
+    void logoutSession().finally(() => {
+      router.push("/login");
+    });
   }
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200/40 bg-white/75 px-6 shadow-[0_1px_12px_0_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 dark:border-slate-700/60 dark:bg-[#0f172a]/90 dark:backdrop-blur-xl dark:shadow-[0_1px_24px_0_rgba(0,0,0,0.4)]">
-      <div className="flex flex-1 items-center gap-4">
+      <div className="flex flex-1 items-center gap-3 md:gap-4">
+        <button
+          type="button"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm md:hidden dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+          aria-label="Open navigation menu"
+          onClick={onMenuClick}
+        >
+          <Menu className="h-4 w-4" />
+        </button>
         <Breadcrumbs pathname={pathname} />
         <GlobalSearch />
         <button

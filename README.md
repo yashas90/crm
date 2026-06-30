@@ -10,7 +10,7 @@ Single-tenant real estate CRM for a small sales team: **web back-office**, **mob
 | Mobile | React Native, Expo, React Navigation |
 | API | Hono (Node), Zod validation |
 | Data | PostgreSQL, Drizzle ORM (`packages/db`) |
-| Auth | JWT (`AUTH_JWT_SECRET`), bcrypt passwords; API re-validates user on each request; web uses localStorage + session cookie middleware |
+| Auth | JWT (`AUTH_JWT_SECRET`), bcrypt passwords; HttpOnly cookie sessions on web; refresh tokens; API re-validates user on each request |
 | Tooling | pnpm workspaces, Turborepo, Biome, Vitest |
 
 ## Monorepo layout
@@ -39,7 +39,7 @@ packages/
 - **Settings** — org display (read-only); **Integrations** status (Meta + Google Ads); audit log
 - **Notifications** — in-app bell, mark-read
 - **TCF** — view and update call/SMS/email consent per lead
-- Auth: JWT in localStorage; Next.js middleware checks `propninja_session` cookie on dashboard routes
+- Auth: HttpOnly API cookie + `propninja_session` marker; user profile cached in localStorage; Next.js middleware gates dashboard routes
 - Role-aware nav and graceful 403 handling for agents
 
 ### Mobile (`apps/mobile`)

@@ -4,11 +4,14 @@ import { Input } from "@propninja/ui/input";
 import { cn } from "@propninja/ui/lib/utils";
 import {
   BarChart3,
+  FileText,
   FolderKanban,
   LayoutDashboard,
+  MapPin,
   Phone,
   Search,
   Settings,
+  TrendingUp,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -65,6 +68,27 @@ const NAV_ITEMS: CommandItem[] = [
     href: "/projects",
     keywords: "properties inventory",
     icon: <FolderKanban className="h-4 w-4" />,
+  },
+  {
+    id: "site-visits",
+    label: "Site Visits",
+    href: "/site-visits",
+    keywords: "visits calendar appointments",
+    icon: <MapPin className="h-4 w-4" />,
+  },
+  {
+    id: "documents",
+    label: "Documents",
+    href: "/documents",
+    keywords: "files library pdf",
+    icon: <FileText className="h-4 w-4" />,
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    href: "/analytics",
+    keywords: "insights metrics trends",
+    icon: <TrendingUp className="h-4 w-4" />,
   },
   {
     id: "users",

@@ -18,6 +18,8 @@ export type ProfileStackParamList = {
   ProjectsScreen: undefined;
   ProjectDetailScreen: { projectId: string; projectName?: string };
   ProjectUnitScreen: { projectId: string; unitId: string; unitNumber?: string };
+  DocumentsLibraryScreen: undefined;
+  SiteVisitsCalendarScreen: undefined;
 };
 
 export type MainTabParamList = {
@@ -28,5 +30,4 @@ export type MainTabParamList = {
   NotificationsTab: undefined;
   ProfileTab: undefined;
   PipelineTab: undefined;
-  VisitsTab: undefined;
 };

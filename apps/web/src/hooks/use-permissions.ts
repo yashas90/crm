@@ -38,6 +38,7 @@ export function usePermissions() {
       hasPermission("reports:view_all") ||
       hasPermission("reports:view_reportees"),
     canExportReports: hasPermission("reports:export") || hasPermission("reports:export_reportees"),
+    canExportLeads: hasPermission("leads:export"),
     canViewTeamReport: hasPermission("reports:view_reportees") || hasPermission("reports:view_all"),
   };
 }
