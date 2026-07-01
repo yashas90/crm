@@ -7,12 +7,14 @@ type ErrorStateProps = {
   title?: string;
   message?: string;
   onRetry?: () => void;
+  retryLabel?: string;
 };
 
 export function ErrorState({
   title = "Something went wrong",
   message = "We couldn't load this data. Check your connection and try again.",
   onRetry,
+  retryLabel = "Try again",
 }: ErrorStateProps) {
   return (
     <View style={styles.wrap}>
@@ -20,7 +22,7 @@ export function ErrorState({
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.message}>{message}</Text>
       {onRetry ? (
-        <Button label="Try again" onPress={onRetry} variant="secondary" style={styles.button} />
+        <Button label={retryLabel} onPress={onRetry} variant="secondary" style={styles.button} />
       ) : null}
     </View>
   );

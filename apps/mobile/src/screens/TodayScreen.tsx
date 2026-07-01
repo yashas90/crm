@@ -23,7 +23,8 @@ import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDuration } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
-import { buildLeadStatusPatch } from "@/lib/lead-status-options";
+import { buildLeadBrowserParams } from "@/lib/lead-browser";
+import { buildLeadStatusPatch, isNaLeadStatus } from "@/lib/lead-status-options";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -207,6 +208,10 @@ export function TodayScreen({ route, navigation }: Props) {
   const [visitToComplete, setVisitToComplete] = useState<SiteVisit | null>(null);
 
   const queueItems = queue.data?.items ?? [];
+  const browserQueue = useMemo(
+    () => queueItems.filter((item) => !isNaLeadStatus(item.leadStatus)),
+    [queueItems],
+  );
   const recentCalls = (calls.data?.items ?? []).slice(0, 3);
   const insets = useSafeAreaInsets();
   const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
@@ -248,14 +253,14 @@ export function TodayScreen({ route, navigation }: Props) {
   function openLeadDetail(lead: LeadRow) {
     navigation.navigate("LeadsTab", {
       screen: "LeadDetailScreen",
-      params: { leadId: lead.id },
+      params: buildLeadBrowserParams(browserQueue, lead.id),
     });
   }
 
   function openLeadById(leadId: string) {
     navigation.navigate("LeadsTab", {
       screen: "LeadDetailScreen",
-      params: { leadId },
+      params: buildLeadBrowserParams(browserQueue, leadId),
     });
   }
 

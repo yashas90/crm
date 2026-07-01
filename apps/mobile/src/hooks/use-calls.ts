@@ -42,7 +42,10 @@ function useAuthReady() {
   return status === "authenticated" && Boolean(getCurrentUserId());
 }
 
-export function useCalls(params: Record<string, string>, options?: { suppressErrorToast?: boolean }) {
+export function useCalls(
+  params: Record<string, string>,
+  options?: { suppressErrorToast?: boolean },
+) {
   const ready = useAuthReady();
   const search = new URLSearchParams(params);
 

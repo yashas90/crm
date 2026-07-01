@@ -6,6 +6,8 @@ import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-lea
 import { useIsAgent } from "@/hooks/use-role";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
+import { buildLeadBrowserParams } from "@/lib/lead-browser";
+import { isNaLeadStatus } from "@/lib/lead-status-options";
 import {
   type MobileLeadFilters,
   countActiveMobileLeadFilters,
@@ -135,7 +137,11 @@ export function LeadsScreen({ navigation }: Props) {
   useRefreshOnFocus(refetch);
 
   const leads = data?.pages.flatMap((page) => page.items) ?? [];
-  const total = data?.pages[0]?.total ?? leads.length;
+  const visibleLeads = useMemo(
+    () => (isAgent ? leads.filter((lead) => !isNaLeadStatus(lead.leadStatus)) : leads),
+    [isAgent, leads],
+  );
+  const total = data?.pages[0]?.total ?? visibleLeads.length;
 
   const chips: { id: FilterChip; label: string }[] = isAgent
     ? [
@@ -227,7 +233,7 @@ export function LeadsScreen({ navigation }: Props) {
       <FlatList
         style={styles.list}
         contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
-        data={leads}
+        data={visibleLeads}
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl
@@ -248,7 +254,9 @@ export function LeadsScreen({ navigation }: Props) {
         renderItem={({ item }) => (
           <LeadItem
             lead={item}
-            onPress={() => navigation.navigate("LeadDetailScreen", { leadId: item.id })}
+            onPress={() =>
+              navigation.navigate("LeadDetailScreen", buildLeadBrowserParams(visibleLeads, item.id))
+            }
           />
         )}
         onEndReached={() => {

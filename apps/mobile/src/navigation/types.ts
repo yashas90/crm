@@ -3,7 +3,7 @@ import type { NavigatorScreenParams } from "@react-navigation/native";
 export type LeadsStackParamList = {
   LeadsScreen: undefined;
   LeadCreateScreen: undefined;
-  LeadDetailScreen: { leadId: string };
+  LeadDetailScreen: { leadId: string; leadIds?: string[]; leadIndex?: number };
 };
 
 export type TeamStackParamList = {

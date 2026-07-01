@@ -19,11 +19,12 @@ import {
   useUpdateLead,
   useUpdateLeadFollowUp,
 } from "@/hooks/use-leads";
-import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
+import { useLeadBrowser } from "@/hooks/use-lead-browser";
 import { formatVisitTime, useLeadSiteVisits } from "@/hooks/use-site-visits";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
 import {
   getCallConsent,
   getChannelConsent,
@@ -41,10 +42,11 @@ import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { neuCard } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useLayoutEffect, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -65,6 +67,8 @@ function activityBody(activity: LeadActivity): string {
 
 export function LeadDetailScreen({ route, navigation }: Props) {
   const { leadId } = route.params;
+  const { hasNext, hasPrevious, goToNextLead, goToPreviousLead, leadIndex, leadIds } =
+    useLeadBrowser(route, navigation);
   const { data: lead, isLoading, isError, refetch } = useLead(leadId);
   const { data: tcfData, refetch: refetchTcf } = useTcfForLead(leadId);
   const upsertTcf = useUpsertTcfConsent(leadId);
@@ -111,6 +115,29 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   const statusSheetVisible = statusSheetOpen || dialerLog.isPendingLog;
 
+  const advanceAfterQueueExit = useCallback(() => {
+    if (goToNextLead()) return;
+    navigation.goBack();
+  }, [goToNextLead, navigation]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_evt, gesture) =>
+          leadIds.length > 1 &&
+          Math.abs(gesture.dx) > 24 &&
+          Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2,
+        onPanResponderRelease: (_evt, gesture) => {
+          if (gesture.dx < -72) {
+            goToNextLead();
+          } else if (gesture.dx > 72) {
+            goToPreviousLead();
+          }
+        },
+      }),
+    [goToNextLead, goToPreviousLead, leadIds.length],
+  );
+
   async function handleStatusSave(payload: UpdateLeadStatusPayload) {
     if (!lead) return;
 
@@ -133,11 +160,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
       if (isNaLeadStatus(payload.leadStatus)) {
         setStatusSheetOpen(false);
         dialerLog.dismissPending();
-        navigation.goBack();
-        Alert.alert(
-          "Lead updated",
-          "This lead was moved to the NA pool and removed from your assigned list.",
-        );
+        setSavedToast("Marked not interested · next lead");
+        setTimeout(() => setSavedToast(null), 1200);
+        advanceAfterQueueExit();
         return;
       }
 
@@ -155,18 +180,34 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      title:
+        leadIds.length > 1 && leadIndex >= 0
+          ? `Lead ${leadIndex + 1} of ${leadIds.length}`
+          : "Lead detail",
       headerRight: () => (
-        <Pressable
-          onPress={() => setEditVisible(true)}
-          hitSlop={8}
-          style={{ marginRight: 4 }}
-          accessibilityLabel="Edit lead"
-        >
-          <Ionicons name="pencil" size={22} color={colors.text} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          {hasPrevious ? (
+            <Pressable onPress={() => goToPreviousLead()} hitSlop={8} style={styles.headerNavBtn}>
+              <Ionicons name="chevron-back" size={22} color={colors.text} />
+            </Pressable>
+          ) : null}
+          {hasNext ? (
+            <Pressable onPress={() => goToNextLead()} hitSlop={8} style={styles.headerNavBtn}>
+              <Ionicons name="chevron-forward" size={22} color={colors.text} />
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => setEditVisible(true)}
+            hitSlop={8}
+            style={styles.headerNavBtn}
+            accessibilityLabel="Edit lead"
+          >
+            <Ionicons name="pencil" size={22} color={colors.text} />
+          </Pressable>
+        </View>
       ),
     });
-  }, [navigation]);
+  }, [navigation, hasNext, hasPrevious, goToNextLead, goToPreviousLead, leadIds.length, leadIndex]);
 
   function setCallConsent(consented: boolean) {
     upsertTcf.mutate(
@@ -216,7 +257,14 @@ export function LeadDetailScreen({ route, navigation }: Props) {
       <ErrorState
         title="Lead not found"
         message="This lead may have been removed, moved to the NA pool, or you do not have access."
-        onRetry={() => refetch()}
+        retryLabel={hasNext ? "Next lead" : "Try again"}
+        onRetry={() => {
+          if (hasNext) {
+            goToNextLead();
+            return;
+          }
+          void refetch();
+        }}
       />
     );
   }
@@ -226,8 +274,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   return (
     <>
+      <View style={styles.container} {...panResponder.panHandlers}>
       <ScrollView
-        style={styles.container}
+        style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
       >
         <View style={styles.profileCard}>
@@ -522,6 +571,14 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           />
         ) : null}
       </ScrollView>
+      {leadIds.length > 1 ? (
+        <View style={[styles.swipeHint, { bottom: 12 + insets.bottom }]}>
+          <Ionicons name="arrow-back" size={14} color={colors.textMuted} />
+          <Text style={styles.swipeHintText}>Swipe for prev / next lead</Text>
+          <Ionicons name="arrow-forward" size={14} color={colors.textMuted} />
+        </View>
+      ) : null}
+      </View>
 
       <UpdateLeadStatusSheet
         visible={statusSheetVisible}
@@ -693,6 +750,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
   content: { padding: spacing.md },
   center: {
     flex: 1,
@@ -1021,4 +1079,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   errorText: { color: colors.danger, fontWeight: "700" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 4, marginRight: 4 },
+  headerNavBtn: { padding: 4 },
+  swipeHint: {
+    position: "absolute",
+    left: spacing.md,
+    right: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.border,
+    ...shadows.neuSm,
+  },
+  swipeHintText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
 });

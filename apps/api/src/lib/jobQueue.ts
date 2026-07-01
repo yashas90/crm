@@ -2,6 +2,7 @@ import { type ConnectionOptions, Queue, Worker } from "bullmq";
 import { syncDailyFollowUpJobs } from "../jobs/dailyFollowUpJob.js";
 import { syncFollowupReminders } from "../jobs/followUpReminderJob.js";
 import { syncLeadScores } from "../jobs/leadScoringJob.js";
+import { syncNaPoolUnassignments } from "../jobs/naPoolJob.js";
 import { syncSiteVisitReminders } from "../jobs/siteVisitReminderJob.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { db } from "./db.js";
@@ -17,6 +18,7 @@ export const JOB_NAMES = {
   SITE_VISIT_REMINDERS: "site-visit-reminders",
   DAILY_FOLLOWUP: "daily-followup",
   REFRESH_SESSION_CLEANUP: "refresh-session-cleanup",
+  NA_POOL_RELEASE: "na-pool-release",
 } as const;
 
 let queue: Queue | null = null;
@@ -38,6 +40,8 @@ async function runJob(name: string) {
       return syncDailyFollowUpJobs();
     case JOB_NAMES.REFRESH_SESSION_CLEANUP:
       return purgeExpiredRefreshSessions(db);
+    case JOB_NAMES.NA_POOL_RELEASE:
+      return syncNaPoolUnassignments();
     default:
       logger.warn("Unknown durable job", { name });
   }
@@ -79,6 +83,11 @@ export async function startDurableJobQueue(): Promise<boolean> {
     JOB_NAMES.REFRESH_SESSION_CLEANUP,
     {},
     { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.REFRESH_SESSION_CLEANUP },
+  );
+  await queue.add(
+    JOB_NAMES.NA_POOL_RELEASE,
+    {},
+    { repeat: { every: 30 * 1000 }, jobId: JOB_NAMES.NA_POOL_RELEASE },
   );
 
   worker = new Worker(

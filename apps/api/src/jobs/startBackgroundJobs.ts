@@ -5,6 +5,7 @@ import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js"
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
 import { startLeadScoringJob } from "./leadScoringJob.js";
+import { startNaPoolJob } from "./naPoolJob.js";
 import { startSiteVisitReminderJob } from "./siteVisitReminderJob.js";
 
 /** Use BullMQ when Redis is configured; otherwise fall back to in-process timers. */
@@ -19,6 +20,7 @@ export async function startBackgroundJobs() {
   startSiteVisitReminderJob();
   startLeadScoringJob();
   startDailyFollowUpJobs();
+  startNaPoolJob();
   setInterval(
     () => {
       void purgeExpiredRefreshSessions(db).catch((err) => {

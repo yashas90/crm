@@ -968,16 +968,6 @@ export const leadService = {
     // Track last activity time on every update
     update.lastActivityAt = new Date();
 
-    // Auto-unassign when status changes to not_interested or dropped
-    const becomingNaLead =
-      payload.leadStatus !== undefined &&
-      payload.leadStatus !== existing.leadStatus &&
-      (NA_STATUSES as string[]).includes(payload.leadStatus) &&
-      payload.assignedTo === undefined;
-    if (becomingNaLead) {
-      update.assignedTo = null;
-    }
-
     const statusClearsFollowUp =
       payload.leadStatus !== undefined &&
       payload.leadStatus !== existing.leadStatus &&
@@ -987,9 +977,7 @@ export const leadService = {
     }
 
     const assignmentChanged =
-      payload.assignedTo !== undefined
-        ? payload.assignedTo !== existing.assignedTo
-        : becomingNaLead && existing.assignedTo !== null;
+      payload.assignedTo !== undefined && payload.assignedTo !== existing.assignedTo;
 
     const [updated] = await db.transaction(async (tx) => {
       const [row] = await tx
@@ -1024,6 +1012,46 @@ export const leadService = {
     }
 
     return updated ?? null;
+  },
+
+  /** Unassign a lead that has been in NA status past the grace window. */
+  async releaseLeadToNaPool(leadId: string): Promise<boolean> {
+    const [existing] = await db
+      .select()
+      .from(leads)
+      .where(
+        and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
+      )
+      .limit(1);
+
+    if (!existing?.assignedTo) return false;
+    if (!(NA_STATUSES as string[]).includes(existing.leadStatus)) return false;
+
+    const fromAgentId = existing.assignedTo;
+
+    const [updated] = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(leads)
+        .set({ assignedTo: null, updatedAt: new Date() })
+        .where(
+          and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNotNull(leads.assignedTo)),
+        )
+        .returning();
+
+      if (row) {
+        await tx.insert(leadActivities).values({
+          orgId: SINGLE_TENANT_ORG_ID,
+          leadId,
+          userId: fromAgentId,
+          type: "assignment_change",
+          metadata: { kind: "na_pool_release", fromAgentId },
+        });
+      }
+
+      return [row];
+    });
+
+    return Boolean(updated);
   },
 
   async assignLead(input: AssignLeadInput) {

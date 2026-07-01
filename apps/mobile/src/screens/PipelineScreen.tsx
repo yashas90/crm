@@ -12,6 +12,8 @@ import {
   PIPELINE_STAGES,
   groupLeadsByStage,
 } from "@/lib/pipeline";
+import { buildLeadBrowserParams } from "@/lib/lead-browser";
+import { isNaLeadStatus } from "@/lib/lead-status-options";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -70,6 +72,10 @@ export function PipelineScreen({ navigation }: Props) {
   };
 
   const leads = pipeline.data?.items ?? [];
+  const browserLeads = useMemo(
+    () => leads.filter((lead) => !isNaLeadStatus(lead.leadStatus)),
+    [leads],
+  );
   const board = useMemo(() => groupLeadsByStage(leads, stageConfig.all), [leads, stageConfig.all]);
   const truncated = (pipeline.data?.total ?? 0) > leads.length;
 
@@ -87,10 +93,10 @@ export function PipelineScreen({ navigation }: Props) {
     (leadId: string) => {
       navigation.navigate("LeadsTab", {
         screen: "LeadDetailScreen",
-        params: { leadId },
+        params: buildLeadBrowserParams(browserLeads, leadId),
       });
     },
-    [navigation],
+    [browserLeads, navigation],
   );
 
   const handleStageSelect = useCallback(

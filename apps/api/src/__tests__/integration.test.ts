@@ -174,34 +174,30 @@ describe("API integration", () => {
   it("PATCH /api/leads/:id accepts mobile Not Interested status payloads", async ({ skip }) => {
     if (!hasDb) skip();
 
-    const phone = `+9197${Date.now().toString().slice(-8)}`;
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
+    const agentLogin = await loginToken("agent1@demo.propninja", "admin");
+    expect(agentLogin.status).toBe(200);
+    const agentId = await userIdForToken(agentLogin.token);
+    const leadId = await createAssignedLead(token, agentId, "NA-delay");
 
-    const createRes = await app.request("/api/leads", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ firstName: "Mobile", lastName: "Status", phone }),
-    });
-    expect(createRes.status).toBe(201);
-    const created = (await createRes.json()) as { data: { id: string } };
-
-    const patchRes = await app.request(`/api/leads/${created.data.id}`, {
+    const patchRes = await app.request(`/api/leads/${leadId}`, {
       method: "PATCH",
-      headers,
+      headers: {
+        Authorization: `Bearer ${agentLogin.token}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         leadStatus: "Not Interested",
         nextFollowupAt: null,
         statusLabel: "Not Interested",
-        assignedTo: "",
       }),
     });
     expect(patchRes.status).toBe(200);
-    const patched = (await patchRes.json()) as { data: { leadStatus: string; assignedTo: null } };
+    const patched = (await patchRes.json()) as {
+      data: { leadStatus: string; assignedTo: string | null };
+    };
     expect(patched.data.leadStatus).toBe("not_interested");
-    expect(patched.data.assignedTo).toBeNull();
+    // NA pool release is delayed — agent keeps assignment for the grace period.
+    expect(patched.data.assignedTo).toBe(agentId);
   });
 
   it("POST /api/leads rejects duplicate phone", async ({ skip }) => {
