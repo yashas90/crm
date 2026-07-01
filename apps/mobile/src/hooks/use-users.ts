@@ -18,13 +18,13 @@ type UsersPage = {
   total: number;
 };
 
-function useAuthReady() {
-  const { status } = useAuth();
-  return status === "authenticated";
-}
-
-export function useUsers(filters?: { role?: UserRole; status?: "active" | "inactive" | "all" }) {
-  const ready = useAuthReady();
+export function useUsers(
+  filters?: { role?: UserRole; status?: "active" | "inactive" | "all" },
+  options?: { enabled?: boolean },
+) {
+  const { user, status } = useAuth();
+  const ready = status === "authenticated";
+  const canListUsers = user?.role === "admin" || user?.role === "manager";
   const params = new URLSearchParams({
     page: "1",
     pageSize: "100",
@@ -35,12 +35,13 @@ export function useUsers(filters?: { role?: UserRole; status?: "active" | "inact
   return useQuery({
     queryKey: ["users", params.toString()],
     queryFn: () => apiGet<UsersPage>(`/api/users?${params.toString()}`),
-    enabled: ready,
+    enabled: ready && canListUsers && (options?.enabled ?? true),
+    meta: { suppressErrorToast: true },
   });
 }
 
-export function useTeamMembers() {
-  return useUsers({ status: "active" });
+export function useTeamMembers(options?: { enabled?: boolean }) {
+  return useUsers({ status: "active" }, options);
 }
 
 export function useUpdateUser() {

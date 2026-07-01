@@ -259,6 +259,7 @@ export function useLead(leadId: string) {
     queryFn: () => apiGet<LeadDetail>(`/api/leads/${leadId}`),
     enabled: ready && Boolean(leadId),
     refetchInterval: LIVE_REFETCH_MS,
+    meta: { suppressErrorToast: true },
   });
 }
 
@@ -281,6 +282,14 @@ export function useUpdateLead() {
       apiPatch(`/api/leads/${leadId}`, payload),
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      const status = variables.payload.leadStatus;
+      const movedToNaPool =
+        typeof status === "string" &&
+        (status === "not_interested" || status === "dropped");
+      if (movedToNaPool) {
+        queryClient.removeQueries({ queryKey: ["leads", variables.leadId] });
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ["leads", variables.leadId] });
     },
   });

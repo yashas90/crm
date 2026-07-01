@@ -1,10 +1,18 @@
+import { ApiRequestError } from "@/lib/apiClient";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { Alert } from "react-native";
+
+function shouldSuppressGlobalQueryError(error: unknown): boolean {
+  if (!(error instanceof ApiRequestError)) return false;
+  if (error.status === 403 || error.status === 404) return true;
+  return error.code === "FORBIDDEN" || error.code === "NOT_FOUND";
+}
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error, query) => {
       if (query.meta?.suppressErrorToast) return;
+      if (shouldSuppressGlobalQueryError(error)) return;
       const message = error instanceof Error ? error.message : "Something went wrong";
       Alert.alert("Could not load data", message);
     },

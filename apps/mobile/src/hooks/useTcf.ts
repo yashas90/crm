@@ -28,6 +28,7 @@ export function useTcfForLead(leadId: string) {
     queryKey: tcfConsentQueryKey(leadId),
     queryFn: () => apiGet<TcfConsentByChannel>(`/api/tcf/consent/${leadId}`),
     enabled: Boolean(leadId),
+    meta: { suppressErrorToast: true },
   });
 }
 

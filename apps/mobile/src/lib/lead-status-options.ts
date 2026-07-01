@@ -3,6 +3,13 @@ import type { LeadStatus } from "@propninja/types/enums";
 /** Statuses that require closeReason on PATCH /api/leads/:id (must match API route). */
 export const TERMINAL_LEAD_STATUSES_REQUIRING_CLOSE_REASON = ["lost", "not_interested"] as const;
 
+/** Statuses that auto-unassign the lead and move it to the NA pool. */
+export const NA_LEAD_STATUSES = ["not_interested", "dropped"] as const;
+
+export function isNaLeadStatus(status: string): boolean {
+  return (NA_LEAD_STATUSES as readonly string[]).includes(status);
+}
+
 export type MobileLeadStatusOption = {
   label: string;
   value: LeadStatus;

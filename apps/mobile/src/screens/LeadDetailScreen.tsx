@@ -34,7 +34,7 @@ import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
-import { buildLeadStatusPatch } from "@/lib/lead-status-options";
+import { buildLeadStatusPatch, isNaLeadStatus } from "@/lib/lead-status-options";
 import { scoreBadgeStyle } from "@/lib/leadScore";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
@@ -68,11 +68,14 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const { data: lead, isLoading, isError, refetch } = useLead(leadId);
   const { data: tcfData, refetch: refetchTcf } = useTcfForLead(leadId);
   const upsertTcf = useUpsertTcfConsent(leadId);
-  const { data: callsData, refetch: refetchCalls } = useCalls({
-    lead_id: leadId,
-    page: "1",
-    pageSize: "20",
-  });
+  const { data: callsData, refetch: refetchCalls } = useCalls(
+    {
+      lead_id: leadId,
+      page: "1",
+      pageSize: "20",
+    },
+    { suppressErrorToast: true },
+  );
   const callConsent = getCallConsent(tcfData);
   const logCall = useLogCall();
   const updateLead = useUpdateLead();
@@ -92,8 +95,8 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const messageTemplates = useMessageTemplates({ enabled: whatsappSheetVisible });
   const sessionUser = getUser();
   const insets = useSafeAreaInsets();
-  const teamMembers = useTeamMembers();
   const canReassign = sessionUser?.role === "admin" || sessionUser?.role === "manager";
+  const teamMembers = useTeamMembers({ enabled: canReassign });
 
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
@@ -125,6 +128,17 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
       if (noteText) {
         await addNote.mutateAsync(noteText);
+      }
+
+      if (isNaLeadStatus(payload.leadStatus)) {
+        setStatusSheetOpen(false);
+        dialerLog.dismissPending();
+        navigation.goBack();
+        Alert.alert(
+          "Lead updated",
+          "This lead was moved to the NA pool and removed from your assigned list.",
+        );
+        return;
       }
 
       await Promise.all([refetch(), refetchCalls()]);
@@ -201,7 +215,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     return (
       <ErrorState
         title="Lead not found"
-        message="This lead may have been removed or you do not have access."
+        message="This lead may have been removed, moved to the NA pool, or you do not have access."
         onRetry={() => refetch()}
       />
     );

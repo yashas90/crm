@@ -37,5 +37,6 @@ export function useLeadLinkedUnit(leadId: string, options?: { enabled?: boolean 
     queryKey: ["leads", leadId, "linked-unit"],
     queryFn: () => apiGet<LeadLinkedUnit | null>(`/api/leads/${leadId}/linked-unit`),
     enabled: Boolean(leadId) && (options?.enabled ?? true),
+    meta: { suppressErrorToast: true },
   });
 }
