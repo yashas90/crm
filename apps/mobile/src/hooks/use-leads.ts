@@ -1,5 +1,5 @@
 import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId, getUser, normalizeRole } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
 import { useAuth } from "@/providers/auth-provider";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -157,14 +157,28 @@ const QUERY_KEYS: (keyof LeadsQuery)[] = [
   "builtUpAreaTo",
 ];
 
+function applyAgentLeadScope(query: LeadsQuery): LeadsQuery {
+  const role = normalizeRole(getUser()?.role ?? "agent");
+  if (role !== "agent") return query;
+
+  const userId = getCurrentUserId();
+  const next: LeadsQuery = { ...query };
+  next.unassigned = undefined;
+  next.teamLeads = undefined;
+  next.assignWithHistory = undefined;
+  if (userId) next.assignedTo = userId;
+  return next;
+}
+
 function buildLeadsParams(query: LeadsQuery, page: number | string) {
+  const scoped = applyAgentLeadScope(query);
   const params = new URLSearchParams({
     page: String(page),
-    pageSize: query.pageSize ?? LEADS_PAGE_SIZE,
-    excludeDuplicates: query.excludeDuplicates ?? "true",
+    pageSize: scoped.pageSize ?? LEADS_PAGE_SIZE,
+    excludeDuplicates: scoped.excludeDuplicates ?? "true",
   });
   for (const key of QUERY_KEYS) {
-    const value = query[key];
+    const value = scoped[key];
     if (value) params.set(key, value);
   }
   return params;

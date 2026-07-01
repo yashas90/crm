@@ -29,7 +29,7 @@ type LeadFilterSheetProps = {
 };
 
 const SCOPE_OPTIONS: { id: MobileLeadScope; label: string; managerOnly?: boolean }[] = [
-  { id: "all", label: "All" },
+  { id: "all", label: "All", managerOnly: true },
   { id: "my", label: "My Leads" },
   { id: "teams", label: "Teams", managerOnly: true },
   { id: "unassigned", label: "Unassigned", managerOnly: true },
@@ -105,6 +105,7 @@ export function LeadFilterSheet({ visible, filters, onClose, onApply }: LeadFilt
   const { data: teamMembers } = useTeamMembers();
   const role = normalizeRole(getUser()?.role ?? "agent");
   const isManager = role === "admin" || role === "manager";
+  const isAgent = role === "agent";
   const agents = teamMembers?.items ?? [];
 
   const [draft, setDraft] = useState(filters);
@@ -135,7 +136,7 @@ export function LeadFilterSheet({ visible, filters, onClose, onApply }: LeadFilt
   }
 
   function handleReset() {
-    setDraft(defaultMobileLeadFilters());
+    setDraft(defaultMobileLeadFilters(isAgent));
   }
 
   function handleApply() {

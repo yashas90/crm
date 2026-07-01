@@ -1,4 +1,4 @@
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId, getUser, normalizeRole } from "@/lib/auth";
 import {
   type LeadsAdvancedFilters,
   advancedFiltersToApiQuery,
@@ -18,19 +18,27 @@ export type MobileLeadFilters = LeadsAdvancedFilters & {
   temperature: string;
 };
 
-export function defaultMobileLeadFilters(): MobileLeadFilters {
+export function defaultMobileLeadFilters(isAgent = false): MobileLeadFilters {
   return {
     ...defaultLeadsAdvancedFilters(),
-    scope: "all",
+    scope: isAgent ? "my" : "all",
     status: "",
     source: "",
     temperature: "",
   };
 }
 
-export function countActiveMobileLeadFilters(filters: MobileLeadFilters): number {
+function defaultScopeForRole(isAgent: boolean): MobileLeadScope {
+  return isAgent ? "my" : "all";
+}
+
+export function countActiveMobileLeadFilters(
+  filters: MobileLeadFilters,
+  options?: { isAgent?: boolean },
+): number {
   let count = countActiveAdvancedFilters(filters);
-  if (filters.scope !== "all") count += 1;
+  const defaultScope = defaultScopeForRole(options?.isAgent ?? false);
+  if (filters.scope !== defaultScope) count += 1;
   if (filters.status) count += 1;
   if (filters.source) count += 1;
   if (filters.temperature) count += 1;
@@ -105,6 +113,14 @@ export function mobileFiltersToApiParams(filters: MobileLeadFilters): Record<str
   if (filters.status) out.status = filters.status;
   if (filters.source) out.source = filters.source;
   if (filters.temperature) out.temperature = filters.temperature;
+
+  const isAgent = normalizeRole(getUser()?.role ?? "agent") === "agent";
+  if (isAgent) {
+    const userId = getCurrentUserId();
+    if (userId) out.assignedTo = userId;
+    out.unassigned = undefined;
+    out.teamLeads = undefined;
+  }
 
   return out;
 }

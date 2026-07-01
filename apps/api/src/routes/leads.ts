@@ -52,6 +52,25 @@ function leadDuplicateFilters(query: Pick<ListLeadsQuery, "duplicatesOnly" | "ex
   return { excludeDuplicates: true as const };
 }
 
+/** Agents always see only leads assigned to them; ignore cross-book list flags. */
+function resolveListAssignmentScope(
+  authUser: AuthUser,
+  query: Pick<ListLeadsQuery, "assignedTo" | "teamLeads" | "unassigned">,
+) {
+  if (authUser.role === "agent") {
+    return {
+      assignedTo: authUser.id,
+      teamLeadsExcludingUser: undefined as string | undefined,
+      unassigned: false as const,
+    };
+  }
+  return {
+    assignedTo: query.teamLeads ? undefined : query.assignedTo,
+    teamLeadsExcludingUser: query.teamLeads ? authUser.id : undefined,
+    unassigned: query.unassigned,
+  };
+}
+
 type JsonContext = {
   json: (body: unknown, status?: number) => Response;
 };
@@ -211,10 +230,10 @@ leadsRoute.get("/stage-counts", async (c) => {
   }
 
   const query = parsed.data;
-  const assignedTo =
-    authUser.role === "agent" ? authUser.id : query.teamLeads ? undefined : query.assignedTo;
-  const teamLeadsExcludingUser =
-    query.teamLeads && authUser.role !== "agent" ? authUser.id : undefined;
+  const { assignedTo, teamLeadsExcludingUser, unassigned } = resolveListAssignmentScope(
+    authUser,
+    query,
+  );
 
   const data = await leadService.getStageCounts({
     search: query.search,
@@ -228,7 +247,7 @@ leadsRoute.get("/stage-counts", async (c) => {
     tags: query.tags,
     dateFrom: query.dateFrom,
     dateTo: query.dateTo,
-    unassigned: query.unassigned,
+    unassigned,
     deletedOnly: query.deletedOnly,
     ...leadDuplicateFilters(query),
     ...advancedListQueryToServiceParams(query),
@@ -258,14 +277,10 @@ leadsRoute.get("/tab-counts", async (c) => {
 
   const scopeQuery = scopeParsed.data;
   const stageQuery = stageParsed.data;
-  const assignedTo =
-    authUser.role === "agent"
-      ? authUser.id
-      : stageQuery.teamLeads
-        ? undefined
-        : stageQuery.assignedTo;
-  const teamLeadsExcludingUser =
-    stageQuery.teamLeads && authUser.role !== "agent" ? authUser.id : undefined;
+  const { assignedTo, teamLeadsExcludingUser, unassigned } = resolveListAssignmentScope(
+    authUser,
+    stageQuery,
+  );
 
   const scopeFilterBase = {
     search: scopeQuery.search,
@@ -292,7 +307,7 @@ leadsRoute.get("/tab-counts", async (c) => {
     tags: stageQuery.tags,
     dateFrom: stageQuery.dateFrom,
     dateTo: stageQuery.dateTo,
-    unassigned: stageQuery.unassigned,
+    unassigned,
     deletedOnly: stageQuery.deletedOnly,
     ...leadDuplicateFilters(stageQuery),
     ...advancedListQueryToServiceParams(stageQuery),
@@ -328,10 +343,10 @@ leadsRoute.get("/", async (c) => {
   }
 
   const query = parsed.data;
-  const assignedTo =
-    authUser.role === "agent" ? authUser.id : query.teamLeads ? undefined : query.assignedTo;
-  const teamLeadsExcludingUser =
-    query.teamLeads && authUser.role !== "agent" ? authUser.id : undefined;
+  const { assignedTo, teamLeadsExcludingUser, unassigned } = resolveListAssignmentScope(
+    authUser,
+    query,
+  );
 
   const data = await leadService.listLeads({
     status: query.status,
@@ -351,7 +366,7 @@ leadsRoute.get("/", async (c) => {
     followUpDueBefore: query.followUpDueBefore,
     followUpDueAfter: query.followUpDueAfter,
     orderByFollowUp: query.orderByFollowUp,
-    unassigned: query.unassigned,
+    unassigned,
     activeOnly: query.activeOnly,
     deletedOnly: query.deletedOnly,
     reEnquiredOnly: query.reEnquiredOnly,
@@ -385,10 +400,10 @@ leadsRoute.get("/export", async (c) => {
   }
 
   const query = parsed.data;
-  const assignedTo =
-    authUser.role === "agent" ? authUser.id : query.teamLeads ? undefined : query.assignedTo;
-  const teamLeadsExcludingUser =
-    query.teamLeads && authUser.role !== "agent" ? authUser.id : undefined;
+  const { assignedTo, teamLeadsExcludingUser, unassigned } = resolveListAssignmentScope(
+    authUser,
+    query,
+  );
 
   const maxRows = capExportRows(authUser.role);
   const { csv, rowCount } = await leadService.exportCsv({
@@ -406,7 +421,7 @@ leadsRoute.get("/export", async (c) => {
     dateTo: query.dateTo,
     followUpDueBefore: query.followUpDueBefore,
     followUpDueAfter: query.followUpDueAfter,
-    unassigned: query.unassigned,
+    unassigned,
     activeOnly: query.activeOnly,
     deletedOnly: query.deletedOnly,
     reEnquiredOnly: query.reEnquiredOnly,

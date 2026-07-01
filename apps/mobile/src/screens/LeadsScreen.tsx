@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-leads";
+import { useIsAgent } from "@/hooks/use-role";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
 import {
@@ -87,10 +88,13 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
 }
 
 export function LeadsScreen({ navigation }: Props) {
+  const isAgent = useIsAgent();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [chip, setChip] = useState<FilterChip>("all");
-  const [leadFilters, setLeadFilters] = useState<MobileLeadFilters>(defaultMobileLeadFilters);
+  const [chip, setChip] = useState<FilterChip>(() => (isAgent ? "mine" : "all"));
+  const [leadFilters, setLeadFilters] = useState<MobileLeadFilters>(() =>
+    defaultMobileLeadFilters(isAgent),
+  );
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const fabBottom = TAB_BAR_HEIGHT + insets.bottom + spacing.md;
@@ -108,14 +112,14 @@ export function LeadsScreen({ navigation }: Props) {
     if (debouncedSearch) params.search = debouncedSearch;
     if (chip === "hot" && !params.temperature) params.temperature = "hot";
     if (chip === "new" && !params.status) params.status = "new";
-    if (chip === "mine" && !params.assignedTo) {
+    if (isAgent || chip === "mine") {
       const userId = getCurrentUserId();
       if (userId) params.assignedTo = userId;
     }
     return params;
-  }, [debouncedSearch, chip, leadFilters]);
+  }, [debouncedSearch, chip, leadFilters, isAgent]);
 
-  const activeFilterCount = countActiveMobileLeadFilters(leadFilters);
+  const activeFilterCount = countActiveMobileLeadFilters(leadFilters, { isAgent });
 
   const {
     data,
@@ -133,12 +137,18 @@ export function LeadsScreen({ navigation }: Props) {
   const leads = data?.pages.flatMap((page) => page.items) ?? [];
   const total = data?.pages[0]?.total ?? leads.length;
 
-  const chips: { id: FilterChip; label: string }[] = [
-    { id: "all", label: "All" },
-    { id: "mine", label: "Mine" },
-    { id: "hot", label: "Hot" },
-    { id: "new", label: "New" },
-  ];
+  const chips: { id: FilterChip; label: string }[] = isAgent
+    ? [
+        { id: "mine", label: "Mine" },
+        { id: "hot", label: "Hot" },
+        { id: "new", label: "New" },
+      ]
+    : [
+        { id: "all", label: "All" },
+        { id: "mine", label: "Mine" },
+        { id: "hot", label: "Hot" },
+        { id: "new", label: "New" },
+      ];
 
   if (isLoading && !data) {
     return (
@@ -162,7 +172,9 @@ export function LeadsScreen({ navigation }: Props) {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Leads</Text>
-          <Text style={styles.headerSub}>{total} total</Text>
+          <Text style={styles.headerSub}>
+            {isAgent ? `${total} assigned to you` : `${total} total`}
+          </Text>
         </View>
       </View>
 

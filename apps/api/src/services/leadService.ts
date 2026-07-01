@@ -267,13 +267,13 @@ function buildListWhere(params: ListLeadsParams) {
     whereClauses.push(eq(leads.leadStatus, params.status));
   }
 
-  if (params.unassigned) {
+  if (params.assignedTo && !params.assignWithHistory) {
+    whereClauses.push(eq(leads.assignedTo, params.assignedTo));
+  } else if (params.unassigned) {
     whereClauses.push(isNull(leads.assignedTo));
   } else if (params.teamLeadsExcludingUser) {
     whereClauses.push(isNotNull(leads.assignedTo));
     whereClauses.push(ne(leads.assignedTo, params.teamLeadsExcludingUser));
-  } else if (params.assignedTo && !params.assignWithHistory) {
-    whereClauses.push(eq(leads.assignedTo, params.assignedTo));
   }
 
   if (params.naLeadsOnly) {
