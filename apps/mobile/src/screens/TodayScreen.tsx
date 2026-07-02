@@ -303,6 +303,18 @@ export function TodayScreen({ route, navigation }: Props) {
         await addNote.mutateAsync(noteText);
       }
 
+      if (isNaLeadStatus(payload.leadStatus)) {
+        dialerLog.dismissPending();
+        setSavedToast("Marked not interested");
+        setTimeout(() => setSavedToast(null), 1200);
+        await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
+        const nextLead = browserQueue.find((item) => item.id !== lead.id);
+        if (nextLead) {
+          openLeadDetail(nextLead);
+        }
+        return;
+      }
+
       await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
       dialerLog.dismissPending();
       setSavedToast(afterCall ? "Call logged · status updated" : "Lead status updated");

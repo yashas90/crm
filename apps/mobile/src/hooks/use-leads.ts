@@ -1,6 +1,7 @@
 import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId, getUser, normalizeRole } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
+import { isNaLeadStatus } from "@/lib/lead-status-options";
 import { useAuth } from "@/providers/auth-provider";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -251,14 +252,15 @@ export function useTodayQueue() {
   });
 }
 
-export function useLead(leadId: string) {
+export function useLead(leadId: string, options?: { enabled?: boolean }) {
   const ready = useAuthReady();
+  const enabled = (options?.enabled ?? true) && ready && Boolean(leadId);
 
   return useQuery({
     queryKey: ["leads", leadId],
     queryFn: () => apiGet<LeadDetail>(`/api/leads/${leadId}`),
-    enabled: ready && Boolean(leadId),
-    refetchInterval: LIVE_REFETCH_MS,
+    enabled,
+    refetchInterval: enabled ? LIVE_REFETCH_MS : false,
     meta: { suppressErrorToast: true },
   });
 }
@@ -281,6 +283,22 @@ export function useUpdateLead() {
     mutationFn: ({ leadId, payload }: { leadId: string; payload: Record<string, unknown> }) =>
       apiPatch(`/api/leads/${leadId}`, payload),
     onSuccess: async (_data, variables) => {
+      const status = variables.payload.leadStatus;
+      const closedLead = typeof status === "string" && isNaLeadStatus(status);
+
+      if (closedLead) {
+        await queryClient.cancelQueries({ queryKey: ["leads", variables.leadId] });
+        queryClient.removeQueries({ queryKey: ["leads", variables.leadId] });
+        await queryClient.invalidateQueries({
+          predicate: (query) => {
+            if (query.queryKey[0] !== "leads") return false;
+            if (query.queryKey[1] === variables.leadId) return false;
+            return true;
+          },
+        });
+        return;
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
       await queryClient.invalidateQueries({ queryKey: ["leads", variables.leadId] });
     },

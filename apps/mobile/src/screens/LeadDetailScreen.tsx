@@ -12,6 +12,7 @@ import { LeadDocumentsSection } from "@/components/documents/LeadDocumentsSectio
 import { ScheduleVisitSheet } from "@/components/site-visits/ScheduleVisitSheet";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCalls, useLogCall } from "@/hooks/use-calls";
+import { useLeadBrowser } from "@/hooks/use-lead-browser";
 import {
   type LeadActivity,
   useAddLeadNote,
@@ -19,12 +20,11 @@ import {
   useUpdateLead,
   useUpdateLeadFollowUp,
 } from "@/hooks/use-leads";
-import { useLeadBrowser } from "@/hooks/use-lead-browser";
+import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
 import { formatVisitTime, useLeadSiteVisits } from "@/hooks/use-site-visits";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
-import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
 import {
   getCallConsent,
   getChannelConsent,
@@ -42,7 +42,7 @@ import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { neuCard } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -67,9 +67,19 @@ function activityBody(activity: LeadActivity): string {
 
 export function LeadDetailScreen({ route, navigation }: Props) {
   const { leadId } = route.params;
-  const { hasNext, hasPrevious, goToNextLead, goToPreviousLead, leadIndex, leadIds } =
-    useLeadBrowser(route, navigation);
-  const { data: lead, isLoading, isError, refetch } = useLead(leadId);
+  const {
+    hasNext,
+    hasPrevious,
+    goToNextLead,
+    goToPreviousLead,
+    exitAfterNaStatus,
+    exitToLeadsList,
+    leadIndex,
+    leadIds,
+    canSwipe,
+  } = useLeadBrowser(route, navigation);
+  const [isExitingLead, setIsExitingLead] = useState(false);
+  const { data: lead, isLoading, isError, refetch } = useLead(leadId, { enabled: !isExitingLead });
   const { data: tcfData, refetch: refetchTcf } = useTcfForLead(leadId);
   const upsertTcf = useUpsertTcfConsent(leadId);
   const { data: callsData, refetch: refetchCalls } = useCalls(
@@ -115,27 +125,27 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   const statusSheetVisible = statusSheetOpen || dialerLog.isPendingLog;
 
-  const advanceAfterQueueExit = useCallback(() => {
-    if (goToNextLead()) return;
-    navigation.goBack();
-  }, [goToNextLead, navigation]);
-
   const panResponder = useMemo(
     () =>
       PanResponder.create({
+        onMoveShouldSetPanResponderCapture: (_evt, gesture) =>
+          canSwipe &&
+          Math.abs(gesture.dx) > 16 &&
+          Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.4,
         onMoveShouldSetPanResponder: (_evt, gesture) =>
-          leadIds.length > 1 &&
-          Math.abs(gesture.dx) > 24 &&
-          Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2,
+          canSwipe &&
+          Math.abs(gesture.dx) > 16 &&
+          Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.4,
+        onPanResponderTerminationRequest: () => false,
         onPanResponderRelease: (_evt, gesture) => {
-          if (gesture.dx < -72) {
+          if (gesture.dx < -56) {
             goToNextLead();
-          } else if (gesture.dx > 72) {
+          } else if (gesture.dx > 56) {
             goToPreviousLead();
           }
         },
       }),
-    [goToNextLead, goToPreviousLead, leadIds.length],
+    [canSwipe, goToNextLead, goToPreviousLead],
   );
 
   async function handleStatusSave(payload: UpdateLeadStatusPayload) {
@@ -143,6 +153,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
     const afterCall = dialerLog.isPendingLog;
     const noteText = payload.notes?.trim();
+    const closingLead = isNaLeadStatus(payload.leadStatus);
 
     try {
       const patch = buildLeadStatusPatch(payload, lead, { canReassign });
@@ -157,26 +168,41 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         await addNote.mutateAsync(noteText);
       }
 
-      if (isNaLeadStatus(payload.leadStatus)) {
-        setStatusSheetOpen(false);
-        dialerLog.dismissPending();
+      setStatusSheetOpen(false);
+      dialerLog.dismissPending();
+
+      if (closingLead) {
+        setIsExitingLead(true);
         setSavedToast("Marked not interested · next lead");
         setTimeout(() => setSavedToast(null), 1200);
-        advanceAfterQueueExit();
+        exitAfterNaStatus(lead.id);
         return;
       }
 
       await Promise.all([refetch(), refetchCalls()]);
-      setStatusSheetOpen(false);
-      dialerLog.dismissPending();
       setSavedToast(afterCall ? "Call logged · status updated" : "Lead status updated");
       setTimeout(() => setSavedToast(null), 2500);
     } catch (err) {
+      setIsExitingLead(false);
       Alert.alert("Error", err instanceof Error ? err.message : "Could not update lead.");
     }
   }
 
-  useRefreshOnFocus(() => Promise.all([refetch(), refetchCalls(), refetchTcf()]));
+  useRefreshOnFocus(() => {
+    if (isExitingLead) return Promise.resolve();
+    return Promise.all([refetch(), refetchCalls(), refetchTcf()]);
+  });
+
+  useEffect(() => {
+    if (isExitingLead || isLoading || lead) return;
+    if (isError && hasNext) {
+      goToNextLead();
+      return;
+    }
+    if (isError && !hasNext) {
+      exitToLeadsList();
+    }
+  }, [isError, hasNext, isExitingLead, isLoading, lead, goToNextLead, exitToLeadsList]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -244,7 +270,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     startDial(phone);
   }
 
-  if (isLoading) {
+  if (isExitingLead || isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.primary} />
@@ -257,13 +283,13 @@ export function LeadDetailScreen({ route, navigation }: Props) {
       <ErrorState
         title="Lead not found"
         message="This lead may have been removed, moved to the NA pool, or you do not have access."
-        retryLabel={hasNext ? "Next lead" : "Try again"}
+        retryLabel={hasNext ? "Next lead" : "Back to leads"}
         onRetry={() => {
           if (hasNext) {
             goToNextLead();
             return;
           }
-          void refetch();
+          exitToLeadsList();
         }}
       />
     );
@@ -275,309 +301,312 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   return (
     <>
       <View style={styles.container} {...panResponder.panHandlers}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
-      >
-        <View style={styles.profileCard}>
-          <View style={styles.profileCardInner}>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>
-                {lead.firstName} {lead.lastName}
-              </Text>
-              <View style={styles.statusChip}>
-                <Text style={styles.statusChipText}>{lead.leadStatus}</Text>
-              </View>
-              <Pressable style={styles.changeStatusBtn} onPress={() => setStatusSheetOpen(true)}>
-                <Text style={styles.changeStatusBtnText}>Change status</Text>
-              </Pressable>
-            </View>
-            <ComplianceChip callConsent={callConsent} />
-            {lead.temperature ? (
-              <View style={styles.tempChip}>
-                <Text style={styles.tempChipText}>{lead.temperature}</Text>
-              </View>
-            ) : null}
-            {scoreStyle ? (
-              <View style={[styles.scoreChip, { backgroundColor: scoreStyle.bg }]}>
-                <Text style={[styles.scoreChipText, { color: scoreStyle.text }]}>
-                  {scoreStyle.label} · {lead.score}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
+        >
+          <View style={styles.profileCard}>
+            <View style={styles.profileCardInner}>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>
+                  {lead.firstName} {lead.lastName}
                 </Text>
+                <View style={styles.statusChip}>
+                  <Text style={styles.statusChipText}>{lead.leadStatus}</Text>
+                </View>
+                <Pressable style={styles.changeStatusBtn} onPress={() => setStatusSheetOpen(true)}>
+                  <Text style={styles.changeStatusBtnText}>Change status</Text>
+                </Pressable>
               </View>
-            ) : null}
+              <ComplianceChip callConsent={callConsent} />
+              {lead.temperature ? (
+                <View style={styles.tempChip}>
+                  <Text style={styles.tempChipText}>{lead.temperature}</Text>
+                </View>
+              ) : null}
+              {scoreStyle ? (
+                <View style={[styles.scoreChip, { backgroundColor: scoreStyle.bg }]}>
+                  <Text style={[styles.scoreChipText, { color: scoreStyle.text }]}>
+                    {scoreStyle.label} · {lead.score}
+                  </Text>
+                </View>
+              ) : null}
 
-            <Pressable
-              onPress={() => lead.phone && void dialWithConsentCheck(lead.phone)}
-              style={styles.infoRow}
-            >
-              <Text style={styles.infoLabel}>Phone</Text>
-              <Text style={styles.infoValue}>{lead.phone ?? "—"}</Text>
-            </Pressable>
-            {lead.secondaryPhone ? (
               <Pressable
-                onPress={() =>
-                  lead.secondaryPhone && void dialWithConsentCheck(lead.secondaryPhone)
-                }
+                onPress={() => lead.phone && void dialWithConsentCheck(lead.phone)}
                 style={styles.infoRow}
               >
-                <Text style={styles.infoLabel}>Secondary phone</Text>
-                <Text style={styles.infoValue}>{lead.secondaryPhone}</Text>
+                <Text style={styles.infoLabel}>Phone</Text>
+                <Text style={styles.infoValue}>{lead.phone ?? "—"}</Text>
               </Pressable>
-            ) : null}
-            {lead.email ? (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{lead.email}</Text>
-              </View>
-            ) : null}
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Assigned to</Text>
-              <View style={styles.assignedRow}>
-                <Text style={styles.infoValue}>{lead.assignedUser?.name ?? "Unassigned"}</Text>
-                {lead.assignedUser?.id !== getCurrentUserId() ? (
-                  <Pressable
-                    style={styles.claimButton}
-                    onPress={() =>
-                      updateLead.mutate(
-                        { leadId: lead.id, payload: { assignedTo: getCurrentUserId() } },
-                        {
-                          onError: (err) =>
-                            Alert.alert(
-                              "Error",
-                              err instanceof Error ? err.message : "Failed to assign lead.",
-                            ),
-                        },
-                      )
-                    }
-                    disabled={updateLead.isPending}
-                  >
-                    <Text style={styles.claimButtonText}>Assign to me</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-            {(lead.tags ?? []).length > 0 ? (
-              <View style={styles.badgesRow}>
-                {lead.tags!.map((tag) => (
-                  <Badge key={tag} label={tag} />
-                ))}
-              </View>
-            ) : null}
-
-            <View style={styles.badgesRow}>
-              {lead.city ? <Badge label={lead.city} /> : null}
-              {lead.state ? <Badge label={lead.state} /> : null}
-              {lead.leadSource ? <Badge label={lead.leadSource} /> : null}
-            </View>
-          </View>
-        </View>
-
-        <LeadContactActions
-          phone={lead.phone}
-          leadName={`${lead.firstName} ${lead.lastName}`}
-          onCallPress={async () => {
-            if (!lead.phone) {
-              Alert.alert("No phone number", "This lead does not have a phone number.");
-              return;
-            }
-            await dialWithConsentCheck(lead.phone);
-          }}
-          onWhatsAppPress={() => setWhatsappSheetVisible(true)}
-        />
-        <Text style={styles.callHint}>
-          Call opens your SIM dialer. When you return, the call is logged automatically — you can
-          optionally update status and schedule a callback.
-        </Text>
-
-        <TcfConsentSection
-          callConsent={callConsent}
-          smsConsent={getChannelConsent(tcfData, "sms")}
-          emailConsent={getChannelConsent(tcfData, "email")}
-          isSaving={upsertTcf.isPending}
-          onSetCallConsent={setCallConsent}
-        />
-
-        <View style={styles.summaryRow}>
-          <SummaryCard label="Total calls" value={String(summary?.totalCalls ?? 0)} />
-          <SummaryCard label="Last contacted" value={formatRelativeTime(lead.lastContactedAt)} />
-          <SummaryCard
-            label="Next follow-up"
-            value={lead.nextFollowupAt ? formatDateTime(lead.nextFollowupAt) : "—"}
-          />
-        </View>
-
-        <View style={styles.followUpCard}>
-          <Text style={styles.followUpTitle}>Schedule follow-up</Text>
-          <FollowUpQuickPicker
-            value={followUpAt ?? lead.nextFollowupAt}
-            onChange={(iso) => {
-              setFollowUpAt(iso);
-              updateFollowUp.mutate(
-                { nextFollowupAt: iso as string },
-                {
-                  onError: (err) =>
-                    Alert.alert(
-                      "Error",
-                      err instanceof Error ? err.message : "Failed to update follow-up.",
-                    ),
-                },
-              );
-            }}
-          />
-        </View>
-
-        <View style={styles.tabs}>
-          <Pressable
-            style={[styles.tab, tab === "calls" && styles.tabActive]}
-            onPress={() => setTab("calls")}
-          >
-            <Text style={[styles.tabText, tab === "calls" && styles.tabTextActive]}>Calls</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, tab === "tasks" && styles.tabActive]}
-            onPress={() => setTab("tasks")}
-          >
-            <Text style={[styles.tabText, tab === "tasks" && styles.tabTextActive]}>Tasks</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, tab === "notes" && styles.tabActive]}
-            onPress={() => setTab("notes")}
-          >
-            <Text style={[styles.tabText, tab === "notes" && styles.tabTextActive]}>Notes</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, tab === "visits" && styles.tabActive]}
-            onPress={() => setTab("visits")}
-          >
-            <Text style={[styles.tabText, tab === "visits" && styles.tabTextActive]}>Visits</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, tab === "documents" && styles.tabActive]}
-            onPress={() => setTab("documents")}
-          >
-            <Text style={[styles.tabText, tab === "documents" && styles.tabTextActive]}>Docs</Text>
-          </Pressable>
-        </View>
-
-        {tab === "tasks" ? (
-          <TasksSection leadId={leadId} />
-        ) : tab === "calls" ? (
-          <View style={styles.panel}>
-            {(callsData?.items ?? []).length === 0 ? (
-              <Text style={styles.empty}>No calls logged yet.</Text>
-            ) : (
-              callsData?.items.map((call) => (
-                <View key={call.id} style={styles.callRow}>
-                  <View>
-                    <Text style={styles.callTitle}>
-                      {call.direction === "incoming" ? "↓ Incoming" : "↑ Outgoing"} · {call.status}
-                    </Text>
-                    <Text style={styles.callMeta}>
-                      {call.disposition ?? "—"} · {call.durationSeconds}s ·{" "}
-                      {call.userName ?? "Agent"}
-                    </Text>
-                  </View>
-                  <Text style={styles.callTime}>{formatRelativeTime(call.startedAt)}</Text>
+              {lead.secondaryPhone ? (
+                <Pressable
+                  onPress={() =>
+                    lead.secondaryPhone && void dialWithConsentCheck(lead.secondaryPhone)
+                  }
+                  style={styles.infoRow}
+                >
+                  <Text style={styles.infoLabel}>Secondary phone</Text>
+                  <Text style={styles.infoValue}>{lead.secondaryPhone}</Text>
+                </Pressable>
+              ) : null}
+              {lead.email ? (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Email</Text>
+                  <Text style={styles.infoValue}>{lead.email}</Text>
                 </View>
-              ))
-            )}
+              ) : null}
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Assigned to</Text>
+                <View style={styles.assignedRow}>
+                  <Text style={styles.infoValue}>{lead.assignedUser?.name ?? "Unassigned"}</Text>
+                  {lead.assignedUser?.id !== getCurrentUserId() ? (
+                    <Pressable
+                      style={styles.claimButton}
+                      onPress={() =>
+                        updateLead.mutate(
+                          { leadId: lead.id, payload: { assignedTo: getCurrentUserId() } },
+                          {
+                            onError: (err) =>
+                              Alert.alert(
+                                "Error",
+                                err instanceof Error ? err.message : "Failed to assign lead.",
+                              ),
+                          },
+                        )
+                      }
+                      disabled={updateLead.isPending}
+                    >
+                      <Text style={styles.claimButtonText}>Assign to me</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+              {(lead.tags ?? []).length > 0 ? (
+                <View style={styles.badgesRow}>
+                  {lead.tags!.map((tag) => (
+                    <Badge key={tag} label={tag} />
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.badgesRow}>
+                {lead.city ? <Badge label={lead.city} /> : null}
+                {lead.state ? <Badge label={lead.state} /> : null}
+                {lead.leadSource ? <Badge label={lead.leadSource} /> : null}
+              </View>
+            </View>
           </View>
-        ) : tab === "notes" ? (
-          <View style={styles.panel}>
-            <TextInput
-              style={styles.noteInput}
-              multiline
-              placeholder="Add a note..."
-              placeholderTextColor={colors.textMuted}
-              value={noteText}
-              onChangeText={setNoteText}
+
+          <LeadContactActions
+            phone={lead.phone}
+            leadName={`${lead.firstName} ${lead.lastName}`}
+            onCallPress={async () => {
+              if (!lead.phone) {
+                Alert.alert("No phone number", "This lead does not have a phone number.");
+                return;
+              }
+              await dialWithConsentCheck(lead.phone);
+            }}
+            onWhatsAppPress={() => setWhatsappSheetVisible(true)}
+          />
+          <Text style={styles.callHint}>
+            Call opens your SIM dialer. When you return, the call is logged automatically — you can
+            optionally update status and schedule a callback.
+          </Text>
+
+          <TcfConsentSection
+            callConsent={callConsent}
+            smsConsent={getChannelConsent(tcfData, "sms")}
+            emailConsent={getChannelConsent(tcfData, "email")}
+            isSaving={upsertTcf.isPending}
+            onSetCallConsent={setCallConsent}
+          />
+
+          <View style={styles.summaryRow}>
+            <SummaryCard label="Total calls" value={String(summary?.totalCalls ?? 0)} />
+            <SummaryCard label="Last contacted" value={formatRelativeTime(lead.lastContactedAt)} />
+            <SummaryCard
+              label="Next follow-up"
+              value={lead.nextFollowupAt ? formatDateTime(lead.nextFollowupAt) : "—"}
             />
-            <Pressable
-              style={styles.noteSave}
-              disabled={addNote.isPending || !noteText.trim()}
-              onPress={() => {
-                const text = noteText.trim();
-                if (!text) return;
-                addNote.mutate(text, {
-                  onSuccess: () => {
-                    setNoteText("");
-                    setNoteSaved(true);
-                    setTimeout(() => setNoteSaved(false), 2500);
+          </View>
+
+          <View style={styles.followUpCard}>
+            <Text style={styles.followUpTitle}>Schedule follow-up</Text>
+            <FollowUpQuickPicker
+              value={followUpAt ?? lead.nextFollowupAt}
+              onChange={(iso) => {
+                setFollowUpAt(iso);
+                updateFollowUp.mutate(
+                  { nextFollowupAt: iso as string },
+                  {
+                    onError: (err) =>
+                      Alert.alert(
+                        "Error",
+                        err instanceof Error ? err.message : "Failed to update follow-up.",
+                      ),
                   },
-                  onError: (err) => {
-                    Alert.alert(
-                      "Error",
-                      err instanceof Error ? err.message : "Failed to save note",
-                    );
-                  },
-                });
+                );
               }}
+            />
+          </View>
+
+          <View style={styles.tabs}>
+            <Pressable
+              style={[styles.tab, tab === "calls" && styles.tabActive]}
+              onPress={() => setTab("calls")}
             >
-              <Text style={styles.noteSaveText}>
-                {addNote.isPending ? "Saving..." : "Save note"}
+              <Text style={[styles.tabText, tab === "calls" && styles.tabTextActive]}>Calls</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.tab, tab === "tasks" && styles.tabActive]}
+              onPress={() => setTab("tasks")}
+            >
+              <Text style={[styles.tabText, tab === "tasks" && styles.tabTextActive]}>Tasks</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.tab, tab === "notes" && styles.tabActive]}
+              onPress={() => setTab("notes")}
+            >
+              <Text style={[styles.tabText, tab === "notes" && styles.tabTextActive]}>Notes</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.tab, tab === "visits" && styles.tabActive]}
+              onPress={() => setTab("visits")}
+            >
+              <Text style={[styles.tabText, tab === "visits" && styles.tabTextActive]}>Visits</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.tab, tab === "documents" && styles.tabActive]}
+              onPress={() => setTab("documents")}
+            >
+              <Text style={[styles.tabText, tab === "documents" && styles.tabTextActive]}>
+                Docs
               </Text>
             </Pressable>
-            {noteSaved ? <Text style={styles.noteToast}>Note saved</Text> : null}
+          </View>
 
-            {lead.notes ? (
-              <View style={styles.noteBlock}>
-                <Text style={styles.noteBlockTitle}>Lead notes</Text>
-                <Text style={styles.existingNote}>{lead.notes}</Text>
-              </View>
-            ) : null}
-
-            {(lead.activities ?? []).length > 0 ? (
-              <View style={styles.noteBlock}>
-                <Text style={styles.noteBlockTitle}>Activity</Text>
-                {lead.activities!.map((activity) => (
-                  <View key={activity.id} style={styles.activityRow}>
-                    <Text style={styles.activityMeta}>
-                      {activity.userName ?? "Agent"} · {formatRelativeTime(activity.createdAt)}
-                    </Text>
-                    <Text style={styles.activityText}>{activityBody(activity)}</Text>
+          {tab === "tasks" ? (
+            <TasksSection leadId={leadId} />
+          ) : tab === "calls" ? (
+            <View style={styles.panel}>
+              {(callsData?.items ?? []).length === 0 ? (
+                <Text style={styles.empty}>No calls logged yet.</Text>
+              ) : (
+                callsData?.items.map((call) => (
+                  <View key={call.id} style={styles.callRow}>
+                    <View>
+                      <Text style={styles.callTitle}>
+                        {call.direction === "incoming" ? "↓ Incoming" : "↑ Outgoing"} ·{" "}
+                        {call.status}
+                      </Text>
+                      <Text style={styles.callMeta}>
+                        {call.disposition ?? "—"} · {call.durationSeconds}s ·{" "}
+                        {call.userName ?? "Agent"}
+                      </Text>
+                    </View>
+                    <Text style={styles.callTime}>{formatRelativeTime(call.startedAt)}</Text>
                   </View>
-                ))}
-              </View>
-            ) : !lead.notes ? (
-              <Text style={styles.empty}>No notes yet.</Text>
-            ) : null}
-          </View>
-        ) : tab === "visits" ? (
-          <View style={styles.panel}>
-            <Pressable
-              style={styles.scheduleVisitBtn}
-              onPress={() => setScheduleVisitVisible(true)}
-            >
-              <Text style={styles.scheduleVisitBtnText}>Schedule visit</Text>
-            </Pressable>
-            {(visitsData?.items ?? []).length === 0 ? (
-              <Text style={styles.empty}>No site visits scheduled.</Text>
-            ) : (
-              visitsData?.items.map((visit) => (
-                <View key={visit.id} style={styles.visitRow}>
-                  <Text style={styles.visitTitle}>
-                    {visit.visitDate} · {formatVisitTime(visit.visitTime)}
-                  </Text>
-                  <Text style={styles.visitMeta}>{visit.status}</Text>
+                ))
+              )}
+            </View>
+          ) : tab === "notes" ? (
+            <View style={styles.panel}>
+              <TextInput
+                style={styles.noteInput}
+                multiline
+                placeholder="Add a note..."
+                placeholderTextColor={colors.textMuted}
+                value={noteText}
+                onChangeText={setNoteText}
+              />
+              <Pressable
+                style={styles.noteSave}
+                disabled={addNote.isPending || !noteText.trim()}
+                onPress={() => {
+                  const text = noteText.trim();
+                  if (!text) return;
+                  addNote.mutate(text, {
+                    onSuccess: () => {
+                      setNoteText("");
+                      setNoteSaved(true);
+                      setTimeout(() => setNoteSaved(false), 2500);
+                    },
+                    onError: (err) => {
+                      Alert.alert(
+                        "Error",
+                        err instanceof Error ? err.message : "Failed to save note",
+                      );
+                    },
+                  });
+                }}
+              >
+                <Text style={styles.noteSaveText}>
+                  {addNote.isPending ? "Saving..." : "Save note"}
+                </Text>
+              </Pressable>
+              {noteSaved ? <Text style={styles.noteToast}>Note saved</Text> : null}
+
+              {lead.notes ? (
+                <View style={styles.noteBlock}>
+                  <Text style={styles.noteBlockTitle}>Lead notes</Text>
+                  <Text style={styles.existingNote}>{lead.notes}</Text>
                 </View>
-              ))
-            )}
-          </View>
-        ) : tab === "documents" ? (
-          <LeadDocumentsSection
-            leadId={leadId}
-            leadName={`${lead.firstName} ${lead.lastName}`}
-            leadPhone={lead.phone}
-          />
-        ) : null}
-      </ScrollView>
-      {leadIds.length > 1 ? (
+              ) : null}
+
+              {(lead.activities ?? []).length > 0 ? (
+                <View style={styles.noteBlock}>
+                  <Text style={styles.noteBlockTitle}>Activity</Text>
+                  {lead.activities!.map((activity) => (
+                    <View key={activity.id} style={styles.activityRow}>
+                      <Text style={styles.activityMeta}>
+                        {activity.userName ?? "Agent"} · {formatRelativeTime(activity.createdAt)}
+                      </Text>
+                      <Text style={styles.activityText}>{activityBody(activity)}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : !lead.notes ? (
+                <Text style={styles.empty}>No notes yet.</Text>
+              ) : null}
+            </View>
+          ) : tab === "visits" ? (
+            <View style={styles.panel}>
+              <Pressable
+                style={styles.scheduleVisitBtn}
+                onPress={() => setScheduleVisitVisible(true)}
+              >
+                <Text style={styles.scheduleVisitBtnText}>Schedule visit</Text>
+              </Pressable>
+              {(visitsData?.items ?? []).length === 0 ? (
+                <Text style={styles.empty}>No site visits scheduled.</Text>
+              ) : (
+                visitsData?.items.map((visit) => (
+                  <View key={visit.id} style={styles.visitRow}>
+                    <Text style={styles.visitTitle}>
+                      {visit.visitDate} · {formatVisitTime(visit.visitTime)}
+                    </Text>
+                    <Text style={styles.visitMeta}>{visit.status}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+          ) : tab === "documents" ? (
+            <LeadDocumentsSection
+              leadId={leadId}
+              leadName={`${lead.firstName} ${lead.lastName}`}
+              leadPhone={lead.phone}
+            />
+          ) : null}
+        </ScrollView>
+      {canSwipe ? (
         <View style={[styles.swipeHint, { bottom: 12 + insets.bottom }]}>
-          <Ionicons name="arrow-back" size={14} color={colors.textMuted} />
-          <Text style={styles.swipeHintText}>Swipe for prev / next lead</Text>
-          <Ionicons name="arrow-forward" size={14} color={colors.textMuted} />
-        </View>
-      ) : null}
+            <Ionicons name="arrow-back" size={14} color={colors.textMuted} />
+            <Text style={styles.swipeHintText}>Swipe for prev / next lead</Text>
+            <Ionicons name="arrow-forward" size={14} color={colors.textMuted} />
+          </View>
+        ) : null}
       </View>
 
       <UpdateLeadStatusSheet

@@ -5,12 +5,14 @@ import { useTodayCallSummary } from "@/hooks/use-calls";
 import { type HotLead, useHotLeads, useMyLeadsTotal, useTodayQueue } from "@/hooks/use-leads";
 import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { buildLeadBrowserParams } from "@/lib/lead-browser";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { neuSticky } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { useMemo } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -39,6 +41,17 @@ export function HomeScreen({ navigation }: Props) {
   const hotLeads = useHotLeads(5);
   const unreadNotifications = useUnreadNotificationCount();
   const firstName = user?.name?.split(" ")[0] ?? "Agent";
+  const queueItems = queue.data?.items ?? [];
+  const hotItems = hotLeads.data?.items ?? [];
+  const homeBrowserLeads = useMemo(() => {
+    const merged = [...queueItems, ...hotItems];
+    const seen = new Set<string>();
+    return merged.filter((lead) => {
+      if (seen.has(lead.id)) return false;
+      seen.add(lead.id);
+      return true;
+    });
+  }, [hotItems, queueItems]);
 
   const refreshAll = () =>
     Promise.all([queue.refetch(), summary.refetch(), myLeadsTotal.refetch(), hotLeads.refetch()]);
@@ -158,7 +171,7 @@ export function HomeScreen({ navigation }: Props) {
                   onPress={() =>
                     navigation.navigate("LeadsTab", {
                       screen: "LeadDetailScreen",
-                      params: { leadId: lead.id },
+                      params: buildLeadBrowserParams(homeBrowserLeads, lead.id),
                     })
                   }
                 />
