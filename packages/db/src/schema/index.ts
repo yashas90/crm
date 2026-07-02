@@ -272,7 +272,7 @@ export const leadActivities = pgTable(
   (table) => [
     check(
       "lead_activities_type_check",
-      sql`${table.type} in ('call', 'note', 'status_change', 'meeting', 'task', 'follow_up')`,
+      sql`${table.type} in ('call', 'note', 'status_change', 'meeting', 'task', 'follow_up', 'assignment_change')`,
     ),
     index("lead_activities_lead_id_created_at_idx").on(table.leadId, table.createdAt.desc()),
     index("lead_activities_org_id_idx").on(table.orgId),

@@ -52,7 +52,11 @@ export function startNaPoolJob() {
     delayMs: NA_POOL_RELEASE_DELAY_MS,
   });
 
-  void syncNaPoolUnassignments();
+  void syncNaPoolUnassignments().catch((err) => {
+    logger.warn("NA pool release failed on startup", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  });
   syncTimer = setInterval(() => {
     void syncNaPoolUnassignments().catch((err) => {
       logger.warn("NA pool release failed", {
