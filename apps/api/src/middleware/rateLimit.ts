@@ -36,6 +36,17 @@ function shouldSkipRateLimit(c: Context): boolean {
   const path = new URL(c.req.url).pathname;
   if (path === "/health" || path.startsWith("/health/")) return true;
 
+  // Login has its own per-email failed-attempt limiter — do not double-count here.
+  if (
+    path === "/api/auth/login" ||
+    path === "/api/auth/refresh" ||
+    path === "/api/auth/forgot-password" ||
+    path === "/api/auth/reset-password" ||
+    path.startsWith("/api/auth/reset-password/")
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -155,14 +166,6 @@ export const writeRateLimit = createUserRateLimiter({
   limit: 300,
   windowMs: ONE_MINUTE_MS,
   bucket: "write",
-});
-
-/** Lighter IP limit on login attempts (in addition to global public IP limit). */
-export const loginRateLimit = createIpRateLimiter({
-  limit: 20,
-  windowMs: ONE_MINUTE_MS,
-  bucket: "auth:login",
-  methods: "all",
 });
 
 export const metaWebhookRateLimit = createIpRateLimiter({

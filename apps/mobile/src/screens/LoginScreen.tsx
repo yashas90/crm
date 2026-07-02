@@ -36,11 +36,15 @@ export function LoginScreen() {
         token: string;
         refreshToken: string;
         user: { id: string; email: string; name: string; role: string };
-      }>("/api/auth/login", { email: email.trim(), password });
+      }>("/api/auth/login", { email: email.trim(), password }, { skipTransientRetry: true });
       await login(data.token, data.user, data.refreshToken);
     } catch (err) {
       if (err instanceof ApiRequestError && err.code === "NETWORK_ERROR") {
         setError(err.message);
+      } else if (err instanceof ApiRequestError && err.code === "RATE_LIMITED") {
+        setError(
+          "Sign-in is temporarily locked after too many tries. Wait 2 minutes, then try once. Do not tap Sign in repeatedly.",
+        );
       } else {
         setError(err instanceof Error ? err.message : "Unable to sign in");
       }

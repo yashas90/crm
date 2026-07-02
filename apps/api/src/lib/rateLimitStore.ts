@@ -73,6 +73,13 @@ export function resetRateLimitStoreForTests(): void {
   backend = null;
 }
 
+/** Clear all in-memory rate-limit counters (e.g. after false-positive office NAT blocks). */
+export function clearAllRateLimits(): number {
+  const cleared = memoryBuckets.size;
+  memoryBuckets.clear();
+  return cleared;
+}
+
 export async function incrementRateLimit(
   key: string,
   windowMs: number,

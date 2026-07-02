@@ -1,7 +1,9 @@
 import { db } from "../lib/db.js";
 import { clearAllIpBlocks } from "../lib/ipBlocklist.js";
+import { clearAllLoginRateLimits } from "../lib/loginBruteForce.js";
 import { startDurableJobQueue } from "../lib/jobQueue.js";
 import { logger } from "../lib/logger.js";
+import { clearAllRateLimits } from "../lib/rateLimitStore.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
@@ -14,6 +16,15 @@ export async function startBackgroundJobs() {
   const clearedBlocks = await clearAllIpBlocks();
   if (clearedBlocks > 0) {
     logger.info("Cleared stale IP blocks on startup", { clearedBlocks });
+  }
+
+  const clearedRateLimits = clearAllRateLimits();
+  const clearedLoginLimits = clearAllLoginRateLimits();
+  if (clearedRateLimits > 0 || clearedLoginLimits > 0) {
+    logger.info("Cleared stale rate-limit counters on startup", {
+      clearedRateLimits,
+      clearedLoginLimits,
+    });
   }
 
   const durable = await startDurableJobQueue();

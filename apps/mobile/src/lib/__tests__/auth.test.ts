@@ -33,10 +33,10 @@ jest.mock("@/lib/apiClient", () => {
   };
 });
 
-import { isTokenExpired } from "@/lib/jwt";
-import * as SecureStore from "expo-secure-store";
 import { ApiRequestError } from "@/lib/apiClient";
 import { clearAuth, refreshCurrentUser, setAuth } from "@/lib/auth";
+import { isTokenExpired } from "@/lib/jwt";
+import * as SecureStore from "expo-secure-store";
 
 const mockIsTokenExpired = isTokenExpired as jest.MockedFunction<typeof isTokenExpired>;
 
@@ -55,7 +55,11 @@ describe("refreshCurrentUser", () => {
   });
 
   it("refreshes an expired access token instead of clearing the session", async () => {
-    await setAuth("expired-token", { id: "u1", email: "a@t.com", name: "A", role: "agent" }, "rt-1");
+    await setAuth(
+      "expired-token",
+      { id: "u1", email: "a@t.com", name: "A", role: "agent" },
+      "rt-1",
+    );
     mockIsTokenExpired.mockReturnValue(true);
 
     const user = await refreshCurrentUser();
@@ -66,7 +70,11 @@ describe("refreshCurrentUser", () => {
   });
 
   it("keeps the session when refresh fails due to network", async () => {
-    await setAuth("expired-token", { id: "u1", email: "a@t.com", name: "A", role: "agent" }, "rt-1");
+    await setAuth(
+      "expired-token",
+      { id: "u1", email: "a@t.com", name: "A", role: "agent" },
+      "rt-1",
+    );
     mockIsTokenExpired.mockReturnValue(true);
     mockRefreshAccessToken.mockRejectedValue(
       new ApiRequestError("NETWORK_ERROR", "Cannot reach the server"),
@@ -79,7 +87,11 @@ describe("refreshCurrentUser", () => {
   });
 
   it("invalidates the session when refresh token is rejected", async () => {
-    await setAuth("expired-token", { id: "u1", email: "a@t.com", name: "A", role: "agent" }, "rt-1");
+    await setAuth(
+      "expired-token",
+      { id: "u1", email: "a@t.com", name: "A", role: "agent" },
+      "rt-1",
+    );
     mockIsTokenExpired.mockReturnValue(true);
     mockRefreshAccessToken.mockResolvedValue(false);
 

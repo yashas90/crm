@@ -15,7 +15,6 @@ import { issueAuthToken } from "../lib/issueAuthToken.js";
 import { decodeJwtPayload } from "../lib/jwtPayload.js";
 import {
   clearEmailLoginAttempts,
-  honoLoginIpRateLimit,
   loginEmailRateLimit,
   recordEmailLoginAttempt,
 } from "../lib/loginBruteForce.js";
@@ -25,7 +24,6 @@ import { refreshTokenBlocklistCache } from "../lib/tokenBlocklist.js";
 import { validate } from "../lib/validate.js";
 import { changePasswordSchema } from "../lib/validators/users.js";
 import type { AuthUser } from "../middleware/auth.js";
-import { loginRateLimit } from "../middleware/rateLimit.js";
 import { listLoginHistory, recordSuccessfulLogin } from "../services/loginEventService.js";
 import { setUserPassword } from "../services/passwordHistoryService.js";
 import {
@@ -56,13 +54,8 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(8),
 });
 
-authRoutes.post(
-  "/login",
-  loginRateLimit,
-  honoLoginIpRateLimit(),
-  loginEmailRateLimit(),
-  async (c) => {
-    const body = await c.req.json();
+authRoutes.post("/login", loginEmailRateLimit(), async (c) => {
+  const body = await c.req.json();
     const parsed = loginSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -127,8 +120,7 @@ authRoutes.post(
         },
       },
     });
-  },
-);
+});
 
 authRoutes.get("/me", async (c) => {
   const authUser = c.get("authUser") as AuthUser;

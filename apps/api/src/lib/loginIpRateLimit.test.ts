@@ -1,51 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { loginIpRateLimiter, resetLoginBruteForceForTests } from "./loginBruteForce.js";
+import {
+  clearAllLoginRateLimits,
+  isEmailLoginLimited,
+  recordEmailLoginAttempt,
+  resetLoginBruteForceForTests,
+} from "./loginBruteForce.js";
 
-function runIpLimitCheck(ip: string): Promise<number> {
-  return new Promise((resolve) => {
-    const req = {
-      ip,
-      headers: {},
-      method: "POST",
-      socket: { remoteAddress: ip },
-    } as Parameters<typeof loginIpRateLimiter>[0];
-
-    const res = {
-      statusCode: 200,
-      status(code: number) {
-        this.statusCode = code;
-        return this;
-      },
-      setHeader() {
-        return this;
-      },
-      getHeader() {
-        return undefined;
-      },
-      json() {
-        resolve(this.statusCode);
-      },
-      send() {
-        resolve(this.statusCode);
-      },
-      end() {
-        resolve(this.statusCode);
-      },
-    } as Parameters<typeof loginIpRateLimiter>[1];
-
-    loginIpRateLimiter(req, res, () => resolve(200));
-  });
-}
-
-describe("loginIpRateLimiter", () => {
-  it("allows 5 attempts then returns 429 for the same IP", async () => {
+describe("login email rate limit", () => {
+  it("allows many failed attempts per email before lockout", () => {
     resetLoginBruteForceForTests();
-    const ip = "203.0.113.50";
+    const email = "agent@propninja.com";
 
-    for (let i = 0; i < 5; i += 1) {
-      await expect(runIpLimitCheck(ip)).resolves.toBe(200);
+    for (let i = 0; i < 30; i += 1) {
+      const result = recordEmailLoginAttempt(email);
+      expect(result.limited).toBe(false);
     }
 
-    await expect(runIpLimitCheck(ip)).resolves.toBe(429);
+    const blocked = recordEmailLoginAttempt(email);
+    expect(blocked.limited).toBe(true);
+    expect(isEmailLoginLimited(email)).toBe(true);
+  });
+
+  it("clears all counters", () => {
+    recordEmailLoginAttempt("blocked@propninja.com");
+    expect(clearAllLoginRateLimits()).toBeGreaterThan(0);
+    expect(isEmailLoginLimited("blocked@propninja.com")).toBe(false);
   });
 });

@@ -92,24 +92,24 @@ describe("Phase 5 — Security audit", () => {
   });
 
   describe("Rate limiting", () => {
-    it("6th login attempt from same IP → 429", async () => {
+    it("31st failed login for same email → 429", async () => {
       resetLoginBruteForceForTests();
-      const ip = "203.0.113.77";
-      const headers = { "Content-Type": "application/json", "x-forwarded-for": ip };
+      const email = "nobody@test.com";
+      const headers = { "Content-Type": "application/json" };
 
-      for (let i = 0; i < 5; i += 1) {
+      for (let i = 0; i < 30; i += 1) {
         await app.request("/api/auth/login", {
           method: "POST",
           headers,
-          body: JSON.stringify({ email: "nobody@test.com", password: "wrong" }),
+          body: JSON.stringify({ email, password: "wrong" }),
         });
       }
-      const sixth = await app.request("/api/auth/login", {
+      const blocked = await app.request("/api/auth/login", {
         method: "POST",
         headers,
-        body: JSON.stringify({ email: "nobody@test.com", password: "wrong" }),
+        body: JSON.stringify({ email, password: "wrong" }),
       });
-      expect(sixth.status).toBe(429);
+      expect(blocked.status).toBe(429);
     });
   });
 

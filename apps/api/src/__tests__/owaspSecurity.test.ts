@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import app from "../index.js";
-import { loginIpRateLimiter, resetLoginBruteForceForTests } from "../lib/loginBruteForce.js";
+import { recordEmailLoginAttempt, resetLoginBruteForceForTests } from "../lib/loginBruteForce.js";
 import { hashPassword } from "../lib/password.js";
 import { stripHtmlTags } from "../lib/sanitize.js";
 
@@ -22,42 +22,6 @@ async function dbReachable(token: string) {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.status === 200;
-}
-
-function runIpLimitCheck(ip: string): Promise<number> {
-  return new Promise((resolve) => {
-    const req = {
-      ip,
-      headers: {},
-      method: "POST",
-      socket: { remoteAddress: ip },
-    } as Parameters<typeof loginIpRateLimiter>[0];
-
-    const res = {
-      statusCode: 200,
-      status(code: number) {
-        this.statusCode = code;
-        return this;
-      },
-      setHeader() {
-        return this;
-      },
-      getHeader() {
-        return undefined;
-      },
-      json() {
-        resolve(this.statusCode);
-      },
-      send() {
-        resolve(this.statusCode);
-      },
-      end() {
-        resolve(this.statusCode);
-      },
-    } as Parameters<typeof loginIpRateLimiter>[1];
-
-    loginIpRateLimiter(req, res, () => resolve(200));
-  });
 }
 
 describe("OWASP security — static checks", () => {
@@ -85,14 +49,21 @@ describe("OWASP security — static checks", () => {
     expect(allowOrigin).not.toBe("https://evil.com");
   });
 
-  it("A07: 6th failed login from same IP is rate limited (429)", async () => {
+  it("A07: 31st failed login for same email is rate limited (429)", async () => {
     resetLoginBruteForceForTests();
-    const ip = "198.51.100.99";
+    const email = "locked-out@propninja.com";
 
-    for (let i = 0; i < 5; i += 1) {
-      await expect(runIpLimitCheck(ip)).resolves.toBe(200);
+    for (let i = 0; i < 30; i += 1) {
+      recordEmailLoginAttempt(email);
     }
-    await expect(runIpLimitCheck(ip)).resolves.toBe(429);
+
+    const res = await app.request("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: "wrong-password" }),
+    });
+
+    expect(res.status).toBe(429);
   });
 });
 

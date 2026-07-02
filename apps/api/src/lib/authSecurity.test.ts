@@ -25,11 +25,11 @@ describe("validatePasswordPolicy", () => {
 });
 
 describe("loginBruteForce email limiter", () => {
-  it("limits after 10 attempts per email", () => {
+  it("limits after 30 failed attempts per email", () => {
     resetLoginBruteForceForTests();
     const email = "agent@example.com";
 
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 30; i += 1) {
       const attempt = recordEmailLoginAttempt(email);
       expect(attempt.limited).toBe(false);
     }

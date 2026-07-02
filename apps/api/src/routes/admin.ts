@@ -5,10 +5,12 @@ import { AUDIT_ACTIONS } from "../lib/auditActions.js";
 import { getClientIp } from "../lib/clientIp.js";
 import { AppError } from "../lib/errors.js";
 import { unblockIp } from "../lib/ipBlocklist.js";
+import { clearAllLoginRateLimits } from "../lib/loginBruteForce.js";
 import { listPaginationSchema } from "../lib/pagination.js";
 import { isAdmin } from "../lib/permissions.js";
 import { PORTAL_MOCK_PAYLOADS } from "../lib/portalWebhookDefaults.js";
 import { jsonError, jsonOk } from "../lib/response.js";
+import { clearAllRateLimits } from "../lib/rateLimitStore.js";
 import { clearAllResponseCaches } from "../lib/responseCache.js";
 import { validate } from "../lib/validate.js";
 import {
@@ -64,6 +66,26 @@ adminRoutes.post("/ip-block/clear", async (c) => {
   const ip = getClientIp(c);
   if (ip) await unblockIp(ip);
   return jsonOk(c, { cleared: ip ?? null });
+});
+
+/** Clear all API rate-limit counters and login lockouts (e.g. after office Wi‑Fi false positives). */
+adminRoutes.post("/rate-limits/clear", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+
+  if (!isAdmin(authUser)) {
+    return jsonError(c, "FORBIDDEN", "Admin access required", 403);
+  }
+
+  const clearedRateLimits = clearAllRateLimits();
+  const clearedLoginLimits = clearAllLoginRateLimits();
+  const ip = getClientIp(c);
+  if (ip) await unblockIp(ip);
+
+  return jsonOk(c, {
+    clearedRateLimits,
+    clearedLoginLimits,
+    clearedIp: ip ?? null,
+  });
 });
 
 adminRoutes.get("/security-alerts", async (c) => {

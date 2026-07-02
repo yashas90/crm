@@ -48,6 +48,8 @@ export function invalidateSession() {
 export type ApiRequestOptions = {
   skipSessionLogout?: boolean;
   skipOfflineQueue?: boolean;
+  /** Do not auto-retry transient errors (use for login — avoids multiplying rate-limit hits). */
+  skipTransientRetry?: boolean;
 };
 
 export class QueuedOfflineError extends Error {
@@ -223,7 +225,7 @@ export async function apiFetch<T>(
         }
       }
 
-      if (!isTransientFailure(error) || attempt >= MAX_TRANSIENT_RETRIES) {
+      if (!isTransientFailure(error) || attempt >= MAX_TRANSIENT_RETRIES || options.skipTransientRetry) {
         throw error;
       }
 
