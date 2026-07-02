@@ -1,4 +1,5 @@
 import { db } from "../lib/db.js";
+import { clearAllIpBlocks } from "../lib/ipBlocklist.js";
 import { startDurableJobQueue } from "../lib/jobQueue.js";
 import { logger } from "../lib/logger.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
@@ -10,6 +11,11 @@ import { startSiteVisitReminderJob } from "./siteVisitReminderJob.js";
 
 /** Use BullMQ when Redis is configured; otherwise fall back to in-process timers. */
 export async function startBackgroundJobs() {
+  const clearedBlocks = await clearAllIpBlocks();
+  if (clearedBlocks > 0) {
+    logger.info("Cleared stale IP blocks on startup", { clearedBlocks });
+  }
+
   const durable = await startDurableJobQueue();
   if (durable) {
     logger.info("Background jobs running via BullMQ + Redis");

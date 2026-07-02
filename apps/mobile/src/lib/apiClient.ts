@@ -59,10 +59,15 @@ export function getApiUrl() {
 
 const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
 const RETRY_DELAY_MS = 600;
+const RATE_LIMIT_RETRY_DELAY_MS = 1500;
+const MAX_TRANSIENT_RETRIES = 2;
 
 function isTransientFailure(error: unknown): boolean {
   if (!(error instanceof ApiRequestError)) return false;
   if (error.code === "NETWORK_ERROR" || error.code === "INVALID_RESPONSE") return true;
+  if (error.code === "RATE_LIMITED" || error.code === "IP_BLOCKED" || error.status === 429) {
+    return true;
+  }
   return error.status !== undefined && TRANSIENT_HTTP_STATUSES.has(error.status);
 }
 
@@ -174,27 +179,37 @@ export async function apiFetch<T>(
   init?: RequestInit & ApiRequestOptions,
 ): Promise<T> {
   const options = init ?? {};
-  try {
-    return await apiFetchOnce<T>(path, options);
-  } catch (error) {
-    if (
-      error instanceof ApiRequestError &&
-      error.status === 401 &&
-      path !== "/api/auth/login" &&
-      path !== "/api/auth/refresh" &&
-      !options.skipSessionLogout
-    ) {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        return apiFetchOnce<T>(path, options);
-      }
-    }
+  let attempt = 0;
 
-    if (!isTransientFailure(error)) {
-      throw error;
+  while (true) {
+    try {
+      return await apiFetchOnce<T>(path, options);
+    } catch (error) {
+      if (
+        error instanceof ApiRequestError &&
+        error.status === 401 &&
+        path !== "/api/auth/login" &&
+        path !== "/api/auth/refresh" &&
+        !options.skipSessionLogout
+      ) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          return apiFetchOnce<T>(path, options);
+        }
+      }
+
+      if (!isTransientFailure(error) || attempt >= MAX_TRANSIENT_RETRIES) {
+        throw error;
+      }
+
+      const delay =
+        error instanceof ApiRequestError &&
+        (error.code === "RATE_LIMITED" || error.code === "IP_BLOCKED" || error.status === 429)
+          ? RATE_LIMIT_RETRY_DELAY_MS * (attempt + 1)
+          : RETRY_DELAY_MS;
+      attempt += 1;
+      await sleep(delay);
     }
-    await sleep(RETRY_DELAY_MS);
-    return apiFetchOnce<T>(path, options);
   }
 }
 

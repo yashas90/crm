@@ -118,38 +118,41 @@ export async function publicIpRateLimitMiddleware(c: Context, next: Next) {
   await next();
 }
 
-/** 1200 requests/minute per authenticated user across all API routes. */
+/**
+ * Field-team headroom: ~10 agents × heavy polling + 20+ calls/min bursts per agent.
+ * Per-user (not per-IP) so office Wi‑Fi / carrier NAT is not a bottleneck.
+ */
 export const authenticatedUserRateLimit = createUserRateLimiter({
-  limit: 1200,
+  limit: 6000,
   windowMs: ONE_MINUTE_MS,
   bucket: "global",
   methods: "all",
 });
 
-/** 60 writes/minute per user — POST /api/leads */
+/** POST /api/leads */
 export const leadsCreateRateLimit = createUserRateLimiter({
-  limit: 60,
+  limit: 300,
   windowMs: ONE_MINUTE_MS,
   bucket: "leads:post",
 });
 
-/** 60 writes/minute per user — PATCH /api/leads/:id */
+/** PATCH /api/leads/:id */
 export const leadsPatchRateLimit = createUserRateLimiter({
-  limit: 60,
+  limit: 300,
   windowMs: ONE_MINUTE_MS,
   bucket: "leads:patch",
 });
 
-/** 60 writes/minute per user — POST /api/calls/log */
+/** POST /api/calls/log — supports 200+ calls/session without throttling agents. */
 export const callsLogRateLimit = createUserRateLimiter({
-  limit: 60,
+  limit: 600,
   windowMs: ONE_MINUTE_MS,
   bucket: "calls:log",
 });
 
 /** Generic write limiter for other mutating routes (projects, users, etc.). */
 export const writeRateLimit = createUserRateLimiter({
-  limit: 60,
+  limit: 300,
   windowMs: ONE_MINUTE_MS,
   bucket: "write",
 });

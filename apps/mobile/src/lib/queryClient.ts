@@ -1,10 +1,12 @@
 import { ApiRequestError } from "@/lib/apiClient";
+import { isRateLimitError } from "@/lib/query-errors";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { Alert } from "react-native";
 
 function shouldSuppressGlobalQueryError(error: unknown): boolean {
   if (!(error instanceof ApiRequestError)) return false;
   if (error.status === 403 || error.status === 404) return true;
+  if (isRateLimitError(error)) return true;
   return error.code === "FORBIDDEN" || error.code === "NOT_FOUND";
 }
 

@@ -1,13 +1,13 @@
 import type { Context, Next } from "hono";
 import { getClientIp } from "../lib/clientIp.js";
-import { blockIpSync, isIpBlocked, unblockIp } from "../lib/ipBlocklist.js";
+import { isIpBlocked, unblockIp } from "../lib/ipBlocklist.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { SECURITY_ALERT_TYPES, createSecurityAlert } from "../services/securityAlertService.js";
 
 const TEN_MIN_MS = 10 * 60 * 1000;
 const LEAD_FETCH_THRESHOLD = 500;
-/** Authenticated CRM users — never auto-block their office IP for polling the leads UI. */
-const IP_LEADS_HIT_THRESHOLD = 2000;
+/** Alert-only threshold for unauthenticated scrapers — never auto-block (shared office NAT). */
+const IP_LEADS_HIT_ALERT_THRESHOLD = 5000;
 
 type UserWindow = { leadRows: number; startedAt: number };
 type IpWindow = { hits: number; startedAt: number };
@@ -87,28 +87,26 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
   if (method === "GET" && (path.startsWith("/api/leads") || path === "/api/leads/export")) {
     const ip = getClientIp(c) ?? "unknown";
 
-    // Logged-in web/mobile users poll leads often — monitor only, never auto-block their IP.
+    // Logged-in CRM users poll leads often; office/carrier NAT shares one IP across agents.
+    // Monitor unauthenticated traffic only — alert admins, never auto-block the IP.
     if (!authUser) {
       const ipWindow = getIpWindow(ip);
       ipWindow.hits += 1;
 
-      if (ipWindow.hits > IP_LEADS_HIT_THRESHOLD) {
-        blockIpSync(ip);
+      if (ipWindow.hits === IP_LEADS_HIT_ALERT_THRESHOLD + 1) {
         const db = c.get("db");
         if (db) {
           void createSecurityAlert(db, {
             alertType: SECURITY_ALERT_TYPES.IP_LEADS_FLOOD,
-            details: { hits: ipWindow.hits, path, windowMinutes: 10 },
+            details: {
+              hits: ipWindow.hits,
+              path,
+              windowMinutes: 10,
+              note: "alert-only; IP not auto-blocked",
+            },
             ipAddress: ip,
           });
         }
-        return c.json(
-          {
-            ok: false,
-            error: { code: "IP_BLOCKED", message: "Too many requests. Try again later." },
-          },
-          429,
-        );
       }
     }
   }
@@ -173,4 +171,8 @@ export function resetSecurityMonitoringState(): void {
   ipLeadsHitWindows.clear();
 }
 
-export { LEAD_FETCH_THRESHOLD, IP_LEADS_HIT_THRESHOLD, TEN_MIN_MS as SECURITY_WINDOW_MS };
+export {
+  LEAD_FETCH_THRESHOLD,
+  IP_LEADS_HIT_ALERT_THRESHOLD,
+  TEN_MIN_MS as SECURITY_WINDOW_MS,
+};

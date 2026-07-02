@@ -1,6 +1,7 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
+import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -79,7 +80,8 @@ export function useTodayCalls() {
         `/api/calls?${params.toString()}`,
       ),
     enabled: ready,
-    refetchInterval: 30_000,
+    refetchInterval: LIVE_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -97,7 +99,8 @@ export function useTodayCallSummary() {
     queryKey: ["calls", "summary", "today", userId],
     queryFn: () => apiGet<CallSummary>(`/api/calls/summary?${params.toString()}`),
     enabled: ready,
-    refetchInterval: 30_000,
+    refetchInterval: LIVE_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -107,13 +110,18 @@ export function useLogCall() {
   return useMutation({
     mutationFn: (payload: LogCallInput) => apiPost("/api/calls/log", payload),
     onSuccess: async (_data, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ["calls"] });
-      await queryClient.invalidateQueries({ queryKey: ["leads"] });
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      if (variables.lead_id) {
-        await queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] });
+      const userId = getCurrentUserId();
+      const tasks: Promise<unknown>[] = [queryClient.invalidateQueries({ queryKey: ["calls"] })];
+      if (userId) {
+        tasks.push(queryClient.invalidateQueries({ queryKey: ["calls", "today", userId] }));
+        tasks.push(
+          queryClient.invalidateQueries({ queryKey: ["calls", "summary", "today", userId] }),
+        );
       }
+      if (variables.lead_id) {
+        tasks.push(queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] }));
+      }
+      await Promise.all(tasks);
     },
   });
 }

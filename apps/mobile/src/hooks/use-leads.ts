@@ -2,10 +2,10 @@ import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId, getUser, normalizeRole } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
+import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-const LIVE_REFETCH_MS = 30_000;
 const LEADS_PAGE_SIZE = "50";
 
 export type LeadRow = {
@@ -202,6 +202,7 @@ export function useLeads(query: LeadsQuery = {}, options?: { enabled?: boolean }
       ),
     enabled: ready && (options?.enabled ?? true),
     refetchInterval: LIVE_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -225,6 +226,7 @@ export function useInfiniteLeads(query: Omit<LeadsQuery, "page"> = {}) {
     },
     enabled: ready,
     refetchInterval: LIVE_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -249,6 +251,7 @@ export function useTodayQueue() {
       ),
     enabled: ready,
     refetchInterval: LIVE_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -261,6 +264,7 @@ export function useLead(leadId: string, options?: { enabled?: boolean }) {
     queryFn: () => apiGet<LeadDetail>(`/api/leads/${leadId}`),
     enabled,
     refetchInterval: enabled ? LIVE_REFETCH_MS : false,
+    refetchIntervalInBackground: false,
     meta: { suppressErrorToast: true },
   });
 }
@@ -332,6 +336,7 @@ export function useLeadScopeCounts() {
       }>("/api/leads/scope-counts"),
     enabled: ready,
     refetchInterval: LIVE_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -375,5 +380,6 @@ export function useMyLeadsTotal() {
     },
     enabled: ready,
     refetchInterval: LIVE_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }

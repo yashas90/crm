@@ -69,6 +69,32 @@ export async function unblockIp(ip: string): Promise<void> {
   }
 }
 
+/** Clear stale auto-blocks after policy changes (e.g. shared office NAT). */
+export async function clearAllIpBlocks(): Promise<number> {
+  const clearedMemory = MEMORY_BLOCKS.size;
+  MEMORY_BLOCKS.clear();
+
+  const redis = getRedis();
+  if (!redis) return clearedMemory;
+
+  let clearedRedis = 0;
+  try {
+    let cursor = "0";
+    do {
+      const [nextCursor, keys] = await redis.scan(cursor, "MATCH", `${REDIS_PREFIX}*`, "COUNT", 100);
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        await redis.del(...keys);
+        clearedRedis += keys.length;
+      }
+    } while (cursor !== "0");
+  } catch {
+    return clearedMemory;
+  }
+
+  return clearedMemory + clearedRedis;
+}
+
 export function clearExpiredIpBlocks(): void {
   const now = Date.now();
   for (const [ip, until] of MEMORY_BLOCKS) {
