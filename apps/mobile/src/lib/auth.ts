@@ -39,9 +39,14 @@ export async function loadAuth() {
 
   if (cachedRefreshToken) {
     const { refreshAccessToken } = await import("@/lib/apiClient");
-    const refreshed = await refreshAccessToken();
-    if (refreshed) {
-      await runWithSessionLogoutSuppressed(() => refreshCurrentUser());
+    try {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        await runWithSessionLogoutSuppressed(() => refreshCurrentUser());
+        return;
+      }
+    } catch {
+      // Offline on boot — keep refresh token; user can retry when network returns.
       return;
     }
   }

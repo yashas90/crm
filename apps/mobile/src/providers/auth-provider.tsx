@@ -1,12 +1,14 @@
-import { apiPost, setUnauthorizedHandler } from "@/lib/apiClient";
+import { apiPost, refreshAccessToken, setUnauthorizedHandler } from "@/lib/apiClient";
 import {
   type SessionUser,
   clearAuth,
+  getToken,
   getUser,
   isAuthenticated,
   loadAuth,
   setAuth as persistAuth,
 } from "@/lib/auth";
+import { isTokenExpired } from "@/lib/jwt";
 import { registerPushToken } from "@/lib/pushNotifications";
 import { queryClient } from "@/lib/queryClient";
 import {
@@ -58,6 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const sub = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
         void registerPushToken();
+        const token = getToken();
+        if (token && isTokenExpired(token)) {
+          void refreshAccessToken().catch(() => {
+            // Offline — keep session until refresh succeeds or server rejects it.
+          });
+        }
       }
     });
 

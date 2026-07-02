@@ -104,7 +104,8 @@ export async function refreshAccessToken(): Promise<boolean> {
       await updateTokens(json.data.token, json.data.refreshToken);
       return true;
     } catch {
-      return false;
+      // Network failure — do not treat as invalid session (caller keeps refresh token).
+      throw new ApiRequestError("NETWORK_ERROR", NETWORK_ERROR_MESSAGE);
     } finally {
       refreshPromise = null;
     }
@@ -172,13 +173,7 @@ async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptio
       response.status,
     );
 
-    if (
-      !skipSessionLogout &&
-      !sessionLogoutSuppressed &&
-      (response.status === 401 || error.code === "UNAUTHORIZED" || error.code === "INVALID_TOKEN")
-    ) {
-      unauthorizedHandler?.();
-    }
+    // Session logout is handled in apiFetch after a failed token refresh — not here on every 401.
 
     throw apiError;
   }
@@ -204,9 +199,18 @@ export async function apiFetch<T>(
         path !== "/api/auth/refresh" &&
         !options.skipSessionLogout
       ) {
-        const refreshed = await refreshAccessToken();
-        if (refreshed) {
-          return apiFetchOnce<T>(path, options);
+        try {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            return apiFetchOnce<T>(path, options);
+          }
+        } catch (refreshErr) {
+          if (refreshErr instanceof ApiRequestError && refreshErr.code === "NETWORK_ERROR") {
+            throw refreshErr;
+          }
+        }
+        if (!sessionLogoutSuppressed) {
+          unauthorizedHandler?.();
         }
       }
 

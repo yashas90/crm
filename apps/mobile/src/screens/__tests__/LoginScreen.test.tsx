@@ -5,10 +5,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react-nativ
 
 jest.mock("@/lib/apiClient", () => ({
   apiPost: jest.fn(),
-}));
-
-jest.mock("@/lib/apiHealth", () => ({
-  checkApiReachable: jest.fn().mockResolvedValue(true),
+  ApiRequestError: class ApiRequestError extends Error {
+    code: string;
+    status?: number;
+    constructor(code: string, message: string, _details?: unknown, status?: number) {
+      super(message);
+      this.code = code;
+      this.status = status;
+    }
+  },
 }));
 
 jest.mock("@/providers/auth-provider", () => ({

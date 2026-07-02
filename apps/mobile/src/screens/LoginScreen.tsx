@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
-import { apiPost } from "@/lib/apiClient";
-import { checkApiReachable } from "@/lib/apiHealth";
+import { ApiRequestError, apiPost } from "@/lib/apiClient";
 import { useAuth } from "@/providers/auth-provider";
 import { colors, spacing, typography } from "@/theme";
 import { neuCard } from "@/theme/neubrutal";
@@ -33,14 +32,6 @@ export function LoginScreen() {
     setError(null);
     setLoading(true);
     try {
-      const reachable = await checkApiReachable();
-      if (!reachable) {
-        setError(
-          "Cannot reach the PropNinja server. Check mobile data or Wi‑Fi. If this keeps happening, uninstall the app and install the latest APK from your admin.",
-        );
-        return;
-      }
-
       const data = await apiPost<{
         token: string;
         refreshToken: string;
@@ -48,7 +39,11 @@ export function LoginScreen() {
       }>("/api/auth/login", { email: email.trim(), password });
       await login(data.token, data.user, data.refreshToken);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to sign in");
+      if (err instanceof ApiRequestError && err.code === "NETWORK_ERROR") {
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "Unable to sign in");
+      }
     } finally {
       setLoading(false);
     }
