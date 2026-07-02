@@ -41,6 +41,9 @@ export function getErrorMessage(error: unknown, fallback = "Something went wrong
     if (error.code === "RATE_LIMITED" || error.code === "IP_BLOCKED") {
       return error.message || "Too many requests. Please wait and try again.";
     }
+    if (error.code === "INTERNAL_ERROR") {
+      return "Lead counts are temporarily unavailable. Try Retry counts or refresh the page.";
+    }
     if (error.code === "VALIDATION_ERROR") {
       const details = formatValidationDetails(error.details);
       if (details) return details;

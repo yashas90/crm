@@ -41,7 +41,6 @@ import {
   buildLeadsSearchParams,
   countAdvancedLeadsFilters,
   defaultLeadsUrlFilters,
-  leadsBaseFiltersToQuery,
   leadsFiltersToQuery,
   leadsSharedFiltersToQuery,
   parseLeadsPageUrl,
@@ -111,15 +110,6 @@ export function LeadsPageView() {
 
   const sharedFiltersQuery = useMemo(() => leadsSharedFiltersToQuery(filters), [filters]);
 
-  const baseQuery = useMemo(
-    () =>
-      leadsBaseFiltersToQuery(filters, {
-        scope,
-        userId: ready && session ? session.id : undefined,
-      }),
-    [filters, scope, ready, session],
-  );
-
   const leadsQuery = useMemo(
     () =>
       leadsFiltersToQuery(filters, {
@@ -156,15 +146,9 @@ export function LeadsPageView() {
   const tabCountsParams = useMemo(
     () => ({
       ...sharedFiltersQuery,
-      assignedTo: baseQuery.assignedTo,
-      unassigned: baseQuery.unassigned,
-      deletedOnly: baseQuery.deletedOnly,
-      teamLeads: baseQuery.teamLeads,
-      duplicatesOnly: baseQuery.duplicatesOnly,
-      excludeDuplicates: baseQuery.excludeDuplicates,
-      naLeadsOnly: baseQuery.naLeadsOnly,
+      excludeDuplicates: "true" as const,
     }),
-    [sharedFiltersQuery, baseQuery],
+    [sharedFiltersQuery],
   );
 
   const { data, isLoading, isError, isFetching, error } = useLeads(leadsQuery, {
@@ -188,19 +172,16 @@ export function LeadsPageView() {
   }, [leadsQuery]);
 
   const handleRetryCounts = useCallback(async () => {
-    if (isAdmin && tabCounts.isError) {
-      const message = getErrorMessage(tabCounts.error, "");
-      if (message.toLowerCase().includes("too many requests")) {
-        try {
-          await apiPost("/api/admin/ip-block/clear", {});
-        } catch {
-          // Best-effort — still refetch below.
-        }
+    if (isAdmin) {
+      try {
+        await apiPost("/api/admin/ip-block/clear", {});
+      } catch {
+        // Best-effort — still refetch below.
       }
     }
     await getQueryClient().invalidateQueries({ queryKey: leadTabCountsQueryKey(tabCountsParams) });
     await getQueryClient().invalidateQueries({ queryKey: ["users"] });
-  }, [isAdmin, tabCounts.error, tabCounts.isError, tabCountsParams]);
+  }, [isAdmin, tabCountsParams]);
 
   const handleExportCsv = async () => {
     setIsExporting(true);
@@ -296,7 +277,12 @@ export function LeadsPageView() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
           <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{getErrorMessage(tabCounts.error, "Could not load lead tab counts.")}</span>
+            <span>
+              {getErrorMessage(
+                tabCounts.error,
+                "Could not load lead tab counts. The table below still works.",
+              )}
+            </span>
           </div>
           <Button variant="outline" size="sm" onClick={() => void handleRetryCounts()}>
             Retry counts

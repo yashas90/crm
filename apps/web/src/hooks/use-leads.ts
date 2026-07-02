@@ -294,6 +294,8 @@ export function useLeadTabCounts(
     enabled: options?.enabled !== false,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(2000 * (attempt + 1), 8000),
     meta: leadsQueryMeta(options),
   });
 }

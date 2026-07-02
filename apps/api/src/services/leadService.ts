@@ -385,53 +385,74 @@ async function countLeadsWhere(params: ListLeadsParams) {
   return count ?? 0;
 }
 
+async function safeCountLeadsWhere(label: string, params: ListLeadsParams): Promise<number> {
+  try {
+    return await countLeadsWhere(params);
+  } catch (err) {
+    logger.error("Lead count query failed", {
+      label,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return 0;
+  }
+}
+
 export const leadService = {
   async getStageCounts(baseParams: ListLeadsParams) {
-    const now = new Date().toISOString();
-    const deduped = {
-      ...baseParams,
-      excludeDuplicates: baseParams.duplicatesOnly ? false : (baseParams.excludeDuplicates ?? true),
-    };
+    try {
+      const now = new Date();
+      const deduped = {
+        ...baseParams,
+        excludeDuplicates: baseParams.duplicatesOnly
+          ? false
+          : (baseParams.excludeDuplicates ?? true),
+      };
 
-    const sharedWhere = buildListWhere({
-      ...deduped,
-      status: undefined,
-      activeOnly: undefined,
-      followUpDueBefore: undefined,
-      followUpDueAfter: undefined,
-      deletedOnly: false,
-    });
+      const sharedWhere = buildListWhere({
+        ...deduped,
+        status: undefined,
+        activeOnly: undefined,
+        followUpDueBefore: undefined,
+        followUpDueAfter: undefined,
+        deletedOnly: false,
+      });
 
-    const activeStatuses = sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
+      const activeStatuses = sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
 
-    const [row] = await db
-      .select({
-        active: sql<number>`count(*)::int filter (where ${activeStatuses})`,
-        new: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "new")})`,
-        pending: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "contacted")})`,
-        scheduled: sql<number>`count(*)::int filter (where ${and(
-          activeStatuses,
-          isNotNull(leads.nextFollowupAt),
-          gt(leads.nextFollowupAt, new Date(now)),
-        )})`,
-        overdue: sql<number>`count(*)::int filter (where ${and(
-          activeStatuses,
-          isNotNull(leads.nextFollowupAt),
-          lte(leads.nextFollowupAt, new Date(now)),
-        )})`,
-        eoi: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "qualified")})`,
-      })
-      .from(leads)
-      .where(sharedWhere);
+      const [row] = await db
+        .select({
+          active: sql<number>`count(*)::int filter (where ${activeStatuses})`,
+          new: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "new")})`,
+          pending: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "contacted")})`,
+          scheduled: sql<number>`count(*)::int filter (where ${and(
+            activeStatuses,
+            isNotNull(leads.nextFollowupAt),
+            gt(leads.nextFollowupAt, now),
+          )})`,
+          overdue: sql<number>`count(*)::int filter (where ${and(
+            activeStatuses,
+            isNotNull(leads.nextFollowupAt),
+            lte(leads.nextFollowupAt, now),
+          )})`,
+          eoi: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "qualified")})`,
+        })
+        .from(leads)
+        .where(sharedWhere);
 
-    return {
-      active: row?.active ?? 0,
-      new: row?.new ?? 0,
-      pending: row?.pending ?? 0,
-      scheduled: row?.scheduled ?? 0,
-      overdue: row?.overdue ?? 0,
-      eoi: row?.eoi ?? 0,
-    };
+      return {
+        active: row?.active ?? 0,
+        new: row?.new ?? 0,
+        pending: row?.pending ?? 0,
+        scheduled: row?.scheduled ?? 0,
+        overdue: row?.overdue ?? 0,
+        eoi: row?.eoi ?? 0,
+      };
+    } catch (err) {
+      logger.error("getStageCounts failed", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return { active: 0, new: 0, pending: 0, scheduled: 0, overdue: 0, eoi: 0 };
+    }
   },
 
   async getTabCounts(
@@ -459,27 +480,44 @@ export const leadService = {
 
     const [all, my, teams, unassigned, deleted, duplicate, reEnquired, naLeads] = await Promise.all(
       [
-        countLeadsWhere({ ...baseParams, ...agentBook, ...deduped }),
+        safeCountLeadsWhere("scope:all", { ...baseParams, ...agentBook, ...deduped }),
         userId
-          ? countLeadsWhere({ ...baseParams, assignedTo: userId, ...deduped })
+          ? safeCountLeadsWhere("scope:my", { ...baseParams, assignedTo: userId, ...deduped })
           : Promise.resolve(0),
         userId && !isAgent
-          ? countLeadsWhere({ ...baseParams, teamLeadsExcludingUser: userId, ...deduped })
+          ? safeCountLeadsWhere("scope:teams", {
+              ...baseParams,
+              teamLeadsExcludingUser: userId,
+              ...deduped,
+            })
           : Promise.resolve(0),
         isAgent
           ? Promise.resolve(0)
-          : countLeadsWhere({ ...baseParams, unassigned: true, ...deduped }),
-        countLeadsWhere({
+          : safeCountLeadsWhere("scope:unassigned", {
+              ...baseParams,
+              unassigned: true,
+              ...deduped,
+            }),
+        safeCountLeadsWhere("scope:deleted", {
           ...baseParams,
           deletedOnly: true,
           excludeDuplicates: true,
           ...(isAgent && userId ? { assignedTo: userId } : {}),
         }),
-        countLeadsWhere({ ...baseParams, ...agentBook, duplicatesOnly: true }),
-        countLeadsWhere({ ...baseParams, ...agentBook, reEnquiredOnly: true, ...deduped }),
+        safeCountLeadsWhere("scope:duplicate", {
+          ...baseParams,
+          ...agentBook,
+          duplicatesOnly: true,
+        }),
+        safeCountLeadsWhere("scope:re-enquired", {
+          ...baseParams,
+          ...agentBook,
+          reEnquiredOnly: true,
+          ...deduped,
+        }),
         isAgent
           ? Promise.resolve(0)
-          : countLeadsWhere({ ...baseParams, naLeadsOnly: true, ...deduped }),
+          : safeCountLeadsWhere("scope:naleads", { ...baseParams, naLeadsOnly: true, ...deduped }),
       ],
     );
 
