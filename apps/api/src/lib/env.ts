@@ -7,6 +7,8 @@ const envSchema = z
       .string()
       .min(1)
       .default("postgresql://postgres:postgres@localhost:5432/propninja"),
+    /** Postgres pool size per API instance. Use 20–30 for ~20 concurrent field agents. */
+    DATABASE_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
     DEMO_ORG_ID: z.string().uuid().default("00000000-0000-0000-0000-0000000000aa"),
     DEMO_USER_ID: z.string().uuid().default("00000000-0000-0000-0000-000000000001"),
