@@ -61,6 +61,10 @@ const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
 const RETRY_DELAY_MS = 600;
 const RATE_LIMIT_RETRY_DELAY_MS = 1500;
 const MAX_TRANSIENT_RETRIES = 2;
+const REQUEST_TIMEOUT_MS = 30_000;
+
+const NETWORK_ERROR_MESSAGE =
+  "Cannot reach the server. Check your mobile data or Wi‑Fi. If you recently updated the CRM, uninstall this app and install the latest APK from your admin.";
 
 function isTransientFailure(error: unknown): boolean {
   if (!(error instanceof ApiRequestError)) return false;
@@ -128,13 +132,21 @@ async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptio
   const url = `${getApiUrl()}${path}`;
   let response: Response;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
-    response = await fetch(url, { ...requestInit, headers });
-  } catch {
+    response = await fetch(url, { ...requestInit, headers, signal: controller.signal });
+  } catch (err) {
+    const timedOut = err instanceof Error && err.name === "AbortError";
     throw new ApiRequestError(
       "NETWORK_ERROR",
-      "Cannot reach the server. Check your internet connection and try again.",
+      timedOut
+        ? "The server took too long to respond. Check your connection and try again."
+        : NETWORK_ERROR_MESSAGE,
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const contentType = response.headers.get("content-type") ?? "";

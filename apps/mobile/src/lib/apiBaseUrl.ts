@@ -3,6 +3,9 @@ import { Platform } from "react-native";
 
 const DEV_API_PORT = process.env.EXPO_PUBLIC_API_PORT ?? "3001";
 
+/** Must match app.config.ts and eas.json — Mumbai production API. */
+export const PRODUCTION_API_URL = "https://crm-production-e81d.up.railway.app";
+
 type ExpoExtra = {
   apiUrl?: string;
 };
@@ -38,13 +41,7 @@ function resolveDevApiBaseUrl(): string {
 }
 
 function resolveReleaseApiBaseUrl(): string {
-  const url = configuredApiUrl();
-  if (!url) {
-    throw new Error(
-      "EXPO_PUBLIC_API_URL is not configured. Set it in eas.json or .env before building a release app.",
-    );
-  }
-  return url;
+  return configuredApiUrl() ?? PRODUCTION_API_URL;
 }
 
 /**

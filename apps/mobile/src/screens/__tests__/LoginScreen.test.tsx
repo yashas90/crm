@@ -7,6 +7,10 @@ jest.mock("@/lib/apiClient", () => ({
   apiPost: jest.fn(),
 }));
 
+jest.mock("@/lib/apiHealth", () => ({
+  checkApiReachable: jest.fn().mockResolvedValue(true),
+}));
+
 jest.mock("@/providers/auth-provider", () => ({
   useAuth: jest.fn(),
 }));
