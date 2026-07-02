@@ -399,60 +399,49 @@ async function safeCountLeadsWhere(label: string, params: ListLeadsParams): Prom
 
 export const leadService = {
   async getStageCounts(baseParams: ListLeadsParams) {
-    try {
-      const now = new Date();
-      const deduped = {
-        ...baseParams,
-        excludeDuplicates: baseParams.duplicatesOnly
-          ? false
-          : (baseParams.excludeDuplicates ?? true),
-      };
+    const deduped = {
+      ...baseParams,
+      excludeDuplicates: baseParams.duplicatesOnly
+        ? false
+        : (baseParams.excludeDuplicates ?? true),
+    };
 
-      const sharedWhere = buildListWhere({
-        ...deduped,
-        status: undefined,
-        activeOnly: undefined,
-        followUpDueBefore: undefined,
-        followUpDueAfter: undefined,
-        deletedOnly: false,
-      });
+    const sharedBase: ListLeadsParams = {
+      ...deduped,
+      status: undefined,
+      activeOnly: undefined,
+      followUpDueBefore: undefined,
+      followUpDueAfter: undefined,
+      deletedOnly: false,
+    };
 
-      const activeStatuses = sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
+    const nowIso = new Date().toISOString();
 
-      const [row] = await db
-        .select({
-          active: sql<number>`count(*)::int filter (where ${activeStatuses})`,
-          new: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "new")})`,
-          pending: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "contacted")})`,
-          scheduled: sql<number>`count(*)::int filter (where ${and(
-            activeStatuses,
-            isNotNull(leads.nextFollowupAt),
-            gt(leads.nextFollowupAt, now),
-          )})`,
-          overdue: sql<number>`count(*)::int filter (where ${and(
-            activeStatuses,
-            isNotNull(leads.nextFollowupAt),
-            lte(leads.nextFollowupAt, now),
-          )})`,
-          eoi: sql<number>`count(*)::int filter (where ${eq(leads.leadStatus, "qualified")})`,
-        })
-        .from(leads)
-        .where(sharedWhere);
+    const [active, newCount, pending, scheduled, overdue, eoi] = await Promise.all([
+      safeCountLeadsWhere("stage:active", { ...sharedBase, activeOnly: true }),
+      safeCountLeadsWhere("stage:new", { ...sharedBase, status: "new" }),
+      safeCountLeadsWhere("stage:pending", { ...sharedBase, status: "contacted" }),
+      safeCountLeadsWhere("stage:scheduled", {
+        ...sharedBase,
+        activeOnly: true,
+        followUpDueAfter: nowIso,
+      }),
+      safeCountLeadsWhere("stage:overdue", {
+        ...sharedBase,
+        activeOnly: true,
+        followUpDueBefore: nowIso,
+      }),
+      safeCountLeadsWhere("stage:eoi", { ...sharedBase, status: "qualified" }),
+    ]);
 
-      return {
-        active: row?.active ?? 0,
-        new: row?.new ?? 0,
-        pending: row?.pending ?? 0,
-        scheduled: row?.scheduled ?? 0,
-        overdue: row?.overdue ?? 0,
-        eoi: row?.eoi ?? 0,
-      };
-    } catch (err) {
-      logger.error("getStageCounts failed", {
-        message: err instanceof Error ? err.message : String(err),
-      });
-      return { active: 0, new: 0, pending: 0, scheduled: 0, overdue: 0, eoi: 0 };
-    }
+    return {
+      active,
+      new: newCount,
+      pending,
+      scheduled,
+      overdue,
+      eoi,
+    };
   },
 
   async getTabCounts(

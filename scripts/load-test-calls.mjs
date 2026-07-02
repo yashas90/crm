@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 /**
- * Quick API load check — simulates many call logs + leads polling.
+ * Quick API load check — simulates call logs + leads polling.
+ *
+ * Default mode spreads calls over time (realistic for one agent session).
+ * Set BURST=true to hammer the API in parallel (stress test).
  *
  * Usage (PowerShell):
  *   $env:API_URL="https://crm-production-e81d.up.railway.app"
- *   $env:LOAD_TEST_EMAIL="admin@yourcompany.com"
+ *   $env:LOAD_TEST_EMAIL="admin@propninja.com"
  *   $env:LOAD_TEST_PASSWORD="your-password"
  *   $env:AGENTS="10"
  *   $env:CALLS_PER_AGENT="20"
- *   node scripts/load-test-calls.mjs
+ *   $env:CALL_DELAY_MS="300"
+ *   pnpm load-test:calls
  */
 
 const API_URL = (process.env.API_URL ?? "https://crm-production-e81d.up.railway.app").replace(
@@ -19,10 +23,16 @@ const EMAIL = process.env.LOAD_TEST_EMAIL;
 const PASSWORD = process.env.LOAD_TEST_PASSWORD;
 const AGENTS = Math.max(1, Number(process.env.AGENTS ?? 10));
 const CALLS_PER_AGENT = Math.max(1, Number(process.env.CALLS_PER_AGENT ?? 20));
+const CALL_DELAY_MS = Math.max(0, Number(process.env.CALL_DELAY_MS ?? 300));
+const BURST = process.env.BURST === "true" || process.env.BURST === "1";
 
 if (!EMAIL || !PASSWORD) {
   console.error("Set LOAD_TEST_EMAIL and LOAD_TEST_PASSWORD environment variables.");
   process.exit(1);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function request(path, init = {}) {
@@ -60,35 +70,84 @@ async function getLeadId(token) {
   return id;
 }
 
-async function worker(token, leadId, workerId) {
+async function logCall(token, leadId, workerId, callIndex) {
+  return request("/api/calls/log", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body: JSON.stringify({
+      lead_id: leadId,
+      phone_number: "+919999999999",
+      direction: "outgoing",
+      status: "completed",
+      duration_seconds: 45,
+      started_at: new Date(Date.now() - 60_000).toISOString(),
+      ended_at: new Date().toISOString(),
+      outcome: "answered",
+      source: "mobile-manual",
+      notes: `load-test worker ${workerId} call ${callIndex}`,
+    }),
+  });
+}
+
+function tallyResult(results, res) {
+  results.ms.push(res.ms);
+  if (res.status === 429) results.rateLimited += 1;
+  else if (res.ok && res.json?.ok) results.ok += 1;
+  else results.failed += 1;
+}
+
+async function workerSequential(token, leadId, workerId) {
   const results = { ok: 0, rateLimited: 0, failed: 0, ms: [] };
   for (let i = 0; i < CALLS_PER_AGENT; i++) {
-    const res = await request("/api/calls/log", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-      },
-      body: JSON.stringify({
-        lead_id: leadId,
-        phone_number: "+919999999999",
-        direction: "outgoing",
-        status: "completed",
-        duration_seconds: 45,
-        started_at: new Date(Date.now() - 60_000).toISOString(),
-        ended_at: new Date().toISOString(),
-        outcome: "answered",
-        source: "mobile-manual",
-        notes: `load-test worker ${workerId} call ${i + 1}`,
-      }),
-    });
-    results.ms.push(res.ms);
-    if (res.status === 429) results.rateLimited += 1;
-    else if (res.ok && res.json?.ok) results.ok += 1;
-    else results.failed += 1;
+    const res = await logCall(token, leadId, workerId, i + 1);
+    tallyResult(results, res);
+    if (CALL_DELAY_MS > 0 && i < CALLS_PER_AGENT - 1) {
+      await sleep(CALL_DELAY_MS);
+    }
   }
   return results;
+}
+
+async function runRealisticLoad(token, leadId) {
+  const results = { ok: 0, rateLimited: 0, failed: 0, ms: [] };
+  const totalCalls = AGENTS * CALLS_PER_AGENT;
+  console.log(
+    `Mode: realistic — ${totalCalls} sequential calls, ${CALL_DELAY_MS}ms between each (~${Math.round((totalCalls * CALL_DELAY_MS) / 1000)}s)\n`,
+  );
+
+  let callNo = 0;
+  for (let agent = 1; agent <= AGENTS; agent++) {
+    for (let i = 0; i < CALLS_PER_AGENT; i++) {
+      callNo += 1;
+      const res = await logCall(token, leadId, agent, callNo);
+      tallyResult(results, res);
+      if (CALL_DELAY_MS > 0 && callNo < totalCalls) {
+        await sleep(CALL_DELAY_MS);
+      }
+    }
+  }
+  return results;
+}
+
+async function runBurstLoad(token, leadId) {
+  console.log(`Mode: burst — ${AGENTS} parallel workers × ${CALLS_PER_AGENT} calls each\n`);
+  const workers = Array.from({ length: AGENTS }, (_, i) =>
+    workerSequential(token, leadId, i + 1),
+  );
+  const workerResults = await Promise.all(workers);
+  return workerResults.reduce(
+    (acc, r) => ({
+      ok: acc.ok + r.ok,
+      rateLimited: acc.rateLimited + r.rateLimited,
+      failed: acc.failed + r.failed,
+      ms: acc.ms.concat(r.ms),
+    }),
+    { ok: 0, rateLimited: 0, failed: 0, ms: [] },
+  );
 }
 
 function summarize(label, allMs, totals) {
@@ -101,7 +160,7 @@ function summarize(label, allMs, totals) {
 
 async function main() {
   console.log(`API: ${API_URL}`);
-  console.log(`Simulating ${AGENTS} agents × ${CALLS_PER_AGENT} calls each\n`);
+  console.log(`Target: ${AGENTS} agents × ${CALLS_PER_AGENT} calls each\n`);
 
   const token = await login();
   console.log("Login OK");
@@ -115,21 +174,17 @@ async function main() {
   console.log(
     `Tab counts: HTTP ${tabCounts.status} in ${tabCounts.ms}ms${tabCounts.json?.ok ? " (ok)" : ` — ${tabCounts.json?.error?.message ?? "error"}`}`,
   );
+  if (tabCounts.json?.ok) {
+    console.log(
+      `  scope.all=${tabCounts.json.data.scope.all} stage.active=${tabCounts.json.data.stage.active}`,
+    );
+  }
 
-  const workers = Array.from({ length: AGENTS }, (_, i) => worker(token, leadId, i + 1));
   const started = performance.now();
-  const workerResults = await Promise.all(workers);
+  const totals = BURST
+    ? await runBurstLoad(token, leadId)
+    : await runRealisticLoad(token, leadId);
   const elapsed = Math.round(performance.now() - started);
-
-  const totals = workerResults.reduce(
-    (acc, r) => ({
-      ok: acc.ok + r.ok,
-      rateLimited: acc.rateLimited + r.rateLimited,
-      failed: acc.failed + r.failed,
-      ms: acc.ms.concat(r.ms),
-    }),
-    { ok: 0, rateLimited: 0, failed: 0, ms: [] },
-  );
 
   console.log(`\nCompleted in ${elapsed}ms`);
   summarize("Call logs", totals.ms, totals);
@@ -139,16 +194,25 @@ async function main() {
   });
   console.log(`Leads list: HTTP ${leadsPoll.status} in ${leadsPoll.ms}ms`);
 
-  if (totals.rateLimited > 0) {
-    console.error("\nFAIL: rate limits hit — raise limits or reduce burst.");
-    process.exit(1);
+  let failed = false;
+
+  if (!tabCounts.ok) {
+    console.error("\nFAIL: tab-counts returned non-200 — Leads page badges will be broken.");
+    failed = true;
   }
   if (totals.failed > 0) {
-    console.error("\nFAIL: some requests failed.");
-    process.exit(1);
+    console.error("\nFAIL: some call log requests failed.");
+    failed = true;
   }
-  if (!tabCounts.ok) {
-    console.error("\nWARN: tab-counts failed — check Leads page badges.");
+  if (totals.rateLimited > 0) {
+    const msg = BURST
+      ? "\nFAIL: rate limits hit during burst test."
+      : "\nFAIL: rate limits hit during realistic test — unexpected at this pace.";
+    console.error(msg);
+    failed = true;
+  }
+
+  if (failed) {
     process.exit(1);
   }
 
