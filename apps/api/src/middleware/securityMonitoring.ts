@@ -171,8 +171,4 @@ export function resetSecurityMonitoringState(): void {
   ipLeadsHitWindows.clear();
 }
 
-export {
-  LEAD_FETCH_THRESHOLD,
-  IP_LEADS_HIT_ALERT_THRESHOLD,
-  TEN_MIN_MS as SECURITY_WINDOW_MS,
-};
+export { LEAD_FETCH_THRESHOLD, IP_LEADS_HIT_ALERT_THRESHOLD, TEN_MIN_MS as SECURITY_WINDOW_MS };

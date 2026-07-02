@@ -81,7 +81,13 @@ export async function clearAllIpBlocks(): Promise<number> {
   try {
     let cursor = "0";
     do {
-      const [nextCursor, keys] = await redis.scan(cursor, "MATCH", `${REDIS_PREFIX}*`, "COUNT", 100);
+      const [nextCursor, keys] = await redis.scan(
+        cursor,
+        "MATCH",
+        `${REDIS_PREFIX}*`,
+        "COUNT",
+        100,
+      );
       cursor = nextCursor;
       if (keys.length > 0) {
         await redis.del(...keys);
