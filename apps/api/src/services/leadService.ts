@@ -1034,7 +1034,11 @@ export const leadService = {
         .update(leads)
         .set({ assignedTo: null, updatedAt: new Date() })
         .where(
-          and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNotNull(leads.assignedTo)),
+          and(
+            eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+            eq(leads.id, leadId),
+            isNotNull(leads.assignedTo),
+          ),
         )
         .returning();
 

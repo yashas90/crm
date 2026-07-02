@@ -600,8 +600,8 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             />
           ) : null}
         </ScrollView>
-      {canSwipe ? (
-        <View style={[styles.swipeHint, { bottom: 12 + insets.bottom }]}>
+        {canSwipe ? (
+          <View style={[styles.swipeHint, { bottom: 12 + insets.bottom }]}>
             <Ionicons name="arrow-back" size={14} color={colors.textMuted} />
             <Text style={styles.swipeHintText}>Swipe for prev / next lead</Text>
             <Ionicons name="arrow-forward" size={14} color={colors.textMuted} />

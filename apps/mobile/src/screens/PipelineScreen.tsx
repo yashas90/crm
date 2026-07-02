@@ -6,14 +6,14 @@ import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useIsManager } from "@/hooks/use-role";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { buildLeadBrowserParams } from "@/lib/lead-browser";
+import { isNaLeadStatus } from "@/lib/lead-status-options";
 import {
   ACTIVE_PIPELINE_STAGES,
   CLOSED_PIPELINE_STAGES,
   PIPELINE_STAGES,
   groupLeadsByStage,
 } from "@/lib/pipeline";
-import { buildLeadBrowserParams } from "@/lib/lead-browser";
-import { isNaLeadStatus } from "@/lib/lead-status-options";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";

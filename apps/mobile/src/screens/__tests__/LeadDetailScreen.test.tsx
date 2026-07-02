@@ -3,7 +3,9 @@ import { useAddLeadNote, useLead, useUpdateLead, useUpdateLeadFollowUp } from "@
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useTcfForLead, useUpsertTcfConsent } from "@/hooks/useTcf";
 import { LeadDetailScreen } from "@/screens/LeadDetailScreen";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react-native";
+import type { ReactElement } from "react";
 
 jest.mock("@/hooks/use-leads");
 jest.mock("@/components/site-visits/ScheduleVisitSheet", () => ({
@@ -65,6 +67,13 @@ const mockUseAutoDialerCallLog = useAutoDialerCallLog as jest.MockedFunction<
 >;
 
 const leadId = "11111111-1111-4111-8111-111111111111";
+
+function renderWithQueryClient(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 describe("LeadDetailScreen consent section", () => {
   beforeEach(() => {
@@ -174,10 +183,10 @@ describe("LeadDetailScreen consent section", () => {
   });
 
   it("renders consent controls with mocked API state", () => {
-    render(
+    renderWithQueryClient(
       <LeadDetailScreen
         route={{ key: "LeadDetail", name: "LeadDetailScreen", params: { leadId } }}
-        navigation={{ setOptions: jest.fn() } as never}
+        navigation={{ setOptions: jest.fn(), replace: jest.fn() } as never}
       />,
     );
 
