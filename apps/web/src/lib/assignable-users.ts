@@ -36,8 +36,9 @@ export function sessionAsAssignableUser(session: SessionLike): UserRow {
 }
 
 export function mergeAssignableUsers(users: UserRow[] | undefined, session: SessionLike | null) {
-  const items = users ?? [];
-  if (items.length > 0) return items;
-  if (!session?.id) return [];
-  return [sessionAsAssignableUser(session)];
+  const items = [...(users ?? [])];
+  if (session?.id && !items.some((user) => user.id === session.id)) {
+    items.unshift(sessionAsAssignableUser(session));
+  }
+  return items.length > 0 ? items : session?.id ? [sessionAsAssignableUser(session)] : [];
 }

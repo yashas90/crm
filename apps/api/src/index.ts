@@ -21,6 +21,7 @@ import { requestContextMiddleware } from "./middleware/requestContext.js";
 import { responseCacheMiddleware } from "./middleware/responseCache.js";
 import { securityHeadersMiddleware } from "./middleware/securityHeaders.js";
 import {
+  healIpBlockForAuthenticatedUser,
   ipBlocklistMiddleware,
   securityMonitoringMiddleware,
 } from "./middleware/securityMonitoring.js";
@@ -92,6 +93,7 @@ app.use("/api/*", ipBlocklistMiddleware);
 app.use("/api/*", csrfProtectionMiddleware);
 
 app.use("/api/*", authMiddleware);
+app.use("/api/*", healIpBlockForAuthenticatedUser);
 app.use("/api/*", securityMonitoringMiddleware);
 app.use("/api/*", responseCacheMiddleware);
 app.use("/api/*", authenticatedUserRateLimit);

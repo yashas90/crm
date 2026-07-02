@@ -118,9 +118,9 @@ export async function publicIpRateLimitMiddleware(c: Context, next: Next) {
   await next();
 }
 
-/** 500 requests/minute per authenticated user across all API routes. */
+/** 1200 requests/minute per authenticated user across all API routes. */
 export const authenticatedUserRateLimit = createUserRateLimiter({
-  limit: 500,
+  limit: 1200,
   windowMs: ONE_MINUTE_MS,
   bucket: "global",
   methods: "all",

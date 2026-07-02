@@ -1,5 +1,5 @@
 import { getErrorMessage } from "@/lib/errors";
-import { isForbiddenError } from "@/lib/query-errors";
+import { isForbiddenError, isRateLimitError } from "@/lib/query-errors";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 
 function showErrorToast(message: string) {
@@ -21,6 +21,7 @@ export function makeQueryClient() {
       onError: (error, query) => {
         if (query.meta?.suppressErrorToast) return;
         if (isForbiddenError(error)) return;
+        if (isRateLimitError(error)) return;
         showErrorToast(getErrorMessage(error, queryErrorFallback(query)));
       },
     }),

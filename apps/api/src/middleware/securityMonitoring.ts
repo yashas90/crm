@@ -1,12 +1,13 @@
 import type { Context, Next } from "hono";
 import { getClientIp } from "../lib/clientIp.js";
-import { blockIpSync, isIpBlocked } from "../lib/ipBlocklist.js";
+import { blockIpSync, isIpBlocked, unblockIp } from "../lib/ipBlocklist.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { SECURITY_ALERT_TYPES, createSecurityAlert } from "../services/securityAlertService.js";
 
 const TEN_MIN_MS = 10 * 60 * 1000;
 const LEAD_FETCH_THRESHOLD = 500;
-const IP_LEADS_HIT_THRESHOLD = 200;
+/** Authenticated CRM users — never auto-block their office IP for polling the leads UI. */
+const IP_LEADS_HIT_THRESHOLD = 2000;
 
 type UserWindow = { leadRows: number; startedAt: number };
 type IpWindow = { hits: number; startedAt: number };
@@ -36,10 +37,19 @@ function getIpWindow(ip: string): IpWindow {
   return existing;
 }
 
-/** Reject requests from auto-blocked IPs (before auth). */
+function hasBearerToken(c: Context): boolean {
+  return c.req.header("Authorization")?.startsWith("Bearer ") ?? false;
+}
+
+/** Reject requests from auto-blocked IPs (before auth). Logged-in CRM traffic is never blocked here. */
 export const ipBlocklistMiddleware = async (c: Context, next: Next) => {
   const path = new URL(c.req.url).pathname;
   if (!path.startsWith("/api/")) {
+    await next();
+    return;
+  }
+
+  if (hasBearerToken(c)) {
     await next();
     return;
   }
@@ -50,6 +60,19 @@ export const ipBlocklistMiddleware = async (c: Context, next: Next) => {
       { ok: false, error: { code: "IP_BLOCKED", message: "Too many requests. Try again later." } },
       429,
     );
+  }
+
+  await next();
+};
+
+/** Clear stale IP blocks when a valid session reaches the API (self-heal after false positives). */
+export const healIpBlockForAuthenticatedUser = async (c: Context, next: Next) => {
+  const authUser = c.get("authUser") as AuthUser | undefined;
+  if (authUser) {
+    const ip = getClientIp(c);
+    if (ip && (await isIpBlocked(ip))) {
+      await unblockIp(ip);
+    }
   }
 
   await next();
