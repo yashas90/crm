@@ -135,9 +135,7 @@ async function runRealisticLoad(token, leadId) {
 
 async function runBurstLoad(token, leadId) {
   console.log(`Mode: burst — ${AGENTS} parallel workers × ${CALLS_PER_AGENT} calls each\n`);
-  const workers = Array.from({ length: AGENTS }, (_, i) =>
-    workerSequential(token, leadId, i + 1),
-  );
+  const workers = Array.from({ length: AGENTS }, (_, i) => workerSequential(token, leadId, i + 1));
   const workerResults = await Promise.all(workers);
   return workerResults.reduce(
     (acc, r) => ({
@@ -181,9 +179,7 @@ async function main() {
   }
 
   const started = performance.now();
-  const totals = BURST
-    ? await runBurstLoad(token, leadId)
-    : await runRealisticLoad(token, leadId);
+  const totals = BURST ? await runBurstLoad(token, leadId) : await runRealisticLoad(token, leadId);
   const elapsed = Math.round(performance.now() - started);
 
   console.log(`\nCompleted in ${elapsed}ms`);

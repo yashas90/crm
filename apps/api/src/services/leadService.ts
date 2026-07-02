@@ -401,9 +401,7 @@ export const leadService = {
   async getStageCounts(baseParams: ListLeadsParams) {
     const deduped = {
       ...baseParams,
-      excludeDuplicates: baseParams.duplicatesOnly
-        ? false
-        : (baseParams.excludeDuplicates ?? true),
+      excludeDuplicates: baseParams.duplicatesOnly ? false : (baseParams.excludeDuplicates ?? true),
     };
 
     const sharedBase: ListLeadsParams = {
