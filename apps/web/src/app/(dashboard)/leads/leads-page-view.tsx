@@ -23,6 +23,7 @@ import {
 } from "@/hooks/use-leads";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
+import { apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import { formatLeadSourceDisplay } from "@/lib/lead-sources";
 import { type LeadsDatePreset, resolveLeadsDatePreset } from "@/lib/leads-date-filters";
@@ -186,9 +187,20 @@ export function LeadsPageView() {
     void getQueryClient().invalidateQueries({ queryKey: leadsListQueryKey(leadsQuery) });
   }, [leadsQuery]);
 
-  const handleRetryCounts = useCallback(() => {
-    void getQueryClient().invalidateQueries({ queryKey: leadTabCountsQueryKey(tabCountsParams) });
-  }, [tabCountsParams]);
+  const handleRetryCounts = useCallback(async () => {
+    if (isAdmin && tabCounts.isError) {
+      const message = getErrorMessage(tabCounts.error, "");
+      if (message.toLowerCase().includes("too many requests")) {
+        try {
+          await apiPost("/api/admin/ip-block/clear", {});
+        } catch {
+          // Best-effort — still refetch below.
+        }
+      }
+    }
+    await getQueryClient().invalidateQueries({ queryKey: leadTabCountsQueryKey(tabCountsParams) });
+    await getQueryClient().invalidateQueries({ queryKey: ["users"] });
+  }, [isAdmin, tabCounts.error, tabCounts.isError, tabCountsParams]);
 
   const handleExportCsv = async () => {
     setIsExporting(true);
@@ -286,7 +298,7 @@ export function LeadsPageView() {
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{getErrorMessage(tabCounts.error, "Could not load lead tab counts.")}</span>
           </div>
-          <Button variant="outline" size="sm" onClick={handleRetryCounts}>
+          <Button variant="outline" size="sm" onClick={() => void handleRetryCounts()}>
             Retry counts
           </Button>
         </div>

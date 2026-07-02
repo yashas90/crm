@@ -59,29 +59,34 @@ export const ipBlocklistMiddleware = async (c: Context, next: Next) => {
 export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
   const path = new URL(c.req.url).pathname;
   const method = c.req.method;
+  const authUser = c.get("authUser") as AuthUser | undefined;
 
   if (method === "GET" && (path.startsWith("/api/leads") || path === "/api/leads/export")) {
     const ip = getClientIp(c) ?? "unknown";
-    const ipWindow = getIpWindow(ip);
-    ipWindow.hits += 1;
 
-    if (ipWindow.hits > IP_LEADS_HIT_THRESHOLD) {
-      blockIpSync(ip);
-      const db = c.get("db");
-      if (db) {
-        void createSecurityAlert(db, {
-          alertType: SECURITY_ALERT_TYPES.IP_LEADS_FLOOD,
-          details: { hits: ipWindow.hits, path, windowMinutes: 10 },
-          ipAddress: ip,
-        });
+    // Logged-in web/mobile users poll leads often — monitor only, never auto-block their IP.
+    if (!authUser) {
+      const ipWindow = getIpWindow(ip);
+      ipWindow.hits += 1;
+
+      if (ipWindow.hits > IP_LEADS_HIT_THRESHOLD) {
+        blockIpSync(ip);
+        const db = c.get("db");
+        if (db) {
+          void createSecurityAlert(db, {
+            alertType: SECURITY_ALERT_TYPES.IP_LEADS_FLOOD,
+            details: { hits: ipWindow.hits, path, windowMinutes: 10 },
+            ipAddress: ip,
+          });
+        }
+        return c.json(
+          {
+            ok: false,
+            error: { code: "IP_BLOCKED", message: "Too many requests. Try again later." },
+          },
+          429,
+        );
       }
-      return c.json(
-        {
-          ok: false,
-          error: { code: "IP_BLOCKED", message: "Too many requests. Try again later." },
-        },
-        429,
-      );
     }
   }
 
@@ -89,7 +94,6 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
 
   if (method !== "GET" || (!path.startsWith("/api/leads") && path !== "/api/leads/export")) return;
 
-  const authUser = c.get("authUser") as AuthUser | undefined;
   if (!authUser) return;
 
   let rowCount = 0;

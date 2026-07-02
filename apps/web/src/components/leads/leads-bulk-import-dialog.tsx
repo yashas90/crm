@@ -21,6 +21,8 @@ import { useBulkImportLeads } from "@/hooks/use-bulk-leads";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
 import { useUsers } from "@/hooks/use-users";
+import { mergeAssignableUsers } from "@/lib/assignable-users";
+import { getErrorMessage } from "@/lib/errors";
 import {
   type BulkLeadImportRow,
   downloadLeadsCsvTemplate,
@@ -30,7 +32,7 @@ import { roundRobinDistributionLabel } from "@/lib/round-robin";
 import { Button } from "@propninja/ui/button";
 import { Label } from "@propninja/ui/label";
 import { AlertCircle, Download, FileUp, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type LeadsBulkImportDialogProps = {
   open: boolean;
@@ -54,7 +56,11 @@ export function LeadsBulkImportDialog({
   const { session } = useSession();
   const canImport = hasPermission("leads:bulk_upload");
   const bulkImport = useBulkImportLeads();
-  const { data: users } = useUsers(undefined, { enabled: open });
+  const usersQuery = useUsers(undefined, { enabled: open && canAssignLead });
+  const assignableUsers = useMemo(
+    () => mergeAssignableUsers(usersQuery.data, session),
+    [session, usersQuery.data],
+  );
 
   useEffect(() => {
     if (open && session?.id) {
@@ -133,10 +139,17 @@ export function LeadsBulkImportDialog({
               <AgentMultiSelect
                 id="bulk-import-assignees"
                 label="Assign imported leads to"
-                users={users ?? []}
+                users={assignableUsers}
                 selectedIds={assignToUserIds}
                 onChange={setAssignToUserIds}
                 hint={assignHint}
+                isLoading={usersQuery.isLoading}
+                errorMessage={
+                  usersQuery.isError
+                    ? getErrorMessage(usersQuery.error, "Could not load agents.")
+                    : undefined
+                }
+                onRetry={() => void usersQuery.refetch()}
               />
             ) : (
               <div className="rounded-xl border border-input bg-muted/30 p-3">

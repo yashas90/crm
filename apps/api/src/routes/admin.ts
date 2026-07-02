@@ -2,7 +2,9 @@ import { users } from "@propninja/db";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
+import { getClientIp } from "../lib/clientIp.js";
 import { AppError } from "../lib/errors.js";
+import { unblockIp } from "../lib/ipBlocklist.js";
 import { listPaginationSchema } from "../lib/pagination.js";
 import { isAdmin } from "../lib/permissions.js";
 import { PORTAL_MOCK_PAYLOADS } from "../lib/portalWebhookDefaults.js";
@@ -49,6 +51,19 @@ adminRoutes.post("/cache/clear", async (c) => {
 
   const cleared = clearAllResponseCaches();
   return jsonOk(c, { cleared });
+});
+
+/** Clear the caller's IP from the anti-scrape blocklist (e.g. after a false positive). */
+adminRoutes.post("/ip-block/clear", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+
+  if (!isAdmin(authUser)) {
+    return jsonError(c, "FORBIDDEN", "Admin access required", 403);
+  }
+
+  const ip = getClientIp(c);
+  if (ip) await unblockIp(ip);
+  return jsonOk(c, { cleared: ip ?? null });
 });
 
 adminRoutes.get("/security-alerts", async (c) => {

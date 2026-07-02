@@ -58,6 +58,17 @@ export function isIpBlockedSync(ip: string): boolean {
   return memoryIsBlocked(ip);
 }
 
+export async function unblockIp(ip: string): Promise<void> {
+  MEMORY_BLOCKS.delete(ip);
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.del(`${REDIS_PREFIX}${ip}`);
+  } catch {
+    // Fall back to in-memory only.
+  }
+}
+
 export function clearExpiredIpBlocks(): void {
   const now = Date.now();
   for (const [ip, until] of MEMORY_BLOCKS) {

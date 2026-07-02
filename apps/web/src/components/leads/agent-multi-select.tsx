@@ -12,6 +12,9 @@ type AgentMultiSelectProps = {
   onChange: (ids: string[]) => void;
   hint?: string;
   className?: string;
+  isLoading?: boolean;
+  errorMessage?: string;
+  onRetry?: () => void;
 };
 
 function roleLabel(role: UserRow["role"]) {
@@ -28,6 +31,9 @@ export function AgentMultiSelect({
   onChange,
   hint,
   className,
+  isLoading = false,
+  errorMessage,
+  onRetry,
 }: AgentMultiSelectProps) {
   const selectedSet = new Set(selectedIds);
 
@@ -75,8 +81,24 @@ export function AgentMultiSelect({
         className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-input bg-background p-2"
       >
         <legend className="sr-only">{label}</legend>
-        {users.length === 0 ? (
-          <p className="px-2 py-3 text-sm text-muted-foreground">No agents available</p>
+        {isLoading ? (
+          <p className="px-2 py-3 text-sm text-muted-foreground">Loading agents…</p>
+        ) : users.length === 0 ? (
+          <div className="space-y-2 px-2 py-3">
+            <p className="text-sm text-muted-foreground">No agents available</p>
+            {errorMessage ? (
+              <p className="text-sm text-amber-800 dark:text-amber-200">{errorMessage}</p>
+            ) : null}
+            {onRetry ? (
+              <button
+                type="button"
+                className="text-sm font-medium text-primary hover:underline"
+                onClick={onRetry}
+              >
+                Retry loading agents
+              </button>
+            ) : null}
+          </div>
         ) : (
           users.map((user) => {
             const checked = selectedSet.has(user.id);
