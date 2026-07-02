@@ -32,6 +32,7 @@ import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
 import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.js";
 import { inferFollowupType } from "../lib/followupType.js";
+import { logger } from "../lib/logger.js";
 import type { LeadAdvancedListQuery } from "../lib/leadAdvancedListQuery.js";
 import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
