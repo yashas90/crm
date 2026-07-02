@@ -36,6 +36,15 @@ export function runWithSessionLogoutSuppressed<T>(fn: () => Promise<T>): Promise
   });
 }
 
+/** End the session in React state (logout) or clear storage only during bootstrap. */
+export function invalidateSession() {
+  if (sessionLogoutSuppressed) {
+    void clearAuth();
+    return;
+  }
+  unauthorizedHandler?.();
+}
+
 export type ApiRequestOptions = {
   skipSessionLogout?: boolean;
   skipOfflineQueue?: boolean;

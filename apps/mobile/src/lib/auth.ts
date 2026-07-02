@@ -1,4 +1,10 @@
-import { ApiRequestError, apiGet, runWithSessionLogoutSuppressed } from "@/lib/apiClient";
+import {
+  ApiRequestError,
+  apiGet,
+  invalidateSession,
+  refreshAccessToken,
+  runWithSessionLogoutSuppressed,
+} from "@/lib/apiClient";
 import { isTokenExpired } from "@/lib/jwt";
 import * as SecureStore from "expo-secure-store";
 
@@ -38,7 +44,6 @@ export async function loadAuth() {
   }
 
   if (cachedRefreshToken) {
-    const { refreshAccessToken } = await import("@/lib/apiClient");
     try {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
@@ -103,13 +108,33 @@ export function isAuthenticated() {
   return Boolean(cachedToken || cachedRefreshToken);
 }
 
+async function ensureAccessTokenFresh(): Promise<"fresh" | "offline" | "invalid"> {
+  if (cachedToken && !isTokenExpired(cachedToken)) return "fresh";
+  if (!cachedRefreshToken) return "invalid";
+
+  try {
+    const refreshed = await refreshAccessToken();
+    return refreshed ? "fresh" : "invalid";
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.code === "NETWORK_ERROR") {
+      return "offline";
+    }
+    return "invalid";
+  }
+}
+
 /** Sync user profile from GET /api/auth/me when a token is present. */
-export async function refreshCurrentUser(): Promise<SessionUser | null> {
-  if (!cachedToken) return null;
-  if (isTokenExpired(cachedToken)) {
-    await clearAuth();
+export async function refreshCurrentUser(retry = false): Promise<SessionUser | null> {
+  if (!cachedToken && !cachedRefreshToken) return null;
+
+  const tokenState = await ensureAccessTokenFresh();
+  if (tokenState === "offline") return cachedUser;
+  if (tokenState === "invalid") {
+    invalidateSession();
     return null;
   }
+
+  if (!cachedToken) return cachedUser;
 
   try {
     const user = await apiGet<SessionUser>("/api/auth/me", { skipSessionLogout: true });
@@ -118,7 +143,18 @@ export async function refreshCurrentUser(): Promise<SessionUser | null> {
     return user;
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) {
-      await clearAuth();
+      if (retry) {
+        invalidateSession();
+        return null;
+      }
+
+      const retryState = await ensureAccessTokenFresh();
+      if (retryState === "fresh") {
+        return refreshCurrentUser(true);
+      }
+      if (retryState === "offline") return cachedUser;
+
+      invalidateSession();
       return null;
     }
     return cachedUser;
