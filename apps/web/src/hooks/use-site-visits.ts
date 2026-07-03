@@ -193,6 +193,13 @@ export function visitStatusColor(status: SiteVisitStatus) {
   }
 }
 
+export function visitLeadName(visit: SiteVisit) {
+  if (visit.lead) {
+    return `${visit.lead.firstName} ${visit.lead.lastName}`.trim() || "Lead";
+  }
+  return "Lead";
+}
+
 export function formatVisitTime(visitTime: string) {
   return formatVisitTimeIst(visitTime);
 }

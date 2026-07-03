@@ -21,8 +21,8 @@ import {
   formatVisitTime,
   useCreateSiteVisit,
 } from "@/hooks/use-site-visits";
-import { useUsers } from "@/hooks/use-users";
-import { getIstDateKey } from "@propninja/types/ist";
+import { openCustomerSiteVisitWhatsApp } from "@/lib/site-visit-whatsapp-actions";
+import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
@@ -146,6 +146,19 @@ export function ScheduleVisitDialog({
                   "Property TBD"}
               </p>
               <AddToCalendarDropdown event={calendarEvent} className="w-full" />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  if (!confirmedVisit) return;
+                  if (!openCustomerSiteVisitWhatsApp(confirmedVisit)) {
+                    toast.error("Customer has no phone number or WhatsApp could not be opened.");
+                  }
+                }}
+              >
+                Message customer on WhatsApp
+              </Button>
             </div>
             <DialogFooter>
               <Button onClick={handleClose}>Done</Button>

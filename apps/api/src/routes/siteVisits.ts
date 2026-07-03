@@ -14,7 +14,10 @@ import { auditFromContext } from "../services/auditService.js";
 import { recalculateLeadScore } from "../services/leadScoringService.js";
 import { leadService } from "../services/leadService.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
-import { runSiteVisitAutomation } from "../services/siteVisitAutomationService.js";
+import {
+  getSiteVisitWhatsAppLinks,
+  runSiteVisitAutomation,
+} from "../services/siteVisitAutomationService.js";
 import { siteVisitService } from "../services/siteVisitService.js";
 
 export const siteVisitsRoutes = new Hono();
@@ -221,6 +224,33 @@ siteVisitsRoutes.get("/", async (c) => {
 
   const data = await siteVisitService.list(params);
   return jsonOk(c, data);
+});
+
+siteVisitsRoutes.get("/:id/whatsapp-links", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const visit = await siteVisitService.getById(c.req.param("id"));
+  if (!visit) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
+  if (authUser.role === "agent" && visit.agentId !== authUser.id) {
+    return jsonError(c, "FORBIDDEN", "Not allowed to view this visit", 403);
+  }
+
+  const eventRaw = c.req.query("event") ?? "scheduled";
+  const eventSchema = z.enum([
+    "scheduled",
+    "updated",
+    "rescheduled",
+    "cancelled",
+    "completed",
+    "reminder",
+  ]);
+  const parsedEvent = eventSchema.safeParse(eventRaw);
+  if (!parsedEvent.success) {
+    return jsonError(c, "VALIDATION_ERROR", "Invalid event", 400);
+  }
+
+  const links = await getSiteVisitWhatsAppLinks(visit.id, parsedEvent.data);
+  if (!links) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
+  return jsonOk(c, links);
 });
 
 siteVisitsRoutes.get("/:id", async (c) => {

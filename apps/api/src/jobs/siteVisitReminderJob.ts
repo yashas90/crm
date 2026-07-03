@@ -30,6 +30,7 @@ export async function syncSiteVisitReminders(now = new Date()) {
       visitTime: visit.visitTime,
       property,
       tierMinutes: visit.tierMinutes,
+      customerPhone: visit.lead?.phone ?? null,
     });
 
     await runSiteVisitAutomation(visit.id, "reminder", {

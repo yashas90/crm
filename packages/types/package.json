@@ -39,6 +39,10 @@
     "./ist": {
       "types": "./src/ist.ts",
       "default": "./src/ist.ts"
+    },
+    "./site-visit-messages": {
+      "types": "./src/siteVisitMessages.ts",
+      "default": "./src/siteVisitMessages.ts"
     }
   },
   "scripts": {

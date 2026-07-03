@@ -90,11 +90,6 @@ const envSchema = z
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     GOOGLE_REDIRECT_URI: z.string().url().optional(),
-    WHATSAPP_SITE_VISIT_CUSTOMER_TEMPLATE: z.string().min(1).optional(),
-    WHATSAPP_SITE_VISIT_AGENT_TEMPLATE: z.string().min(1).optional(),
-    WHATSAPP_SITE_VISIT_REMINDER_TEMPLATE: z.string().min(1).optional(),
-    WHATSAPP_SITE_VISIT_CANCEL_TEMPLATE: z.string().min(1).optional(),
-    WHATSAPP_SITE_VISIT_TEMPLATE_LANG: z.string().min(2).max(10).optional(),
     /** Optional — Expo push notification access token. */
     EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
     CORS_ORIGINS: z.string().optional(),

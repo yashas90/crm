@@ -19,6 +19,8 @@ export type SiteVisit = {
   id: string;
   leadId: string;
   projectId: string | null;
+  unitId?: string | null;
+  tower?: string | null;
   agentId: string;
   visitDate: string;
   visitTime: string;
@@ -26,6 +28,9 @@ export type SiteVisit = {
   status: SiteVisitStatus;
   notes: string | null;
   propertyAddress: string | null;
+  meetingLocation?: string | null;
+  mapsLink?: string | null;
+  customerEmail?: string | null;
   propertyLabel: string | null;
   outcome?: SiteVisitOutcome;
   outcomeNote?: string | null;
@@ -34,7 +39,8 @@ export type SiteVisit = {
   updatedAt?: string;
   lead: { id: string; firstName: string; lastName: string; phone: string | null } | null;
   project: { id: string; name: string } | null;
-  agent: { id: string; name: string } | null;
+  unit?: { id: string; unitNumber: string } | null;
+  agent: { id: string; name: string; phone?: string | null } | null;
 };
 
 export type SiteVisitsListParams = {
@@ -119,12 +125,17 @@ export function useCreateSiteVisit() {
     mutationFn: (input: {
       leadId: string;
       projectId?: string | null;
+      unitId?: string | null;
+      tower?: string | null;
       agentId?: string;
       visitDate: string;
       visitTime: string;
       duration?: number;
       notes?: string | null;
       propertyAddress?: string | null;
+      meetingLocation?: string | null;
+      mapsLink?: string | null;
+      customerEmail?: string | null;
     }) => apiPost<SiteVisit>("/api/site-visits", input),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["site-visits"] }),
   });

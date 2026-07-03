@@ -4,7 +4,8 @@ import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import type { Database } from "../lib/db.js";
 import { db } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
-import type { SiteVisitMessageContext, SiteVisitMessageKind } from "../lib/siteVisitMessages.js";
+import type { SiteVisitMessageKind } from "../lib/siteVisitMessages.js";
+import { prepareSiteVisitWhatsAppPair } from "../lib/siteVisitMessages.js";
 import { siteVisitTimeRange } from "../lib/siteVisitTime.js";
 import {
   cancelSiteVisitGoogleCalendar,
@@ -186,27 +187,45 @@ export async function runSiteVisitAutomation(
       visitDate: row.visitDate,
       visitTime: row.visitTime,
       status: row.status,
-      whatsappCustomer: customerResult.sent ? "sent" : (customerResult.error ?? "skipped"),
-      whatsappAgent: agentResult.sent ? "sent" : (agentResult.error ?? "skipped"),
+      whatsappCustomer: customerResult.prepared ? "prepared" : (customerResult.error ?? "skipped"),
+      whatsappAgent: agentResult.prepared ? "prepared" : (agentResult.error ?? "skipped"),
+      customerWhatsappUrl: customerResult.whatsappUrl,
+      agentWhatsappUrl: agentResult.whatsappUrl,
       event,
     },
   });
 
-  if (customerResult.sent || agentResult.sent) {
+  if (customerResult.prepared || agentResult.prepared) {
     await recordLeadActivity(database, {
       leadId: row.leadId,
       userId: actorUserId,
-      kind: "whatsapp_sent",
+      kind: "whatsapp_prepared",
       metadata: {
         siteVisitId: visitId,
-        customer: customerResult.sent,
-        agent: agentResult.sent,
+        customer: customerResult.prepared,
+        agent: agentResult.prepared,
+        customerWhatsappUrl: customerResult.whatsappUrl,
+        agentWhatsappUrl: agentResult.whatsappUrl,
         event,
-        customerWaMessageId: customerResult.waMessageId ?? null,
-        agentWaMessageId: agentResult.waMessageId ?? null,
       },
     });
   }
+}
+
+export async function getSiteVisitWhatsAppLinks(
+  visitId: string,
+  event: SiteVisitAutomationEvent,
+  database: Database = db,
+) {
+  const row = await loadVisitRow(database, visitId);
+  if (!row) return null;
+
+  const ctx = toMessageContext(row);
+  const messageEvent: SiteVisitMessageKind = event;
+  return prepareSiteVisitWhatsAppPair(messageEvent, ctx, {
+    customerPhone: row.leadPhone,
+    agentPhone: row.agentPhone ?? row.agentPersonalPhone,
+  });
 }
 
 export async function markMissedSiteVisits(database: Database = db) {

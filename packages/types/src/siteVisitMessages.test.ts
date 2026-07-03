@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentSiteVisitMessage, buildCustomerSiteVisitMessage } from "./siteVisitMessages.js";
+import {
+  buildAgentSiteVisitMessage,
+  buildCustomerSiteVisitMessage,
+  prepareSiteVisitWhatsApp,
+} from "./siteVisitMessages.js";
 
 const ctx = {
   customerName: "Priya Sharma",
@@ -33,8 +37,16 @@ describe("siteVisitMessages", () => {
     expect(message).toContain("+919876543210");
   });
 
-  it("builds cancellation copy", () => {
-    const message = buildCustomerSiteVisitMessage("cancelled", ctx);
-    expect(message.toLowerCase()).toContain("cancelled");
+  it("prepares wa.me link without Meta API", () => {
+    const result = prepareSiteVisitWhatsApp("customer", "scheduled", ctx, "+919876543210");
+    expect(result.prepared).toBe(true);
+    expect(result.whatsappUrl).toContain("wa.me/919876543210");
+    expect(result.whatsappUrl).toContain(encodeURIComponent("Priya Sharma"));
+  });
+
+  it("returns NO_PHONE when phone missing", () => {
+    const result = prepareSiteVisitWhatsApp("customer", "scheduled", ctx, null);
+    expect(result.prepared).toBe(false);
+    expect(result.error).toBe("NO_PHONE");
   });
 });

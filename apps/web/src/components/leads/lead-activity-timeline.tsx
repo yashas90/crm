@@ -26,7 +26,8 @@ function siteVisitActivityTitle(kind: string | undefined) {
     case "visit_completed":
       return "Site visit completed";
     case "whatsapp_sent":
-      return "WhatsApp sent";
+    case "whatsapp_prepared":
+      return "WhatsApp message prepared";
     case "reminder_sent":
       return "Reminder sent";
     case "customer_confirmed":
@@ -47,7 +48,10 @@ function activityMeta(activity: LeadActivity) {
     const time = meta?.visitTime ? String(meta.visitTime) : null;
     const body = [date, time].filter(Boolean).join(" · ") || undefined;
     return {
-      icon: kind === "whatsapp_sent" || kind === "reminder_sent" ? MessageCircle : CalendarDays,
+      icon:
+        kind === "whatsapp_sent" || kind === "whatsapp_prepared" || kind === "reminder_sent"
+          ? MessageCircle
+          : CalendarDays,
       title: siteVisitActivityTitle(kind),
       body,
     };
