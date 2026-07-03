@@ -6,7 +6,7 @@ import {
   siteVisits,
   tcfConsents,
 } from "@propninja/db";
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import {
@@ -311,6 +311,7 @@ export async function recalculateAllActiveLeadScores(now = new Date()) {
   if (!isLeadScoringEnabled(settings)) {
     return { updated: 0, checked: 0, skipped: true as const };
   }
+  const enabled = isLeadScoringEnabled(settings);
 
   const activeLeads = await db
     .select({
@@ -325,13 +326,190 @@ export async function recalculateAllActiveLeadScores(now = new Date()) {
       and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt), activeLeadStatusFilter()),
     );
 
+  if (activeLeads.length === 0) return { updated: 0, checked: 0, skipped: false as const };
+
+  const leadIds = activeLeads.map((l) => l.id);
+  const noteCutoff = new Date(now.getTime() - RECENT_NOTE_DAYS * 86_400_000);
+
+  // 7 bulk queries instead of N×9 sequential queries
+  const [
+    answeredRows,
+    scheduledRows,
+    completedRows,
+    recentNoteRows,
+    dncRows,
+    allCallOutcomeRows,
+    allActivityRows,
+  ] = await Promise.all([
+    db
+      .selectDistinct({ leadId: callRecords.leadId })
+      .from(callRecords)
+      .where(
+        and(
+          eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
+          eq(callRecords.outcome, "answered"),
+          inArray(callRecords.leadId, leadIds),
+        ),
+      ),
+    db
+      .selectDistinct({ leadId: siteVisits.leadId })
+      .from(siteVisits)
+      .where(
+        and(
+          eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
+          eq(siteVisits.status, "scheduled"),
+          inArray(siteVisits.leadId, leadIds),
+        ),
+      ),
+    db
+      .selectDistinct({ leadId: siteVisits.leadId })
+      .from(siteVisits)
+      .where(
+        and(
+          eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
+          eq(siteVisits.status, "completed"),
+          inArray(siteVisits.leadId, leadIds),
+        ),
+      ),
+    db
+      .selectDistinct({ leadId: leadActivities.leadId })
+      .from(leadActivities)
+      .where(
+        and(
+          eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
+          eq(leadActivities.type, "note"),
+          gte(leadActivities.createdAt, noteCutoff),
+          inArray(leadActivities.leadId, leadIds),
+        ),
+      ),
+    db
+      .selectDistinct({ leadId: tcfConsents.leadId })
+      .from(tcfConsents)
+      .where(
+        and(
+          eq(tcfConsents.consentType, "call"),
+          eq(tcfConsents.consented, false),
+          inArray(tcfConsents.leadId, leadIds),
+        ),
+      ),
+    db
+      .select({ leadId: callRecords.leadId, outcome: callRecords.outcome })
+      .from(callRecords)
+      .where(and(eq(callRecords.orgId, SINGLE_TENANT_ORG_ID), inArray(callRecords.leadId, leadIds)))
+      .orderBy(callRecords.leadId, desc(callRecords.startedAt)),
+    db
+      .select({
+        leadId: leadActivities.leadId,
+        type: leadActivities.type,
+        metadata: leadActivities.metadata,
+        createdAt: leadActivities.createdAt,
+      })
+      .from(leadActivities)
+      .where(
+        and(
+          eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
+          inArray(leadActivities.leadId, leadIds),
+        ),
+      ),
+  ]);
+
+  // Build O(1) lookup sets
+  const answeredSet = new Set(answeredRows.map((r) => r.leadId));
+  const scheduledSet = new Set(scheduledRows.map((r) => r.leadId));
+  const completedSet = new Set(completedRows.map((r) => r.leadId));
+  const recentNoteSet = new Set(recentNoteRows.map((r) => r.leadId));
+  const dncSet = new Set(dncRows.map((r) => r.leadId));
+
+  // Group call outcomes per lead for consecutive NA calculation
+  const callOutcomesByLead = new Map<string, string[]>();
+  for (const row of allCallOutcomeRows) {
+    if (!row.leadId) continue;
+    let outcomes = callOutcomesByLead.get(row.leadId);
+    if (!outcomes) {
+      outcomes = [];
+      callOutcomesByLead.set(row.leadId, outcomes);
+    }
+    if (outcomes.length < 10) outcomes.push(row.outcome ?? "");
+  }
+
+  function consecutiveNoAnswers(leadId: string): number {
+    const outcomes = callOutcomesByLead.get(leadId) ?? [];
+    let streak = 0;
+    for (const outcome of outcomes) {
+      if (outcome === "no_answer") streak++;
+      else break;
+    }
+    return streak;
+  }
+
+  // Group activities per lead for re-enquiry calculation
+  type ActivityRow = { type: string; metadata: unknown; createdAt: Date };
+  const activitiesByLead = new Map<string, ActivityRow[]>();
+  for (const row of allActivityRows) {
+    if (!row.leadId) continue;
+    let acts = activitiesByLead.get(row.leadId);
+    if (!acts) {
+      acts = [];
+      activitiesByLead.set(row.leadId, acts);
+    }
+    acts.push({ type: row.type, metadata: row.metadata, createdAt: row.createdAt });
+  }
+
+  function isReEnquired(leadId: string, createdAt: Date): boolean {
+    const acts = activitiesByLead.get(leadId) ?? [];
+    const adLeads = acts.filter(
+      (a) => (a.metadata as Record<string, string> | null)?.kind === "ad_lead",
+    );
+    return (
+      acts.some((a) => {
+        const meta = a.metadata as Record<string, string> | null;
+        return (
+          a.type === "status_change" &&
+          ["lost", "won"].includes(meta?.from ?? "") &&
+          ["new", "contacted", "qualified", "negotiation"].includes(meta?.to ?? "")
+        );
+      }) ||
+      acts.some((a) => (a.metadata as Record<string, string> | null)?.kind === "re_enquiry") ||
+      adLeads.length >= 2 ||
+      adLeads.some((a) => a.createdAt > new Date(createdAt.getTime() + 86_400_000))
+    );
+  }
+
+  // Score all leads and write updates in chunks of 20 (respect pool size)
+  const CHUNK = 20;
   let updated = 0;
 
-  for (const lead of activeLeads) {
-    const input = await gatherLeadScoringInput(lead, now);
-    const { score } = calculateLeadScore(input);
-    await persistLeadScore(lead.id, score, now);
-    updated += 1;
+  for (let i = 0; i < activeLeads.length; i += CHUNK) {
+    const chunk = activeLeads.slice(i, i + CHUNK);
+    await Promise.all(
+      chunk.map(async (lead) => {
+        const input: import("../lib/leadScoring.js").LeadScoringInput = {
+          now,
+          createdAt: lead.createdAt,
+          lastContactedAt: lead.lastContactedAt,
+          leadSource: lead.leadSource,
+          whatsappRepliedAt: lead.whatsappRepliedAt,
+          hasAnsweredCall: answeredSet.has(lead.id),
+          hasScheduledVisit: scheduledSet.has(lead.id),
+          hasCompletedVisit: completedSet.has(lead.id),
+          hasRecentNote: recentNoteSet.has(lead.id),
+          isReEnquired: isReEnquired(lead.id, lead.createdAt),
+          doNotCall: dncSet.has(lead.id),
+          consecutiveNoAnswers: consecutiveNoAnswers(lead.id),
+        };
+        const { score } = calculateLeadScore(input);
+        await db
+          .update(leads)
+          .set({
+            score,
+            scoreUpdatedAt: now,
+            updatedAt: now,
+            ...(enabled ? { temperature: scoreTier(score) } : {}),
+          })
+          .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, lead.id)));
+        updated++;
+      }),
+    );
   }
 
   return { updated, checked: activeLeads.length, skipped: false as const };

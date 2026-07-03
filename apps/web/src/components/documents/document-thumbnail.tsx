@@ -47,14 +47,24 @@ export function DocumentThumbnail({ fileType, fileUrl, name, className }: Docume
   if (fileType === "image") {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={fileUrl} alt={name} className={className ?? "h-full w-full object-cover"} />
+      <img
+        src={fileUrl}
+        alt={name}
+        loading="lazy"
+        className={className ?? "h-full w-full object-cover"}
+      />
     );
   }
 
   if (fileType === "pdf" && pdfPreview) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={pdfPreview} alt={name} className={className ?? "h-full w-full object-cover"} />
+      <img
+        src={pdfPreview}
+        alt={name}
+        loading="lazy"
+        className={className ?? "h-full w-full object-cover"}
+      />
     );
   }
 

@@ -1,8 +1,13 @@
 "use client";
 
 import { AnalyticsBookedUnits } from "@/components/analytics/analytics-booked-units";
-import { AnalyticsCharts } from "@/components/analytics/analytics-charts";
 import { AnalyticsDateFilter } from "@/components/analytics/analytics-date-filter";
+import dynamic from "next/dynamic";
+const AnalyticsCharts = dynamic(
+  () =>
+    import("@/components/analytics/analytics-charts").then((m) => ({ default: m.AnalyticsCharts })),
+  { ssr: false },
+);
 import { AnalyticsHealth } from "@/components/analytics/analytics-health";
 import { AnalyticsKpiCards } from "@/components/analytics/analytics-kpi-cards";
 import { AnalyticsLeaderboard } from "@/components/analytics/analytics-leaderboard";

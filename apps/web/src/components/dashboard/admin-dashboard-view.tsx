@@ -13,7 +13,12 @@ import {
 import { HotLeadsTable } from "@/components/dashboard/hot-leads-table";
 import { LeadsSourceHero } from "@/components/dashboard/leads-source-hero";
 import { OverviewKpiStrip } from "@/components/dashboard/overview-kpi-strip";
-import { PipelineHealth } from "@/components/dashboard/pipeline-health";
+import dynamic from "next/dynamic";
+const PipelineHealth = dynamic(
+  () =>
+    import("@/components/dashboard/pipeline-health").then((m) => ({ default: m.PipelineHealth })),
+  { ssr: false },
+);
 import { PipelineValueCards } from "@/components/dashboard/pipeline-value-cards";
 import { RecentActivityFeed } from "@/components/dashboard/recent-activity-feed";
 import { RemindersPanel } from "@/components/dashboard/reminders-panel";

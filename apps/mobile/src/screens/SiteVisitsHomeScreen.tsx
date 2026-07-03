@@ -12,7 +12,7 @@ import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { getIstDateKey } from "@propninja/types/ist";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useMemo, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<VisitsStackParamList, "SiteVisitsHomeScreen">;
@@ -86,7 +86,9 @@ export function SiteVisitsHomeScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      <ScrollView
+      <FlatList
+        data={visits}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}
         refreshControl={
           <RefreshControl
@@ -95,44 +97,47 @@ export function SiteVisitsHomeScreen({ navigation }: Props) {
             tintColor={colors.primary}
           />
         }
-      >
-        <Pressable
-          style={styles.calendarBanner}
-          onPress={() => navigation.navigate("SiteVisitsCalendarScreen")}
-        >
-          <Text style={styles.calendarBannerTitle}>Open calendar</Text>
-          <Text style={styles.calendarBannerHint}>Week & month view of all scheduled visits</Text>
-        </Pressable>
-
-        <Text style={styles.sectionTitle}>Today</Text>
-
-        {todayVisits.isLoading && !todayVisits.data ? (
-          <ListSkeleton rows={3} />
-        ) : todayVisits.isError && !todayVisits.data ? (
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="Could not load visits"
-            message="Pull to refresh or try again."
-          />
-        ) : visits.length === 0 ? (
-          <EmptyState
-            icon="calendar-outline"
-            title="No visits today"
-            message="Scheduled site visits for today will appear here."
-          />
-        ) : (
-          <View style={styles.list}>
-            {visits.map((visit) => (
-              <SiteVisitCard
-                key={visit.id}
-                visit={visit}
-                showAgent={isManager}
-                onPress={() => setSelectedVisit(visit)}
+        ListHeaderComponent={
+          <>
+            <Pressable
+              style={styles.calendarBanner}
+              onPress={() => navigation.navigate("SiteVisitsCalendarScreen")}
+            >
+              <Text style={styles.calendarBannerTitle}>Open calendar</Text>
+              <Text style={styles.calendarBannerHint}>
+                Week & month view of all scheduled visits
+              </Text>
+            </Pressable>
+            <Text style={styles.sectionTitle}>Today</Text>
+            {todayVisits.isLoading && !todayVisits.data ? <ListSkeleton rows={3} /> : null}
+            {todayVisits.isError && !todayVisits.data ? (
+              <EmptyState
+                icon="cloud-offline-outline"
+                title="Could not load visits"
+                message="Pull to refresh or try again."
               />
-            ))}
+            ) : null}
+          </>
+        }
+        ListEmptyComponent={
+          !todayVisits.isLoading && !todayVisits.isError ? (
+            <EmptyState
+              icon="calendar-outline"
+              title="No visits today"
+              message="Scheduled site visits for today will appear here."
+            />
+          ) : null
+        }
+        renderItem={({ item: visit }) => (
+          <View style={styles.listItem}>
+            <SiteVisitCard
+              visit={visit}
+              showAgent={isManager}
+              onPress={() => setSelectedVisit(visit)}
+            />
           </View>
         )}
-      </ScrollView>
+      />
 
       <VisitDetailSheet
         visit={selectedVisit}
@@ -221,7 +226,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
-  list: { paddingHorizontal: spacing.md, gap: spacing.sm },
+  listItem: { paddingHorizontal: spacing.md, marginBottom: spacing.sm },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",

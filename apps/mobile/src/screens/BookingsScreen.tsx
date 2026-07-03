@@ -7,9 +7,9 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -51,46 +51,43 @@ export function BookingsScreen({ navigation }: Props) {
   const items = data?.items ?? [];
 
   return (
-    <View style={styles.container}>
-      <View style={styles.searchWrap}>
-        <TextInput
-          style={styles.search}
-          placeholder="Search bookings…"
-          placeholderTextColor={colors.textMuted}
-          value={search}
-          onChangeText={setSearch}
+    <FlatList
+      style={styles.container}
+      data={items}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={() => void refetch()}
+          tintColor={colors.primary}
         />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={() => void refetch()}
-            tintColor={colors.primary}
+      }
+      ListHeaderComponent={
+        <View style={styles.searchWrap}>
+          <TextInput
+            style={styles.search}
+            placeholder="Search bookings…"
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
           />
-        }
-      >
-        {items.length === 0 ? (
-          <Text style={styles.empty}>No bookings this month.</Text>
-        ) : (
-          items.map((item) => (
-            <BookingRow
-              key={item.id}
-              item={item}
-              onPress={() =>
-                navigation.navigate("ProjectUnitScreen", {
-                  projectId: item.projectId,
-                  unitId: item.unitId,
-                  unitNumber: item.unitNumber,
-                })
-              }
-            />
-          ))
-        )}
-      </ScrollView>
-    </View>
+        </View>
+      }
+      ListEmptyComponent={<Text style={styles.empty}>No bookings this month.</Text>}
+      renderItem={({ item }) => (
+        <BookingRow
+          item={item}
+          onPress={() =>
+            navigation.navigate("ProjectUnitScreen", {
+              projectId: item.projectId,
+              unitId: item.unitId,
+              unitNumber: item.unitNumber,
+            })
+          }
+        />
+      )}
+    />
   );
 }
 
