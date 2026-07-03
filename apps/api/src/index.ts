@@ -3,6 +3,7 @@ import "./instrument.js";
 import type { Server } from "node:http";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { compress } from "hono/compress";
 import { cors } from "hono/cors";
 import { startFollowupNotificationJob } from "./jobs/followupNotificationJob.js";
 import { startGoogleAdsLeadSync } from "./jobs/googleAdsLeadJob.js";
@@ -63,6 +64,7 @@ import { whatsappRoute } from "./routes/whatsapp.js";
 
 const app = new Hono();
 
+app.use("*", compress());
 app.use("*", requestContextMiddleware);
 app.use("*", sentryRequestMiddleware);
 app.use("*", publicIpRateLimitMiddleware);
