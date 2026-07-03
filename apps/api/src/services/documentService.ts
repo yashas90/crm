@@ -6,7 +6,7 @@ import {
   projects,
   users,
 } from "@propninja/db";
-import { and, count, desc, eq, gte, ilike, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, ilike, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import {
@@ -318,6 +318,7 @@ export const documentService = {
     if (!lead) return null;
 
     const shareToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     const [share] = await db
       .insert(leadDocumentShares)
@@ -328,6 +329,7 @@ export const documentService = {
         sharedBy: input.sharedBy,
         sharedVia: input.sharedVia,
         shareToken,
+        expiresAt,
       })
       .returning();
 
@@ -439,6 +441,7 @@ export const documentService = {
         fileKey: documents.fileKey,
         fileType: documents.fileType,
         viewedAt: leadDocumentShares.viewedAt,
+        expiresAt: leadDocumentShares.expiresAt,
       })
       .from(leadDocumentShares)
       .innerJoin(documents, eq(leadDocumentShares.documentId, documents.id))
@@ -447,6 +450,7 @@ export const documentService = {
           eq(leadDocumentShares.documentId, documentId),
           eq(leadDocumentShares.shareToken, shareToken),
           eq(leadDocumentShares.orgId, SINGLE_TENANT_ORG_ID),
+          gt(leadDocumentShares.expiresAt, new Date()),
         ),
       )
       .limit(1);

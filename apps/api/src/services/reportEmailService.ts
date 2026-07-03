@@ -387,30 +387,32 @@ async function sendSummaryToRecipients(
   const recipients = await getReportEmailRecipients(database);
   let sent = 0;
 
-  for (const recipient of recipients) {
-    const metrics = summaryToMetricRows(input.comparison.current, input.comparison.previous);
-    const unsubscribeUrl = buildReportUnsubscribeUrl(recipient.id);
-    const subject = buildReportSummarySubject(input.periodLabel, input.isWeekly);
-    const html = buildReportSummaryHtml({
-      recipientName: recipient.name,
-      periodLabel: input.periodLabel,
-      comparisonLabel: input.comparisonLabel,
-      metrics,
-      topAgents: input.comparison.topAgents,
-      unsubscribeUrl,
-    });
-    const text = buildReportSummaryText({
-      recipientName: recipient.name,
-      periodLabel: input.periodLabel,
-      comparisonLabel: input.comparisonLabel,
-      metrics,
-      topAgents: input.comparison.topAgents,
-      unsubscribeUrl,
-    });
+  const subject = buildReportSummarySubject(input.periodLabel, input.isWeekly);
+  const metrics = summaryToMetricRows(input.comparison.current, input.comparison.previous);
 
-    await sendHtmlEmail({ to: recipient.email, subject, html, text });
-    sent += 1;
-  }
+  await Promise.all(
+    recipients.map(async (recipient) => {
+      const unsubscribeUrl = buildReportUnsubscribeUrl(recipient.id);
+      const html = buildReportSummaryHtml({
+        recipientName: recipient.name,
+        periodLabel: input.periodLabel,
+        comparisonLabel: input.comparisonLabel,
+        metrics,
+        topAgents: input.comparison.topAgents,
+        unsubscribeUrl,
+      });
+      const text = buildReportSummaryText({
+        recipientName: recipient.name,
+        periodLabel: input.periodLabel,
+        comparisonLabel: input.comparisonLabel,
+        metrics,
+        topAgents: input.comparison.topAgents,
+        unsubscribeUrl,
+      });
+      await sendHtmlEmail({ to: recipient.email, subject, html, text });
+      sent += 1;
+    }),
+  );
 
   return { sent, recipients: recipients.length };
 }

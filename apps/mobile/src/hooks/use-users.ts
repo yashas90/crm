@@ -36,6 +36,7 @@ export function useUsers(
     queryKey: ["users", params.toString()],
     queryFn: () => apiGet<UsersPage>(`/api/users?${params.toString()}`),
     enabled: ready && canListUsers && (options?.enabled ?? true),
+    staleTime: 5 * 60_000,
     meta: { suppressErrorToast: true },
   });
 }
