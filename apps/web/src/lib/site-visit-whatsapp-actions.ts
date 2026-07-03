@@ -1,7 +1,7 @@
 import type { SiteVisit } from "@/hooks/use-site-visits";
 import { prepareSiteVisitWhatsApp, siteVisitToMessageContext } from "@/lib/site-visit-whatsapp";
-import type { SiteVisitMessageKind } from "@propninja/types/site-visit-messages";
 import { buildWhatsAppUrl } from "@propninja/types/message-templates";
+import type { SiteVisitMessageKind } from "@propninja/types/site-visit-messages";
 
 export function openCustomerSiteVisitWhatsApp(
   visit: SiteVisit,
