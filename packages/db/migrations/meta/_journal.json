@@ -337,6 +337,13 @@
       "when": 1780632546735,
       "tag": "0047_analytics_perf_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1780632546736,
+      "tag": "0048_site_visit_public_token",
+      "breakpoints": true
     }
   ]
 }

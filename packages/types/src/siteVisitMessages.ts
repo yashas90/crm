@@ -14,6 +14,8 @@ export type SiteVisitMessageContext = {
   agentName: string;
   agentPhone: string | null;
   duration: number;
+  /** Customer self-service page — included in outbound WhatsApp text when set. */
+  customerPortalUrl?: string | null;
 };
 
 export type SiteVisitMessageKind =
@@ -134,6 +136,7 @@ export function buildCustomerSiteVisitMessage(
     "",
     "Reply if you need to reschedule.",
     "",
+    ...(ctx.customerPortalUrl ? ["🔗 Manage your visit:", ctx.customerPortalUrl, ""] : []),
     "Thank you.",
   ].join("\n");
 }

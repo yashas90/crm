@@ -51,6 +51,7 @@ import { orgRoutes } from "./routes/org.js";
 import { pipelineStagesRoutes } from "./routes/pipelineStages.js";
 import { projectComparisonRoutes } from "./routes/projectComparison.js";
 import { projectsRoutes } from "./routes/projects.js";
+import { publicSiteVisitsRoutes } from "./routes/publicSiteVisits.js";
 import { reportsRoutes } from "./routes/reports.js";
 import { securityRoutes } from "./routes/security.js";
 import { siteVisitsRoutes } from "./routes/siteVisits.js";
@@ -87,6 +88,7 @@ app.use(
 );
 
 app.route("/health", healthRoutes);
+app.route("/api/public/site-visits", publicSiteVisitsRoutes);
 app.route("/api/integrations/meta", metaIntegrationsRoute);
 app.route("/api/integrations/portal", portalIntegrationsRoute);
 app.route("/api/integrations/whatsapp", whatsappIntegrationsRoute);

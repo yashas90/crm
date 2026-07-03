@@ -4,6 +4,7 @@ import { and, asc, count, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { boundPageSize } from "../lib/pagination.js";
+import { generateSiteVisitPublicToken } from "../lib/siteVisitPublicToken.js";
 import {
   type SiteVisitReminderTier,
   appendReminderTier,
@@ -84,6 +85,7 @@ const visitSelectFields = {
   meetingLocation: siteVisits.meetingLocation,
   mapsLink: siteVisits.mapsLink,
   customerEmail: siteVisits.customerEmail,
+  publicToken: siteVisits.publicToken,
   googleCalendarEventId: siteVisits.googleCalendarEventId,
   outcome: siteVisits.outcome,
   outcomeNote: siteVisits.outcomeNote,
@@ -129,6 +131,7 @@ function mapVisitRow(row: {
   meetingLocation: string | null;
   mapsLink: string | null;
   customerEmail: string | null;
+  publicToken: string;
   googleCalendarEventId: string | null;
   outcome: string | null;
   outcomeNote: string | null;
@@ -168,6 +171,7 @@ function mapVisitRow(row: {
     meetingLocation: row.meetingLocation,
     mapsLink: row.mapsLink,
     customerEmail: row.customerEmail,
+    publicToken: row.publicToken,
     googleCalendarEventId: row.googleCalendarEventId,
     propertyLabel: property,
     outcome: row.outcome,
@@ -317,30 +321,60 @@ export const siteVisitService = {
 
     await assertNoOverlap(input.agentId, input.visitDate, visitTime, duration);
 
-    const [row] = await db
-      .insert(siteVisits)
-      .values({
-        orgId: SINGLE_TENANT_ORG_ID,
-        leadId: input.leadId,
-        projectId: input.projectId ?? null,
-        unitId: input.unitId ?? null,
-        tower: input.tower ?? null,
-        agentId: input.agentId,
-        visitDate: input.visitDate,
-        visitTime,
-        duration,
-        notes: input.notes ?? null,
-        propertyAddress: input.propertyAddress ?? null,
-        meetingLocation: input.meetingLocation ?? null,
-        mapsLink: input.mapsLink ?? null,
-        customerEmail: input.customerEmail ?? null,
-        status: "scheduled",
-        remindersSent: [],
-      })
-      .returning();
+    let publicToken = generateSiteVisitPublicToken();
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const [row] = await db
+          .insert(siteVisits)
+          .values({
+            orgId: SINGLE_TENANT_ORG_ID,
+            leadId: input.leadId,
+            projectId: input.projectId ?? null,
+            unitId: input.unitId ?? null,
+            tower: input.tower ?? null,
+            agentId: input.agentId,
+            visitDate: input.visitDate,
+            visitTime,
+            duration,
+            notes: input.notes ?? null,
+            propertyAddress: input.propertyAddress ?? null,
+            meetingLocation: input.meetingLocation ?? null,
+            mapsLink: input.mapsLink ?? null,
+            customerEmail: input.customerEmail ?? null,
+            publicToken,
+            status: "scheduled",
+            remindersSent: [],
+          })
+          .returning();
 
-    if (!row) throw new Error("Failed to create site visit");
-    return this.getById(row.id);
+        if (!row) throw new Error("Failed to create site visit");
+        return this.getById(row.id);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes("site_visits_public_token_idx") && !message.includes("unique")) {
+          throw error;
+        }
+        publicToken = generateSiteVisitPublicToken();
+      }
+    }
+
+    throw new Error("Failed to allocate public token for site visit");
+  },
+
+  async getByPublicToken(publicToken: string) {
+    const [row] = await db
+      .select(visitSelectFields)
+      .from(siteVisits)
+      .leftJoin(leads, eq(siteVisits.leadId, leads.id))
+      .leftJoin(projects, eq(siteVisits.projectId, projects.id))
+      .leftJoin(projectUnits, eq(siteVisits.unitId, projectUnits.id))
+      .leftJoin(users, eq(siteVisits.agentId, users.id))
+      .where(
+        and(eq(siteVisits.publicToken, publicToken), eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID)),
+      )
+      .limit(1);
+
+    return row ? mapVisitRow(row) : null;
   },
 
   async update(id: string, input: UpdateSiteVisitInput) {

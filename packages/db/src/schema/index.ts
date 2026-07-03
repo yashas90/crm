@@ -912,6 +912,7 @@ export const siteVisits = pgTable(
     mapsLink: text("maps_link"),
     meetingLocation: text("meeting_location"),
     customerEmail: text("customer_email"),
+    publicToken: text("public_token").notNull(),
     googleCalendarEventId: text("google_calendar_event_id"),
     googleCalendarUserId: uuid("google_calendar_user_id").references(() => users.id, {
       onDelete: "set null",
@@ -929,6 +930,7 @@ export const siteVisits = pgTable(
     index("site_visits_lead_id_idx").on(table.leadId),
     index("site_visits_agent_id_idx").on(table.agentId),
     index("site_visits_visit_date_idx").on(table.visitDate),
+    uniqueIndex("site_visits_public_token_idx").on(table.publicToken),
   ],
 );
 
@@ -983,6 +985,7 @@ export const leadDocumentShares = pgTable(
     sharedVia: text("shared_via").notNull(),
     shareToken: text("share_token").notNull().unique(),
     sharedAt: timestamp("shared_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     viewedAt: timestamp("viewed_at", { withTimezone: true }),
   },
   (table) => [
@@ -993,6 +996,7 @@ export const leadDocumentShares = pgTable(
     index("lead_document_shares_lead_id_idx").on(table.leadId),
     index("lead_document_shares_document_id_idx").on(table.documentId),
     index("lead_document_shares_share_token_idx").on(table.shareToken),
+    index("lead_document_shares_expires_at_idx").on(table.expiresAt),
   ],
 );
 

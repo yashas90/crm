@@ -43,6 +43,10 @@
     "./site-visit-messages": {
       "types": "./src/siteVisitMessages.ts",
       "default": "./src/siteVisitMessages.ts"
+    },
+    "./site-visit-public": {
+      "types": "./src/siteVisitPublic.ts",
+      "default": "./src/siteVisitPublic.ts"
     }
   },
   "scripts": {

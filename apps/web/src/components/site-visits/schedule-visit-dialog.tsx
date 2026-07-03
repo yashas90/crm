@@ -21,8 +21,11 @@ import {
   formatVisitTime,
   useCreateSiteVisit,
 } from "@/hooks/use-site-visits";
+import { useUsers } from "@/hooks/use-users";
+import { siteVisitCustomerUrlFromToken } from "@/lib/site-visit-customer-url";
 import { openCustomerSiteVisitWhatsApp } from "@/lib/site-visit-whatsapp-actions";
 import { toast } from "@/lib/toast";
+import { getIstDateKey } from "@propninja/types/ist";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
@@ -146,6 +149,24 @@ export function ScheduleVisitDialog({
                   "Property TBD"}
               </p>
               <AddToCalendarDropdown event={calendarEvent} className="w-full" />
+              {confirmedVisit.publicToken ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={async () => {
+                    const url = siteVisitCustomerUrlFromToken(confirmedVisit.publicToken);
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      toast.success("Customer link copied — send via WhatsApp, SMS, or email.");
+                    } catch {
+                      toast.error("Could not copy link.");
+                    }
+                  }}
+                >
+                  Copy customer booking link
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"

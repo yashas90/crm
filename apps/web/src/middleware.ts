@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 const SESSION_COOKIE_NAME = "propninja_session";
 const SESSION_COOKIE_VALUE = "1";
 
-const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/sitevisit"];
 
 /** URL prefixes for the (dashboard) route group (group name is not in the path). */
 const DASHBOARD_PREFIXES = [

@@ -23,6 +23,7 @@ export type SiteVisit = {
   meetingLocation: string | null;
   mapsLink: string | null;
   customerEmail: string | null;
+  publicToken: string;
   googleCalendarEventId: string | null;
   propertyLabel: string | null;
   reminderSent: boolean;

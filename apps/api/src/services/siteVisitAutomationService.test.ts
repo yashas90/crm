@@ -34,6 +34,7 @@ vi.mock("@propninja/db", () => ({
     mapsLink: "mapsLink",
     tower: "tower",
     customerEmail: "customerEmail",
+    publicToken: "publicToken",
     orgId: "orgId",
   },
   users: {
@@ -52,6 +53,7 @@ vi.mock("drizzle-orm", () => ({
 
 const visitRow = {
   id: "visit-1",
+  publicToken: "SV-2026-A1B2C3D4",
   leadId: "lead-1",
   agentId: "agent-1",
   visitDate: "2026-07-15",

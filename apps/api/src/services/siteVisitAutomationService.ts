@@ -1,10 +1,12 @@
 import { leadActivities, leads, projectUnits, projects, siteVisits, users } from "@propninja/db";
-import { and, eq, lte } from "drizzle-orm";
+import { buildSiteVisitCustomerUrl } from "@propninja/types/site-visit-public";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import type { Database } from "../lib/db.js";
 import { db } from "../lib/db.js";
+import { env } from "../lib/env.js";
 import { logger } from "../lib/logger.js";
-import type { SiteVisitMessageKind } from "../lib/siteVisitMessages.js";
+import type { SiteVisitMessageContext, SiteVisitMessageKind } from "../lib/siteVisitMessages.js";
 import { prepareSiteVisitWhatsAppPair } from "../lib/siteVisitMessages.js";
 import { siteVisitTimeRange } from "../lib/siteVisitTime.js";
 import {
@@ -23,6 +25,7 @@ export type SiteVisitAutomationEvent =
 
 type VisitAutomationRow = {
   id: string;
+  publicToken: string;
   leadId: string;
   agentId: string;
   visitDate: string;
@@ -53,6 +56,7 @@ async function loadVisitRow(
   const [row] = await database
     .select({
       id: siteVisits.id,
+      publicToken: siteVisits.publicToken,
       leadId: siteVisits.leadId,
       agentId: siteVisits.agentId,
       visitDate: siteVisits.visitDate,
@@ -87,6 +91,7 @@ async function loadVisitRow(
 }
 
 function toMessageContext(row: VisitAutomationRow): SiteVisitMessageContext {
+  const webBase = env.WEB_APP_URL ?? "https://www.ninjamarketing.in";
   return {
     customerName: `${row.leadFirst} ${row.leadLast}`.trim(),
     customerPhone: row.leadPhone,
@@ -100,6 +105,7 @@ function toMessageContext(row: VisitAutomationRow): SiteVisitMessageContext {
     agentName: row.agentName,
     agentPhone: row.agentPhone ?? row.agentPersonalPhone,
     duration: row.duration,
+    customerPortalUrl: buildSiteVisitCustomerUrl(row.publicToken, webBase),
   };
 }
 
@@ -233,7 +239,12 @@ export async function markMissedSiteVisits(database: Database = db) {
   const today = now.toISOString().slice(0, 10);
 
   const candidates = await database
-    .select({ id: siteVisits.id })
+    .select({
+      id: siteVisits.id,
+      visitDate: siteVisits.visitDate,
+      visitTime: siteVisits.visitTime,
+      duration: siteVisits.duration,
+    })
     .from(siteVisits)
     .where(
       and(
@@ -243,17 +254,19 @@ export async function markMissedSiteVisits(database: Database = db) {
       ),
     );
 
-  let updated = 0;
-  for (const visit of candidates) {
-    const full = await loadVisitRow(database, visit.id);
-    if (!full || full.status !== "scheduled") continue;
-    const { end } = siteVisitTimeRange(full.visitDate, full.visitTime, full.duration);
-    if (end > now) continue;
-    await database
-      .update(siteVisits)
-      .set({ status: "no_show", updatedAt: new Date() })
-      .where(eq(siteVisits.id, visit.id));
-    updated += 1;
-  }
-  return updated;
+  const expiredIds = candidates
+    .filter((v) => {
+      const { end } = siteVisitTimeRange(v.visitDate, v.visitTime, v.duration);
+      return end <= now;
+    })
+    .map((v) => v.id);
+
+  if (expiredIds.length === 0) return 0;
+
+  await database
+    .update(siteVisits)
+    .set({ status: "no_show", updatedAt: now })
+    .where(and(eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID), inArray(siteVisits.id, expiredIds)));
+
+  return expiredIds.length;
 }

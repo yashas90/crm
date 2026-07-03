@@ -13,6 +13,7 @@ import {
   useUpdateSiteVisit,
   visitStatusColor,
 } from "@/hooks/use-site-visits";
+import { siteVisitCustomerUrlFromToken } from "@/lib/site-visit-customer-url";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
@@ -161,6 +162,23 @@ export function VisitDetailSlideOver({
         ) : null}
 
         <AddToCalendarDropdown event={siteVisitToCalendarEvent(v)} />
+
+        {v.publicToken ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              void navigator.clipboard
+                .writeText(siteVisitCustomerUrlFromToken(v.publicToken))
+                .then(() => toast.success("Customer link copied"))
+                .catch(() => toast.error("Could not copy link"));
+            }}
+          >
+            Copy customer link
+          </Button>
+        ) : null}
 
         <div className="space-y-2 border-t border-border pt-4">
           <p className="text-sm font-semibold">Reschedule</p>
