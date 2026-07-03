@@ -11,6 +11,7 @@ import {
 } from "@/lib/bulk-leads";
 import { getErrorMessage } from "@/lib/errors";
 import type { BulkLeadImportRow } from "@/lib/parse-leads-csv";
+import { refetchAllLeadQueries } from "@/hooks/use-leads";
 import { toast } from "@/lib/toast";
 import type { LeadStatus } from "@propninja/types/enums";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,9 +20,7 @@ export function useBulkLeadActions() {
   const queryClient = useQueryClient();
 
   async function invalidateLeads() {
-    await queryClient.invalidateQueries({ queryKey: ["leads"] });
-    await queryClient.invalidateQueries({ queryKey: ["leads", "stage-counts"] });
-    await queryClient.invalidateQueries({ queryKey: ["leads", "scope-counts"] });
+    await refetchAllLeadQueries(queryClient);
   }
 
   const updateStatus = useMutation({
@@ -78,8 +77,7 @@ export function useBulkImportLeads() {
       parseErrors?: { row: number; message: string }[];
     }) => bulkImportLeads(input),
     onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey: ["leads"] });
-      await queryClient.invalidateQueries({ queryKey: ["leads", "import-batches"] });
+      await refetchAllLeadQueries(queryClient);
       const changedCount = result.createdCount + (result.updatedCount ?? 0);
       if (result.createdCount > 0 && (result.updatedCount ?? 0) > 0) {
         toast.success(
@@ -94,6 +92,7 @@ export function useBulkImportLeads() {
       } else if (changedCount === 0) {
         toast.error("No leads were imported");
       }
+      await queryClient.invalidateQueries({ queryKey: ["leads", "import-batches"] });
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Bulk import failed"));

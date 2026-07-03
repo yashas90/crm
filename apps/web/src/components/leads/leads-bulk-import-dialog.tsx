@@ -37,7 +37,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type LeadsBulkImportDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImported?: () => void;
+  onImported?: (info: { batchId: string; fileName?: string | null }) => void;
 };
 
 export function LeadsBulkImportDialog({
@@ -106,7 +106,9 @@ export function LeadsBulkImportDialog({
     });
 
     if (result.createdCount > 0 || (result.updatedCount ?? 0) > 0) {
-      onImported?.();
+      if (result.batchId) {
+        onImported?.({ batchId: result.batchId, fileName });
+      }
     }
     handleOpenChange(false);
   }

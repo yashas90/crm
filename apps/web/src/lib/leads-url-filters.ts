@@ -53,6 +53,26 @@ export const defaultLeadsUrlFilters = (): LeadsUrlFilters => ({
   importBatchLabel: "",
 });
 
+/** Filters applied after CSV import — show the upload batch, no source/date filters. */
+export function postImportLeadsFilters(input: {
+  batchId: string;
+  fileName?: string | null;
+}): LeadsUrlFilters {
+  return {
+    ...defaultLeadsUrlFilters(),
+    importBatchId: input.batchId,
+    importBatchLabel:
+      input.fileName?.trim() ||
+      `Upload ${new Date().toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`,
+  };
+}
+
 /** Normalize comma-separated tag filter for URL/API (trim, dedupe order preserved). */
 export function normalizeTagsFilter(raw: string): string {
   const seen = new Set<string>();

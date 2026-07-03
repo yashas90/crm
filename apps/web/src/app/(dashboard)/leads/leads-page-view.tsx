@@ -18,6 +18,7 @@ import {
   exportLeadsCsv,
   leadTabCountsQueryKey,
   leadsListQueryKey,
+  refetchAllLeadQueries,
   useLeadTabCounts,
   useLeads,
 } from "@/hooks/use-leads";
@@ -44,6 +45,7 @@ import {
   leadsFiltersToQuery,
   leadsSharedFiltersToQuery,
   parseLeadsPageUrl,
+  postImportLeadsFilters,
 } from "@/lib/leads-url-filters";
 import { getQueryClient } from "@/lib/queryClient";
 import { toast } from "@/lib/toast";
@@ -179,9 +181,41 @@ export function LeadsPageView() {
         // Best-effort — still refetch below.
       }
     }
-    await getQueryClient().invalidateQueries({ queryKey: leadTabCountsQueryKey(tabCountsParams) });
+    await refetchAllLeadQueries(getQueryClient());
     await getQueryClient().invalidateQueries({ queryKey: ["users"] });
-  }, [isAdmin, tabCountsParams]);
+  }, [isAdmin]);
+
+  const applyPostImportView = useCallback(
+    (info: { batchId: string; fileName?: string | null }) => {
+      const nextFilters = postImportLeadsFilters(info);
+      const nextScope: LeadsScope = isAdmin ? "all" : "my";
+      const nextStage: LeadsStage = "active";
+
+      skipUrlWriteRef.current = true;
+      setFilters(nextFilters);
+      setSearchDraft("");
+      setScope(nextScope);
+      setStage(nextStage);
+      setPage(1);
+      setSelectedLeadIds([]);
+      setBulkHint(false);
+
+      const query = buildLeadsSearchParams(nextFilters, { scope: nextScope, stage: nextStage });
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+
+      void refetchAllLeadQueries(getQueryClient());
+    },
+    [isAdmin, pathname, router],
+  );
+
+  const handleClearSourceFilter = useCallback(() => {
+    setFilters((current) => ({
+      ...current,
+      source: "",
+      adLeadsOnly: false,
+    }));
+    setPage(1);
+  }, []);
 
   const handleExportCsv = async () => {
     setIsExporting(true);
@@ -403,6 +437,18 @@ export function LeadsPageView() {
         />
       ) : (
         <section aria-label="Leads results">
+          {!tableLoading && data?.total === 0 && (filters.source || filters.adLeadsOnly) ? (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm">
+              <span className="text-sky-900 dark:text-sky-100">
+                No leads match the{" "}
+                <strong>{filters.adLeadsOnly ? "Ad Leads" : formatLeadSourceDisplay(filters.source)}</strong>{" "}
+                filter. Your CSV upload may use a different source.
+              </span>
+              <Button variant="outline" size="sm" onClick={handleClearSourceFilter}>
+                Show all sources
+              </Button>
+            </div>
+          ) : null}
           <p className="text-sm text-muted-foreground">
             {data ? (
               <>
@@ -463,15 +509,7 @@ export function LeadsPageView() {
       <LeadsBulkImportDialog
         open={showImportModal}
         onOpenChange={setShowImportModal}
-        onImported={() => {
-          setPage(1);
-          setScope("my");
-          setStage("active");
-          setSearchDraft("");
-          setFilters(defaultLeadsUrlFilters());
-          setSelectedLeadIds([]);
-          void getQueryClient().invalidateQueries({ queryKey: ["leads"] });
-        }}
+        onImported={applyPostImportView}
       />
 
       <LeadsImportTrackerDialog

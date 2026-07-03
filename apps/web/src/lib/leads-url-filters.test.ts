@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLeadsSearchParams, parseLeadsPageUrl } from "./leads-url-filters";
+import { buildLeadsSearchParams, parseLeadsPageUrl, postImportLeadsFilters } from "./leads-url-filters";
 
 describe("leads URL filters", () => {
   it("round-trips ad leads filter", () => {
@@ -45,5 +45,17 @@ describe("leads URL filters", () => {
     );
     expect(query).toContain("scope=deleted");
     expect(query).toContain("active=true");
+  });
+
+  it("post-import filters clear source and set batch id", () => {
+    const filters = postImportLeadsFilters({ batchId: "batch-1", fileName: "leads.csv" });
+    expect(filters.source).toBe("");
+    expect(filters.adLeadsOnly).toBe(false);
+    expect(filters.importBatchId).toBe("batch-1");
+    expect(filters.importBatchLabel).toBe("leads.csv");
+
+    const query = buildLeadsSearchParams(filters, { scope: "all", stage: "active" });
+    expect(query).toContain("import_batch=batch-1");
+    expect(query).not.toContain("source=");
   });
 });

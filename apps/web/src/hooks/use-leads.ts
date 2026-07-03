@@ -5,6 +5,7 @@ import type { LeadScopeCounts } from "@/lib/leads-scope";
 import { toast } from "@/lib/toast";
 import { getIstDayBounds } from "@propninja/types/ist";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 export type LeadsListData = {
   items: LeadRow[];
@@ -195,6 +196,12 @@ export function leadTabCountsQueryKey(params: Record<string, string | undefined>
   return sharedCountsQueryKey("tab-counts", params);
 }
 
+/** Invalidate and immediately refetch all lead list + tab count queries. */
+export async function refetchAllLeadQueries(queryClient: QueryClient) {
+  await queryClient.invalidateQueries({ queryKey: ["leads"] });
+  await queryClient.refetchQueries({ queryKey: ["leads"], type: "active" });
+}
+
 export type LeadStageCounts = {
   active: number;
   new: number;
@@ -310,7 +317,7 @@ export function useLeads(
     queryKey: leadsListQueryKey(params),
     queryFn: () => apiGet<LeadsListData>(`/api/leads${query}`),
     enabled: options?.enabled !== false,
-    staleTime: 30_000,
+    staleTime: 15_000,
     placeholderData: keepPreviousData,
     meta: leadsQueryMeta(options),
   });
