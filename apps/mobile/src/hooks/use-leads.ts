@@ -4,7 +4,13 @@ import { todayRange } from "@/lib/dates";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
 import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 const LEADS_PAGE_SIZE = "50";
 
@@ -228,6 +234,7 @@ export function useInfiniteLeads(query: Omit<LeadsQuery, "page"> = {}) {
     enabled: ready,
     refetchInterval: LIVE_REFETCH_MS,
     refetchIntervalInBackground: false,
+    placeholderData: keepPreviousData,
   });
 }
 

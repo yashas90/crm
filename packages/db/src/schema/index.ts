@@ -272,7 +272,7 @@ export const leadActivities = pgTable(
   (table) => [
     check(
       "lead_activities_type_check",
-      sql`${table.type} in ('call', 'note', 'status_change', 'meeting', 'task', 'follow_up', 'assignment_change')`,
+      sql`${table.type} in ('call', 'note', 'status_change', 'meeting', 'task', 'follow_up', 'assignment_change', 'site_visit')`,
     ),
     index("lead_activities_lead_id_created_at_idx").on(table.leadId, table.createdAt.desc()),
     index("lead_activities_org_id_idx").on(table.orgId),
@@ -907,7 +907,20 @@ export const siteVisits = pgTable(
     outcomeNote: text("outcome_note"),
     notes: text("notes"),
     propertyAddress: text("property_address"),
+    unitId: uuid("unit_id").references(() => projectUnits.id, { onDelete: "set null" }),
+    tower: text("tower"),
+    mapsLink: text("maps_link"),
+    meetingLocation: text("meeting_location"),
+    customerEmail: text("customer_email"),
+    googleCalendarEventId: text("google_calendar_event_id"),
+    googleCalendarUserId: uuid("google_calendar_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     reminderSent: boolean("reminder_sent").notNull().default(false),
+    remindersSent: jsonb("reminders_sent")
+      .$type<{ tierMinutes: number; sentAt: string }[]>()
+      .notNull()
+      .default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

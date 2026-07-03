@@ -1,6 +1,7 @@
 "use client";
 
 import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-state";
+import { GoogleCalendarSettingsCard } from "@/components/settings/google-calendar-settings-card";
 import { PropertyPortalsSection } from "@/components/settings/property-portals-section";
 import { Badge } from "@/components/ui/badge";
 import { useIntegrationsStatus } from "@/hooks/use-integrations-status";
@@ -79,6 +80,8 @@ export default function IntegrationsSettingsPage() {
       </div>
 
       <PropertyPortalsSection />
+
+      <GoogleCalendarSettingsCard />
 
       {statusQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading integration status...</p>
@@ -197,8 +200,6 @@ export default function IntegrationsSettingsPage() {
           </Card>
         </div>
       )}
-
-      {/* Google Calendar sync is not yet implemented — hidden until feature is complete */}
     </div>
   );
 }

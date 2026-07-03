@@ -77,7 +77,10 @@ describe("refreshCurrentUser", () => {
     );
     mockIsTokenExpired.mockReturnValue(true);
     mockRefreshAccessToken.mockRejectedValue(
-      new ApiRequestError("NETWORK_ERROR", "Cannot reach the server"),
+      new ApiRequestError(
+        "NETWORK_ERROR",
+        "Connection issue. Check your mobile data or Wi‑Fi and try again.",
+      ),
     );
 
     const user = await refreshCurrentUser();

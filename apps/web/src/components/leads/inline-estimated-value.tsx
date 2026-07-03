@@ -1,8 +1,7 @@
 "use client";
 
-import { useUpdateLead } from "@/hooks/use-leads";
-import type { LeadDetail } from "@/hooks/use-leads";
-import { formatInrFull } from "@/lib/format-currency";
+import { useFormatMoney } from "@/hooks/use-format-money";
+import { type LeadDetail, useUpdateLead } from "@/hooks/use-leads";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
@@ -17,6 +16,7 @@ export function InlineEstimatedValue({ lead }: InlineEstimatedValueProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(lead.estimatedValue ?? "");
   const updateLead = useUpdateLead(lead.id);
+  const { formatMoney } = useFormatMoney();
 
   function save() {
     const num = value ? Number(value) : 0;
@@ -55,7 +55,7 @@ export function InlineEstimatedValue({ lead }: InlineEstimatedValueProps) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="font-medium">
-        {lead.estimatedValue ? formatInrFull(Number(lead.estimatedValue)) : "Not set"}
+        {lead.estimatedValue ? formatMoney(Number(lead.estimatedValue)) : "Not set"}
       </span>
       <button
         type="button"

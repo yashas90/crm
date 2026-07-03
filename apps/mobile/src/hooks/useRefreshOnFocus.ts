@@ -1,11 +1,20 @@
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 
-/** Refetch live data whenever the screen gains focus (tab switch, back navigation). */
+/** Refetch live data when the screen gains focus, but not more than once per 15s. */
 export function useRefreshOnFocus(refetch: () => Promise<unknown> | undefined) {
+  const lastRefetchAt = useRef(0);
+
+  const runRefetch = useCallback(() => {
+    const now = Date.now();
+    if (now - lastRefetchAt.current < 15_000) return;
+    lastRefetchAt.current = now;
+    void refetch();
+  }, [refetch]);
+
   useFocusEffect(
     useCallback(() => {
-      void refetch();
-    }, [refetch]),
+      runRefetch();
+    }, [runRefetch]),
   );
 }

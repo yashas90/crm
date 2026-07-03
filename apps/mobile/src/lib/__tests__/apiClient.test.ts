@@ -77,11 +77,13 @@ describe("apiGet / apiPost success path", () => {
   });
 
   it("throws NETWORK_ERROR when fetch rejects", async () => {
-    jest.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("Network failure"));
-    // retry once on transient — mock second call too
-    jest.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("Network failure"));
+    jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network failure"));
+    jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network failure"));
+    jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network failure"));
+    jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network failure"));
     const err = await apiGet("/api/x").catch((e) => e);
     expect((err as ApiRequestError).code).toBe("NETWORK_ERROR");
+    expect((err as ApiRequestError).message).toContain("Connection issue");
   });
 
   it("apiPost sends JSON body", async () => {

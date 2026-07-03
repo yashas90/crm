@@ -87,6 +87,7 @@ describe("POST /api/site-visits overlap", () => {
     getLeadById.mockResolvedValue({
       id: "00000000-0000-4000-8000-000000000010",
       assignedTo: agentUser.id,
+      phone: "+919876543210",
     });
     const { siteVisitsRoutes } = await import("../routes/siteVisits.js");
     const { SiteVisitOverlapError } = await import("../lib/siteVisitTime.js");

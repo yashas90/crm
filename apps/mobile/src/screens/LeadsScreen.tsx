@@ -2,6 +2,7 @@ import { LeadFilterSheet } from "@/components/LeadFilterSheet";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { QueryErrorBanner } from "@/components/ui/QueryErrorBanner";
 import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-leads";
 import { useIsAgent } from "@/hooks/use-role";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -14,6 +15,7 @@ import {
   defaultMobileLeadFilters,
   mobileFiltersToApiParams,
 } from "@/lib/leads-advanced-filters";
+import { queryErrorMessage } from "@/lib/query-errors";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT, TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -164,14 +166,12 @@ export function LeadsScreen({ navigation }: Props) {
     );
   }
 
-  if (isError && !data) {
-    return (
-      <ErrorState
-        message={error instanceof Error ? error.message : undefined}
-        onRetry={() => refetch()}
-      />
-    );
+  const showFatalError = isError && !data && !isLoading && !isRefetching;
+  if (showFatalError) {
+    return <ErrorState message={queryErrorMessage(error)} onRetry={() => void refetch()} />;
   }
+
+  const showStaleBanner = isError && Boolean(data);
 
   return (
     <View style={styles.container}>
@@ -183,6 +183,10 @@ export function LeadsScreen({ navigation }: Props) {
           </Text>
         </View>
       </View>
+
+      {showStaleBanner ? (
+        <QueryErrorBanner message={queryErrorMessage(error)} onRetry={() => void refetch()} />
+      ) : null}
 
       <View style={styles.searchRow}>
         <View style={styles.searchWrap}>

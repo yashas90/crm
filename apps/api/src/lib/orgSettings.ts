@@ -8,9 +8,16 @@ export const EDITABLE_ORG_SETTING_KEYS = [
   "dateFormat",
   "currency",
   "leadScoringEnabled",
+  "reportEmailEnabled",
+  "siteVisitReminderMinutes",
 ] as const;
 
 export type EditableOrgSettingKey = (typeof EDITABLE_ORG_SETTING_KEYS)[number];
+
+const BOOLEAN_ORG_SETTING_KEYS = new Set<EditableOrgSettingKey>([
+  "leadScoringEnabled",
+  "reportEmailEnabled",
+]);
 
 export function buildOrgSettingsPatch(
   body: UpdateOrgBody,
@@ -42,11 +49,11 @@ export function mergeOrgSettings(
   const next = { ...(current ?? {}) };
 
   for (const [key, value] of Object.entries(patch)) {
-    if (key === "leadScoringEnabled") {
+    if (BOOLEAN_ORG_SETTING_KEYS.has(key as EditableOrgSettingKey)) {
       if (value === false || value === "false") {
-        next.leadScoringEnabled = false;
+        next[key] = false;
       } else if (value === true || value === "true") {
-        next.leadScoringEnabled = true;
+        next[key] = true;
       }
       continue;
     }
@@ -58,4 +65,18 @@ export function mergeOrgSettings(
   }
 
   return next;
+}
+
+/** Keys present in a PATCH body for audit metadata (no secret values). */
+export function listOrgUpdateFields(body: UpdateOrgBody): string[] {
+  const fields: string[] = [];
+  if (body.name !== undefined) fields.push("name");
+  if (body.website !== undefined) fields.push("website");
+  if (body.timezone !== undefined) fields.push("timezone");
+  if (body.settings) {
+    for (const key of EDITABLE_ORG_SETTING_KEYS) {
+      if (key in body.settings) fields.push(key);
+    }
+  }
+  return fields;
 }

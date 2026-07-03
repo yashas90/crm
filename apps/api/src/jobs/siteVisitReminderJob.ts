@@ -1,7 +1,10 @@
 import { getDb } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
-import { formatVisitTimeDisplay } from "../lib/siteVisitTime.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
+import {
+  markMissedSiteVisits,
+  runSiteVisitAutomation,
+} from "../services/siteVisitAutomationService.js";
 import { siteVisitService } from "../services/siteVisitService.js";
 
 const INTERVAL_MS = 5 * 60 * 1000;
@@ -11,39 +14,40 @@ let syncTimer: ReturnType<typeof setInterval> | undefined;
 export async function syncSiteVisitReminders(now = new Date()) {
   const db = getDb();
   const notifications = createNotificationService(db);
-  const dueVisits = await siteVisitService.findDueForReminder(now);
+  const dueVisits = await siteVisitService.findDueForReminders(now);
 
   let sent = 0;
 
   for (const visit of dueVisits) {
     const leadName = visit.lead ? `${visit.lead.firstName} ${visit.lead.lastName}`.trim() : "Lead";
-    const timeLabel = formatVisitTimeDisplay(visit.visitTime);
     const property = visit.propertyLabel ?? visit.propertyAddress ?? "Property";
 
-    const row = await notifications.createNotification(
-      visit.agentId,
-      NOTIFICATION_TYPES.SITE_VISIT_REMINDER,
-      {
-        siteVisitId: visit.id,
-        leadId: visit.leadId,
-        leadName,
-        visitDate: visit.visitDate,
-        visitTime: timeLabel,
-        property,
-      },
-    );
+    await notifications.createNotification(visit.agentId, NOTIFICATION_TYPES.SITE_VISIT_REMINDER, {
+      siteVisitId: visit.id,
+      leadId: visit.leadId,
+      leadName,
+      visitDate: visit.visitDate,
+      visitTime: visit.visitTime,
+      property,
+      tierMinutes: visit.tierMinutes,
+    });
 
-    if (row) {
-      await siteVisitService.markReminderSent(visit.id);
-      sent += 1;
-    }
+    await runSiteVisitAutomation(visit.id, "reminder", {
+      actorUserId: visit.agentId,
+      database: db,
+    });
+
+    await siteVisitService.markReminderTierSent(visit.id, visit.tierMinutes);
+    sent += 1;
   }
 
-  if (sent > 0) {
-    logger.info("Site visit reminders sent", { sent, checked: dueVisits.length });
+  const missed = await markMissedSiteVisits(db);
+
+  if (sent > 0 || missed > 0) {
+    logger.info("Site visit reminder sync", { sent, checked: dueVisits.length, missed });
   }
 
-  return { sent, checked: dueVisits.length };
+  return { sent, checked: dueVisits.length, missed };
 }
 
 export function startSiteVisitReminderJob() {

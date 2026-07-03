@@ -13,7 +13,7 @@ PropNinja CRM v1.0 is a single-tenant real estate CRM for a small sales team. Th
 - Projects: list, wizard (basic/units/blocks/amenities; gallery metadata only), edit, delete, availability toggle
 - Reports: dashboard, leads analytics, calls (filters + CSV export), team performance, lead sources
 - Users page (admin can edit roles/active status)
-- Settings: org display (read-only), integrations status, audit log
+- Settings: org profile edit (`PATCH /api/org`), regional defaults (locale/currency/timezone), report emails, lead scoring, integrations status, audit log
 - In-app notification bell
 - Role-aware navigation and 403 handling for agents
 - JWT login; registration disabled (admin-provisioned users only)
@@ -29,7 +29,7 @@ PropNinja CRM v1.0 is a single-tenant real estate CRM for a small sales team. Th
 
 ### Backend & data
 - PostgreSQL schema via Drizzle ORM; migrations and demo seed (~100 leads, calls, users, TCF, projects)
-- REST API: auth, leads (incl. bulk import), calls, users, org, reports, TCF, projects, notifications, audit logs, integrations
+- REST API: auth, leads (incl. bulk import), calls, users, org (`GET` / `PATCH`), reports, TCF, projects, notifications, audit logs, integrations
 - Permission checks: admin / manager / agent on leads, reports, users, TCF (lead-scoped), delete
 - Agent scoping: list/filter forced to own assignments; recent activities scoped for agents
 - Reports: overview, dashboard, leads/calls analytics, sources, team-today, CSV export
@@ -54,7 +54,6 @@ Note: `ALLOW_DEMO_AUTH` appears in deploy docs/env schema but is **not enforced*
 - **No in-app VoIP** — outbound calls use the device SIM via `tel:`; web does not place calls
 - **Project gallery** — no file upload/storage; placeholder metadata in wizard only
 - **Registration** — disabled on web; new users require admin provisioning
-- **Org settings** — read-only in UI; no `PATCH /api/org`
 - **Integrations UI** — status/read-only; credentials configured via API env vars ([INTEGRATIONS.md](INTEGRATIONS.md))
 - **Mobile** — no reports/team dashboard; no lead assign/delete UI; SMS/email TCF not editable on mobile
 - **Tests** — see below

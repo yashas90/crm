@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLeads } from "@/hooks/use-leads";
+import { useProjectUnits } from "@/hooks/use-project-units";
 import { useProjects } from "@/hooks/use-projects";
 import { useSession } from "@/hooks/use-session";
 import {
@@ -51,14 +52,21 @@ export function ScheduleVisitDialog({
 
   const [leadId, setLeadId] = useState(defaultLeadId ?? "");
   const [projectId, setProjectId] = useState("");
+  const [unitId, setUnitId] = useState("");
+  const [tower, setTower] = useState("");
   const [agentId, setAgentId] = useState(defaultAgentId ?? session?.id ?? "");
   const [visitDate, setVisitDate] = useState(() => getIstDateKey());
   const [visitTime, setVisitTime] = useState("10:00");
+  const [endTime, setEndTime] = useState("11:00");
   const [duration, setDuration] = useState("60");
   const [notes, setNotes] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
+  const [meetingLocation, setMeetingLocation] = useState("");
+  const [mapsLink, setMapsLink] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   const [leadSearch, setLeadSearch] = useState("");
   const [confirmedVisit, setConfirmedVisit] = useState<SiteVisit | null>(null);
+  const { data: unitsData } = useProjectUnits(projectId);
 
   useEffect(() => {
     if (!open) {
@@ -84,16 +92,31 @@ export function ScheduleVisitDialog({
     });
   }, [leadsData?.items, leadSearch]);
 
+  function computeDurationFromTimes(start: string, end: string) {
+    const [sh, sm] = start.split(":").map(Number);
+    const [eh, em] = end.split(":").map(Number);
+    const startMins = (sh ?? 0) * 60 + (sm ?? 0);
+    const endMins = (eh ?? 0) * 60 + (em ?? 0);
+    const diff = endMins - startMins;
+    return diff > 0 ? diff : Number(duration) || 60;
+  }
+
   async function handleSubmit() {
     if (!leadId) return;
+    const selectedLead = filteredLeads.find((l) => l.id === leadId);
     const payload: CreateSiteVisitInput = {
       leadId,
       projectId: projectId || null,
+      unitId: unitId || null,
+      tower: tower.trim() || null,
       visitDate,
       visitTime,
-      duration: Number(duration) || 60,
+      duration: computeDurationFromTimes(visitTime, endTime),
       notes: notes.trim() || null,
       propertyAddress: propertyAddress.trim() || null,
+      meetingLocation: meetingLocation.trim() || null,
+      mapsLink: mapsLink.trim() || null,
+      customerEmail: customerEmail.trim() || selectedLead?.email || null,
     };
     if (isManager && agentId) payload.agentId = agentId;
 
@@ -159,11 +182,14 @@ export function ScheduleVisitDialog({
               ) : null}
 
               <div className="space-y-2">
-                <Label>Project (optional)</Label>
+                <Label>Project</Label>
                 <select
                   className={selectClass}
                   value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
+                  onChange={(e) => {
+                    setProjectId(e.target.value);
+                    setUnitId("");
+                  }}
                 >
                   <option value="">No project</option>
                   {(projects ?? []).map((project) => (
@@ -174,7 +200,57 @@ export function ScheduleVisitDialog({
                 </select>
               </div>
 
+              {projectId ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Tower</Label>
+                    <Input
+                      value={tower}
+                      onChange={(e) => setTower(e.target.value)}
+                      placeholder="Tower A"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Unit</Label>
+                    <select
+                      className={selectClass}
+                      value={unitId}
+                      onChange={(e) => setUnitId(e.target.value)}
+                    >
+                      <option value="">Select unit</option>
+                      {(unitsData ?? []).map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.unitNumber}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Customer email (optional)</Label>
+                  <Input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="For calendar invite"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Mobile</Label>
+                  <Input
+                    disabled
+                    value={
+                      filteredLeads.find((l) => l.id === leadId)?.phone ??
+                      (defaultLeadId ? "From lead record" : "Select a lead")
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-2">
                   <Label>Date</Label>
                   <Input
@@ -184,23 +260,34 @@ export function ScheduleVisitDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Time</Label>
+                  <Label>Start time</Label>
                   <Input
                     type="time"
                     value={visitTime}
                     onChange={(e) => setVisitTime(e.target.value)}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>End time</Label>
+                  <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Duration (minutes)</Label>
+                <Label>Meeting location</Label>
                 <Input
-                  type="number"
-                  min={15}
-                  max={480}
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
+                  value={meetingLocation}
+                  onChange={(e) => setMeetingLocation(e.target.value)}
+                  placeholder="Sales office, model flat, etc."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Google Maps link</Label>
+                <Input
+                  value={mapsLink}
+                  onChange={(e) => setMapsLink(e.target.value)}
+                  placeholder="https://maps.google.com/..."
                 />
               </div>
 

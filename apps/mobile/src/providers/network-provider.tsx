@@ -1,6 +1,7 @@
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { setNetworkOnline } from "@/lib/networkState";
 import { flushOfflineQueue } from "@/lib/offlineQueue";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/providers/toast-provider";
 import NetInfo from "@react-native-community/netinfo";
 import {
@@ -37,6 +38,8 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
 
       if (wasOffline.current) {
         wasOffline.current = false;
+        void queryClient.resumePausedMutations();
+        void queryClient.invalidateQueries();
         void flushOfflineQueue().then((synced) => {
           if (synced > 0) {
             showToast(`Synced ${synced} pending call log${synced === 1 ? "" : "s"}`);

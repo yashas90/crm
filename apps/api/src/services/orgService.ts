@@ -4,6 +4,7 @@ import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import type { Database } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
 import { buildOrgSettingsPatch, mergeOrgSettings } from "../lib/orgSettings.js";
+import { clearOrgCache } from "../lib/responseCache.js";
 import type { UpdateOrgBody } from "../lib/validators/org.js";
 
 export function createOrgService(db: Database) {
@@ -57,6 +58,7 @@ export function createOrgService(db: Database) {
         throw notFound("Organization not found");
       }
 
+      clearOrgCache();
       return row;
     },
   };

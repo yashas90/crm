@@ -696,7 +696,7 @@ leadsRoute.get("/:id", async (c) => {
 leadsRoute.get("/:id/assignments", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id");
-  const { lead, response } = await loadLeadForView(c, id, authUser);
+  const { response } = await loadLeadForView(c, id, authUser);
   if (response) return response;
 
   const items = await getAssignmentHistory(id!);
@@ -941,7 +941,7 @@ leadsRoute.post("/bulk-assign", validate("json", bulkAssignLeadsBodySchema), asy
 leadsRoute.post("/:id/assign", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id");
-  const { lead, response } = await loadLeadForEdit(c, id, authUser);
+  const { response } = await loadLeadForEdit(c, id, authUser);
   if (response) return response;
 
   if (!canAssignLead(authUser)) {
@@ -996,7 +996,7 @@ leadsRoute.post("/:id/assign", async (c) => {
 leadsRoute.post("/:id/notes", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id");
-  const { lead, response } = await loadLeadForEdit(c, id, authUser);
+  const { response } = await loadLeadForEdit(c, id, authUser);
   if (response) return response;
 
   const body = await c.req.json();

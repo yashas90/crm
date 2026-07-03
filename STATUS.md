@@ -19,7 +19,7 @@ High-level snapshot of what v1.0 delivers, what is explicitly out of scope, and 
 - **Audit log** — admin list (`GET /api/audit-logs`)
 - TCF: per-channel consent; routes enforce lead view/edit permissions
 - **Integrations** — Meta Lead Ads webhook ingest, Google Ads polling job, `GET /api/integrations/status`
-- Users & org endpoints; write rate limiting on sensitive routes
+- Users & org endpoints (`GET` / `PATCH /api/org` with `org_profile:update`); write rate limiting on sensitive routes
 - Hono + Zod validation; Vitest unit + integration tests (integration tests need Postgres)
 
 ### Web
@@ -28,7 +28,7 @@ High-level snapshot of what v1.0 delivers, what is explicitly out of scope, and 
 - Leads: list, filters, scopes (including duplicate / re-enquired), page sizes 10–500, **CSV bulk import**, bulk status/assign/archive, create, edit, detail, delete (admin)
 - **Projects** — list, wizard, edit, delete, availability
 - Reports hub + leads/calls/team pages; calls report with filters, export, pagination; 403 access-denied UX
-- Users (admin edits); settings (org read-only, integrations status, audit log)
+- Users (admin edits); settings (org profile + regional defaults, report emails, lead scoring, integrations status, audit log)
 - In-app notification bell
 - TCF consent panel on lead detail (call/SMS/email)
 - TanStack Query + shared API client; Vitest component/unit tests
@@ -63,8 +63,7 @@ These are **not** planned for v1.0 and should not be assumed available:
 | In-app calling (VoIP) | SIM dialer + manual log only; no WebRTC/telephony SDK |
 | Advanced analytics / ML | Operational reports only; no forecasting, scoring, or ML pipelines |
 | Project gallery files | Wizard step stores placeholder metadata only; no blob upload |
-| Push / email / SMS notifications | In-app notifications only |
-| Org profile edit | `GET` and `PATCH /api/org` for admins/managers with `org_profile:update` |
+| Push / email / SMS notifications | In-app notifications only; optional daily/weekly report emails to managers/admins |
 | Mobile manager reports | No reports screens on mobile |
 
 Also deferred: public self-registration, mobile SMS/email TCF editing, native Android call-log auto-sync, user hard-delete API, OAuth connect UI for integrations (env-only config today).

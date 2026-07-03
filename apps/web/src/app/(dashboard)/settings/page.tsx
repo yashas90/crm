@@ -1,78 +1,25 @@
 "use client";
 
 import { LeadScoringSettingsCard } from "@/components/settings/lead-scoring-settings-card";
+import { OrgProfileSettingsCard } from "@/components/settings/org-profile-settings-card";
+import { OrgRegionalSettingsCard } from "@/components/settings/org-regional-settings-card";
+import { ReportEmailsSettingsCard } from "@/components/settings/report-emails-settings-card";
+import { SiteVisitReminderSettingsCard } from "@/components/settings/site-visit-reminder-settings-card";
+import { useOrg } from "@/hooks/use-org";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
-import { ApiRequestError, apiGet, apiPatch } from "@/lib/apiClient";
-import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
-import { Input } from "@propninja/ui/input";
-import { Label } from "@propninja/ui/label";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Plug, Shield } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-
-type OrgRecord = {
-  id: string;
-  name: string;
-  slug: string;
-  subscriptionTier: string;
-  settings: Record<string, unknown>;
-  createdAt: string;
-};
-
-function readSetting(settings: Record<string, unknown>, key: string): string {
-  const value = settings[key];
-  return typeof value === "string" ? value : "";
-}
 
 export default function SettingsPage() {
   const { session, ready, isAdmin } = useSession();
   const { hasPermission } = usePermissions();
   const canUpdateOrg = hasPermission("org_profile:update");
   const queryClient = useQueryClient();
-
-  const org = useQuery({
-    queryKey: ["org"],
-    queryFn: () => apiGet<OrgRecord>("/api/org"),
-  });
-
-  const [name, setName] = useState("");
-  const [website, setWebsite] = useState("");
-  const [timezone, setTimezone] = useState("");
-
-  useEffect(() => {
-    if (!org.data) return;
-    setName(org.data.name);
-    setWebsite(readSetting(org.data.settings ?? {}, "website"));
-    setTimezone(readSetting(org.data.settings ?? {}, "timezone"));
-  }, [org.data]);
-
-  const saveOrg = useMutation({
-    mutationFn: (body: { name: string; website: string; timezone: string }) =>
-      apiPatch<OrgRecord>("/api/org", {
-        name: body.name.trim(),
-        website: body.website.trim() || null,
-        timezone: body.timezone.trim() || null,
-      }),
-    onSuccess: (data) => {
-      queryClient.setQueryData(["org"], data);
-      toast.success("Organization settings saved.");
-    },
-    onError: (error) => {
-      const message =
-        error instanceof ApiRequestError ? error.message : "Failed to update organization.";
-      toast.error(message);
-    },
-  });
-
-  function handleOrgSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canUpdateOrg) return;
-    saveOrg.mutate({ name, website, timezone });
-  }
+  const org = useOrg();
 
   return (
     <div className="space-y-6">
@@ -104,98 +51,28 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Organization</CardTitle>
-          <CardDescription>
-            {canUpdateOrg
-              ? "Update your organization profile and defaults."
-              : "Organization profile (read-only)."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          {org.isLoading ? (
-            <p className="text-muted-foreground">Loading organization...</p>
-          ) : org.isError || !org.data ? (
-            <p className="text-muted-foreground">Unable to load organization.</p>
-          ) : canUpdateOrg ? (
-            <form className="space-y-4" onSubmit={handleOrgSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="org-name">Name</Label>
-                <Input
-                  id="org-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  required
-                />
-              </div>
+      {org.isError ? (
+        <Card>
+          <CardContent className="py-6">
+            <p className="text-sm text-muted-foreground">Unable to load organization settings.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <OrgProfileSettingsCard org={org.data} canUpdate={canUpdateOrg} />
+          <OrgRegionalSettingsCard org={org.data} canUpdate={canUpdateOrg} />
+          <SiteVisitReminderSettingsCard org={org.data} canUpdate={canUpdateOrg} />
+        </>
+      )}
 
-              <div className="space-y-2">
-                <Label htmlFor="org-website">Website</Label>
-                <Input
-                  id="org-website"
-                  type="url"
-                  placeholder="https://example.com"
-                  value={website}
-                  onChange={(event) => setWebsite(event.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="org-timezone">Timezone</Label>
-                <Input
-                  id="org-timezone"
-                  placeholder="Asia/Kolkata"
-                  value={timezone}
-                  onChange={(event) => setTimezone(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">IANA timezone, e.g. Asia/Kolkata.</p>
-              </div>
-
-              <div className="grid gap-2 rounded-lg border border-slate-200/80 bg-muted/20 p-3 text-sm dark:border-white/10">
-                <p>
-                  <span className="text-muted-foreground">Slug:</span> {org.data.slug}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Plan:</span> {org.data.subscriptionTier}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Created:</span>{" "}
-                  {new Date(org.data.createdAt).toLocaleString()}
-                </p>
-              </div>
-
-              <Button type="submit" disabled={saveOrg.isPending}>
-                {saveOrg.isPending ? "Saving..." : "Save changes"}
-              </Button>
-            </form>
-          ) : (
-            <>
-              <p>
-                <span className="text-muted-foreground">Name:</span> {org.data.name}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Website:</span>{" "}
-                {readSetting(org.data.settings ?? {}, "website") || "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Timezone:</span>{" "}
-                {readSetting(org.data.settings ?? {}, "timezone") || "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Slug:</span> {org.data.slug}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Plan:</span> {org.data.subscriptionTier}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Created:</span>{" "}
-                {new Date(org.data.createdAt).toLocaleString()}
-              </p>
-            </>
-          )}
-        </CardContent>
-      </Card>
+      {ready && (isAdmin || session?.role === "manager") ? (
+        <ReportEmailsSettingsCard
+          org={org.data}
+          canUpdate={canUpdateOrg}
+          isAdmin={isAdmin}
+          queryClient={queryClient}
+        />
+      ) : null}
 
       {ready && (isAdmin || session?.role === "manager") ? (
         <Card>
@@ -350,13 +227,6 @@ export default function SettingsPage() {
           <p className="text-sm text-muted-foreground">
             To reset demo leads and calls, run the database seed from your development environment.
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => toast.info("Contact admin to reset demo data.")}
-          >
-            Refresh seed data
-          </Button>
         </CardContent>
       </Card>
 

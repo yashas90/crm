@@ -4,10 +4,54 @@ import { EmptyState } from "@/components/common/empty-state";
 import type { LeadActivity } from "@/hooks/use-leads";
 import { formatRelativeTime } from "@/lib/relative-time";
 import { cn } from "@propninja/ui/lib/utils";
-import { ArrowRightLeft, Clock, Phone, StickyNote } from "lucide-react";
+import {
+  ArrowRightLeft,
+  CalendarDays,
+  Clock,
+  MessageCircle,
+  Phone,
+  StickyNote,
+} from "lucide-react";
+
+function siteVisitActivityTitle(kind: string | undefined) {
+  switch (kind) {
+    case "visit_scheduled":
+      return "Site visit scheduled";
+    case "visit_updated":
+      return "Site visit updated";
+    case "visit_rescheduled":
+      return "Site visit rescheduled";
+    case "visit_cancelled":
+      return "Site visit cancelled";
+    case "visit_completed":
+      return "Site visit completed";
+    case "whatsapp_sent":
+      return "WhatsApp sent";
+    case "reminder_sent":
+      return "Reminder sent";
+    case "customer_confirmed":
+      return "Customer confirmed";
+    case "customer_reschedule_requested":
+      return "Customer requested reschedule";
+    default:
+      return "Site visit";
+  }
+}
 
 function activityMeta(activity: LeadActivity) {
   const meta = activity.metadata;
+
+  if (activity.type === "site_visit") {
+    const kind = typeof meta?.kind === "string" ? meta.kind : undefined;
+    const date = meta?.visitDate ? String(meta.visitDate) : null;
+    const time = meta?.visitTime ? String(meta.visitTime) : null;
+    const body = [date, time].filter(Boolean).join(" · ") || undefined;
+    return {
+      icon: kind === "whatsapp_sent" || kind === "reminder_sent" ? MessageCircle : CalendarDays,
+      title: siteVisitActivityTitle(kind),
+      body,
+    };
+  }
 
   if (activity.type === "note" && meta?.text) {
     return {
@@ -74,6 +118,7 @@ export function LeadActivityTimeline({ activities }: LeadActivityTimelineProps) 
                 activity.type === "call" && "border-emerald-500/30 text-emerald-600",
                 activity.type === "note" && "border-indigo-500/30 text-indigo-600",
                 activity.type === "status_change" && "border-amber-500/30 text-amber-600",
+                activity.type === "site_visit" && "border-sky-500/30 text-sky-600",
               )}
             >
               <Icon className="h-4 w-4" />

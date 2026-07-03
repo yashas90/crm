@@ -1,5 +1,6 @@
 import { ApiRequestError } from "@/lib/apiClient";
-import { isRateLimitError } from "@/lib/query-errors";
+import { isRateLimitError, isTransientQueryError } from "@/lib/query-errors";
+import { queryRetryCount, queryRetryDelay } from "@/lib/queryRetry";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { Alert } from "react-native";
 
@@ -7,6 +8,7 @@ function shouldSuppressGlobalQueryError(error: unknown): boolean {
   if (!(error instanceof ApiRequestError)) return false;
   if (error.status === 403 || error.status === 404) return true;
   if (isRateLimitError(error)) return true;
+  if (isTransientQueryError(error)) return true;
   return error.code === "FORBIDDEN" || error.code === "NOT_FOUND";
 }
 
@@ -21,10 +23,16 @@ export const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      staleTime: 10_000,
-      retry: 1,
+      staleTime: 30_000,
+      gcTime: 10 * 60_000,
+      retry: queryRetryCount,
+      retryDelay: queryRetryDelay,
       refetchOnReconnect: true,
       refetchOnMount: true,
+      networkMode: "always",
+    },
+    mutations: {
+      retry: 0,
     },
   },
 });

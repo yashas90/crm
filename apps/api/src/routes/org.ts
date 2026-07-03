@@ -1,9 +1,13 @@
 import { Hono } from "hono";
+import { AUDIT_ACTIONS } from "../lib/auditActions.js";
+import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
+import { listOrgUpdateFields } from "../lib/orgSettings.js";
 import { canUpdateOrgProfile, canViewOrgProfile } from "../lib/permissions.js";
 import { jsonError, jsonOk } from "../lib/response.js";
 import { validate } from "../lib/validate.js";
 import { updateOrgBodySchema } from "../lib/validators/org.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
+import { auditFromContext } from "../services/auditService.js";
 import { createOrgService } from "../services/orgService.js";
 
 export const orgRoutes = new Hono();
@@ -27,8 +31,21 @@ orgRoutes.patch("/", writeRateLimit, validate("json", updateOrgBodySchema), asyn
   }
 
   const body = c.req.valid("json");
-  const service = createOrgService(c.get("db"));
+  const db = c.get("db");
+  const service = createOrgService(db);
   const org = await service.update(body);
+
+  const updatedFields = listOrgUpdateFields(body);
+  if (updatedFields.length > 0) {
+    await auditFromContext(c, db, {
+      userId: authUser.id,
+      action: AUDIT_ACTIONS.ORG_SETTINGS_UPDATED,
+      entityType: "organization",
+      entityId: SINGLE_TENANT_ORG_ID,
+      entityName: org.name,
+      metadata: { updatedFields },
+    });
+  }
 
   return jsonOk(c, org);
 });

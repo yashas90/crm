@@ -1,23 +1,52 @@
-export function formatInrCompact(value: number) {
+import { DEFAULT_ORG_CURRENCY, DEFAULT_ORG_LOCALE } from "@/lib/org-settings";
+
+export function formatMoneyCompact(
+  value: number,
+  options?: { locale?: string; currency?: string },
+) {
+  const locale = options?.locale ?? DEFAULT_ORG_LOCALE;
+  const currency = options?.currency ?? DEFAULT_ORG_CURRENCY;
   const amount = Math.round(value);
-  if (amount >= 10_000_000) {
-    return `₹${(amount / 10_000_000).toFixed(1)} Cr+`;
+
+  if (currency === "INR") {
+    if (amount >= 10_000_000) {
+      return `₹${(amount / 10_000_000).toFixed(1)} Cr+`;
+    }
+    if (amount >= 100_000) {
+      return `₹${Math.round(amount / 100_000)} L+`;
+    }
+    if (amount >= 1_000) {
+      return `₹${Math.round(amount / 1_000)} K+`;
+    }
+    return `₹${amount.toLocaleString(locale)}`;
   }
-  if (amount >= 100_000) {
-    return `₹${Math.round(amount / 100_000)} L+`;
-  }
-  if (amount >= 1_000) {
-    return `₹${Math.round(amount / 1_000)} K+`;
-  }
-  return `₹${amount.toLocaleString("en-IN")}`;
+
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    notation: amount >= 1_000_000 ? "compact" : "standard",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
-export function formatInrFull(value: number) {
-  return new Intl.NumberFormat("en-IN", {
+export function formatMoneyFull(value: number, options?: { locale?: string; currency?: string }) {
+  const locale = options?.locale ?? DEFAULT_ORG_LOCALE;
+  const currency = options?.currency ?? DEFAULT_ORG_CURRENCY;
+  return new Intl.NumberFormat(locale, {
     style: "currency",
-    currency: "INR",
+    currency,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+/** @deprecated Use formatMoneyCompact */
+export function formatInrCompact(value: number) {
+  return formatMoneyCompact(value, { locale: DEFAULT_ORG_LOCALE, currency: "INR" });
+}
+
+/** @deprecated Use formatMoneyFull */
+export function formatInrFull(value: number) {
+  return formatMoneyFull(value, { locale: DEFAULT_ORG_LOCALE, currency: "INR" });
 }
 
 export function parseMoney(value: string) {

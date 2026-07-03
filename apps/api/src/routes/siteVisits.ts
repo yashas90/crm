@@ -14,6 +14,7 @@ import { auditFromContext } from "../services/auditService.js";
 import { recalculateLeadScore } from "../services/leadScoringService.js";
 import { leadService } from "../services/leadService.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
+import { runSiteVisitAutomation } from "../services/siteVisitAutomationService.js";
 import { siteVisitService } from "../services/siteVisitService.js";
 
 export const siteVisitsRoutes = new Hono();
@@ -25,16 +26,23 @@ const visitTimeSchema = z
 const createSiteVisitSchema = z.object({
   leadId: z.string().uuid(),
   projectId: z.string().uuid().nullable().optional(),
+  unitId: z.string().uuid().nullable().optional(),
+  tower: z.string().max(100).nullable().optional(),
   agentId: z.string().uuid().optional(),
   visitDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   visitTime: visitTimeSchema,
   duration: z.number().int().min(15).max(480).optional(),
   notes: z.string().max(2000).nullable().optional(),
   propertyAddress: z.string().max(500).nullable().optional(),
+  meetingLocation: z.string().max(500).nullable().optional(),
+  mapsLink: z.string().url().max(2000).nullable().optional().or(z.literal("")),
+  customerEmail: z.string().email().max(320).nullable().optional().or(z.literal("")),
 });
 
 const updateSiteVisitSchema = z.object({
   projectId: z.string().uuid().nullable().optional(),
+  unitId: z.string().uuid().nullable().optional(),
+  tower: z.string().max(100).nullable().optional(),
   agentId: z.string().uuid().optional(),
   visitDate: z
     .string()
@@ -50,6 +58,9 @@ const updateSiteVisitSchema = z.object({
   outcomeNote: z.string().max(1000).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   propertyAddress: z.string().max(500).nullable().optional(),
+  meetingLocation: z.string().max(500).nullable().optional(),
+  mapsLink: z.string().url().max(2000).nullable().optional().or(z.literal("")),
+  customerEmail: z.string().email().max(320).nullable().optional().or(z.literal("")),
 });
 
 const listSiteVisitsSchema = listPaginationSchema.extend({
@@ -117,6 +128,49 @@ async function notifyVisitScheduled(
     scheduledBy: scheduledBy.name,
   });
 }
+
+function normalizeOptionalUrl(value: string | null | undefined) {
+  if (value === "" || value === undefined) return null;
+  return value;
+}
+
+function normalizeOptionalEmail(value: string | null | undefined) {
+  if (value === "" || value === undefined) return null;
+  return value;
+}
+
+function resolveAutomationEvent(
+  existing: NonNullable<Awaited<ReturnType<typeof siteVisitService.getById>>>,
+  body: z.infer<typeof updateSiteVisitSchema>,
+  visit: NonNullable<Awaited<ReturnType<typeof siteVisitService.getById>>>,
+): "updated" | "rescheduled" | "cancelled" | "completed" | null {
+  if (body.status === "cancelled" && existing.status !== "cancelled") return "cancelled";
+  if (body.status === "completed" && existing.status !== "completed") return "completed";
+  const rescheduled =
+    (body.visitDate !== undefined && body.visitDate !== existing.visitDate) ||
+    (body.visitTime !== undefined && body.visitTime !== existing.visitTime);
+  if (rescheduled) return "rescheduled";
+  if (
+    body.agentId !== undefined ||
+    body.duration !== undefined ||
+    body.projectId !== undefined ||
+    body.unitId !== undefined ||
+    body.tower !== undefined ||
+    body.notes !== undefined ||
+    body.meetingLocation !== undefined ||
+    body.mapsLink !== undefined
+  ) {
+    if (visit.status === "scheduled") return "updated";
+  }
+  return null;
+}
+
+siteVisitsRoutes.get("/summary", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const agentId = resolveAgentFilter(authUser, c.req.query("agentId"));
+  const data = await siteVisitService.dashboardSummary(agentId);
+  return jsonOk(c, data);
+});
 
 siteVisitsRoutes.get("/calendar", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
@@ -195,23 +249,37 @@ siteVisitsRoutes.post("/", writeRateLimit, validate("json", createSiteVisitSchem
   if (!lead) {
     return jsonError(c, "NOT_FOUND", "Lead not found", 404);
   }
-  if (!canEditLead(authUser, { assignedTo: lead.assignedTo })) {
-    return jsonError(c, "NOT_FOUND", "Lead not found", 404);
+  if (!lead.phone?.trim()) {
+    return jsonError(
+      c,
+      "VALIDATION_ERROR",
+      "Lead must have a mobile number for site visit WhatsApp",
+      400,
+    );
   }
 
   try {
     const visit = await siteVisitService.create({
       leadId: body.leadId,
       projectId: body.projectId,
+      unitId: body.unitId,
+      tower: body.tower,
       agentId,
       visitDate: body.visitDate,
       visitTime: body.visitTime,
       duration: body.duration,
       notes: body.notes,
       propertyAddress: body.propertyAddress,
+      meetingLocation: body.meetingLocation,
+      mapsLink: normalizeOptionalUrl(body.mapsLink),
+      customerEmail: normalizeOptionalEmail(body.customerEmail),
     });
 
     if (!visit) return jsonError(c, "SERVER_ERROR", "Failed to create visit", 500);
+
+    void runSiteVisitAutomation(visit.id, "scheduled", { actorUserId: authUser.id }).catch(
+      () => undefined,
+    );
 
     await notifyVisitScheduled(c, visit, authUser);
 
@@ -258,7 +326,18 @@ siteVisitsRoutes.patch(
     }
 
     try {
-      const visit = await siteVisitService.update(c.req.param("id"), body);
+      const visit = await siteVisitService.update(c.req.param("id"), {
+        ...body,
+        mapsLink: body.mapsLink !== undefined ? normalizeOptionalUrl(body.mapsLink) : undefined,
+        customerEmail:
+          body.customerEmail !== undefined ? normalizeOptionalEmail(body.customerEmail) : undefined,
+      });
+      const automationEvent = visit ? resolveAutomationEvent(existing, body, visit) : null;
+      if (visit && automationEvent) {
+        void runSiteVisitAutomation(visit.id, automationEvent, { actorUserId: authUser.id }).catch(
+          () => undefined,
+        );
+      }
       if (body.status === "completed" && existing.status !== "completed") {
         const leadName = visit?.lead
           ? `${visit.lead.firstName} ${visit.lead.lastName}`.trim()
@@ -306,6 +385,10 @@ siteVisitsRoutes.delete("/:id", writeRateLimit, async (c) => {
   }
 
   const visit = await siteVisitService.cancel(visitId);
+
+  void runSiteVisitAutomation(visitId, "cancelled", { actorUserId: authUser.id }).catch(
+    () => undefined,
+  );
 
   const leadName = existing.lead
     ? `${existing.lead.firstName} ${existing.lead.lastName}`.trim()

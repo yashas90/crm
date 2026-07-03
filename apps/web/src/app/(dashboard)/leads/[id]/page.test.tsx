@@ -43,6 +43,19 @@ vi.mock("@/hooks/use-leads", async (importOriginal) => {
   };
 });
 
+vi.mock("@/hooks/use-format-money", () => ({
+  useFormatMoney: () => ({
+    formatMoney: (value: number) => `₹${value.toLocaleString("en-IN")}`,
+    formatting: {
+      locale: "en-IN",
+      currency: "INR",
+      dateFormat: "DD/MM/YYYY",
+      timezone: "Asia/Kolkata",
+    },
+    isLoading: false,
+  }),
+}));
+
 vi.mock("@/hooks/use-lead-scoring", () => ({
   useLeadScore: () => ({
     data: { enabled: true, score: 72, factors: [{ label: "Called and answered", points: 20 }] },

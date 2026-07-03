@@ -69,13 +69,15 @@ export function getApiUrl() {
 }
 
 const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
-const RETRY_DELAY_MS = 600;
+const RETRY_BASE_DELAY_MS = 800;
 const RATE_LIMIT_RETRY_DELAY_MS = 1500;
-const MAX_TRANSIENT_RETRIES = 2;
-const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_TRANSIENT_RETRIES = 3;
+const REQUEST_TIMEOUT_MS = 45_000;
 
-const NETWORK_ERROR_MESSAGE =
-  "Cannot reach the server. Check your mobile data or Wi‑Fi. If you recently updated the CRM, uninstall this app and install the latest APK from your admin.";
+const NETWORK_ERROR_MESSAGE = "Connection issue. Check your mobile data or Wi‑Fi and try again.";
+
+const TIMEOUT_ERROR_MESSAGE =
+  "The server took too long to respond. Pull down to refresh or try again in a moment.";
 
 function isTransientFailure(error: unknown): boolean {
   if (!(error instanceof ApiRequestError)) return false;
@@ -153,9 +155,7 @@ async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptio
     const timedOut = err instanceof Error && err.name === "AbortError";
     throw new ApiRequestError(
       "NETWORK_ERROR",
-      timedOut
-        ? "The server took too long to respond. Check your connection and try again."
-        : NETWORK_ERROR_MESSAGE,
+      timedOut ? TIMEOUT_ERROR_MESSAGE : NETWORK_ERROR_MESSAGE,
     );
   } finally {
     clearTimeout(timeoutId);
@@ -237,7 +237,7 @@ export async function apiFetch<T>(
         error instanceof ApiRequestError &&
         (error.code === "RATE_LIMITED" || error.code === "IP_BLOCKED" || error.status === 429)
           ? RATE_LIMIT_RETRY_DELAY_MS * (attempt + 1)
-          : RETRY_DELAY_MS;
+          : RETRY_BASE_DELAY_MS * (attempt + 1);
       attempt += 1;
       await sleep(delay);
     }

@@ -1,9 +1,15 @@
-import { leads, projects, siteVisits, users } from "@propninja/db";
+import { leads, organizations, projectUnits, projects, siteVisits, users } from "@propninja/db";
 import { getIstDateKey } from "@propninja/types/ist";
 import { and, asc, count, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { boundPageSize } from "../lib/pagination.js";
+import {
+  type SiteVisitReminderTier,
+  appendReminderTier,
+  hasReminderTierSent,
+  parseSiteVisitReminderMinutes,
+} from "../lib/siteVisitReminders.js";
 import {
   SiteVisitOverlapError,
   SiteVisitProjectRequiredError,
@@ -19,16 +25,23 @@ export { SiteVisitProjectRequiredError } from "../lib/siteVisitTime.js";
 export interface CreateSiteVisitInput {
   leadId: string;
   projectId?: string | null;
+  unitId?: string | null;
+  tower?: string | null;
   agentId: string;
   visitDate: string;
   visitTime: string;
   duration?: number;
   notes?: string | null;
   propertyAddress?: string | null;
+  meetingLocation?: string | null;
+  mapsLink?: string | null;
+  customerEmail?: string | null;
 }
 
 export interface UpdateSiteVisitInput {
   projectId?: string | null;
+  unitId?: string | null;
+  tower?: string | null;
   agentId?: string;
   visitDate?: string;
   visitTime?: string;
@@ -36,6 +49,9 @@ export interface UpdateSiteVisitInput {
   status?: SiteVisitStatus;
   notes?: string | null;
   propertyAddress?: string | null;
+  meetingLocation?: string | null;
+  mapsLink?: string | null;
+  customerEmail?: string | null;
   outcome?: string | null;
   outcomeNote?: string | null;
 }
@@ -56,6 +72,8 @@ const visitSelectFields = {
   id: siteVisits.id,
   leadId: siteVisits.leadId,
   projectId: siteVisits.projectId,
+  unitId: siteVisits.unitId,
+  tower: siteVisits.tower,
   agentId: siteVisits.agentId,
   visitDate: siteVisits.visitDate,
   visitTime: siteVisits.visitTime,
@@ -63,9 +81,14 @@ const visitSelectFields = {
   status: siteVisits.status,
   notes: siteVisits.notes,
   propertyAddress: siteVisits.propertyAddress,
+  meetingLocation: siteVisits.meetingLocation,
+  mapsLink: siteVisits.mapsLink,
+  customerEmail: siteVisits.customerEmail,
+  googleCalendarEventId: siteVisits.googleCalendarEventId,
   outcome: siteVisits.outcome,
   outcomeNote: siteVisits.outcomeNote,
   reminderSent: siteVisits.reminderSent,
+  remindersSent: siteVisits.remindersSent,
   createdAt: siteVisits.createdAt,
   updatedAt: siteVisits.updatedAt,
   lead: {
@@ -73,14 +96,20 @@ const visitSelectFields = {
     firstName: leads.firstName,
     lastName: leads.lastName,
     phone: leads.phone,
+    email: leads.email,
   },
   project: {
     id: projects.id,
     name: projects.name,
   },
+  unit: {
+    id: projectUnits.id,
+    unitNumber: projectUnits.unitNumber,
+  },
   agent: {
     id: users.id,
     name: users.name,
+    phone: users.phone,
   },
 };
 
@@ -88,6 +117,8 @@ function mapVisitRow(row: {
   id: string;
   leadId: string;
   projectId: string | null;
+  unitId: string | null;
+  tower: string | null;
   agentId: string;
   visitDate: string;
   visitTime: string;
@@ -95,22 +126,38 @@ function mapVisitRow(row: {
   status: string;
   notes: string | null;
   propertyAddress: string | null;
+  meetingLocation: string | null;
+  mapsLink: string | null;
+  customerEmail: string | null;
+  googleCalendarEventId: string | null;
   outcome: string | null;
   outcomeNote: string | null;
   reminderSent: boolean;
+  remindersSent: SiteVisitReminderTier[];
   createdAt: Date;
   updatedAt: Date;
-  lead: { id: string; firstName: string; lastName: string; phone: string | null } | null;
+  lead: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string | null;
+    email: string | null;
+  } | null;
   project: { id: string; name: string } | null;
-  agent: { id: string; name: string } | null;
+  unit: { id: string; unitNumber: string } | null;
+  agent: { id: string; name: string; phone: string | null } | null;
 }) {
   const property =
-    row.propertyAddress?.trim() || (row.project?.name ? `${row.project.name}` : null);
+    row.meetingLocation?.trim() ||
+    row.propertyAddress?.trim() ||
+    (row.project?.name ? `${row.project.name}` : null);
 
   return {
     id: row.id,
     leadId: row.leadId,
     projectId: row.projectId,
+    unitId: row.unitId,
+    tower: row.tower,
     agentId: row.agentId,
     visitDate: row.visitDate,
     visitTime: row.visitTime,
@@ -118,14 +165,20 @@ function mapVisitRow(row: {
     status: row.status as SiteVisitStatus,
     notes: row.notes,
     propertyAddress: row.propertyAddress,
+    meetingLocation: row.meetingLocation,
+    mapsLink: row.mapsLink,
+    customerEmail: row.customerEmail,
+    googleCalendarEventId: row.googleCalendarEventId,
     propertyLabel: property,
     outcome: row.outcome,
     outcomeNote: row.outcomeNote,
     reminderSent: row.reminderSent,
+    remindersSent: row.remindersSent ?? [],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     lead: row.lead,
     project: row.project,
+    unit: row.unit,
     agent: row.agent,
   };
 }
@@ -200,6 +253,7 @@ export const siteVisitService = {
         .from(siteVisits)
         .leftJoin(leads, eq(siteVisits.leadId, leads.id))
         .leftJoin(projects, eq(siteVisits.projectId, projects.id))
+        .leftJoin(projectUnits, eq(siteVisits.unitId, projectUnits.id))
         .leftJoin(users, eq(siteVisits.agentId, users.id))
         .where(where)
         .orderBy(asc(siteVisits.visitDate), asc(siteVisits.visitTime))
@@ -222,6 +276,7 @@ export const siteVisitService = {
       .from(siteVisits)
       .leftJoin(leads, eq(siteVisits.leadId, leads.id))
       .leftJoin(projects, eq(siteVisits.projectId, projects.id))
+      .leftJoin(projectUnits, eq(siteVisits.unitId, projectUnits.id))
       .leftJoin(users, eq(siteVisits.agentId, users.id))
       .where(and(eq(siteVisits.id, id), eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID)))
       .limit(1);
@@ -268,13 +323,19 @@ export const siteVisitService = {
         orgId: SINGLE_TENANT_ORG_ID,
         leadId: input.leadId,
         projectId: input.projectId ?? null,
+        unitId: input.unitId ?? null,
+        tower: input.tower ?? null,
         agentId: input.agentId,
         visitDate: input.visitDate,
         visitTime,
         duration,
         notes: input.notes ?? null,
         propertyAddress: input.propertyAddress ?? null,
+        meetingLocation: input.meetingLocation ?? null,
+        mapsLink: input.mapsLink ?? null,
+        customerEmail: input.customerEmail ?? null,
         status: "scheduled",
+        remindersSent: [],
       })
       .returning();
 
@@ -307,15 +368,19 @@ export const siteVisitService = {
       throw new SiteVisitProjectRequiredError();
     }
 
-    const resetReminder =
+    const scheduleChanged =
       visitDate !== existing.visitDate ||
       visitTime !== existing.visitTime ||
-      nextStatus !== existing.status;
+      duration !== existing.duration;
+
+    const resetReminder = scheduleChanged || nextStatus !== existing.status;
 
     await db
       .update(siteVisits)
       .set({
         projectId: nextProjectId,
+        unitId: input.unitId !== undefined ? input.unitId : existing.unitId,
+        tower: input.tower !== undefined ? input.tower : existing.tower,
         agentId,
         visitDate,
         visitTime,
@@ -324,9 +389,15 @@ export const siteVisitService = {
         notes: input.notes !== undefined ? input.notes : existing.notes,
         propertyAddress:
           input.propertyAddress !== undefined ? input.propertyAddress : existing.propertyAddress,
+        meetingLocation:
+          input.meetingLocation !== undefined ? input.meetingLocation : existing.meetingLocation,
+        mapsLink: input.mapsLink !== undefined ? input.mapsLink : existing.mapsLink,
+        customerEmail:
+          input.customerEmail !== undefined ? input.customerEmail : existing.customerEmail,
         outcome: input.outcome !== undefined ? input.outcome : existing.outcome,
         outcomeNote: input.outcomeNote !== undefined ? input.outcomeNote : existing.outcomeNote,
         reminderSent: resetReminder ? false : existing.reminderSent,
+        remindersSent: resetReminder ? [] : existing.remindersSent,
         updatedAt: new Date(),
       })
       .where(eq(siteVisits.id, id));
@@ -355,38 +426,104 @@ export const siteVisitService = {
     return Number(row?.total ?? 0);
   },
 
-  async findDueForReminder(now = new Date()) {
-    const windowStart = new Date(now.getTime() + 25 * 60_000);
-    const windowEnd = new Date(now.getTime() + 35 * 60_000);
+  async findDueForReminders(now = new Date()) {
+    const [org] = await db
+      .select({ settings: organizations.settings })
+      .from(organizations)
+      .where(eq(organizations.id, SINGLE_TENANT_ORG_ID))
+      .limit(1);
+
+    const tiers = parseSiteVisitReminderMinutes(org?.settings as Record<string, unknown> | null);
+    const due: Array<ReturnType<typeof mapVisitRow> & { tierMinutes: number }> = [];
 
     const candidates = await db
       .select(visitSelectFields)
       .from(siteVisits)
       .leftJoin(leads, eq(siteVisits.leadId, leads.id))
       .leftJoin(projects, eq(siteVisits.projectId, projects.id))
+      .leftJoin(projectUnits, eq(siteVisits.unitId, projectUnits.id))
       .leftJoin(users, eq(siteVisits.agentId, users.id))
       .where(
         and(
           eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
           eq(siteVisits.status, "scheduled"),
-          eq(siteVisits.reminderSent, false),
-          gte(siteVisits.visitDate, sql`CURRENT_DATE`),
-          lte(siteVisits.visitDate, sql`CURRENT_DATE`),
+          gte(siteVisits.visitDate, sql`CURRENT_DATE - INTERVAL '1 day'`),
         ),
       );
 
-    return candidates
-      .map((row) => mapVisitRow(row))
-      .filter((visit) => {
-        const { start } = siteVisitTimeRange(visit.visitDate, visit.visitTime, visit.duration);
-        return start >= windowStart && start <= windowEnd;
-      });
+    for (const row of candidates) {
+      const visit = mapVisitRow(row);
+      const { start } = siteVisitTimeRange(visit.visitDate, visit.visitTime, visit.duration);
+      const minutesUntil = (start.getTime() - now.getTime()) / 60_000;
+
+      for (const tierMinutes of tiers) {
+        if (hasReminderTierSent(visit.remindersSent, tierMinutes)) continue;
+        const windowStart = tierMinutes - 3;
+        const windowEnd = tierMinutes + 3;
+        if (minutesUntil >= windowStart && minutesUntil <= windowEnd) {
+          due.push({ ...visit, tierMinutes });
+          break;
+        }
+      }
+    }
+
+    return due;
   },
 
-  async markReminderSent(id: string) {
+  async markReminderTierSent(id: string, tierMinutes: number) {
+    const existing = await this.getById(id);
+    if (!existing) return;
+
+    const remindersSent = appendReminderTier(existing.remindersSent, tierMinutes);
     await db
       .update(siteVisits)
-      .set({ reminderSent: true, updatedAt: new Date() })
+      .set({
+        remindersSent,
+        reminderSent: true,
+        updatedAt: new Date(),
+      })
       .where(eq(siteVisits.id, id));
+  },
+
+  /** @deprecated Use markReminderTierSent */
+  async markReminderSent(id: string) {
+    await this.markReminderTierSent(id, 30);
+  },
+
+  async dashboardSummary(agentId?: string) {
+    const today = getIstDateKey();
+    const base = [eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID)];
+    if (agentId) base.push(eq(siteVisits.agentId, agentId));
+
+    const [todayRow, upcomingRow, completedRow, cancelledRow, missedRow] = await Promise.all([
+      db
+        .select({ total: count() })
+        .from(siteVisits)
+        .where(and(...base, eq(siteVisits.visitDate, today), ne(siteVisits.status, "cancelled"))),
+      db
+        .select({ total: count() })
+        .from(siteVisits)
+        .where(and(...base, eq(siteVisits.status, "scheduled"), gte(siteVisits.visitDate, today))),
+      db
+        .select({ total: count() })
+        .from(siteVisits)
+        .where(and(...base, eq(siteVisits.status, "completed"))),
+      db
+        .select({ total: count() })
+        .from(siteVisits)
+        .where(and(...base, eq(siteVisits.status, "cancelled"))),
+      db
+        .select({ total: count() })
+        .from(siteVisits)
+        .where(and(...base, eq(siteVisits.status, "no_show"))),
+    ]);
+
+    return {
+      today: Number(todayRow[0]?.total ?? 0),
+      upcoming: Number(upcomingRow[0]?.total ?? 0),
+      completed: Number(completedRow[0]?.total ?? 0),
+      cancelled: Number(cancelledRow[0]?.total ?? 0),
+      missed: Number(missedRow[0]?.total ?? 0),
+    };
   },
 };

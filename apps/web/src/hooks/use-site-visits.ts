@@ -11,6 +11,8 @@ export type SiteVisit = {
   id: string;
   leadId: string;
   projectId: string | null;
+  unitId: string | null;
+  tower: string | null;
   agentId: string;
   visitDate: string;
   visitTime: string;
@@ -18,13 +20,33 @@ export type SiteVisit = {
   status: SiteVisitStatus;
   notes: string | null;
   propertyAddress: string | null;
+  meetingLocation: string | null;
+  mapsLink: string | null;
+  customerEmail: string | null;
+  googleCalendarEventId: string | null;
   propertyLabel: string | null;
   reminderSent: boolean;
+  remindersSent: Array<{ tierMinutes: number; sentAt: string }>;
   createdAt: string;
   updatedAt: string;
-  lead: { id: string; firstName: string; lastName: string; phone: string | null } | null;
+  lead: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string | null;
+    email?: string | null;
+  } | null;
   project: { id: string; name: string } | null;
-  agent: { id: string; name: string } | null;
+  unit: { id: string; unitNumber: string } | null;
+  agent: { id: string; name: string; phone?: string | null } | null;
+};
+
+export type SiteVisitDashboardSummary = {
+  today: number;
+  upcoming: number;
+  completed: number;
+  cancelled: number;
+  missed: number;
 };
 
 export type SiteVisitsListParams = {
@@ -96,13 +118,27 @@ export function useSiteVisit(id: string) {
 export type CreateSiteVisitInput = {
   leadId: string;
   projectId?: string | null;
+  unitId?: string | null;
+  tower?: string | null;
   agentId?: string;
   visitDate: string;
   visitTime: string;
   duration?: number;
   notes?: string | null;
   propertyAddress?: string | null;
+  meetingLocation?: string | null;
+  mapsLink?: string | null;
+  customerEmail?: string | null;
 };
+
+export function useSiteVisitSummary(agentId?: string) {
+  const qs = agentId ? `?agentId=${agentId}` : "";
+  return useQuery({
+    queryKey: ["site-visits", "summary", agentId ?? "all"],
+    queryFn: () => apiGet<SiteVisitDashboardSummary>(`/api/site-visits/summary${qs}`),
+    staleTime: 30_000,
+  });
+}
 
 export function useCreateSiteVisit() {
   const queryClient = useQueryClient();

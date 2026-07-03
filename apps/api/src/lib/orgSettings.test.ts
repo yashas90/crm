@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOrgSettingsPatch, mergeOrgSettings } from "./orgSettings.js";
+import { buildOrgSettingsPatch, listOrgUpdateFields, mergeOrgSettings } from "./orgSettings.js";
 import type { UpdateOrgBody } from "./validators/org.js";
 
 describe("orgSettings", () => {
@@ -42,6 +42,24 @@ describe("orgSettings", () => {
         settings: { leadScoringEnabled: false },
       } as UpdateOrgBody),
     ).toEqual({ leadScoringEnabled: false });
+  });
+
+  it("merges reportEmailEnabled boolean setting", () => {
+    expect(mergeOrgSettings({}, { reportEmailEnabled: true })).toEqual({
+      reportEmailEnabled: true,
+    });
+    expect(mergeOrgSettings({ reportEmailEnabled: true }, { reportEmailEnabled: false })).toEqual({
+      reportEmailEnabled: false,
+    });
+  });
+
+  it("lists updated fields for audit metadata", () => {
+    expect(
+      listOrgUpdateFields({
+        name: "Acme",
+        settings: { locale: "en-IN", reportEmailEnabled: true },
+      }),
+    ).toEqual(["name", "locale", "reportEmailEnabled"]);
   });
 
   it("removes cleared settings values", () => {

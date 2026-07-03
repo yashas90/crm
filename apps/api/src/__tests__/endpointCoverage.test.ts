@@ -478,6 +478,24 @@ describe("API endpoint coverage", () => {
       expect(res.status).toBe(200);
     });
 
+    it("PATCH /api/org updates profile fields", async ({ skip }) => {
+      if (!hasDb) skip();
+      const res = await app.request("/api/org", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${tokens.admin}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          settings: { locale: "en-IN", currency: "INR" },
+        }),
+      });
+      expect(res.status).toBe(200);
+      const body = await jsonBody(res);
+      expect(body.data.settings.locale).toBe("en-IN");
+      expect(body.data.settings.currency).toBe("INR");
+    });
+
     it("GET /api/audit-logs", async ({ skip }) => {
       if (!hasDb) skip();
       const res = await app.request("/api/audit-logs?page=1&pageSize=10", {

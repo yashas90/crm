@@ -12,6 +12,17 @@ export const editableOrgSettingsSchema = z
     dateFormat: z.string().trim().min(2).max(32).optional().nullable(),
     currency: z.string().trim().min(3).max(3).optional().nullable(),
     leadScoringEnabled: optionalBooleanSetting,
+    reportEmailEnabled: optionalBooleanSetting,
+    siteVisitReminderMinutes: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(5)
+          .max(7 * 24 * 60),
+      )
+      .max(10)
+      .optional(),
   })
   .partial();
 
