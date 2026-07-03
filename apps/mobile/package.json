@@ -50,8 +50,10 @@
     "expo-web-browser": "~14.2.0",
     "react": "19.0.0",
     "react-native": "0.79.6",
+    "react-native-gifted-charts": "^1.4.77",
     "react-native-safe-area-context": "5.4.0",
-    "react-native-screens": "~4.11.1"
+    "react-native-screens": "~4.11.1",
+    "react-native-svg": "^15.15.5"
   },
   "devDependencies": {
     "@babel/core": "^7.27.4",
