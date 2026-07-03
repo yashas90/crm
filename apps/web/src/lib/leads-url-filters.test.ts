@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildLeadsSearchParams, parseLeadsPageUrl, postImportLeadsFilters } from "./leads-url-filters";
+import {
+  buildLeadsSearchParams,
+  defaultLeadsUrlFilters,
+  leadsFiltersToQuery,
+  parseLeadsPageUrl,
+  postImportLeadsFilters,
+} from "./leads-url-filters";
 
 describe("leads URL filters", () => {
   it("round-trips ad leads filter", () => {
@@ -38,13 +44,34 @@ describe("leads URL filters", () => {
     expect(serialized).toContain("tags=hot%2Cvip");
   });
 
-  it("writes scope to the URL", () => {
+  it("writes scope to the URL without stage params for bucket scopes", () => {
     const query = buildLeadsSearchParams(
       { ...parseLeadsPageUrl(new URLSearchParams()).filters, adLeadsOnly: false },
       { scope: "deleted", stage: "active" },
     );
     expect(query).toContain("scope=deleted");
-    expect(query).toContain("active=true");
+    expect(query).not.toContain("active=true");
+  });
+
+  it("parses NA leads scope from URL", () => {
+    const parsed = parseLeadsPageUrl(new URLSearchParams("scope=naleads"));
+    expect(parsed.scope).toBe("naleads");
+  });
+
+  it("omits active stage filter for NA leads scope", () => {
+    const query = buildLeadsSearchParams(defaultLeadsUrlFilters(), {
+      scope: "naleads",
+      stage: "active",
+    });
+    expect(query).toContain("scope=naleads");
+    expect(query).not.toContain("active=true");
+
+    const apiQuery = leadsFiltersToQuery(defaultLeadsUrlFilters(), {
+      scope: "naleads",
+      stage: "active",
+    });
+    expect(apiQuery.naLeadsOnly).toBe("true");
+    expect(apiQuery.activeOnly).toBeUndefined();
   });
 
   it("post-import filters clear source and set batch id", () => {

@@ -20,8 +20,11 @@ export function AnalyticsBookedUnits({ dateFrom, dateTo }: AnalyticsBookedUnitsP
 
   return (
     <Card className="">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Booked units this month</CardTitle>
+        <Link href="/bookings" className="text-sm text-primary hover:underline">
+          View all
+        </Link>
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (

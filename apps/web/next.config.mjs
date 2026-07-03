@@ -58,6 +58,7 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   transpilePackages: ["@propninja/ui", "@propninja/types"],
   webpack: (config) => {
     config.resolve.extensionAlias = {

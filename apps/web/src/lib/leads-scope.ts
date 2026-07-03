@@ -60,6 +60,16 @@ export function scopeFromUrlFilters(
 }
 
 /** Map UI scope to API query flags (works alongside search/status/temperature filters). */
+/** Stage chips (active/new/pending/…) conflict with these bucket scopes — skip them in list queries. */
+export function scopeUsesStageFilters(scope: LeadsScope): boolean {
+  return !(
+    scope === "naleads" ||
+    scope === "deleted" ||
+    scope === "duplicate" ||
+    scope === "re-enquired"
+  );
+}
+
 export function scopeToQueryParams(
   scope: LeadsScope,
   userId?: string,

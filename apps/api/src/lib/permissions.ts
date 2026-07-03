@@ -94,6 +94,27 @@ export function canManageProjects(user: AuthUser): boolean {
   return user.role === "admin" || user.role === "manager";
 }
 
+/** Full unit inventory CRUD (bulk add, delete, arbitrary PATCH). */
+export function canManageUnitInventory(user: AuthUser): boolean {
+  return canManageProjects(user);
+}
+
+/** Reserve, book, or release units — all authenticated roles. */
+export function canTransitionUnitBooking(_user: AuthUser): boolean {
+  return true;
+}
+
+/** Download booking PDF — managers/admins, booking agent, or lead assignee. */
+export function canViewBookingPdf(
+  user: AuthUser,
+  context: { agentId?: string | null; leadAssignedTo?: string | null },
+): boolean {
+  if (canManageProjects(user)) return true;
+  if (context.agentId && context.agentId === user.id) return true;
+  if (context.leadAssignedTo && context.leadAssignedTo === user.id) return true;
+  return false;
+}
+
 /** @deprecated Use canManageProjects */
 export function canCreateProject(user: AuthUser): boolean {
   return canManageProjects(user);

@@ -21,6 +21,7 @@ import { RevenueKpiRow } from "@/components/dashboard/revenue-kpi-row";
 import { StatusKpiRow } from "@/components/dashboard/status-kpi-row";
 import { TeamPerformanceTable } from "@/components/dashboard/team-performance-table";
 import { TodayKpiRow } from "@/components/dashboard/today-kpi-row";
+import { SlaAlertPanel } from "@/components/sla/sla-alert-panel";
 import { NeuSectionHeading } from "@/components/ui/neubrutal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardReports } from "@/hooks/use-dashboard-reports";
@@ -98,7 +99,10 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
               Funnel performance for {rangeLabelLower}.
               {overview.isFetching && overviewData ? (
                 <span className="ml-2 text-xs">Updating…</span>
-              ) : null}
+              ) : null}{" "}
+              <Link href="/analytics" className="font-medium text-primary hover:underline">
+                Full analytics →
+              </Link>
             </p>
           </header>
 
@@ -295,12 +299,14 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
           </section>
         </div>
 
-        <aside className="hidden lg:col-span-3 lg:block">
+        <aside className="hidden space-y-4 lg:col-span-3 lg:block">
+          <SlaAlertPanel />
           <RemindersPanel className="sticky top-24" />
         </aside>
       </div>
 
-      <div className="lg:hidden">
+      <div className="space-y-4 lg:hidden">
+        <SlaAlertPanel />
         <RemindersPanel collapsible />
       </div>
     </div>

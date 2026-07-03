@@ -91,3 +91,14 @@ export const VISIT_OUTCOME_LABELS: Record<VisitOutcome, string> = {
   not_interested: "Not Interested",
   revisit_required: "Revisit Required",
 };
+
+export const UNIT_STATUSES = ["available", "reserved", "booked", "sold"] as const;
+
+export type UnitStatus = (typeof UNIT_STATUSES)[number];
+
+export const UNIT_STATUS_LABELS: Record<UnitStatus, string> = {
+  available: "Available",
+  reserved: "Reserved",
+  booked: "Booked",
+  sold: "Sold",
+};

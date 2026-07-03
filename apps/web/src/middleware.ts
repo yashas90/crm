@@ -17,7 +17,9 @@ const DASHBOARD_PREFIXES = [
   "/settings",
   "/documents",
   "/analytics",
+  "/performance",
   "/site-visits",
+  "/bookings",
   "/tasks",
 ];
 

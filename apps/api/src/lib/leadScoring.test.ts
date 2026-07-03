@@ -5,6 +5,7 @@ import {
   type LeadScoringInput,
   calculateLeadScore,
   clampLeadScore,
+  isLeadScoringEnabled,
   scoreTier,
 } from "./leadScoring.js";
 
@@ -212,6 +213,20 @@ describe("scoreTier", () => {
     expect(scoreTier(HOT_LEAD_SCORE_THRESHOLD)).toBe("hot");
     expect(scoreTier(69)).toBe("warm");
     expect(scoreTier(39)).toBe("cold");
+  });
+});
+
+describe("isLeadScoringEnabled", () => {
+  it("is enabled by default", () => {
+    expect(isLeadScoringEnabled({})).toBe(true);
+    expect(isLeadScoringEnabled(null)).toBe(true);
+    expect(isLeadScoringEnabled({ leadScoringEnabled: true })).toBe(true);
+    expect(isLeadScoringEnabled({ leadScoringEnabled: "true" })).toBe(true);
+  });
+
+  it("is disabled only when explicitly false", () => {
+    expect(isLeadScoringEnabled({ leadScoringEnabled: false })).toBe(false);
+    expect(isLeadScoringEnabled({ leadScoringEnabled: "false" })).toBe(false);
   });
 });
 

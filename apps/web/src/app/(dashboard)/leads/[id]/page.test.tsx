@@ -43,6 +43,13 @@ vi.mock("@/hooks/use-leads", async (importOriginal) => {
   };
 });
 
+vi.mock("@/hooks/use-lead-scoring", () => ({
+  useLeadScore: () => ({
+    data: { enabled: true, score: 72, factors: [{ label: "Called and answered", points: 20 }] },
+    isLoading: false,
+  }),
+}));
+
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ ready: true, canDeleteLead: true }),
 }));

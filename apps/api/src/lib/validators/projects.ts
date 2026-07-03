@@ -31,6 +31,7 @@ export const listProjectsQuerySchema = paginationSchema.extend({
     .enum(["true", "false"])
     .optional()
     .transform((value) => value === "true"),
+  includeUnitSummary: optionalBooleanQuery,
 });
 
 export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;

@@ -1,5 +1,13 @@
 import { CompleteSiteVisitSheet } from "@/components/site-visits/CompleteSiteVisitSheet";
-import { type SiteVisit, formatVisitTime, useUpdateSiteVisit } from "@/hooks/use-site-visits";
+import {
+  type SiteVisit,
+  formatVisitTime,
+  useCancelSiteVisit,
+  useUpdateSiteVisit,
+  visitLeadName,
+  visitStatusColor,
+  visitStatusLabel,
+} from "@/hooks/use-site-visits";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,14 +24,16 @@ type VisitDetailSheetProps = {
 
 export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: VisitDetailSheetProps) {
   const updateVisit = useUpdateSiteVisit();
+  const cancelVisit = useCancelSiteVisit();
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleTime, setRescheduleTime] = useState("");
   const [completeSheetOpen, setCompleteSheetOpen] = useState(false);
 
   if (!visit) return null;
 
-  const leadName = visit.lead ? `${visit.lead.firstName} ${visit.lead.lastName}` : "Lead";
+  const leadName = visitLeadName(visit);
   const property = visit.propertyLabel ?? visit.propertyAddress ?? "Property TBD";
+  const statusColor = visitStatusColor(visit.status);
 
   async function setStatus(status: SiteVisit["status"]) {
     try {
@@ -51,11 +61,34 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
     await Linking.openURL(url);
   }
 
+  async function handleCancel() {
+    Alert.alert("Cancel visit", "This will mark the visit as cancelled.", [
+      { text: "Keep visit", style: "cancel" },
+      {
+        text: "Cancel visit",
+        style: "destructive",
+        onPress: () => {
+          void cancelVisit
+            .mutateAsync(visit!.id)
+            .then(onClose)
+            .catch((err) => {
+              Alert.alert("Error", err instanceof Error ? err.message : "Cancel failed");
+            });
+        },
+      },
+    ]);
+  }
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <SafeAreaView edges={["bottom"]} style={styles.sheet}>
           <Text style={styles.title}>{leadName}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}22` }]}>
+            <Text style={[styles.statusBadgeText, { color: statusColor }]}>
+              {visitStatusLabel(visit.status)}
+            </Text>
+          </View>
           <Text style={styles.subtitle}>
             {visit.visitDate} · {formatVisitTime(visit.visitTime)} · {visit.duration} min
           </Text>
@@ -123,6 +156,11 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
             <Pressable style={styles.secondaryBtn} onPress={() => void setStatus("no_show")}>
               <Text style={styles.secondaryBtnText}>No show</Text>
             </Pressable>
+            {visit.status === "scheduled" ? (
+              <Pressable style={styles.dangerBtn} onPress={() => void handleCancel()}>
+                <Text style={styles.dangerBtnText}>Cancel visit</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <CompleteSiteVisitSheet
@@ -151,6 +189,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: { ...typography.subheading, color: colors.text },
+  statusBadge: {
+    alignSelf: "flex-start",
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  statusBadgeText: { fontSize: 11, fontWeight: "800", textTransform: "capitalize" },
   subtitle: { color: colors.textMuted, fontSize: 13 },
   property: { color: colors.text, fontSize: 15, fontWeight: "600" },
   actionRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
@@ -187,6 +233,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   secondaryBtnText: { color: colors.text, fontWeight: "600" },
+  dangerBtn: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  dangerBtnText: { color: colors.danger, fontWeight: "700" },
   reschedule: { marginTop: spacing.sm },
   close: { alignItems: "center", paddingVertical: spacing.sm },
   closeText: { color: colors.textMuted },

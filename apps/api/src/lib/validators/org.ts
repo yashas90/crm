@@ -2,6 +2,8 @@ import { z } from "zod";
 
 const optionalSettingText = z.string().trim().max(500).optional().nullable();
 
+const optionalBooleanSetting = z.union([z.boolean(), z.enum(["true", "false"])]).optional();
+
 export const editableOrgSettingsSchema = z
   .object({
     website: optionalSettingText,
@@ -9,6 +11,7 @@ export const editableOrgSettingsSchema = z
     locale: z.string().trim().min(2).max(16).optional().nullable(),
     dateFormat: z.string().trim().min(2).max(32).optional().nullable(),
     currency: z.string().trim().min(3).max(3).optional().nullable(),
+    leadScoringEnabled: optionalBooleanSetting,
   })
   .partial();
 

@@ -34,9 +34,13 @@ type Props = BottomTabScreenProps<MainTabParamList, "NotificationsTab">;
 function notificationIcon(type: string): keyof typeof Ionicons.glyphMap {
   switch (type) {
     case "lead_assigned":
+    case "leads_bulk_assigned":
       return "person-add-outline";
     case "followup_due":
       return "alarm-outline";
+    case "site_visit_scheduled":
+    case "site_visit_reminder":
+      return "location-outline";
     default:
       return "notifications-outline";
   }
@@ -96,6 +100,10 @@ export function NotificationsScreen({ navigation }: Props) {
       }
 
       const leadId = leadIdFromPayload(item.payload);
+      if (item.type === "site_visit_scheduled" || item.type === "site_visit_reminder") {
+        navigation.navigate("VisitsTab", { screen: "SiteVisitsHomeScreen" });
+        return;
+      }
       if (leadId) {
         navigation.navigate("LeadsTab", {
           screen: "LeadDetailScreen",

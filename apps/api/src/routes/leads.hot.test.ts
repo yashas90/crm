@@ -55,6 +55,6 @@ describe("GET /api/leads/hot", () => {
     expect(body.ok).toBe(true);
     expect(body.data.items).toHaveLength(1);
     expect(body.data.items[0].score).toBe(85);
-    expect(listHotLeads).toHaveBeenCalledWith(agentUser.id);
+    expect(listHotLeads).toHaveBeenCalledWith(agentUser.id, 50);
   });
 });

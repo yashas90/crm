@@ -8,7 +8,12 @@ import {
 } from "@/lib/leads-advanced-filters";
 import { advancedFiltersToFlatApiParams } from "@/lib/leads-advanced-filters";
 import { type LeadsDatePreset, inferDatePresetFromRange } from "@/lib/leads-date-filters";
-import { type LeadsScope, scopeFromSearchParams, scopeToQueryParams } from "@/lib/leads-scope";
+import {
+  type LeadsScope,
+  scopeFromSearchParams,
+  scopeToQueryParams,
+  scopeUsesStageFilters,
+} from "@/lib/leads-scope";
 import {
   type LeadsStage,
   defaultLeadsStage,
@@ -143,10 +148,12 @@ export function buildLeadsSearchParams(
     params.set("scope", scope);
   }
 
-  const stageParams = stageToUrlParams(stage);
-  if (stageParams.status) params.set("status", stageParams.status);
-  if (stageParams.active) params.set("active", "true");
-  if (stageParams.followUp) params.set("follow_up", stageParams.followUp);
+  if (scopeUsesStageFilters(scope)) {
+    const stageParams = stageToUrlParams(stage);
+    if (stageParams.status) params.set("status", stageParams.status);
+    if (stageParams.active) params.set("active", "true");
+    if (stageParams.followUp) params.set("follow_up", stageParams.followUp);
+  }
 
   if (filters.adLeadsOnly) {
     params.set("ad_leads", "true");
@@ -291,8 +298,9 @@ export function leadsFiltersToQuery(
     pageSize?: LeadsPageSize;
   },
 ) {
+  const scope = options?.scope ?? "all";
   const stage = options?.stage ?? defaultLeadsStage();
-  const stageParams = stageToQueryParams(stage);
+  const stageParams = scopeUsesStageFilters(scope) ? stageToQueryParams(stage) : {};
 
   return {
     ...leadsBaseFiltersToQuery(filters, options),

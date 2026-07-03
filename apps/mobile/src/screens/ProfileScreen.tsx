@@ -1,3 +1,4 @@
+import { ProfilePerformanceSection } from "@/components/profile/ProfilePerformanceSection";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useCurrentUser } from "@/hooks/use-auth";
@@ -27,8 +28,10 @@ type ProfileScreenProps = {
   onLogout: () => void;
   onOpenUserManagement?: () => void;
   onOpenProjects?: () => void;
+  onOpenBookings?: () => void;
   onOpenDocuments?: () => void;
-  onOpenCallLogs?: () => void;
+  onOpenCallLogs?: (dateFilter?: string) => void;
+  onOpenSla?: () => void;
   onOpenSiteVisits?: () => void;
 };
 
@@ -36,8 +39,10 @@ export function ProfileScreen({
   onLogout,
   onOpenUserManagement,
   onOpenProjects,
+  onOpenBookings,
   onOpenDocuments,
   onOpenCallLogs,
+  onOpenSla,
   onOpenSiteVisits,
 }: ProfileScreenProps) {
   const isAdmin = useIsAdmin();
@@ -108,10 +113,20 @@ export function ProfileScreen({
         </View>
       </View>
 
+      <ProfilePerformanceSection onOpenCallLogs={(dateFilter) => onOpenCallLogs?.(dateFilter)} />
+
       <Text style={screenStyles.sectionTitle}>Workspace</Text>
       <Card>
         {onOpenProjects ? (
           <Button label="Projects & inventory" variant="secondary" onPress={onOpenProjects} />
+        ) : null}
+        {onOpenBookings ? (
+          <Button
+            label="Bookings"
+            variant="secondary"
+            onPress={onOpenBookings}
+            style={styles.linkBtn}
+          />
         ) : null}
         {onOpenDocuments ? (
           <Button
@@ -128,6 +143,9 @@ export function ProfileScreen({
             onPress={onOpenSiteVisits}
             style={styles.linkBtn}
           />
+        ) : null}
+        {onOpenSla ? (
+          <Button label="Lead SLA" variant="secondary" onPress={onOpenSla} style={styles.linkBtn} />
         ) : null}
         {isAgent && onOpenCallLogs ? (
           <Button

@@ -23,13 +23,21 @@ export function useMessageTemplates(options?: { enabled?: boolean }) {
 export type LeadLinkedUnit = {
   id: string;
   unitNumber: string;
-  floor: number | null;
-  bedrooms: number | null;
+  floor: number;
+  bedrooms: number;
   areaSqFt: string;
   status: string;
-  priceListedRs: string;
+  priceListedRs: number;
+  priceFinalRs: number | null;
   projectId: string;
   projectName: string;
+  bookingDocument?: {
+    id: string;
+    bookingRef: string;
+    fileKey: string;
+    fileUrl: string;
+    generatedAt: string;
+  } | null;
 };
 
 export function useLeadLinkedUnit(leadId: string, options?: { enabled?: boolean }) {

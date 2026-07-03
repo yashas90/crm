@@ -1,7 +1,15 @@
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useLeads } from "@/hooks/use-leads";
-import { useProjectUnits, useReserveProjectUnit } from "@/hooks/use-projects";
+import {
+  fetchBookingPdfUrl,
+  useBookProjectUnit,
+  useProjectUnits,
+  useReleaseProjectUnit,
+  useReserveProjectUnit,
+  useUpdateProjectUnit,
+} from "@/hooks/use-projects";
+import { useIsManager } from "@/hooks/use-role";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -9,6 +17,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useLayoutEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -21,18 +31,31 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<ProfileStackParamList, "ProjectUnitScreen">;
 
+const STATUS_COLORS: Record<string, string> = {
+  available: colors.success,
+  reserved: "#d97706",
+  booked: colors.primary,
+  sold: colors.textMuted,
+};
+
 function formatPrice(value: number) {
   return `₹${value.toLocaleString("en-IN")}`;
 }
 
 export function ProjectUnitScreen({ route, navigation }: Props) {
   const { projectId, unitId, unitNumber } = route.params;
+  const isManager = useIsManager();
   const { data: units, isLoading, isError, refetch } = useProjectUnits(projectId);
   const reserve = useReserveProjectUnit(projectId);
+  const book = useBookProjectUnit(projectId);
+  const release = useReleaseProjectUnit(projectId);
+  const updateUnit = useUpdateProjectUnit(projectId);
   const unit = units?.find((u) => u.id === unitId);
   const insets = useSafeAreaInsets();
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [bookModalOpen, setBookModalOpen] = useState(false);
+  const [finalPrice, setFinalPrice] = useState("");
   const [leadSearch, setLeadSearch] = useState("");
   const leadsQuery = useLeads(
     { search: leadSearch, page: "1", pageSize: "20" },
@@ -57,6 +80,21 @@ export function ProjectUnitScreen({ route, navigation }: Props) {
   }
 
   const canReserve = unit.status === "available";
+  const canBook = unit.status === "reserved" && unit.assignedLeadId;
+  const canRelease = unit.status === "reserved" || unit.status === "booked";
+  const canMarkSold = isManager && unit.status === "booked";
+  const showPdf = unit.status === "booked" || unit.status === "sold";
+
+  async function handleOpenPdf() {
+    try {
+      const result = await fetchBookingPdfUrl(projectId, unitId);
+      if (result?.signedUrl) {
+        await Linking.openURL(result.signedUrl);
+      }
+    } catch {
+      Alert.alert("Error", "Could not open booking PDF.");
+    }
+  }
 
   return (
     <ScrollView
@@ -67,7 +105,12 @@ export function ProjectUnitScreen({ route, navigation }: Props) {
       }}
     >
       <View style={styles.card}>
-        <InfoRow label="Status" value={unit.status} capitalize />
+        <InfoRow
+          label="Status"
+          value={unit.status}
+          capitalize
+          statusColor={STATUS_COLORS[unit.status]}
+        />
         <InfoRow label="Floor" value={String(unit.floor)} />
         <InfoRow label="BHK" value={`${unit.bedrooms} BHK`} />
         <InfoRow label="Area" value={`${unit.areaSqFt} sqft`} />
@@ -85,6 +128,66 @@ export function ProjectUnitScreen({ route, navigation }: Props) {
           label="Reserve for lead"
           onPress={() => setPickerOpen(true)}
           style={{ marginTop: spacing.md }}
+        />
+      ) : null}
+
+      {canBook ? (
+        <Button
+          label="Confirm booking"
+          onPress={() => {
+            setFinalPrice(
+              unit.priceFinalRs != null ? String(unit.priceFinalRs) : String(unit.priceListedRs),
+            );
+            setBookModalOpen(true);
+          }}
+          style={{ marginTop: spacing.md }}
+        />
+      ) : null}
+
+      {canRelease ? (
+        <Button
+          label="Release unit"
+          variant="secondary"
+          onPress={() => {
+            Alert.alert("Release unit", "Return this unit to available inventory?", [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Release",
+                style: "destructive",
+                onPress: () => {
+                  release.mutate(unit.id, {
+                    onSuccess: () => navigation.goBack(),
+                  });
+                },
+              },
+            ]);
+          }}
+          loading={release.isPending}
+          style={{ marginTop: spacing.sm }}
+        />
+      ) : null}
+
+      {canMarkSold ? (
+        <Button
+          label="Mark as sold"
+          variant="secondary"
+          onPress={() => {
+            updateUnit.mutate(
+              { unitId: unit.id, status: "sold" },
+              { onSuccess: () => void refetch() },
+            );
+          }}
+          loading={updateUnit.isPending}
+          style={{ marginTop: spacing.sm }}
+        />
+      ) : null}
+
+      {showPdf ? (
+        <Button
+          label="Open booking PDF"
+          variant="secondary"
+          onPress={() => void handleOpenPdf()}
+          style={{ marginTop: spacing.sm }}
         />
       ) : null}
 
@@ -110,7 +213,7 @@ export function ProjectUnitScreen({ route, navigation }: Props) {
                       {
                         onSuccess: () => {
                           setPickerOpen(false);
-                          navigation.goBack();
+                          void refetch();
                         },
                       },
                     );
@@ -127,6 +230,65 @@ export function ProjectUnitScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={bookModalOpen} animationType="fade" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Confirm booking</Text>
+            <Text style={styles.modalHint}>
+              Final price is optional. Booking generates a PDF summary and marks the lead as won.
+            </Text>
+            <TextInput
+              style={styles.search}
+              placeholder="Final price (₹)"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
+              value={finalPrice}
+              onChangeText={setFinalPrice}
+            />
+            <View style={styles.modalActions}>
+              <Button
+                label="Cancel"
+                variant="secondary"
+                onPress={() => setBookModalOpen(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="Book unit"
+                loading={book.isPending}
+                onPress={() => {
+                  const parsed = finalPrice.trim() ? Number(finalPrice) : undefined;
+                  book.mutate(
+                    {
+                      unitId: unit.id,
+                      priceFinalRs: parsed,
+                    },
+                    {
+                      onSuccess: (result) => {
+                        setBookModalOpen(false);
+                        Alert.alert(
+                          "Booked",
+                          result.bookingDocument
+                            ? `Booking ref ${result.bookingDocument.bookingRef}`
+                            : "Unit marked as booked.",
+                        );
+                        void refetch();
+                      },
+                      onError: (err) => {
+                        Alert.alert(
+                          "Error",
+                          err instanceof Error ? err.message : "Could not book unit.",
+                        );
+                      },
+                    },
+                  );
+                }}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -135,15 +297,25 @@ function InfoRow({
   label,
   value,
   capitalize,
+  statusColor,
 }: {
   label: string;
   value: string;
   capitalize?: boolean;
+  statusColor?: string;
 }) {
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={[styles.infoValue, capitalize && styles.capitalize]}>{value}</Text>
+      <Text
+        style={[
+          styles.infoValue,
+          capitalize && styles.capitalize,
+          statusColor ? { color: statusColor } : null,
+        ]}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
@@ -201,6 +373,16 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.text,
     marginBottom: spacing.sm,
+  },
+  modalHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   search: {
     borderWidth: 1,

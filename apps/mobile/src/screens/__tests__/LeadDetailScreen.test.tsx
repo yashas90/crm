@@ -11,6 +11,9 @@ jest.mock("@/hooks/use-leads");
 jest.mock("@/components/site-visits/ScheduleVisitSheet", () => ({
   ScheduleVisitSheet: () => null,
 }));
+jest.mock("@/components/site-visits/VisitDetailSheet", () => ({
+  VisitDetailSheet: () => null,
+}));
 jest.mock("@/hooks/useTcf", () => {
   const actual = jest.requireActual<typeof import("@/hooks/useTcf")>("@/hooks/useTcf");
   return {

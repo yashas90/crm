@@ -2,10 +2,11 @@
 
 import { LeadsAdSourceTabs } from "@/components/leads/leads-ad-source-tabs";
 import { LeadsFilterBar } from "@/components/leads/leads-filter-bar";
+import { LeadsScopeTabs } from "@/components/leads/leads-scope-tabs";
 import { LeadsSourceChips } from "@/components/leads/leads-source-chips";
 import { LeadsStageBar } from "@/components/leads/leads-stage-bar";
 import type { LeadsDatePreset } from "@/lib/leads-date-filters";
-import type { LeadScopeCounts, LeadsScope } from "@/lib/leads-scope";
+import { type LeadScopeCounts, type LeadsScope, scopeUsesStageFilters } from "@/lib/leads-scope";
 import type { LeadStageCounts, LeadsStage } from "@/lib/leads-stage";
 import type { LeadsColumnVisibility } from "@/lib/leads-table-columns";
 import type { LeadsUrlFilters } from "@/lib/leads-url-filters";
@@ -34,10 +35,10 @@ type LeadsListFiltersProps = {
 };
 
 export function LeadsListFilters({
-  scope: _scope,
-  onScopeChange: _onScopeChange,
-  scopeCounts: _scopeCounts,
-  scopeCountsLoading: _scopeCountsLoading,
+  scope,
+  onScopeChange,
+  scopeCounts,
+  scopeCountsLoading,
   stage,
   onStageChange,
   stageCounts,
@@ -53,24 +54,35 @@ export function LeadsListFilters({
   advancedFilterCount,
   onAdLeadsOnlyChange,
   onSourceChange,
-  isAdmin: _isAdmin,
+  isAdmin = false,
 }: LeadsListFiltersProps) {
+  const showStageBar = scopeUsesStageFilters(scope);
+
   return (
     <section
       className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       aria-label="Lead filters"
     >
+      <LeadsScopeTabs
+        value={scope}
+        onChange={onScopeChange}
+        counts={scopeCounts}
+        isLoadingCounts={scopeCountsLoading}
+        isAdmin={isAdmin}
+      />
       <LeadsSourceChips
         value={filters.source}
         adLeadsOnly={filters.adLeadsOnly}
         onChange={onSourceChange}
       />
-      <LeadsStageBar
-        value={stage}
-        onChange={onStageChange}
-        counts={stageCounts}
-        isLoadingCounts={stageCountsLoading}
-      />
+      {showStageBar ? (
+        <LeadsStageBar
+          value={stage}
+          onChange={onStageChange}
+          counts={stageCounts}
+          isLoadingCounts={stageCountsLoading}
+        />
+      ) : null}
       <LeadsAdSourceTabs
         adLeadsOnly={filters.adLeadsOnly}
         onChange={(value) => {

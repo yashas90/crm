@@ -29,6 +29,7 @@ export function makeQueryClient() {
       queries: {
         staleTime: 60_000,
         retry: 1,
+        refetchIntervalInBackground: false,
       },
       mutations: {
         onError: (error, _variables, _context, mutation) => {

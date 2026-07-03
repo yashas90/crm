@@ -10,6 +10,7 @@ import {
 import { WhatsAppTemplateSheet } from "@/components/WhatsAppTemplateSheet";
 import { LeadDocumentsSection } from "@/components/documents/LeadDocumentsSection";
 import { ScheduleVisitSheet } from "@/components/site-visits/ScheduleVisitSheet";
+import { VisitDetailSheet } from "@/components/site-visits/VisitDetailSheet";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCalls, useLogCall } from "@/hooks/use-calls";
 import { useLeadBrowser } from "@/hooks/use-lead-browser";
@@ -21,7 +22,14 @@ import {
   useUpdateLeadFollowUp,
 } from "@/hooks/use-leads";
 import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
-import { formatVisitTime, useLeadSiteVisits } from "@/hooks/use-site-visits";
+import {
+  type SiteVisit,
+  formatVisitTime,
+  useLeadSiteVisits,
+  visitLocation,
+  visitStatusColor,
+  visitStatusLabel,
+} from "@/hooks/use-site-visits";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -98,6 +106,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const addNote = useAddLeadNote(leadId);
   const [statusSheetOpen, setStatusSheetOpen] = useState(false);
   const [scheduleVisitVisible, setScheduleVisitVisible] = useState(false);
+  const [selectedVisit, setSelectedVisit] = useState<SiteVisit | null>(null);
   const [followUpAt, setFollowUpAt] = useState<string | null>(null);
   const [savedToast, setSavedToast] = useState<string | null>(null);
   const [editVisible, setEditVisible] = useState(false);
@@ -432,6 +441,34 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             />
           </View>
 
+          {linkedUnit ? (
+            <Pressable
+              style={styles.linkedUnitCard}
+              onPress={() =>
+                navigation.getParent()?.navigate("ProfileTab", {
+                  screen: "ProjectUnitScreen",
+                  params: {
+                    projectId: linkedUnit.projectId,
+                    unitId: linkedUnit.id,
+                    unitNumber: linkedUnit.unitNumber,
+                  },
+                })
+              }
+            >
+              <View style={styles.linkedUnitHeader}>
+                <Text style={styles.linkedUnitTitle}>Linked unit</Text>
+                <Text style={styles.linkedUnitStatus}>{linkedUnit.status}</Text>
+              </View>
+              <Text style={styles.linkedUnitProject}>{linkedUnit.projectName}</Text>
+              <Text style={styles.linkedUnitMeta}>
+                Unit {linkedUnit.unitNumber} · F{linkedUnit.floor} · {linkedUnit.bedrooms} BHK
+              </Text>
+              {linkedUnit.bookingDocument?.bookingRef ? (
+                <Text style={styles.linkedUnitRef}>{linkedUnit.bookingDocument.bookingRef}</Text>
+              ) : null}
+            </Pressable>
+          ) : null}
+
           <View style={styles.followUpCard}>
             <Text style={styles.followUpTitle}>Schedule follow-up</Text>
             <FollowUpQuickPicker
@@ -582,14 +619,30 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               {(visitsData?.items ?? []).length === 0 ? (
                 <Text style={styles.empty}>No site visits scheduled.</Text>
               ) : (
-                visitsData?.items.map((visit) => (
-                  <View key={visit.id} style={styles.visitRow}>
-                    <Text style={styles.visitTitle}>
-                      {visit.visitDate} · {formatVisitTime(visit.visitTime)}
-                    </Text>
-                    <Text style={styles.visitMeta}>{visit.status}</Text>
-                  </View>
-                ))
+                visitsData?.items.map((visit) => {
+                  const statusColor = visitStatusColor(visit.status);
+                  return (
+                    <Pressable
+                      key={visit.id}
+                      style={styles.visitRow}
+                      onPress={() => setSelectedVisit(visit)}
+                    >
+                      <View style={styles.visitRowHeader}>
+                        <Text style={styles.visitTitle}>
+                          {visit.visitDate} · {formatVisitTime(visit.visitTime)}
+                        </Text>
+                        <View
+                          style={[styles.visitStatusBadge, { backgroundColor: `${statusColor}22` }]}
+                        >
+                          <Text style={[styles.visitStatusText, { color: statusColor }]}>
+                            {visitStatusLabel(visit.status)}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.visitMeta}>{visitLocation(visit)}</Text>
+                    </Pressable>
+                  );
+                })
               )}
             </View>
           ) : tab === "documents" ? (
@@ -642,6 +695,13 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         }}
       />
 
+      <VisitDetailSheet
+        visit={selectedVisit}
+        visible={Boolean(selectedVisit)}
+        onClose={() => setSelectedVisit(null)}
+        onCompleted={() => void refetchVisits()}
+      />
+
       {lead.phone ? (
         <WhatsAppTemplateSheet
           visible={whatsappSheetVisible}
@@ -650,7 +710,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           agentName={sessionUser?.name ?? "PropNinja"}
           projectName={linkedUnit?.projectName ?? lead.projectName}
           unitNumber={linkedUnit?.unitNumber}
-          priceListedRs={linkedUnit?.priceListedRs}
+          priceListedRs={
+            linkedUnit?.priceListedRs != null ? String(linkedUnit.priceListedRs) : undefined
+          }
           templates={messageTemplates.data?.items ?? []}
           isLoading={messageTemplates.isLoading}
           onClose={() => setWhatsappSheetVisible(false)}
@@ -1070,6 +1132,46 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   scoreChipText: { fontSize: 12, fontWeight: "800" },
+  linkedUnitCard: {
+    ...neuCard,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  linkedUnitHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  linkedUnitTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  linkedUnitStatus: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "capitalize",
+  },
+  linkedUnitProject: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  linkedUnitMeta: {
+    color: colors.textMuted,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  linkedUnitRef: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: spacing.xs,
+    fontFamily: "monospace",
+  },
   followUpCard: {
     ...neuCard,
     padding: spacing.md,
@@ -1098,8 +1200,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderBottomWidth: 2,
     borderBottomColor: colors.border,
+    gap: 4,
   },
-  visitTitle: { color: colors.text, fontWeight: "700" },
+  visitRowHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  visitStatusBadge: { borderRadius: radii.pill, paddingHorizontal: 8, paddingVertical: 3 },
+  visitStatusText: { fontSize: 10, fontWeight: "800", textTransform: "capitalize" },
+  visitTitle: { color: colors.text, fontWeight: "700", flex: 1 },
   visitMeta: {
     color: colors.textMuted,
     fontSize: 12,

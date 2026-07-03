@@ -28,6 +28,7 @@ import type {
   SourcesReportQuery,
 } from "../lib/validators/reports.js";
 import { asyncLinesToCsvStream } from "../utils/csvExport.js";
+import { resolveHotLeadCondition } from "./leadScoringService.js";
 
 type DateRange = { dateFrom: Date; dateTo: Date };
 
@@ -700,6 +701,7 @@ export const reportService = {
       userId: query.userId,
     });
     const callWhere = callStartedFilter(query, query.userId);
+    const hotLeadCondition = await resolveHotLeadCondition();
 
     const [leadsByStatus, [newLeadsRow], [hotLeadsRow], [callTotals], callsByAgent] =
       await Promise.all([
@@ -716,7 +718,7 @@ export const reportService = {
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(leads)
-          .where(and(leadWhere, eq(leads.temperature, "hot"))),
+          .where(and(leadWhere, hotLeadCondition)),
         db
           .select({
             total: sql<number>`count(*)::int`,
@@ -1211,6 +1213,7 @@ export const reportService = {
     const { start: todayStart, end: todayEnd } = calendarDayRange();
     const { start: yesterdayStart, end: yesterdayEnd } = calendarDayRange(-1);
     const { start: monthStart, end: monthEnd } = calendarMonthRange();
+    const hotLeadCondition = await resolveHotLeadCondition();
 
     const deletedLeadFilter = scope.userId
       ? and(
@@ -1274,7 +1277,7 @@ export const reportService = {
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(leads)
-        .where(and(scopedLeadBook(scope), eq(leads.temperature, "hot"))),
+        .where(and(scopedLeadBook(scope), hotLeadCondition)),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(leadActivities)
@@ -1377,11 +1380,12 @@ export const reportService = {
           phone: leads.phone,
           city: leads.city,
           leadStatus: leads.leadStatus,
+          score: leads.score,
           lastContactedAt: leads.lastContactedAt,
           nextFollowupAt: leads.nextFollowupAt,
         })
         .from(leads)
-        .where(and(scopedLeadBook(scope), eq(leads.temperature, "hot")))
+        .where(and(scopedLeadBook(scope), hotLeadCondition))
         .orderBy(sql`${leads.nextFollowupAt} asc nulls last`)
         .limit(5),
       db
@@ -1588,6 +1592,7 @@ export const reportService = {
         phone: row.phone,
         city: row.city,
         status: row.leadStatus,
+        score: row.score,
         last_contacted_at: row.lastContactedAt?.toISOString() ?? null,
         next_followup_at: row.nextFollowupAt?.toISOString() ?? null,
       })),
@@ -1683,12 +1688,13 @@ export const reportService = {
 
   async getProjects() {
     const projectNameExpr = sql<string>`coalesce(${leads.projectName}, ${leads.customFields}->>'project_name')`;
+    const hotLeadCondition = await resolveHotLeadCondition();
 
     const rows = await db
       .select({
         name: projectNameExpr,
         leadsCount: sql<number>`count(*)::int`,
-        hotLeadsCount: sql<number>`count(*) filter (where ${leads.temperature} = 'hot')::int`,
+        hotLeadsCount: sql<number>`count(*) filter (where ${hotLeadCondition})::int`,
         wonCount: sql<number>`count(*) filter (where ${leads.leadStatus} = 'won')::int`,
       })
       .from(leads)

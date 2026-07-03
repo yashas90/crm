@@ -1,8 +1,8 @@
 import { db } from "../lib/db.js";
 import { clearAllIpBlocks } from "../lib/ipBlocklist.js";
-import { clearAllLoginRateLimits } from "../lib/loginBruteForce.js";
 import { startDurableJobQueue } from "../lib/jobQueue.js";
 import { logger } from "../lib/logger.js";
+import { clearAllLoginRateLimits } from "../lib/loginBruteForce.js";
 import { clearAllRateLimits } from "../lib/rateLimitStore.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
@@ -10,6 +10,7 @@ import { startFollowupReminderJob } from "./followUpReminderJob.js";
 import { startLeadScoringJob } from "./leadScoringJob.js";
 import { startNaPoolJob } from "./naPoolJob.js";
 import { startSiteVisitReminderJob } from "./siteVisitReminderJob.js";
+import { startSlaBreachJob } from "./slaBreachJob.js";
 
 /** Use BullMQ when Redis is configured; otherwise fall back to in-process timers. */
 export async function startBackgroundJobs() {
@@ -38,6 +39,7 @@ export async function startBackgroundJobs() {
   startLeadScoringJob();
   startDailyFollowUpJobs();
   startNaPoolJob();
+  startSlaBreachJob();
   setInterval(
     () => {
       void purgeExpiredRefreshSessions(db).catch((err) => {

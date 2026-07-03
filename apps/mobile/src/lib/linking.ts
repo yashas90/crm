@@ -8,6 +8,13 @@ export const appLinking: LinkingOptions<MainTabParamList> = {
   prefixes: [prefix, "propninja://"],
   config: {
     screens: {
+      PipelineTab: "pipeline",
+      VisitsTab: {
+        screens: {
+          SiteVisitsHomeScreen: "site-visits",
+          SiteVisitsCalendarScreen: "site-visits/calendar",
+        },
+      },
       LeadsTab: {
         screens: {
           LeadDetailScreen: "leads/:leadId",

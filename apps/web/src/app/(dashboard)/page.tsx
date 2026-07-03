@@ -3,17 +3,20 @@
 import { EmptyState } from "@/components/common/empty-state";
 import { AdminDashboardView } from "@/components/dashboard/admin-dashboard-view";
 import { OverviewSectionsSkeleton } from "@/components/dashboard/dashboard-skeletons";
+import { HotLeadsPanel } from "@/components/dashboard/hot-leads-panel";
 import { HotLeadsTable } from "@/components/dashboard/hot-leads-table";
 import { MyTasksDueTodayWidget } from "@/components/dashboard/my-tasks-due-today-widget";
 import { RecentActivityFeed } from "@/components/dashboard/recent-activity-feed";
 import { RemindersPanel } from "@/components/dashboard/reminders-panel";
 import { NeuButton, NeuCard, NeuSectionHeading } from "@/components/ui/neubrutal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useHotLeads } from "@/hooks/use-hot-leads";
 import { useLeads } from "@/hooks/use-leads";
 import { useRecentActivities } from "@/hooks/use-reports";
 import { useSession } from "@/hooks/use-session";
+import { useSlaSummary } from "@/hooks/use-sla";
 import { cn } from "@propninja/ui/lib/utils";
-import { CalendarClock, Flame, Phone, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, CalendarClock, Flame, Phone, Users } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useMemo } from "react";
 
@@ -115,11 +118,8 @@ function AgentDashboard() {
     { enabled: ready && Boolean(session?.id) },
   );
   const recentActivities = useRecentActivities();
-
-  const hotLeads = useMemo(
-    () => (myLeads.data?.items ?? []).filter((lead) => lead.temperature === "hot"),
-    [myLeads.data],
-  );
+  const slaSummary = useSlaSummary({ enabled: ready });
+  const scoreHotLeads = useHotLeads(20, { enabled: ready });
 
   const followUpsDue = useMemo(() => {
     const now = new Date();
@@ -151,7 +151,7 @@ function AgentDashboard() {
             />
           ) : (
             <>
-              <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <StatCard
                   label="My Leads"
                   value={myLeads.data?.total ?? 0}
@@ -162,8 +162,8 @@ function AgentDashboard() {
                 />
                 <StatCard
                   label="Hot Leads"
-                  value={hotLeads.length}
-                  loading={myLeads.isLoading}
+                  value={scoreHotLeads.data?.total ?? 0}
+                  loading={scoreHotLeads.isLoading}
                   variant="hot"
                   icon={Flame}
                   animClass="animate-fade-up-2"
@@ -178,9 +178,21 @@ function AgentDashboard() {
                   animClass="animate-fade-up-3"
                   sparkline={[0.7, 0.6, 0.8, 0.5, 0.65, 0.6, 0.55]}
                 />
+                <Link href="/sla" className="block animate-fade-up-4">
+                  <StatCard
+                    label="SLA Breaches"
+                    value={slaSummary.data?.inactive_3d ?? 0}
+                    loading={slaSummary.isLoading}
+                    variant="followup"
+                    icon={AlertTriangle}
+                    sparkline={[0.2, 0.35, 0.3, 0.5, 0.45, 0.6, 0.55]}
+                  />
+                </Link>
               </section>
 
               <MyTasksDueTodayWidget />
+
+              <HotLeadsPanel />
             </>
           )}
 
@@ -197,6 +209,18 @@ function AgentDashboard() {
                 My calls
               </NeuButton>
             </Link>
+            <Link href="/performance">
+              <NeuButton>
+                <BarChart3 className="h-5 w-5" />
+                My performance
+              </NeuButton>
+            </Link>
+            <Link href="/sla">
+              <NeuButton>
+                <AlertTriangle className="h-5 w-5" />
+                SLA breaches
+              </NeuButton>
+            </Link>
             <div className="flex-grow" />
             <NeuCard hover={false} className="flex items-center gap-2 px-4 py-2">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
@@ -204,16 +228,17 @@ function AgentDashboard() {
             </NeuCard>
           </section>
 
-          {hotLeads.length > 0 ? (
+          {(scoreHotLeads.data?.items.length ?? 0) > 0 ? (
             <section className="space-y-4">
               <NeuSectionHeading title="Hot Leads" />
               <HotLeadsTable
-                leads={hotLeads.map((lead) => ({
+                leads={(scoreHotLeads.data?.items ?? []).map((lead) => ({
                   id: lead.id,
                   name: `${lead.firstName} ${lead.lastName}`.trim(),
                   phone: lead.phone,
                   city: lead.city,
                   status: lead.leadStatus,
+                  score: lead.score,
                   last_contacted_at: lead.lastContactedAt,
                   next_followup_at: lead.nextFollowupAt ?? null,
                 }))}

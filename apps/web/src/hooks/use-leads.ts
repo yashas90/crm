@@ -29,6 +29,8 @@ export type LeadRow = {
   projectId?: string | null;
   estimatedValue?: string | null;
   lastContactedAt: string | null;
+  lastActivityAt?: string | null;
+  slaBreachedAt?: string | null;
   nextFollowupAt?: string | null;
   assignedUser?: { id: string; name: string; email: string } | null;
   tags?: string[] | null;

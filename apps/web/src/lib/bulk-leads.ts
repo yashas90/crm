@@ -1,7 +1,6 @@
 import { apiDelete, apiDownload, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import type { BulkLeadImportRow } from "@/lib/parse-leads-csv";
-import { agentForRoundRobinIndex } from "@/lib/round-robin";
 import { toast } from "@/lib/toast";
 import type { LeadStatus } from "@propninja/types/enums";
 
@@ -42,14 +41,7 @@ export function bulkUpdateLeadStatus(leadIds: string[], leadStatus: LeadStatus) 
 }
 
 export function bulkAssignLeads(leadIds: string[], userIds: string[]) {
-  return runBulk(
-    leadIds,
-    (id, index) => {
-      const userId = agentForRoundRobinIndex(userIds, index);
-      return apiPost(`/api/leads/${id}/assign`, { user_id: userId });
-    },
-    "Assign failed",
-  );
+  return apiPost<BulkLeadResult>("/api/leads/bulk-assign", { leadIds, userIds });
 }
 
 export function bulkDeleteLeads(leadIds: string[]) {

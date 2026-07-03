@@ -4,6 +4,7 @@ import {
   UpdateLeadStatusSheet,
 } from "@/components/UpdateLeadStatusSheet";
 import { CompleteSiteVisitSheet } from "@/components/site-visits/CompleteSiteVisitSheet";
+import { VisitDetailSheet } from "@/components/site-visits/VisitDetailSheet";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { useCurrentUser } from "@/hooks/use-auth";
@@ -128,6 +129,8 @@ type TodayVisitsSectionProps = {
   onRetry: () => void;
   onViewLead: (leadId: string) => void;
   onMarkComplete: (visit: SiteVisit) => void;
+  onOpenVisit: (visit: SiteVisit) => void;
+  onOpenAllVisits: () => void;
 };
 
 function TodayVisitsSection({
@@ -137,10 +140,17 @@ function TodayVisitsSection({
   onRetry,
   onViewLead,
   onMarkComplete,
+  onOpenVisit,
+  onOpenAllVisits,
 }: TodayVisitsSectionProps) {
   return (
     <View style={styles.visitsSection}>
-      <Text style={styles.sectionTitle}>Today's Visits</Text>
+      <View style={styles.visitsSectionHeader}>
+        <Text style={styles.sectionTitle}>Today's Visits</Text>
+        <Pressable onPress={onOpenAllVisits}>
+          <Text style={styles.visitsLink}>All visits →</Text>
+        </Pressable>
+      </View>
       {isLoading ? (
         <ListSkeleton rows={2} />
       ) : isError ? (
@@ -159,7 +169,7 @@ function TodayVisitsSection({
         visits.map((visit) => {
           const status = visitStatusStyle(visit.status);
           return (
-            <View key={visit.id} style={styles.visitCard}>
+            <Pressable key={visit.id} style={styles.visitCard} onPress={() => onOpenVisit(visit)}>
               <View style={styles.visitCardHeader}>
                 <View style={styles.visitCardBody}>
                   <Text style={styles.visitLeadName}>{visitLeadName(visit)}</Text>
@@ -175,19 +185,25 @@ function TodayVisitsSection({
                 {visit.status === "scheduled" ? (
                   <Pressable
                     style={[styles.visitActionBtn, styles.visitCompleteBtn]}
-                    onPress={() => onMarkComplete(visit)}
+                    onPress={(event) => {
+                      event.stopPropagation?.();
+                      onMarkComplete(visit);
+                    }}
                   >
                     <Text style={styles.visitCompleteBtnText}>Mark Complete</Text>
                   </Pressable>
                 ) : null}
                 <Pressable
                   style={[styles.visitActionBtn, styles.visitViewBtn]}
-                  onPress={() => onViewLead(visit.leadId)}
+                  onPress={(event) => {
+                    event.stopPropagation?.();
+                    onViewLead(visit.leadId);
+                  }}
                 >
                   <Text style={styles.visitViewBtnText}>View Lead</Text>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
           );
         })
       )}
@@ -206,6 +222,7 @@ export function TodayScreen({ route, navigation }: Props) {
   const logCall = useLogCall();
   const updateLead = useUpdateLead();
   const [visitToComplete, setVisitToComplete] = useState<SiteVisit | null>(null);
+  const [visitDetail, setVisitDetail] = useState<SiteVisit | null>(null);
 
   const queueItems = queue.data?.items ?? [];
   const browserQueue = useMemo(
@@ -435,6 +452,8 @@ export function TodayScreen({ route, navigation }: Props) {
               onRetry={() => void todayVisits.refetch()}
               onViewLead={openLeadById}
               onMarkComplete={handleMarkVisitComplete}
+              onOpenVisit={setVisitDetail}
+              onOpenAllVisits={() => navigation.navigate("VisitsTab")}
             />
             {recentCalls.length > 0 ? (
               <View style={styles.recentSection}>
@@ -468,6 +487,13 @@ export function TodayScreen({ route, navigation }: Props) {
         visible={visitToComplete !== null}
         visit={visitToComplete}
         onClose={() => setVisitToComplete(null)}
+        onCompleted={() => void todayVisits.refetch()}
+      />
+
+      <VisitDetailSheet
+        visit={visitDetail}
+        visible={Boolean(visitDetail)}
+        onClose={() => setVisitDetail(null)}
         onCompleted={() => void todayVisits.refetch()}
       />
 
@@ -598,6 +624,13 @@ const styles = StyleSheet.create({
   },
   callLoggedToastText: { color: "#ffffff", fontWeight: "600", fontSize: 14 },
   visitsSection: { marginTop: spacing.lg },
+  visitsSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  visitsLink: { color: colors.primary, fontWeight: "700", fontSize: 13 },
   visitsEmpty: {
     alignItems: "center",
     gap: spacing.sm,

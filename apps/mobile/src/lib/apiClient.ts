@@ -225,7 +225,11 @@ export async function apiFetch<T>(
         }
       }
 
-      if (!isTransientFailure(error) || attempt >= MAX_TRANSIENT_RETRIES || options.skipTransientRetry) {
+      if (
+        !isTransientFailure(error) ||
+        attempt >= MAX_TRANSIENT_RETRIES ||
+        options.skipTransientRetry
+      ) {
         throw error;
       }
 

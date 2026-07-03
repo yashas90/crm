@@ -18,8 +18,6 @@ function useAuthReady() {
 
 function buildPipelineParams(filter: PipelineFilter) {
   const params = new URLSearchParams({
-    scope: "pipeline",
-    stage: "all",
     page: "1",
     pageSize: String(PIPELINE_LIMIT),
     excludeDuplicates: "true",
@@ -52,14 +50,25 @@ export function usePipelineLeads(filter: PipelineFilter) {
 
 type PipelineCache = { items: LeadRow[]; page: number; pageSize: number; total: number };
 
+export type UpdateLeadStageInput = {
+  leadId: string;
+  stage: LeadStatus;
+  closeReason?: string;
+  closeReasonNote?: string;
+};
+
 export function useUpdateLeadStage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ leadId, stage }: { leadId: string; stage: LeadStatus }) =>
+    mutationFn: ({ leadId, stage, closeReason, closeReasonNote }: UpdateLeadStageInput) =>
       apiPatch(
         `/api/leads/${leadId}`,
-        buildLeadStatusPatch({ leadStatus: stage }, {}, { canReassign: false }),
+        buildLeadStatusPatch(
+          { leadStatus: stage, closeReason, closeReasonNote },
+          {},
+          { canReassign: false },
+        ),
       ),
     onMutate: async ({ leadId, stage }) => {
       await queryClient.cancelQueries({ queryKey: ["pipeline"] });

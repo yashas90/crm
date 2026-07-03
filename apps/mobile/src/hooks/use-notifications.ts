@@ -1,8 +1,7 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-const LIVE_REFETCH_MS = 30_000;
 
 export const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
 
@@ -29,12 +28,18 @@ export function formatNotificationType(type: string): string {
   switch (type) {
     case "lead_assigned":
       return "Lead assigned";
+    case "leads_bulk_assigned":
+      return "Leads assigned";
     case "new_ad_lead":
       return "New Meta lead";
     case "followup_due":
       return "Follow-up due";
     case "task_assigned":
       return "Task assigned";
+    case "site_visit_scheduled":
+      return "Site visit scheduled";
+    case "site_visit_reminder":
+      return "Site visit reminder";
     default:
       return type.replace(/_/g, " ");
   }
@@ -47,6 +52,13 @@ export function formatNotificationLabel(notification: NotificationRow): string {
   if (notification.type === "lead_assigned") {
     const assignedBy = typeof payload.assignedBy === "string" ? payload.assignedBy : "Someone";
     return `${assignedBy} assigned you ${leadName}`;
+  }
+
+  if (notification.type === "leads_bulk_assigned") {
+    const assignedBy = typeof payload.assignedBy === "string" ? payload.assignedBy : "Someone";
+    const count = typeof payload.count === "number" ? payload.count : 0;
+    const label = count === 1 ? "1 lead" : `${count} leads`;
+    return `${assignedBy} assigned you ${label}`;
   }
 
   if (notification.type === "new_ad_lead") {
@@ -63,6 +75,14 @@ export function formatNotificationLabel(notification: NotificationRow): string {
   if (notification.type === "task_assigned") {
     const taskTitle = typeof payload.taskTitle === "string" ? payload.taskTitle : "a task";
     return `You were assigned: ${taskTitle}`;
+  }
+
+  if (notification.type === "site_visit_scheduled" || notification.type === "site_visit_reminder") {
+    const when =
+      typeof payload.visitDate === "string" && typeof payload.visitTime === "string"
+        ? `${payload.visitDate} ${payload.visitTime}`
+        : "soon";
+    return `Site visit for ${leadName} · ${when}`;
   }
 
   return leadName;

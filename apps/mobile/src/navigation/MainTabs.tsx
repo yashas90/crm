@@ -1,9 +1,11 @@
 import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { useIsManager } from "@/hooks/use-role";
+import { useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useOpenTaskCount } from "@/hooks/use-tasks";
 import { LeadsStack } from "@/navigation/LeadsStack";
 import { ProfileStack } from "@/navigation/ProfileStack";
 import { TeamStack } from "@/navigation/TeamStack";
+import { VisitsStack } from "@/navigation/VisitsStack";
 import type { MainTabParamList } from "@/navigation/types";
 import { NotificationsScreen } from "@/screens/NotificationsScreen";
 import { PipelineScreen } from "@/screens/PipelineScreen";
@@ -39,6 +41,11 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   const tabBarHeight = TAB_BAR_HEIGHT + insets.bottom;
   const isManager = useIsManager();
   const unreadCount = useUnreadNotificationCount();
+  const todayVisits = useTodaySiteVisits();
+  const visitsBadgeCount =
+    todayVisits.data?.items.filter((v) => v.status === "scheduled").length ?? 0;
+  const visitsBadge =
+    visitsBadgeCount > 0 ? (visitsBadgeCount > 9 ? "9+" : visitsBadgeCount) : undefined;
   const openTaskCount = useOpenTaskCount();
   const notificationBadge = unreadCount > 0 ? (unreadCount > 9 ? "9+" : unreadCount) : undefined;
   const tasksBadge =
@@ -101,12 +108,29 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           component={TodayScreen}
           options={{
             title: "Today",
-            tabBarIcon: ({ focused }) => tabIcon("calendar-outline", focused),
+            tabBarIcon: ({ focused }) => tabIcon("today-outline", focused),
             headerShown: true,
             ...navigationTheme,
           }}
         />
       )}
+      <Tab.Screen
+        name="VisitsTab"
+        component={VisitsStack}
+        options={{
+          title: "Visits",
+          tabBarIcon: ({ focused }) => tabIcon("location-outline", focused),
+          tabBarBadge: visitsBadge,
+          tabBarBadgeStyle: {
+            backgroundColor: colors.primary,
+            color: "#ffffff",
+            fontSize: 10,
+            minWidth: 18,
+            lineHeight: 14,
+          },
+          headerShown: false,
+        }}
+      />
       <Tab.Screen
         name="TasksTab"
         component={TasksScreen}

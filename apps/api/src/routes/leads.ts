@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { capExportRows, enforceCsvExportGate } from "../lib/csvExportGate.js";
-import { notifyLeadAssigned } from "../lib/leadAssignmentNotifications.js";
+import { notifyBulkLeadsAssigned, notifyLeadAssigned } from "../lib/leadAssignmentNotifications.js";
 import { advancedListQueryToServiceParams } from "../lib/leadListQueryMap.js";
 import { normalizeStoredPhone } from "../lib/leadPhone.js";
 import { listPaginationSchema } from "../lib/pagination.js";
@@ -20,6 +20,7 @@ import {
   type ListLeadsQuery,
   addNoteBodySchema,
   assignLeadBodySchema,
+  bulkAssignLeadsBodySchema,
   bulkImportLeadsBodySchema,
   createLeadBodySchema,
   leadScopeCountsQuerySchema,
@@ -34,7 +35,14 @@ import { logAudit } from "../services/auditService.js";
 import { documentService } from "../services/documentService.js";
 import { getAssignmentHistory } from "../services/leadAssignmentService.js";
 import { leadImportService } from "../services/leadImportService.js";
-import { listHotLeads, recalculateLeadScore } from "../services/leadScoringService.js";
+import {
+  getLeadScoreBreakdown,
+  getScoringConfig,
+  getScoringStats,
+  listHotLeads,
+  recalculateAllActiveLeadScores,
+  recalculateLeadScore,
+} from "../services/leadScoringService.js";
 import { LeadDuplicatePhoneError, leadService } from "../services/leadService.js";
 import { createProjectUnitService } from "../services/projectUnitService.js";
 import { whatsappService } from "../services/whatsappService.js";
@@ -470,8 +478,28 @@ leadsRoute.get("/cold", async (c) => {
 
 leadsRoute.get("/hot", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
-  const items = await listHotLeads(scopedAgentId(authUser));
+  const limit = Math.min(Number(c.req.query("limit") ?? 50) || 50, 100);
+  const items = await listHotLeads(scopedAgentId(authUser), limit);
   return c.json({ ok: true, data: { items, total: items.length } });
+});
+
+leadsRoute.get("/scoring/config", async (c) => {
+  const data = await getScoringConfig();
+  return c.json({ ok: true, data });
+});
+
+leadsRoute.get("/scoring/stats", async (c) => {
+  const data = await getScoringStats();
+  return c.json({ ok: true, data });
+});
+
+leadsRoute.post("/scoring/recalculate", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  if (authUser.role === "agent") {
+    return c.json(forbiddenResponse(), 403);
+  }
+  const result = await recalculateAllActiveLeadScores();
+  return c.json({ ok: true, data: result });
 });
 
 leadsRoute.get("/import-batches", validate("query", listPaginationSchema), async (c) => {
@@ -580,6 +608,13 @@ leadsRoute.post(
         },
       });
 
+      await notifyBulkLeadsAssigned(c.get("db"), {
+        assignments: result.assignmentCounts,
+        actingUserId: authUser.id,
+        assignedByName: authUser.name,
+        source: "bulk_import",
+      });
+
       return c.json({ ok: true, data: { ...result, batchId: batch.id } }, 201);
     } catch (err) {
       await leadImportService.failBatch(batch.id, {
@@ -622,6 +657,34 @@ leadsRoute.post("/", leadsCreateRateLimit, validate("json", createLeadBodySchema
 });
 
 // canViewLead: admin/manager — any lead; agent — own assigned leads only.
+leadsRoute.get("/:id/score", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const id = c.req.param("id");
+  const { lead, response } = await loadLeadForView(c, id, authUser);
+  if (response) return response;
+
+  const breakdown = await getLeadScoreBreakdown(id);
+  if (!breakdown) {
+    return c.json({
+      ok: true,
+      data: {
+        enabled: false,
+        score: lead?.score ?? 0,
+        factors: [] as { label: string; points: number }[],
+      },
+    });
+  }
+
+  return c.json({
+    ok: true,
+    data: {
+      enabled: true,
+      score: breakdown.score,
+      factors: breakdown.factors,
+    },
+  });
+});
+
 leadsRoute.get("/:id", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const id = c.req.param("id");
@@ -658,7 +721,26 @@ leadsRoute.get("/:id/linked-unit", async (c) => {
 
   const unitService = createProjectUnitService(c.get("db"));
   const linked = await unitService.getInterestedUnitForLead(id!);
-  return c.json({ ok: true, data: linked });
+  if (!linked) {
+    return c.json({ ok: true, data: null });
+  }
+
+  let bookingDocument = null;
+  if (linked.status === "booked" || linked.status === "sold") {
+    const { createBookingDocumentService } = await import("../services/bookingDocumentService.js");
+    const doc = await createBookingDocumentService(c.get("db")).getLatestForUnit(linked.id);
+    if (doc) {
+      bookingDocument = {
+        id: doc.id,
+        bookingRef: doc.bookingRef,
+        fileKey: doc.fileKey,
+        fileUrl: doc.fileUrl,
+        generatedAt: doc.generatedAt.toISOString(),
+      };
+    }
+  }
+
+  return c.json({ ok: true, data: { ...linked, bookingDocument } });
 });
 
 leadsRoute.get("/:id/whatsapp-messages", async (c) => {
@@ -805,6 +887,54 @@ leadsRoute.delete("/:id", async (c) => {
   });
 
   return c.json({ ok: true, data: deleted });
+});
+
+// canAssignLead: admin, manager, and agent (with edit access to the lead).
+leadsRoute.post("/bulk-assign", validate("json", bulkAssignLeadsBodySchema), async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+
+  if (!canAssignLead(authUser)) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const body = c.req.valid("json");
+  const assignsToOthers = body.userIds.some((id) => id !== authUser.id);
+  if (assignsToOthers && authUser.role === "agent") {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const permittedLeadIds: string[] = [];
+  const permissionFailed: { id: string; message: string }[] = [];
+
+  for (const leadId of body.leadIds) {
+    const lead = await leadService.getLeadById(leadId);
+    if (!lead || !canEditLead(authUser, { assignedTo: lead.assignedTo })) {
+      permissionFailed.push({ id: leadId, message: "Lead not found" });
+      continue;
+    }
+    permittedLeadIds.push(leadId);
+  }
+
+  const result = await leadService.bulkAssignLeads({
+    leadIds: permittedLeadIds,
+    userIds: body.userIds,
+    actingUserId: authUser.id,
+  });
+
+  await notifyBulkLeadsAssigned(c.get("db"), {
+    assignments: result.assignmentCounts,
+    actingUserId: authUser.id,
+    assignedByName: authUser.name,
+    source: "bulk_assign",
+  });
+
+  return c.json({
+    ok: true,
+    data: {
+      succeeded: result.succeeded,
+      failed: [...permissionFailed, ...result.failed],
+    },
+  });
 });
 
 // canAssignLead: admin, manager, and agent (with edit access to the lead).

@@ -166,6 +166,7 @@ export type HotLeadRow = {
   phone: string | null;
   city: string | null;
   status: string;
+  score?: number | null;
   last_contacted_at: string | null;
   next_followup_at: string | null;
 };

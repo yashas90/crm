@@ -87,6 +87,12 @@ export function LeadsPageView() {
   const { session, ready, isAdmin } = useSession();
 
   useEffect(() => {
+    if (ready && !isAdmin && scope === "naleads") {
+      setScope("all");
+    }
+  }, [ready, isAdmin, scope]);
+
+  useEffect(() => {
     skipUrlWriteRef.current = true;
     const parsed = parseLeadsPageUrl(searchParams);
     setFilters(parsed.filters);
@@ -441,7 +447,9 @@ export function LeadsPageView() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm">
               <span className="text-sky-900 dark:text-sky-100">
                 No leads match the{" "}
-                <strong>{filters.adLeadsOnly ? "Ad Leads" : formatLeadSourceDisplay(filters.source)}</strong>{" "}
+                <strong>
+                  {filters.adLeadsOnly ? "Ad Leads" : formatLeadSourceDisplay(filters.source)}
+                </strong>{" "}
                 filter. Your CSV upload may use a different source.
               </span>
               <Button variant="outline" size="sm" onClick={handleClearSourceFilter}>

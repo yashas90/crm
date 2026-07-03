@@ -1,4 +1,5 @@
 import { InAppNotificationBanner } from "@/components/InAppNotificationBanner";
+import { appLinking } from "@/lib/linking";
 import { addNotificationResponseListener } from "@/lib/pushNotifications";
 import { RootNavigator } from "@/navigation/RootNavigator";
 import { navigateToLeadFromPush } from "@/navigation/pushNavigation";
@@ -37,11 +38,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <Providers>
-        <NavigationContainer ref={navRef}>
+        <NavigationContainer ref={navRef} linking={appLinking}>
           <RootNavigator />
           <InAppNotificationBanner onNavigateToLead={handleNavigateToLead} />
         </NavigationContainer>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
       </Providers>
     </SafeAreaProvider>
   );

@@ -56,70 +56,70 @@ const resetPasswordSchema = z.object({
 
 authRoutes.post("/login", loginEmailRateLimit(), async (c) => {
   const body = await c.req.json();
-    const parsed = loginSchema.safeParse(body);
+  const parsed = loginSchema.safeParse(body);
 
-    if (!parsed.success) {
-      return c.json(
-        {
-          ok: false,
-          error: { code: "VALIDATION_ERROR", message: "Invalid credentials payload" },
-        },
-        400,
-      );
-    }
-
-    const { email, password } = parsed.data;
-    const db = getDb();
-    const normalizedEmail = email.trim().toLowerCase();
-    const [row] = await db
-      .select()
-      .from(users)
-      .where(sql`lower(${users.email}) = ${normalizedEmail}`)
-      .limit(1);
-
-    if (!row?.isActive || !row.passwordHash) {
-      recordEmailLoginAttempt(normalizedEmail);
-      return c.json(
-        { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid email or password" } },
-        401,
-      );
-    }
-
-    const valid = await verifyPassword(password, row.passwordHash);
-    if (!valid) {
-      recordEmailLoginAttempt(normalizedEmail);
-      return c.json(
-        { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid email or password" } },
-        401,
-      );
-    }
-
-    clearEmailLoginAttempts(normalizedEmail);
-
-    const role = row.role as AuthUser["role"];
-    const { token, refreshToken } = await issueAuthSession(c, {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      role,
-    });
-
-    await recordSuccessfulLogin(c, db, row.id);
-
-    return c.json({
-      ok: true,
-      data: {
-        token,
-        refreshToken,
-        user: {
-          id: row.id,
-          email: row.email,
-          name: row.name,
-          role,
-          isFirstLogin: row.isFirstLogin,
-        },
+  if (!parsed.success) {
+    return c.json(
+      {
+        ok: false,
+        error: { code: "VALIDATION_ERROR", message: "Invalid credentials payload" },
       },
-    });
+      400,
+    );
+  }
+
+  const { email, password } = parsed.data;
+  const db = getDb();
+  const normalizedEmail = email.trim().toLowerCase();
+  const [row] = await db
+    .select()
+    .from(users)
+    .where(sql`lower(${users.email}) = ${normalizedEmail}`)
+    .limit(1);
+
+  if (!row?.isActive || !row.passwordHash) {
+    recordEmailLoginAttempt(normalizedEmail);
+    return c.json(
+      { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid email or password" } },
+      401,
+    );
+  }
+
+  const valid = await verifyPassword(password, row.passwordHash);
+  if (!valid) {
+    recordEmailLoginAttempt(normalizedEmail);
+    return c.json(
+      { ok: false, error: { code: "UNAUTHORIZED", message: "Invalid email or password" } },
+      401,
+    );
+  }
+
+  clearEmailLoginAttempts(normalizedEmail);
+
+  const role = row.role as AuthUser["role"];
+  const { token, refreshToken } = await issueAuthSession(c, {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role,
+  });
+
+  await recordSuccessfulLogin(c, db, row.id);
+
+  return c.json({
+    ok: true,
+    data: {
+      token,
+      refreshToken,
+      user: {
+        id: row.id,
+        email: row.email,
+        name: row.name,
+        role,
+        isFirstLogin: row.isFirstLogin,
+      },
+    },
+  });
 });
 
 authRoutes.get("/me", async (c) => {

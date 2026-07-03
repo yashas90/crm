@@ -1,6 +1,12 @@
 import { PipelineLeadCard } from "@/components/pipeline/PipelineLeadCard";
 import type { LeadRow } from "@/hooks/use-leads";
-import { type PipelineStage, pipelineStageLabel } from "@/lib/pipeline";
+import {
+  type PipelineStage,
+  formatPipelineValue,
+  pipelineStageHeaderStyle,
+  pipelineStageLabel,
+  sumPipelineColumnValue,
+} from "@/lib/pipeline";
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import type { LeadStatus } from "@propninja/types/enums";
@@ -11,29 +17,33 @@ const COLUMN_WIDTH = 272;
 type PipelineColumnProps = {
   stage: PipelineStage;
   leads: LeadRow[];
+  allStages: PipelineStage[];
   collapsed?: boolean;
   showAssignee?: boolean;
   onToggleCollapse?: () => void;
   onLeadPress: (leadId: string) => void;
   onLeadLongPress: (lead: LeadRow) => void;
+  onQuickMove?: (leadId: string, stage: LeadStatus) => void;
 };
 
 export function PipelineColumn({
   stage,
   leads,
+  allStages,
   collapsed,
   showAssignee,
   onToggleCollapse,
   onLeadPress,
   onLeadLongPress,
+  onQuickMove,
 }: PipelineColumnProps) {
-  const headerTint =
-    stage.key === "won" ? styles.headerWon : stage.key === "lost" ? styles.headerLost : null;
+  const headerColorStyle = pipelineStageHeaderStyle(stage);
+  const totalValue = formatPipelineValue(sumPipelineColumnValue(leads));
 
   return (
     <View style={styles.column}>
       <Pressable
-        style={[styles.header, headerTint]}
+        style={[styles.header, headerColorStyle]}
         onPress={stage.collapsible ? onToggleCollapse : undefined}
         disabled={!stage.collapsible}
       >
@@ -50,6 +60,7 @@ export function PipelineColumn({
             />
           ) : null}
         </View>
+        {totalValue ? <Text style={styles.valueText}>{totalValue}</Text> : null}
       </Pressable>
 
       {!collapsed ? (
@@ -59,10 +70,12 @@ export function PipelineColumn({
           renderItem={({ item }) => (
             <PipelineLeadCard
               lead={item}
-              stage={stage.key}
+              stage={stage.key as LeadStatus}
+              stages={allStages}
               showAssignee={showAssignee}
               onPress={() => onLeadPress(item.id)}
               onLongPress={() => onLeadLongPress(item)}
+              onQuickMove={onQuickMove}
             />
           )}
           style={styles.list}
@@ -73,7 +86,7 @@ export function PipelineColumn({
       ) : (
         <Pressable style={styles.collapsedHint} onPress={onToggleCollapse}>
           <Text style={styles.collapsedText}>
-            Tap to expand {pipelineStageLabel(stage.key as LeadStatus)}
+            Tap to expand {pipelineStageLabel(stage.key as LeadStatus, allStages)}
           </Text>
         </Pressable>
       )}
@@ -95,16 +108,9 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     marginBottom: spacing.sm,
   },
-  headerWon: {
-    borderColor: "rgba(16, 185, 129, 0.35)",
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-  },
-  headerLost: {
-    borderColor: "rgba(239, 68, 68, 0.35)",
-    backgroundColor: "rgba(239, 68, 68, 0.08)",
-  },
   headerRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   headerTitle: { ...typography.subheading, color: colors.text, fontSize: 14, flex: 1 },
+  valueText: { color: colors.textMuted, fontSize: 11, fontWeight: "600", marginTop: 4 },
   countBadge: {
     minWidth: 24,
     height: 24,

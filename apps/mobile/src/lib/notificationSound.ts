@@ -2,7 +2,11 @@ import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { Platform, Vibration } from "react-native";
 
-export const LEAD_ALERT_NOTIFICATION_TYPES = new Set(["lead_assigned", "new_ad_lead"]);
+export const LEAD_ALERT_NOTIFICATION_TYPES = new Set([
+  "lead_assigned",
+  "leads_bulk_assigned",
+  "new_ad_lead",
+]);
 
 let cachedSound: Audio.Sound | null = null;
 let lastPlayedAt = 0;

@@ -7,6 +7,7 @@ export const EDITABLE_ORG_SETTING_KEYS = [
   "locale",
   "dateFormat",
   "currency",
+  "leadScoringEnabled",
 ] as const;
 
 export type EditableOrgSettingKey = (typeof EDITABLE_ORG_SETTING_KEYS)[number];
@@ -41,6 +42,14 @@ export function mergeOrgSettings(
   const next = { ...(current ?? {}) };
 
   for (const [key, value] of Object.entries(patch)) {
+    if (key === "leadScoringEnabled") {
+      if (value === false || value === "false") {
+        next.leadScoringEnabled = false;
+      } else if (value === true || value === "true") {
+        next.leadScoringEnabled = true;
+      }
+      continue;
+    }
     if (value === null || value === "") {
       delete next[key];
     } else {

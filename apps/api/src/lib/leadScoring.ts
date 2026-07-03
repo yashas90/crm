@@ -187,7 +187,8 @@ export function isLeadScoringEnabled(
   settings: Record<string, unknown> | null | undefined,
 ): boolean {
   const value = settings?.leadScoringEnabled;
-  return value === true || value === "true";
+  if (value === false || value === "false") return false;
+  return true;
 }
 
 export const LEAD_SCORING_RULE_LABELS: { key: keyof LeadScoringRules; label: string }[] = [

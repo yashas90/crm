@@ -21,6 +21,7 @@ export type LeadRow = {
   notes: string | null;
   nextFollowupAt: string | null;
   lastContactedAt?: string | null;
+  estimatedValue?: string | null;
   score?: number;
   leadSource?: string | null;
   assignedUser?: { id: string; name: string; email: string } | null;

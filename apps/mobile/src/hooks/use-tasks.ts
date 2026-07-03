@@ -1,9 +1,8 @@
 import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
+import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-const LIVE_REFETCH_MS = 30_000;
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";

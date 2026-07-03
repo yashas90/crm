@@ -1,7 +1,7 @@
 "use client";
 
-import { apiGet } from "@/lib/apiClient";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { apiGet, apiPost } from "@/lib/apiClient";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const ANALYTICS_STALE_TIME_MS = 5 * 60 * 1000;
 
@@ -73,6 +73,21 @@ export function useAnalyticsOverview(dateFrom: string, dateTo: string, enabled =
     enabled,
     placeholderData: keepPreviousData,
     staleTime: ANALYTICS_STALE_TIME_MS,
+  });
+}
+
+export function useRefreshAnalyticsOverview() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) => {
+      const params = new URLSearchParams({ dateFrom, dateTo });
+      return apiPost<AnalyticsOverview>(`/api/analytics/overview/refresh?${params.toString()}`, {});
+    },
+    onSuccess: (data, { dateFrom, dateTo }) => {
+      queryClient.setQueryData(["analytics", "overview", dateFrom, dateTo], data);
+      void queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    },
   });
 }
 

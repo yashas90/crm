@@ -11,6 +11,7 @@ import { validate } from "../lib/validate.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
 import { auditFromContext } from "../services/auditService.js";
+import { recalculateLeadScore } from "../services/leadScoringService.js";
 import { leadService } from "../services/leadService.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 import { siteVisitService } from "../services/siteVisitService.js";
@@ -228,6 +229,8 @@ siteVisitsRoutes.post("/", writeRateLimit, validate("json", createSiteVisitSchem
       },
     });
 
+    void recalculateLeadScore(body.leadId).catch(() => undefined);
+
     return jsonOk(c, visit, undefined, 201);
   } catch (err) {
     if (err instanceof SiteVisitOverlapError) {
@@ -272,6 +275,9 @@ siteVisitsRoutes.patch(
             projectName: visit!.project?.name ?? null,
           },
         });
+      }
+      if (visit?.leadId) {
+        void recalculateLeadScore(visit.leadId).catch(() => undefined);
       }
       return jsonOk(c, visit);
     } catch (err) {

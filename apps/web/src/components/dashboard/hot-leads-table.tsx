@@ -1,5 +1,6 @@
 "use client";
 
+import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
 import { Badge } from "@/components/ui/badge";
 import { NeuBadge, NeuCard } from "@/components/ui/neubrutal";
 import {
@@ -47,6 +48,8 @@ type HotLeadsTableProps = {
 };
 
 export function HotLeadsTable({ leads, variant = "default" }: HotLeadsTableProps) {
+  const showScore = leads.some((lead) => typeof lead.score === "number");
+
   if (variant === "neubrutal") {
     return (
       <NeuCard hover={false} className="overflow-hidden">
@@ -61,6 +64,7 @@ export function HotLeadsTable({ leads, variant = "default" }: HotLeadsTableProps
                   <th>Contact</th>
                   <th>Location</th>
                   <th>Status</th>
+                  {showScore ? <th>Score</th> : null}
                   <th>Next Action</th>
                 </tr>
               </thead>
@@ -77,6 +81,15 @@ export function HotLeadsTable({ leads, variant = "default" }: HotLeadsTableProps
                     <td>
                       <NeuBadge>Hot</NeuBadge>
                     </td>
+                    {showScore ? (
+                      <td>
+                        {typeof lead.score === "number" ? (
+                          <LeadScoreBadge score={lead.score} showPoints />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    ) : null}
                     <td className="italic text-neutral-600">{nextAction(lead)}</td>
                   </tr>
                 ))}
@@ -104,6 +117,7 @@ export function HotLeadsTable({ leads, variant = "default" }: HotLeadsTableProps
                 <TableHead>Phone</TableHead>
                 <TableHead>City</TableHead>
                 <TableHead>Status</TableHead>
+                {showScore ? <TableHead>Score</TableHead> : null}
                 <TableHead>Last contacted</TableHead>
               </TableRow>
             </TableHeader>
@@ -123,6 +137,15 @@ export function HotLeadsTable({ leads, variant = "default" }: HotLeadsTableProps
                   <TableCell>
                     <Badge className={STATUS_CHIP[lead.status] ?? ""}>{lead.status}</Badge>
                   </TableCell>
+                  {showScore ? (
+                    <TableCell>
+                      {typeof lead.score === "number" ? (
+                        <LeadScoreBadge score={lead.score} showPoints />
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                  ) : null}
                   <TableCell className="text-muted-foreground">
                     {relativeTime(lead.last_contacted_at)}
                   </TableCell>

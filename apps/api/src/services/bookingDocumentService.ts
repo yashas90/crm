@@ -6,7 +6,7 @@ import {
   projects,
   users,
 } from "@propninja/db";
-import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import { buildBookingFileKey, buildBookingPdfBuffer, buildBookingRef } from "../lib/bookingPdf.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import type { Database } from "../lib/db.js";
@@ -17,6 +17,7 @@ import {
   publicFileUrl,
   uploadToR2,
 } from "../lib/r2Storage.js";
+import type { ListBookingsQuery } from "../lib/validators/bookings.js";
 
 export type BookingDocumentRow = typeof bookingDocuments.$inferSelect;
 
@@ -211,6 +212,123 @@ export function createBookingDocumentService(db: Database) {
         ...row,
         generatedAt: row.generatedAt.toISOString(),
       }));
+    },
+
+    async listBookings(query: ListBookingsQuery, scope?: { agentId?: string }) {
+      const filters = [eq(projects.orgId, SINGLE_TENANT_ORG_ID), isNull(projects.deletedAt)];
+
+      if (query.dateFrom) {
+        filters.push(gte(bookingDocuments.generatedAt, query.dateFrom));
+      }
+      if (query.dateTo) {
+        filters.push(lte(bookingDocuments.generatedAt, query.dateTo));
+      }
+      if (query.projectId) {
+        filters.push(eq(projects.id, query.projectId));
+      }
+      if (query.agentId) {
+        filters.push(eq(bookingDocuments.agentId, query.agentId));
+      }
+      if (scope?.agentId) {
+        filters.push(
+          or(eq(bookingDocuments.agentId, scope.agentId), eq(leads.assignedTo, scope.agentId))!,
+        );
+      }
+      if (query.search) {
+        const pattern = `%${query.search}%`;
+        filters.push(
+          or(
+            ilike(bookingDocuments.bookingRef, pattern),
+            ilike(projects.name, pattern),
+            ilike(projectUnits.unitNumber, pattern),
+            ilike(
+              sql`trim(coalesce(${leads.firstName}, '') || ' ' || coalesce(${leads.lastName}, ''))`,
+              pattern,
+            ),
+          )!,
+        );
+      }
+
+      const whereClause = and(...filters);
+      const offset = (query.page - 1) * query.pageSize;
+
+      const [rows, [{ count }]] = await Promise.all([
+        db
+          .select({
+            id: bookingDocuments.id,
+            bookingRef: bookingDocuments.bookingRef,
+            generatedAt: bookingDocuments.generatedAt,
+            unitId: projectUnits.id,
+            unitNumber: projectUnits.unitNumber,
+            floor: projectUnits.floor,
+            bedrooms: projectUnits.bedrooms,
+            status: projectUnits.status,
+            priceListedRs: projectUnits.priceListedRs,
+            priceFinalRs: projectUnits.priceFinalRs,
+            projectId: projects.id,
+            projectName: projects.name,
+            leadId: bookingDocuments.leadId,
+            leadName: sql<string>`trim(coalesce(${leads.firstName}, '') || ' ' || coalesce(${leads.lastName}, ''))`,
+            agentId: bookingDocuments.agentId,
+            agentName: sql<string>`coalesce(${users.name}, '—')`,
+          })
+          .from(bookingDocuments)
+          .innerJoin(projectUnits, eq(bookingDocuments.unitId, projectUnits.id))
+          .innerJoin(projects, eq(projectUnits.projectId, projects.id))
+          .leftJoin(leads, eq(bookingDocuments.leadId, leads.id))
+          .leftJoin(users, eq(bookingDocuments.agentId, users.id))
+          .where(whereClause)
+          .orderBy(desc(bookingDocuments.generatedAt))
+          .limit(query.pageSize)
+          .offset(offset),
+        db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(bookingDocuments)
+          .innerJoin(projectUnits, eq(bookingDocuments.unitId, projectUnits.id))
+          .innerJoin(projects, eq(projectUnits.projectId, projects.id))
+          .leftJoin(leads, eq(bookingDocuments.leadId, leads.id))
+          .where(whereClause),
+      ]);
+
+      return {
+        items: rows.map((row) => ({
+          id: row.id,
+          bookingRef: row.bookingRef,
+          generatedAt: row.generatedAt.toISOString(),
+          unitId: row.unitId,
+          unitNumber: row.unitNumber,
+          floor: row.floor,
+          bedrooms: row.bedrooms,
+          status: row.status,
+          priceListedRs: Number(row.priceListedRs),
+          priceFinalRs: row.priceFinalRs != null ? Number(row.priceFinalRs) : null,
+          projectId: row.projectId,
+          projectName: row.projectName,
+          leadId: row.leadId,
+          leadName: row.leadName?.trim() || "—",
+          agentId: row.agentId,
+          agentName: row.agentName?.trim() || "—",
+        })),
+        page: query.page,
+        pageSize: query.pageSize,
+        total: Number(count),
+      };
+    },
+
+    async getBookingPdfAccessContext(projectId: string, unitId: string) {
+      const [unitRow] = await db
+        .select({ leadAssignedTo: leads.assignedTo })
+        .from(projectUnits)
+        .leftJoin(leads, eq(projectUnits.assignedLeadId, leads.id))
+        .where(and(eq(projectUnits.id, unitId), eq(projectUnits.projectId, projectId)))
+        .limit(1);
+
+      const doc = await this.getLatestForUnit(unitId);
+
+      return {
+        agentId: doc?.agentId ?? null,
+        leadAssignedTo: unitRow?.leadAssignedTo ?? null,
+      };
     },
   };
 }

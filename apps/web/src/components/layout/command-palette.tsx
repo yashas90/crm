@@ -1,10 +1,13 @@
 "use client";
 
+import { useSession } from "@/hooks/use-session";
 import { Input } from "@propninja/ui/input";
 import { cn } from "@propninja/ui/lib/utils";
 import {
+  AlertTriangle,
   BarChart3,
   FileText,
+  Flame,
   FolderKanban,
   LayoutDashboard,
   MapPin,
@@ -24,6 +27,7 @@ type CommandItem = {
   href: string;
   keywords?: string;
   icon: React.ReactNode;
+  roles?: Array<"admin" | "manager" | "agent">;
 };
 
 const NAV_ITEMS: CommandItem[] = [
@@ -54,6 +58,7 @@ const NAV_ITEMS: CommandItem[] = [
     href: "/reports",
     keywords: "analytics",
     icon: <BarChart3 className="h-4 w-4" />,
+    roles: ["admin", "manager"],
   },
   {
     id: "calls",
@@ -77,6 +82,13 @@ const NAV_ITEMS: CommandItem[] = [
     icon: <MapPin className="h-4 w-4" />,
   },
   {
+    id: "bookings",
+    label: "Bookings",
+    href: "/bookings",
+    keywords: "reserved booked units inventory",
+    icon: <TrendingUp className="h-4 w-4" />,
+  },
+  {
     id: "documents",
     label: "Documents",
     href: "/documents",
@@ -87,8 +99,25 @@ const NAV_ITEMS: CommandItem[] = [
     id: "analytics",
     label: "Analytics",
     href: "/analytics",
-    keywords: "insights metrics trends",
+    keywords: "insights metrics trends team",
     icon: <TrendingUp className="h-4 w-4" />,
+    roles: ["admin", "manager"],
+  },
+  {
+    id: "sla",
+    label: "Lead SLA",
+    href: "/sla",
+    keywords: "inactive breach overdue follow-up",
+    icon: <AlertTriangle className="h-4 w-4" />,
+    roles: ["admin", "manager", "agent"],
+  },
+  {
+    id: "performance",
+    label: "Performance",
+    href: "/performance",
+    keywords: "stats calls leaderboard personal my performance",
+    icon: <TrendingUp className="h-4 w-4" />,
+    roles: ["admin", "manager", "agent"],
   },
   {
     id: "users",
@@ -96,6 +125,7 @@ const NAV_ITEMS: CommandItem[] = [
     href: "/users",
     keywords: "team agents",
     icon: <UserPlus className="h-4 w-4" />,
+    roles: ["admin", "manager"],
   },
   {
     id: "settings",
@@ -104,24 +134,39 @@ const NAV_ITEMS: CommandItem[] = [
     keywords: "preferences config",
     icon: <Settings className="h-4 w-4" />,
   },
+  {
+    id: "lead-scoring",
+    label: "Lead Scoring",
+    href: "/settings/lead-scoring",
+    keywords: "score hot warm priority rules",
+    icon: <Flame className="h-4 w-4" />,
+    roles: ["admin", "manager"],
+  },
 ];
 
 export function CommandPalette() {
   const router = useRouter();
+  const { session } = useSession();
+  const role = session?.role;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const roleItems = useMemo(() => {
+    if (!role) return NAV_ITEMS.filter((item) => !item.roles);
+    return NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(role));
+  }, [role]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return NAV_ITEMS;
-    return NAV_ITEMS.filter(
+    if (!q) return roleItems;
+    return roleItems.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.href.toLowerCase().includes(q) ||
         item.keywords?.toLowerCase().includes(q),
     );
-  }, [query]);
+  }, [query, roleItems]);
 
   const go = useCallback(
     (href: string) => {

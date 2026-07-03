@@ -4,7 +4,9 @@ import { AppLogo } from "@/components/layout/app-logo";
 import { useSession } from "@/hooks/use-session";
 import { cn } from "@propninja/ui/lib/utils";
 import {
+  AlertTriangle,
   BarChart3,
+  BookMarked,
   Building2,
   CheckSquare,
   FileText,
@@ -38,6 +40,12 @@ const navItems: NavItem[] = [
   { href: "/leads", label: "Leads", icon: Users, roles: ["admin", "manager", "agent"] },
   { href: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "manager", "agent"] },
   { href: "/tasks", label: "Tasks", icon: CheckSquare, roles: ["admin", "manager", "agent"] },
+  {
+    href: "/sla",
+    label: "SLA",
+    icon: AlertTriangle,
+    roles: ["admin", "manager", "agent"],
+  },
   { href: "/projects", label: "Projects", icon: Building2, roles: ["admin", "manager", "agent"] },
   {
     href: "/site-visits",
@@ -45,9 +53,21 @@ const navItems: NavItem[] = [
     icon: MapPin,
     roles: ["admin", "manager", "agent"],
   },
+  {
+    href: "/bookings",
+    label: "Bookings",
+    icon: BookMarked,
+    roles: ["admin", "manager", "agent"],
+  },
   { href: "/documents", label: "Documents", icon: FileText, roles: ["admin", "manager", "agent"] },
   { href: "/reports/calls", label: "Calls", icon: Phone, roles: ["admin", "manager", "agent"] },
-  { href: "/analytics", label: "Analytics", icon: TrendingUp, roles: ["admin", "manager"] },
+  {
+    href: "/performance",
+    label: "Performance",
+    icon: TrendingUp,
+    roles: ["admin", "manager", "agent"],
+  },
+  { href: "/analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "manager"] },
   { href: "/reports", label: "Reports", icon: BarChart3, roles: ["admin", "manager"] },
   {
     href: "/reports/revenue",

@@ -26,6 +26,13 @@ function formatNotificationLabel(notification: NotificationRow): string {
     return `${assignedBy} assigned you ${leadName}`;
   }
 
+  if (notification.type === "leads_bulk_assigned") {
+    const assignedBy = typeof payload.assignedBy === "string" ? payload.assignedBy : "Someone";
+    const count = typeof payload.count === "number" ? payload.count : 0;
+    const label = count === 1 ? "1 lead" : `${count} leads`;
+    return `${assignedBy} assigned you ${label}`;
+  }
+
   if (notification.type === "new_ad_lead") {
     const sourceLabel = typeof payload.sourceLabel === "string" ? payload.sourceLabel : "Meta";
     const campaign =

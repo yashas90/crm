@@ -1,4 +1,9 @@
 import { PipelineColumn } from "@/components/pipeline/PipelineColumn";
+import {
+  PipelineCloseReasonModal,
+  PipelineStagePickerModal,
+  requiresCloseReason,
+} from "@/components/pipeline/PipelineStageModals";
 import { ErrorState } from "@/components/ui/ErrorState";
 import type { LeadRow } from "@/hooks/use-leads";
 import { type PipelineFilter, usePipelineLeads, useUpdateLeadStage } from "@/hooks/use-pipeline";
@@ -13,6 +18,7 @@ import {
   CLOSED_PIPELINE_STAGES,
   PIPELINE_STAGES,
   groupLeadsByStage,
+  pipelineStageLabel,
 } from "@/lib/pipeline";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
@@ -33,6 +39,11 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = BottomTabScreenProps<MainTabParamList, "PipelineTab">;
+
+type PendingMove = {
+  lead: LeadRow;
+  stage: LeadStatus;
+};
 
 function FilterChip({
   label,
@@ -56,9 +67,9 @@ export function PipelineScreen({ navigation }: Props) {
   const members = useTeamMembers();
   const [filter, setFilter] = useState<PipelineFilter>(isManager ? "all" : "mine");
   const [agentPickerOpen, setAgentPickerOpen] = useState(false);
-  const [wonExpanded, setWonExpanded] = useState(false);
-  const [lostExpanded, setLostExpanded] = useState(false);
+  const [expandedClosed, setExpandedClosed] = useState<Record<string, boolean>>({});
   const [stagePickerLead, setStagePickerLead] = useState<LeadRow | null>(null);
+  const [pendingClose, setPendingClose] = useState<PendingMove | null>(null);
   const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const pipeline = usePipelineLeads(filter);
@@ -69,13 +80,14 @@ export function PipelineScreen({ navigation }: Props) {
     all: PIPELINE_STAGES,
     active: ACTIVE_PIPELINE_STAGES,
     closed: CLOSED_PIPELINE_STAGES,
+    fromApi: false,
   };
 
-  const leads = pipeline.data?.items ?? [];
-  const browserLeads = useMemo(
-    () => leads.filter((lead) => !isNaLeadStatus(lead.leadStatus)),
-    [leads],
+  const leads = useMemo(
+    () => (pipeline.data?.items ?? []).filter((lead) => !isNaLeadStatus(lead.leadStatus)),
+    [pipeline.data?.items],
   );
+  const browserLeads = leads;
   const board = useMemo(() => groupLeadsByStage(leads, stageConfig.all), [leads, stageConfig.all]);
   const truncated = (pipeline.data?.total ?? 0) > leads.length;
 
@@ -99,20 +111,51 @@ export function PipelineScreen({ navigation }: Props) {
     [browserLeads, navigation],
   );
 
-  const handleStageSelect = useCallback(
-    async (stage: LeadStatus) => {
-      if (!stagePickerLead) return;
-      const leadId = stagePickerLead.id;
-      setStagePickerLead(null);
+  const applyStageChange = useCallback(
+    async (leadId: string, stage: LeadStatus, closeReason?: string, closeReasonNote?: string) => {
       try {
-        await updateStage.mutateAsync({ leadId, stage });
+        await updateStage.mutateAsync({ leadId, stage, closeReason, closeReasonNote });
       } catch (err) {
         setErrorToast(err instanceof Error ? err.message : "Failed to move lead.");
         setTimeout(() => setErrorToast(null), 3500);
       }
     },
-    [stagePickerLead, updateStage],
+    [updateStage],
   );
+
+  const beginStageMove = useCallback(
+    (lead: LeadRow, stage: LeadStatus) => {
+      if (requiresCloseReason(stage)) {
+        setPendingClose({ lead, stage });
+        setStagePickerLead(null);
+        return;
+      }
+      void applyStageChange(lead.id, stage);
+      setStagePickerLead(null);
+    },
+    [applyStageChange],
+  );
+
+  const handleStageSelect = useCallback(
+    (stage: LeadStatus) => {
+      if (!stagePickerLead) return;
+      beginStageMove(stagePickerLead, stage);
+    },
+    [beginStageMove, stagePickerLead],
+  );
+
+  const handleQuickMove = useCallback(
+    (leadId: string, stage: LeadStatus) => {
+      const lead = leads.find((item) => item.id === leadId);
+      if (!lead) return;
+      beginStageMove(lead, stage);
+    },
+    [beginStageMove, leads],
+  );
+
+  const toggleClosedColumn = useCallback((stageKey: string) => {
+    setExpandedClosed((prev) => ({ ...prev, [stageKey]: !prev[stageKey] }));
+  }, []);
 
   if (pipeline.isError && !pipeline.data) {
     return <ErrorState onRetry={refetch} />;
@@ -122,7 +165,10 @@ export function PipelineScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Pipeline</Text>
-        <Text style={styles.subtitle}>Long-press a card to change stage</Text>
+        <Text style={styles.subtitle}>
+          {stageConfig.fromApi ? "Org stages from CRM" : "Default stages"} · long-press or tap → to
+          move
+        </Text>
       </View>
 
       {isManager ? (
@@ -164,56 +210,61 @@ export function PipelineScreen({ navigation }: Props) {
           >
             {stageConfig.active.map((stage) => (
               <PipelineColumn
-                key={stage.key}
+                key={stage.id ?? stage.key}
                 stage={stage}
                 leads={board[stage.key] ?? []}
+                allStages={stageConfig.all}
                 showAssignee={isManager}
                 onLeadPress={handleLeadPress}
                 onLeadLongPress={setStagePickerLead}
+                onQuickMove={handleQuickMove}
               />
             ))}
             {stageConfig.closed.map((stage) => (
               <PipelineColumn
-                key={stage.key}
+                key={stage.id ?? stage.key}
                 stage={stage}
                 leads={board[stage.key] ?? []}
-                collapsed={stage.key === "won" ? !wonExpanded : !lostExpanded}
+                allStages={stageConfig.all}
+                collapsed={!expandedClosed[stage.key]}
                 showAssignee={isManager}
-                onToggleCollapse={() => {
-                  if (stage.key === "won") setWonExpanded((v) => !v);
-                  if (stage.key === "lost") setLostExpanded((v) => !v);
-                }}
+                onToggleCollapse={() => toggleClosedColumn(stage.key)}
                 onLeadPress={handleLeadPress}
                 onLeadLongPress={setStagePickerLead}
+                onQuickMove={handleQuickMove}
               />
             ))}
           </ScrollView>
         </ScrollView>
       )}
 
-      <Modal visible={Boolean(stagePickerLead)} transparent animationType="fade">
-        <Pressable style={styles.modalBackdrop} onPress={() => setStagePickerLead(null)}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Move to stage</Text>
-            {stagePickerLead ? (
-              <Text style={styles.modalSubtitle}>
-                {stagePickerLead.firstName} {stagePickerLead.lastName}
-              </Text>
-            ) : null}
-            {stageConfig.all
-              .filter((s) => s.key !== stagePickerLead?.leadStatus)
-              .map((stage) => (
-                <Pressable
-                  key={stage.key}
-                  style={styles.modalOption}
-                  onPress={() => void handleStageSelect(stage.key)}
-                >
-                  <Text style={styles.modalOptionText}>{stage.label}</Text>
-                </Pressable>
-              ))}
-          </View>
-        </Pressable>
-      </Modal>
+      <PipelineStagePickerModal
+        visible={Boolean(stagePickerLead)}
+        lead={stagePickerLead}
+        stages={stageConfig.all}
+        onClose={() => setStagePickerLead(null)}
+        onSelectStage={handleStageSelect}
+      />
+
+      <PipelineCloseReasonModal
+        visible={Boolean(pendingClose)}
+        lead={pendingClose?.lead ?? null}
+        stage={pendingClose?.stage ?? null}
+        stageLabel={
+          pendingClose ? pipelineStageLabel(pendingClose.stage, stageConfig.all) : "Closed"
+        }
+        onClose={() => setPendingClose(null)}
+        onConfirm={(closeReason, closeReasonNote) => {
+          if (!pendingClose) return;
+          void applyStageChange(
+            pendingClose.lead.id,
+            pendingClose.stage,
+            closeReason,
+            closeReasonNote,
+          );
+          setPendingClose(null);
+        }}
+      />
 
       <Modal visible={agentPickerOpen} transparent animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setAgentPickerOpen(false)}>
@@ -313,7 +364,6 @@ const styles = StyleSheet.create({
     maxHeight: "70%",
   },
   modalTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
-  modalSubtitle: { color: colors.textMuted, marginTop: 4, marginBottom: spacing.md },
   modalOption: {
     paddingVertical: spacing.md,
     borderBottomWidth: 1,

@@ -1,11 +1,12 @@
 import type { ProfileStackParamList } from "@/navigation/types";
+import { BookingsScreen } from "@/screens/BookingsScreen";
 import { CallLogsScreen } from "@/screens/CallLogsScreen";
 import { DocumentsLibraryScreen } from "@/screens/DocumentsLibraryScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { ProjectDetailScreen } from "@/screens/ProjectDetailScreen";
 import { ProjectUnitScreen } from "@/screens/ProjectUnitScreen";
 import { ProjectsScreen } from "@/screens/ProjectsScreen";
-import { SiteVisitsCalendarScreen } from "@/screens/SiteVisitsCalendarScreen";
+import { SlaScreen } from "@/screens/SlaScreen";
 import { UserManagementScreen } from "@/screens/UserManagementScreen";
 import { navigationTheme } from "@/theme";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -37,9 +38,11 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
             onLogout={onLogout}
             onOpenUserManagement={() => navigation.navigate("UserManagementScreen")}
             onOpenProjects={() => navigation.navigate("ProjectsScreen")}
+            onOpenBookings={() => navigation.navigate("BookingsScreen")}
             onOpenDocuments={() => navigation.navigate("DocumentsLibraryScreen")}
             onOpenCallLogs={() => navigation.navigate("CallLogsScreen")}
-            onOpenSiteVisits={() => navigation.navigate("SiteVisitsCalendarScreen")}
+            onOpenSla={() => navigation.navigate("SlaScreen")}
+            onOpenSiteVisits={() => navigation.getParent()?.navigate("VisitsTab")}
           />
         )}
       </Stack.Screen>
@@ -52,11 +55,6 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
         name="CallLogsScreen"
         component={CallLogsScreen}
         options={{ title: "Call Logs", ...detailScreenOptions }}
-      />
-      <Stack.Screen
-        name="SiteVisitsCalendarScreen"
-        component={SiteVisitsCalendarScreen}
-        options={{ title: "Site visits", ...detailScreenOptions }}
       />
       <Stack.Screen
         name="UserManagementScreen"
@@ -72,6 +70,16 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
         name="ProjectDetailScreen"
         component={ProjectDetailScreen}
         options={{ title: "Units", ...detailScreenOptions }}
+      />
+      <Stack.Screen
+        name="BookingsScreen"
+        component={BookingsScreen}
+        options={{ title: "Bookings", ...detailScreenOptions }}
+      />
+      <Stack.Screen
+        name="SlaScreen"
+        component={SlaScreen}
+        options={{ title: "Lead SLA", ...detailScreenOptions }}
       />
       <Stack.Screen
         name="ProjectUnitScreen"

@@ -38,6 +38,7 @@ import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 import { recordLeadAssignment } from "./leadAssignmentService.js";
+import { recalculateLeadScore } from "./leadScoringService.js";
 
 type LeadStatus =
   | "new"
@@ -626,6 +627,13 @@ export const leadService = {
       message?: string | null;
     }[] = [];
 
+    const assignmentCounts: Record<string, number> = {};
+
+    const trackAssignment = (assigneeId: string | null | undefined) => {
+      if (!assigneeId || assigneeId === input.actingUserId) return;
+      assignmentCounts[assigneeId] = (assignmentCounts[assigneeId] ?? 0) + 1;
+    };
+
     for (let index = 0; index < input.rows.length; index++) {
       const rowNumber = index + 1;
       const parsed = createLeadBodySchema.safeParse(input.rows[index]);
@@ -663,6 +671,9 @@ export const leadService = {
           });
 
           if (merged) {
+            if (assignedTo && assignedTo !== existing.assignedTo) {
+              trackAssignment(assignedTo);
+            }
             updated.push({ row: rowNumber, id: merged.id, phone: merged.phone ?? storedPhone });
             batchItems.push({
               rowNumber,
@@ -698,6 +709,7 @@ export const leadService = {
 
       try {
         const lead = await this.createLead(parsed.data, { assignedTo });
+        trackAssignment(assignedTo);
         created.push({ row: rowNumber, id: lead.id, phone: lead.phone ?? "" });
         batchItems.push({
           rowNumber,
@@ -734,6 +746,7 @@ export const leadService = {
       updated,
       skipped,
       failed,
+      assignmentCounts,
     };
   },
 
@@ -1037,6 +1050,10 @@ export const leadService = {
       });
     }
 
+    if (updated) {
+      void recalculateLeadScore(leadId).catch(() => undefined);
+    }
+
     return updated ?? null;
   },
 
@@ -1150,6 +1167,42 @@ export const leadService = {
     return updated;
   },
 
+  async bulkAssignLeads(input: { leadIds: string[]; userIds: string[]; actingUserId: string }) {
+    const succeeded: string[] = [];
+    const failed: { id: string; message: string }[] = [];
+    const assignmentCounts: Record<string, number> = {};
+
+    for (let index = 0; index < input.leadIds.length; index++) {
+      const leadId = input.leadIds[index]!;
+      const userId = input.userIds[index % input.userIds.length]!;
+
+      try {
+        const updated = await this.assignLead({
+          leadId,
+          userId,
+          actingUserId: input.actingUserId,
+        });
+
+        if (!updated) {
+          failed.push({ id: leadId, message: "Lead or assignee not found" });
+          continue;
+        }
+
+        succeeded.push(leadId);
+        if (userId !== input.actingUserId) {
+          assignmentCounts[userId] = (assignmentCounts[userId] ?? 0) + 1;
+        }
+      } catch (err) {
+        failed.push({
+          id: leadId,
+          message: err instanceof Error ? err.message : "Assign failed",
+        });
+      }
+    }
+
+    return { succeeded, failed, assignmentCounts };
+  },
+
   async addNote(input: { leadId: string; userId: string; text: string }) {
     const { leadId, userId, text } = input;
 
@@ -1175,6 +1228,14 @@ export const leadService = {
         metadata: { text },
       })
       .returning();
+
+    if (activity) {
+      await db
+        .update(leads)
+        .set({ lastActivityAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId)));
+      void recalculateLeadScore(leadId).catch(() => undefined);
+    }
 
     return activity ?? null;
   },

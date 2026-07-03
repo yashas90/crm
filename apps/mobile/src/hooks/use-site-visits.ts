@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { liveQueryOptions } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import { formatVisitTimeIst } from "@propninja/types/ist";
@@ -7,6 +7,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 const live = liveQueryOptions();
 
 export type SiteVisitStatus = "scheduled" | "completed" | "cancelled" | "no_show";
+
+export type SiteVisitOutcome =
+  | "very_interested"
+  | "needs_time"
+  | "not_interested"
+  | "revisit_required"
+  | null;
 
 export type SiteVisit = {
   id: string;
@@ -20,9 +27,26 @@ export type SiteVisit = {
   notes: string | null;
   propertyAddress: string | null;
   propertyLabel: string | null;
+  outcome?: SiteVisitOutcome;
+  outcomeNote?: string | null;
+  reminderSent?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   lead: { id: string; firstName: string; lastName: string; phone: string | null } | null;
   project: { id: string; name: string } | null;
   agent: { id: string; name: string } | null;
+};
+
+export type SiteVisitsListParams = {
+  agentId?: string;
+  leadId?: string;
+  projectId?: string;
+  status?: SiteVisitStatus;
+  date?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 function useAuthReady() {
@@ -30,11 +54,34 @@ function useAuthReady() {
   return status === "authenticated";
 }
 
-export function useTodaySiteVisits() {
+function buildQuery(params: Record<string, string | number | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") search.set(key, String(value));
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export function useSiteVisits(params: SiteVisitsListParams = {}, enabled = true) {
   const ready = useAuthReady();
   return useQuery({
-    queryKey: ["site-visits", "today"],
-    queryFn: () => apiGet<{ items: SiteVisit[]; total: number }>("/api/site-visits/today"),
+    queryKey: ["site-visits", "list", params],
+    queryFn: () =>
+      apiGet<{ items: SiteVisit[]; total: number; page: number; pageSize: number }>(
+        `/api/site-visits${buildQuery(params)}`,
+      ),
+    enabled: ready && enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useTodaySiteVisits(agentId?: string) {
+  const ready = useAuthReady();
+  const qs = agentId ? `?agentId=${agentId}` : "";
+  return useQuery({
+    queryKey: ["site-visits", "today", agentId ?? "all"],
+    queryFn: () => apiGet<{ items: SiteVisit[]; total: number }>(`/api/site-visits/today${qs}`),
     enabled: ready,
     ...live,
   });
@@ -42,30 +89,28 @@ export function useTodaySiteVisits() {
 
 export function useSiteVisitsCalendar(dateFrom: string, dateTo: string, agentId?: string) {
   const ready = useAuthReady();
-  const params = new URLSearchParams({ dateFrom, dateTo });
-  if (agentId) params.set("agentId", agentId);
-
   return useQuery({
     queryKey: ["site-visits", "calendar", dateFrom, dateTo, agentId ?? "all"],
     queryFn: () =>
       apiGet<{ dates: Record<string, SiteVisit[]>; total: number }>(
-        `/api/site-visits/calendar?${params.toString()}`,
+        `/api/site-visits/calendar${buildQuery({ dateFrom, dateTo, agentId })}`,
       ),
     enabled: ready && Boolean(dateFrom && dateTo),
     staleTime: 30_000,
   });
 }
 
-export function useLeadSiteVisits(leadId: string) {
+export function useSiteVisit(id: string) {
   const ready = useAuthReady();
   return useQuery({
-    queryKey: ["site-visits", "lead", leadId],
-    queryFn: () =>
-      apiGet<{ items: SiteVisit[]; total: number }>(
-        `/api/site-visits?leadId=${leadId}&pageSize=50`,
-      ),
-    enabled: ready && Boolean(leadId),
+    queryKey: ["site-visit", id],
+    queryFn: () => apiGet<SiteVisit>(`/api/site-visits/${id}`),
+    enabled: ready && Boolean(id),
   });
+}
+
+export function useLeadSiteVisits(leadId: string) {
+  return useSiteVisits({ leadId, pageSize: 50 }, Boolean(leadId));
 }
 
 export function useCreateSiteVisit() {
@@ -90,8 +135,38 @@ export function useUpdateSiteVisit() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
       apiPatch<SiteVisit>(`/api/site-visits/${id}`, payload),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["site-visits"] });
+      void queryClient.invalidateQueries({ queryKey: ["site-visit", variables.id] });
+    },
+  });
+}
+
+export function useCancelSiteVisit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<SiteVisit>(`/api/site-visits/${id}`),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["site-visits"] }),
   });
+}
+
+export function visitStatusColor(status: SiteVisitStatus): string {
+  switch (status) {
+    case "scheduled":
+      return "#16a34a";
+    case "completed":
+      return "#204060";
+    case "cancelled":
+      return "#dc2626";
+    case "no_show":
+      return "#ea580c";
+    default:
+      return "#64748b";
+  }
+}
+
+export function visitStatusLabel(status: SiteVisitStatus): string {
+  return status.replace(/_/g, " ");
 }
 
 export function formatVisitTime(visitTime: string) {
@@ -103,4 +178,15 @@ export function agentColor(name: string) {
   let hash = 0;
   for (let i = 0; i < name.length; i += 1) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return palette[Math.abs(hash) % palette.length];
+}
+
+export function visitLeadName(visit: SiteVisit): string {
+  if (visit.lead) {
+    return `${visit.lead.firstName} ${visit.lead.lastName}`.trim() || "Lead";
+  }
+  return "Lead";
+}
+
+export function visitLocation(visit: SiteVisit): string {
+  return visit.propertyLabel ?? visit.propertyAddress ?? visit.project?.name ?? "Property TBD";
 }

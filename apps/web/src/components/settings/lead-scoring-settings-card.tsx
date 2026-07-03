@@ -1,31 +1,17 @@
 "use client";
 
+import { useRecalculateLeadScores } from "@/hooks/use-lead-scoring";
 import { ApiRequestError, apiPatch } from "@/lib/apiClient";
+import { formatScoreFactor } from "@/lib/lead-score-display";
+import { DEFAULT_LEAD_SCORING_RULES, LEAD_SCORING_RULE_LABELS } from "@/lib/lead-scoring-rules";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { Label } from "@propninja/ui/label";
 import type { QueryClient } from "@tanstack/react-query";
 import { useMutation } from "@tanstack/react-query";
+import Link from "next/link";
 import { useEffect, useState } from "react";
-
-const SCORING_RULES: { label: string; points: number }[] = [
-  { label: "Called and answered at least once", points: 20 },
-  { label: "Replied to WhatsApp", points: 15 },
-  { label: "Site visit scheduled", points: 10 },
-  { label: "Site visit completed", points: 20 },
-  { label: "Note added in last 3 days", points: 5 },
-  { label: "Re-enquired after lost", points: 10 },
-  { label: "Lead created in last 24 hours", points: 15 },
-  { label: "Created 1–3 days ago", points: 10 },
-  { label: "Created 4–7 days ago", points: 5 },
-  { label: "No contact in 5+ days", points: -10 },
-  { label: "No contact in 10+ days", points: -20 },
-  { label: "Marked Do Not Call (TCF)", points: -15 },
-  { label: "No answer 3+ times in a row", points: -10 },
-  { label: "Source: Meta Ads or Google Ads", points: 10 },
-  { label: "Source: Referral", points: 5 },
-];
 
 type OrgRecord = {
   settings: Record<string, unknown>;
@@ -39,7 +25,8 @@ type LeadScoringSettingsCardProps = {
 
 function readScoringEnabled(settings: Record<string, unknown>): boolean {
   const value = settings.leadScoringEnabled;
-  return value === true || value === "true";
+  if (value === false || value === "false") return false;
+  return true;
 }
 
 export function LeadScoringSettingsCard({
@@ -47,7 +34,8 @@ export function LeadScoringSettingsCard({
   canUpdate,
   queryClient,
 }: LeadScoringSettingsCardProps) {
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(true);
+  const recalculate = useRecalculateLeadScores();
 
   useEffect(() => {
     if (!org) return;
@@ -57,25 +45,37 @@ export function LeadScoringSettingsCard({
   const saveScoring = useMutation({
     mutationFn: (leadScoringEnabled: boolean) =>
       apiPatch("/api/org", { settings: { leadScoringEnabled } }),
-    onSuccess: (data) => {
+    onSuccess: async (data, leadScoringEnabled) => {
       queryClient.setQueryData(["org"], data);
       toast.success("Lead scoring settings saved.");
+      if (leadScoringEnabled) {
+        const result = await recalculate.mutateAsync();
+        if (!result.skipped && result.updated > 0) {
+          toast.success(`Recalculated scores for ${result.updated} lead(s).`);
+        }
+      }
     },
     onError: (error) => {
       const message =
         error instanceof ApiRequestError ? error.message : "Failed to update lead scoring.";
       toast.error(message);
+      if (org) setEnabled(readScoringEnabled(org.settings ?? {}));
     },
   });
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Lead Scoring</CardTitle>
-        <CardDescription>
-          Rule-based priority scores help agents focus on the hottest leads first. Point values are
-          read-only in this release.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div>
+          <CardTitle className="text-base">Lead Scoring</CardTitle>
+          <CardDescription>
+            Rule-based priority scores (0–100). Hot ≥ 70, warm ≥ 40. Recalculates every 6 hours and
+            after engagement events.
+          </CardDescription>
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/settings/lead-scoring">View details</Link>
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         <label className="flex items-center justify-between rounded-lg border border-slate-200/80 bg-muted/20 px-3 py-3 text-sm dark:border-white/10">
@@ -84,7 +84,7 @@ export function LeadScoringSettingsCard({
               Enable lead scoring
             </Label>
             <p className="text-xs text-muted-foreground">
-              Scores recalculate every 6 hours for active leads.
+              On by default. Disabling stops recalculation and hot-lead score filters.
             </p>
           </div>
           <input
@@ -103,12 +103,12 @@ export function LeadScoringSettingsCard({
 
         <div className="space-y-2">
           <p className="text-sm font-medium">Scoring rules</p>
-          <ul className="space-y-1 rounded-lg border border-slate-200/80 bg-muted/10 p-3 text-sm dark:border-white/10">
-            {SCORING_RULES.map((rule) => (
-              <li key={rule.label} className="flex justify-between gap-3">
-                <span className="text-muted-foreground">{rule.label}</span>
+          <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200/80 bg-muted/10 p-3 text-sm dark:border-white/10">
+            {LEAD_SCORING_RULE_LABELS.map((entry) => (
+              <li key={entry.key} className="flex justify-between gap-3">
+                <span className="text-muted-foreground">{entry.label}</span>
                 <span className="shrink-0 font-semibold tabular-nums">
-                  {rule.points > 0 ? `+${rule.points}` : rule.points}
+                  {formatScoreFactor(DEFAULT_LEAD_SCORING_RULES[entry.key])}
                 </span>
               </li>
             ))}
@@ -116,15 +116,17 @@ export function LeadScoringSettingsCard({
         </div>
 
         {canUpdate ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={saveScoring.isPending}
-            onClick={() => saveScoring.mutate(enabled)}
-          >
-            {saveScoring.isPending ? "Saving..." : "Save scoring toggle"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={recalculate.isPending || !enabled}
+              onClick={() => void recalculate.mutate()}
+            >
+              {recalculate.isPending ? "Recalculating..." : "Recalculate now"}
+            </Button>
+          </div>
         ) : null}
       </CardContent>
     </Card>

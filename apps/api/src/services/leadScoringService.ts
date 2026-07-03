@@ -10,11 +10,15 @@ import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import {
+  DEFAULT_LEAD_SCORING_RULES,
   HOT_LEAD_SCORE_THRESHOLD,
+  LEAD_SCORING_RULE_LABELS,
   type LeadScoringInput,
   type ScoreFactor,
+  WARM_LEAD_SCORE_THRESHOLD,
   calculateLeadScore,
   isLeadScoringEnabled,
+  scoreTier,
 } from "../lib/leadScoring.js";
 
 const RECENT_NOTE_DAYS = 3;
@@ -211,10 +215,82 @@ export async function computeLeadScoreForLead(
 }
 
 export async function persistLeadScore(leadId: string, score: number, now = new Date()) {
+  const settings = await getOrgScoringSettings();
+  const enabled = isLeadScoringEnabled(settings);
+
   await db
     .update(leads)
-    .set({ score, scoreUpdatedAt: now, updatedAt: now })
+    .set({
+      score,
+      scoreUpdatedAt: now,
+      updatedAt: now,
+      ...(enabled ? { temperature: scoreTier(score) } : {}),
+    })
     .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId)));
+}
+
+export async function getScoringConfig() {
+  const settings = await getOrgScoringSettings();
+  const enabled = isLeadScoringEnabled(settings);
+
+  return {
+    enabled,
+    rules: DEFAULT_LEAD_SCORING_RULES,
+    ruleLabels: LEAD_SCORING_RULE_LABELS,
+    hotThreshold: HOT_LEAD_SCORE_THRESHOLD,
+    warmThreshold: WARM_LEAD_SCORE_THRESHOLD,
+    recalculateIntervalHours: 6,
+  };
+}
+
+export async function getScoringStats() {
+  const settings = await getOrgScoringSettings();
+  const enabled = isLeadScoringEnabled(settings);
+  if (!enabled) {
+    return { enabled: false, totalScored: 0, hot: 0, warm: 0, cold: 0 };
+  }
+
+  const base = [
+    eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+    isNull(leads.deletedAt),
+    activeLeadStatusFilter(),
+  ];
+
+  const [[{ total }], [{ hot }], [{ warm }], [{ cold }]] = await Promise.all([
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(and(...base)),
+    db
+      .select({ hot: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(and(...base, gte(leads.score, HOT_LEAD_SCORE_THRESHOLD))),
+    db
+      .select({ warm: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(
+        and(
+          ...base,
+          gte(leads.score, WARM_LEAD_SCORE_THRESHOLD),
+          sql`${leads.score} < ${HOT_LEAD_SCORE_THRESHOLD}`,
+        ),
+      ),
+    db
+      .select({ cold: sql<number>`count(*)::int` })
+      .from(leads)
+      .where(and(...base, sql`${leads.score} < ${WARM_LEAD_SCORE_THRESHOLD}`)),
+  ]);
+
+  return { enabled: true, totalScored: total, hot, warm, cold };
+}
+
+/** Hot-lead filter: score-based when scoring is on, else manual temperature. */
+export async function resolveHotLeadCondition() {
+  const settings = await getOrgScoringSettings();
+  if (isLeadScoringEnabled(settings)) {
+    return gte(leads.score, HOT_LEAD_SCORE_THRESHOLD);
+  }
+  return eq(leads.temperature, "hot");
 }
 
 export async function recalculateLeadScore(leadId: string, now = new Date()) {

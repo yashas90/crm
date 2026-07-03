@@ -179,12 +179,22 @@ export function createProjectService(db: Database) {
         db.select({ count: sql<number>`count(*)::int` }).from(projects).where(whereClause),
       ]);
 
+      const projectIds = rows.map((row) => row.projects.id);
+      let unitSummaries: Record<string, import("./projectUnitService.js").UnitSummary> = {};
+      if (query.includeUnitSummary && projectIds.length > 0) {
+        const { createProjectUnitService } = await import("./projectUnitService.js");
+        unitSummaries = await createProjectUnitService(db).getSummariesForProjects(projectIds);
+      }
+
       return {
         items: rows.map((row) => ({
           ...row.projects,
           assignedUser: row.users
             ? { id: row.users.id, name: row.users.name, email: row.users.email }
             : null,
+          ...(query.includeUnitSummary
+            ? { unitSummary: unitSummaries[row.projects.id] ?? null }
+            : {}),
         })),
         page: query.page,
         pageSize: query.pageSize,

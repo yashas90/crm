@@ -4,6 +4,7 @@ import { createCallFollowUpTask } from "../lib/callFollowUpTask.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
+import { recalculateLeadScore } from "../services/leadScoringService.js";
 
 type CallDirection = "incoming" | "outgoing";
 type CallStatus = "completed" | "missed" | "rejected" | "failed";
@@ -139,7 +140,7 @@ export const callService = {
       await Promise.all([
         db
           .update(leads)
-          .set({ lastContactedAt: endedAt, updatedAt: new Date() })
+          .set({ lastContactedAt: endedAt, lastActivityAt: endedAt, updatedAt: new Date() })
           .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, resolvedLeadId))),
 
         db.insert(leadActivities).values({
@@ -168,6 +169,8 @@ export const callService = {
           attemptedAt: endedAt,
         });
       }
+
+      void recalculateLeadScore(resolvedLeadId).catch(() => undefined);
     }
 
     return { ...record!, followUpTask };

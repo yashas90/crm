@@ -1,5 +1,5 @@
 import { ErrorState } from "@/components/ui/ErrorState";
-import { useProjectsList } from "@/hooks/use-projects";
+import { type UnitSummary, useProjectsList } from "@/hooks/use-projects";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -18,13 +18,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<ProfileStackParamList, "ProjectsScreen">;
 
-function summaryLine(summary?: {
-  available: number;
-  reserved: number;
-  sold: number;
-}) {
+function summaryLine(summary?: UnitSummary) {
   if (!summary) return "No inventory data";
-  return `${summary.available} available • ${summary.reserved} reserved • ${summary.sold} sold`;
+  return `${summary.available} available · ${summary.reserved} reserved · ${summary.booked} booked · ${summary.sold} sold`;
 }
 
 export function ProjectsScreen({ navigation }: Props) {

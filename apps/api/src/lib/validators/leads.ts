@@ -152,6 +152,11 @@ export const assignLeadBodySchema = z.object({
   user_id: z.string().uuid(),
 });
 
+export const bulkAssignLeadsBodySchema = z.object({
+  leadIds: z.array(z.string().uuid()).min(1).max(500),
+  userIds: z.array(z.string().uuid()).min(1).max(50),
+});
+
 export const addNoteBodySchema = z.object({
   text: z.string().min(1),
 });

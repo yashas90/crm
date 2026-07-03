@@ -18,7 +18,13 @@ export type ProfileStackParamList = {
   ProjectsScreen: undefined;
   ProjectDetailScreen: { projectId: string; projectName?: string };
   ProjectUnitScreen: { projectId: string; unitId: string; unitNumber?: string };
+  BookingsScreen: undefined;
   DocumentsLibraryScreen: undefined;
+  SlaScreen: undefined;
+};
+
+export type VisitsStackParamList = {
+  SiteVisitsHomeScreen: undefined;
   SiteVisitsCalendarScreen: undefined;
 };
 
@@ -26,6 +32,7 @@ export type MainTabParamList = {
   LeadsTab: NavigatorScreenParams<LeadsStackParamList> | undefined;
   TodayTab: { focusQueue?: boolean } | undefined;
   TeamTab: NavigatorScreenParams<TeamStackParamList> | undefined;
+  VisitsTab: NavigatorScreenParams<VisitsStackParamList> | undefined;
   TasksTab: undefined;
   NotificationsTab: undefined;
   ProfileTab: undefined;

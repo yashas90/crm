@@ -10,6 +10,7 @@ import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
 import { LeadEditForm } from "@/components/leads/lead-edit-form";
 import { LeadEmailPanel } from "@/components/leads/lead-email-panel";
 import { LeadFollowUpPanel } from "@/components/leads/lead-follow-up-panel";
+import { LeadLinkedUnitPanel } from "@/components/leads/lead-linked-unit-panel";
 import { LeadOwnershipHistory } from "@/components/leads/lead-ownership-history";
 import { LeadScoreBadge, LeadScoreBreakdownTooltip } from "@/components/leads/lead-score-badge";
 import { LeadTagsEditor } from "@/components/leads/lead-tags-editor";
@@ -20,8 +21,10 @@ import { SendWhatsAppTemplateDialog } from "@/components/leads/send-whatsapp-tem
 import { ComplianceChip, TcfConsentPanel } from "@/components/leads/tcf-consent-panel";
 import { WhatsAppMessagePickerDialog } from "@/components/leads/whatsapp-message-picker-dialog";
 import { LeadSiteVisitsPanel } from "@/components/site-visits/lead-site-visits-panel";
+import { LeadSlaBadge, LeadSlaPanel } from "@/components/sla/lead-sla-badge";
 import { TasksPanel } from "@/components/tasks/tasks-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLeadScore } from "@/hooks/use-lead-scoring";
 import { useAddLeadNote, useCalls, useLead, useLeadAssignments } from "@/hooks/use-leads";
 import { useLeadLinkedUnit, useMessageTemplates } from "@/hooks/use-message-templates";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -92,7 +95,8 @@ export default function LeadDetailPage() {
   const [whatsappPickerPhone, setWhatsappPickerPhone] = useState<string | null>(null);
   const { session } = useSession();
   const messageTemplates = useMessageTemplates({ enabled: Boolean(whatsappPickerPhone) });
-  const { data: linkedUnit } = useLeadLinkedUnit(leadId, { enabled: Boolean(whatsappPickerPhone) });
+  const { data: linkedUnit, isLoading: linkedUnitLoading } = useLeadLinkedUnit(leadId);
+  const leadScore = useLeadScore(leadId, { enabled: Boolean(leadId) });
 
   const { ready, canDeleteLead } = usePermissions();
   const callConsent = tcfData?.consents.call?.consented ?? null;
@@ -183,11 +187,15 @@ export default function LeadDetailPage() {
                 <StatusChip status={lead.leadStatus} />
                 <TemperatureChip temperature={lead.temperature} />
                 {typeof lead.score === "number" ? (
-                  <LeadScoreBreakdownTooltip factors={[]} score={lead.score}>
-                    <LeadScoreBadge score={lead.score} showPoints />
+                  <LeadScoreBreakdownTooltip
+                    factors={leadScore.data?.factors ?? []}
+                    score={leadScore.data?.score ?? lead.score}
+                  >
+                    <LeadScoreBadge score={leadScore.data?.score ?? lead.score} showPoints />
                   </LeadScoreBreakdownTooltip>
                 ) : null}
                 {lead.projectName ? <ProjectChip name={lead.projectName} /> : null}
+                <LeadSlaBadge lead={lead} />
                 <ComplianceChip callConsent={callConsent} />
               </div>
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
@@ -374,12 +382,16 @@ export default function LeadDetailPage() {
             customFields={lead.customFields}
           />
 
+          <LeadSlaPanel lead={lead} />
+
           <LeadFollowUpPanel
             leadId={leadId}
             lastContactedAt={lead.lastContactedAt}
             nextFollowupAt={lead.nextFollowupAt ?? null}
             followUpCount={lead.followUpCount ?? 0}
           />
+
+          <LeadLinkedUnitPanel linkedUnit={linkedUnit} isLoading={linkedUnitLoading} />
 
           <Card className="rounded-xl  transition-all duration-200 hover:shadow-md">
             <CardHeader>

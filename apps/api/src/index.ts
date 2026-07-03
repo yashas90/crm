@@ -32,6 +32,7 @@ import { analyticsRoutes } from "./routes/analytics.js";
 import { assignmentRulesRoutes } from "./routes/assignmentRules.js";
 import { auditLogsRoutes } from "./routes/auditLogs.js";
 import { authRoutes } from "./routes/auth.js";
+import { bookingsRoutes } from "./routes/bookings.js";
 import { callsRoute } from "./routes/calls.js";
 import { documentViewRoutes, documentsRoutes } from "./routes/documents.js";
 import { emailRoutes } from "./routes/email.js";
@@ -99,6 +100,7 @@ app.use("/api/*", responseCacheMiddleware);
 app.use("/api/*", authenticatedUserRateLimit);
 app.use("/api/*", sentryUserMiddleware);
 
+app.route("/api/bookings", bookingsRoutes);
 app.route("/api/auth", authRoutes);
 app.route("/api/leads", leadsRoute);
 app.route("/api/calls", callsRoute);

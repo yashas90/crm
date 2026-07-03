@@ -1,4 +1,4 @@
-import { leads, projectUnits, projects } from "@propninja/db";
+import { leadActivities, leads, projectUnits, projects } from "@propninja/db";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import type { Database } from "../lib/db.js";
@@ -68,6 +68,56 @@ async function clearLeadFromOtherUnits(
     .update(projectUnits)
     .set({ assignedLeadId: null, updatedAt: new Date() })
     .where(and(...filters));
+}
+
+async function syncLeadOnUnitBooked(
+  db: Database,
+  params: {
+    leadId: string;
+    actorUserId: string;
+    projectId: string;
+    projectName: string;
+    unitId: string;
+    unitNumber: string;
+  },
+) {
+  const [lead] = await db
+    .select({ id: leads.id, leadStatus: leads.leadStatus })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+        eq(leads.id, params.leadId),
+        sql`${leads.deletedAt} IS NULL`,
+      ),
+    )
+    .limit(1);
+
+  if (!lead) return;
+
+  const previousStatus = lead.leadStatus;
+  if (previousStatus !== "won") {
+    await db
+      .update(leads)
+      .set({ leadStatus: "won", updatedAt: new Date() })
+      .where(eq(leads.id, params.leadId));
+  }
+
+  await db.insert(leadActivities).values({
+    orgId: SINGLE_TENANT_ORG_ID,
+    leadId: params.leadId,
+    userId: params.actorUserId,
+    type: "status_change",
+    metadata: {
+      kind: "unit_booked",
+      from: previousStatus,
+      to: "won",
+      projectId: params.projectId,
+      projectName: params.projectName,
+      unitId: params.unitId,
+      unitNumber: params.unitNumber,
+    },
+  });
 }
 
 export function createProjectUnitService(db: Database) {
@@ -216,7 +266,12 @@ export function createProjectUnitService(db: Database) {
       }
     },
 
-    async updateUnit(projectId: string, unitId: string, payload: UpdateProjectUnitInput) {
+    async updateUnit(
+      projectId: string,
+      unitId: string,
+      payload: UpdateProjectUnitInput,
+      options?: { actorUserId?: string },
+    ) {
       await assertProjectExists(db, projectId);
 
       const [existing] = await db
@@ -292,11 +347,25 @@ export function createProjectUnitService(db: Database) {
         .returning();
 
       const [joined] = await db
-        .select({ unit: projectUnits, lead: leads })
+        .select({ unit: projectUnits, lead: leads, project: projects })
         .from(projectUnits)
         .leftJoin(leads, eq(projectUnits.assignedLeadId, leads.id))
+        .innerJoin(projects, eq(projectUnits.projectId, projects.id))
         .where(eq(projectUnits.id, row!.id))
         .limit(1);
+
+      const transitionedToBooked = existing.status !== "booked" && joined!.unit.status === "booked";
+
+      if (transitionedToBooked && options?.actorUserId && joined!.lead && joined!.project) {
+        await syncLeadOnUnitBooked(db, {
+          leadId: joined!.lead.id,
+          actorUserId: options.actorUserId,
+          projectId,
+          projectName: joined!.project.name,
+          unitId,
+          unitNumber: joined!.unit.unitNumber,
+        });
+      }
 
       return {
         ...mapUnitRow(
@@ -309,7 +378,7 @@ export function createProjectUnitService(db: Database) {
               }
             : null,
         ),
-        transitionedToBooked: existing.status !== "booked" && joined!.unit.status === "booked",
+        transitionedToBooked,
       };
     },
 
@@ -375,9 +444,30 @@ export function createProjectUnitService(db: Database) {
         bedrooms: row.unit.bedrooms,
         areaSqFt: String(row.unit.areaSqFt),
         status: row.unit.status,
-        priceListedRs: row.unit.priceListedRs,
+        priceListedRs: Number(row.unit.priceListedRs),
+        priceFinalRs: row.unit.priceFinalRs != null ? Number(row.unit.priceFinalRs) : null,
         projectId: row.project.id,
         projectName: row.project.name,
+      };
+    },
+
+    async getUnitWithLeadAccess(projectId: string, unitId: string) {
+      const [row] = await db
+        .select({
+          unit: projectUnits,
+          lead: leads,
+        })
+        .from(projectUnits)
+        .leftJoin(leads, eq(projectUnits.assignedLeadId, leads.id))
+        .where(and(eq(projectUnits.id, unitId), eq(projectUnits.projectId, projectId)))
+        .limit(1);
+
+      if (!row) return null;
+
+      return {
+        unit: row.unit,
+        leadAssignedTo: row.lead?.assignedTo ?? null,
+        leadId: row.lead?.id ?? null,
       };
     },
   };

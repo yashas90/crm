@@ -6,6 +6,7 @@ import { sendPushNotification } from "../lib/pushNotifications.js";
 
 export const NOTIFICATION_TYPES = {
   LEAD_ASSIGNED: "lead_assigned",
+  LEADS_BULK_ASSIGNED: "leads_bulk_assigned",
   FOLLOWUP_DUE: "followup_due",
   FOLLOWUP_REMINDER: "followup_reminder",
   TASK_ASSIGNED: "task_assigned",
@@ -44,6 +45,14 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
         title: "Lead assigned",
         body: `${assignedBy} assigned you ${leadName}`,
       };
+    case NOTIFICATION_TYPES.LEADS_BULK_ASSIGNED: {
+      const count = typeof payload.count === "number" ? payload.count : 0;
+      const label = count === 1 ? "1 lead" : `${count} leads`;
+      return {
+        title: "Leads assigned",
+        body: `${assignedBy} assigned you ${label}`,
+      };
+    }
     case NOTIFICATION_TYPES.NEW_AD_LEAD:
       return {
         title: `New ${sourceLabel} lead`,
@@ -88,10 +97,11 @@ export function createNotificationService(db: Database) {
       userId: string,
       type: NotificationType | string,
       payload: Record<string, unknown>,
+      options?: { push?: boolean },
     ) {
       try {
         const [row] = await db.insert(notifications).values({ userId, type, payload }).returning();
-        if (row) {
+        if (row && options?.push !== false) {
           const { title, body } = pushMessageFor(type, payload);
           void sendPushNotification(db, userId, title, body, pushDataFor(type, payload)).catch(
             (error) => {

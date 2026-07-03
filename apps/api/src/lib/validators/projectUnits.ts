@@ -72,3 +72,15 @@ export const updateProjectUnitSchema = z
   .refine((data) => Object.keys(data).length > 0, { message: "At least one field required" });
 
 export type UpdateProjectUnitInput = z.infer<typeof updateProjectUnitSchema>;
+
+export const reserveUnitSchema = z.object({
+  leadId: z.string().uuid(),
+});
+
+export type ReserveUnitInput = z.infer<typeof reserveUnitSchema>;
+
+export const bookUnitSchema = z.object({
+  priceFinalRs: z.coerce.number().int().nonnegative().optional(),
+});
+
+export type BookUnitInput = z.infer<typeof bookUnitSchema>;

@@ -30,6 +30,20 @@ describe("orgSettings", () => {
     });
   });
 
+  it("merges leadScoringEnabled boolean setting", () => {
+    expect(mergeOrgSettings({}, { leadScoringEnabled: true })).toEqual({
+      leadScoringEnabled: true,
+    });
+    expect(mergeOrgSettings({ leadScoringEnabled: true }, { leadScoringEnabled: false })).toEqual({
+      leadScoringEnabled: false,
+    });
+    expect(
+      buildOrgSettingsPatch({
+        settings: { leadScoringEnabled: false },
+      } as UpdateOrgBody),
+    ).toEqual({ leadScoringEnabled: false });
+  });
+
   it("removes cleared settings values", () => {
     expect(
       mergeOrgSettings(

@@ -20,6 +20,11 @@ vi.mock("../services/bookingDocumentService.js", () => ({
   createBookingDocumentService: () => ({
     generateForBookedUnit: mockGenerateForBookedUnit,
     getSignedDownloadUrl: mockGetSignedDownloadUrl,
+    getLatestForUnit: vi.fn(),
+    getBookingPdfAccessContext: vi.fn().mockResolvedValue({
+      agentId: null,
+      leadAssignedTo: null,
+    }),
   }),
 }));
 
@@ -144,7 +149,7 @@ describe("project unit booking PDF routes", () => {
     expect(mockGetSignedDownloadUrl).toHaveBeenCalledWith(projectId, unitId);
   });
 
-  it("GET booking-pdf rejects agents", async () => {
+  it("GET booking-pdf rejects agents without access", async () => {
     const { projectsRoutes } = await import("./projects.js");
     const app = buildApp(agentUser);
     app.route("/api/projects", projectsRoutes);
