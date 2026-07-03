@@ -144,10 +144,19 @@ const NAV_ITEMS: CommandItem[] = [
   },
 ];
 
+type UserRole = "admin" | "manager" | "agent";
+
+function roleFromSession(role: string | undefined): UserRole | null {
+  if (role === "admin" || role === "manager" || role === "agent") {
+    return role;
+  }
+  return null;
+}
+
 export function CommandPalette() {
   const router = useRouter();
   const { session } = useSession();
-  const role = session?.role;
+  const role = roleFromSession(session?.role);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
