@@ -34,9 +34,12 @@ describe("responseCache", () => {
     expect(resolveTtlSeconds("/api/reports/agent-stats")).toBe(600);
     expect(resolveTtlSeconds("/api/projects")).toBe(600);
     expect(resolveTtlSeconds("/api/org")).toBe(1800);
-    expect(resolveTtlSeconds("/api/leads")).toBeNull();
+    expect(resolveTtlSeconds("/api/leads")).toBe(CACHE_TTL.leadsShort);
+    expect(resolveTtlSeconds("/api/leads/hot")).toBeNull();
+    expect(resolveTtlSeconds("/api/leads/abc/notes")).toBeNull();
     expect(resolveTtlSeconds("/api/calls")).toBeNull();
-    expect(resolveTtlSeconds("/api/notifications")).toBeNull();
+    expect(resolveTtlSeconds("/api/notifications")).toBe(CACHE_TTL.notificationsShort);
+    expect(resolveTtlSeconds("/api/notifications/read-all")).toBeNull();
     expect(resolveTtlSeconds("/api/reports/calls/export")).toBeNull();
   });
 
