@@ -20,7 +20,9 @@ const rescheduleSchema = z.object({
 });
 
 publicSiteVisitsRoutes.get("/:token", async (c) => {
-  const visit = await siteVisitPublicService.getByToken(c.req.param("token"));
+  const token = c.req.param("token");
+  if (!token) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
+  const visit = await siteVisitPublicService.getByToken(token);
   if (!visit) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
   return jsonOk(c, visit);
 });
@@ -30,9 +32,11 @@ publicSiteVisitsRoutes.post(
   writeRateLimit,
   validate("json", rescheduleSchema),
   async (c) => {
+    const token = c.req.param("token");
+    if (!token) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
     const body = c.req.valid("json");
     try {
-      const visit = await siteVisitPublicService.reschedule(c.req.param("token"), body);
+      const visit = await siteVisitPublicService.reschedule(token, body);
       if (!visit) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
       return jsonOk(c, visit);
     } catch (error) {
@@ -46,8 +50,10 @@ publicSiteVisitsRoutes.post(
 );
 
 publicSiteVisitsRoutes.post("/:token/cancel", writeRateLimit, async (c) => {
+  const token = c.req.param("token");
+  if (!token) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
   try {
-    const visit = await siteVisitPublicService.cancel(c.req.param("token"));
+    const visit = await siteVisitPublicService.cancel(token);
     if (!visit) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
     return jsonOk(c, visit);
   } catch (error) {

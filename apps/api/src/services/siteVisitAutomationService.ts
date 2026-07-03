@@ -171,7 +171,6 @@ export async function runSiteVisitAutomation(
       recipient: "customer",
       event: messageEvent,
       context: ctx,
-      database,
     }),
     sendSiteVisitWhatsApp({
       leadId: row.leadId,
@@ -180,7 +179,6 @@ export async function runSiteVisitAutomation(
       recipient: "agent",
       event: messageEvent,
       context: ctx,
-      database,
     }),
   ]);
 
