@@ -14,9 +14,11 @@ export const CACHE_TTL = {
   projects: 10 * 60,
   documents: 5 * 60,
   org: 30 * 60,
+  leadsShort: 15,
+  notificationsShort: 15,
 } as const;
 
-const NEVER_CACHE_PREFIXES = ["/api/leads", "/api/calls", "/api/notifications"];
+const NEVER_CACHE_PREFIXES = ["/api/calls"];
 
 const ORG_SCOPED_ROUTES = new Set(["/api/org"]);
 
@@ -40,6 +42,28 @@ export function resolveCacheScopeId(route: string, authUser: AuthUser): string {
 export function resolveTtlSeconds(pathname: string): number | null {
   if (NEVER_CACHE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return null;
+  }
+
+  if (pathname.startsWith("/api/leads")) {
+    // Skip cache for mutation-adjacent endpoints (notes, follow-up, hot, scope-counts)
+    if (
+      pathname.includes("/notes") ||
+      pathname.includes("/follow-up") ||
+      pathname.includes("/assign") ||
+      pathname.includes("/import") ||
+      pathname.includes("/export") ||
+      pathname.includes("/duplicate") ||
+      pathname === "/api/leads/hot"
+    ) {
+      return null;
+    }
+    return CACHE_TTL.leadsShort;
+  }
+
+  if (pathname.startsWith("/api/notifications")) {
+    // Skip cache for mutation endpoints
+    if (pathname.includes("/read") || pathname.includes("/mark")) return null;
+    return CACHE_TTL.notificationsShort;
   }
 
   if (pathname === "/api/analytics/overview") {
