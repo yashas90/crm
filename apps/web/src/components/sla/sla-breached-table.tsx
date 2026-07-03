@@ -38,7 +38,7 @@ export function SlaBreachedTable({
   if (!isLoading && items.length === 0) {
     return (
       <EmptyState
-        icon={AlertTriangle}
+        icon={<AlertTriangle className="h-7 w-7" />}
         title="No SLA breaches"
         description="All active pipeline leads have recent engagement within your selected threshold."
       />

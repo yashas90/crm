@@ -33,7 +33,10 @@ export function buildMessageTemplateVariables(input: {
     agentName: input.agentName,
     projectName: input.linkedUnit?.projectName ?? input.projectName ?? undefined,
     unitNumber: input.linkedUnit?.unitNumber,
-    priceListedRs: input.linkedUnit?.priceListedRs,
+    priceListedRs:
+      input.linkedUnit?.priceListedRs != null
+        ? String(input.linkedUnit.priceListedRs)
+        : undefined,
   };
 }
 

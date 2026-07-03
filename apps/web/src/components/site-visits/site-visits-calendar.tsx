@@ -37,7 +37,14 @@ type CalendarEvent = {
   resource: SiteVisit;
 };
 
-const DragDropCalendar = withDragAndDrop(Calendar) as ComponentType<CalendarProps<CalendarEvent>>;
+const DragDropCalendar = withDragAndDrop(Calendar) as ComponentType<
+  CalendarProps<CalendarEvent> & {
+    resizable?: boolean;
+    onEventDrop?: (args: { event: CalendarEvent; start: Date; end: Date }) => void;
+    onEventResize?: (args: { event: CalendarEvent; start: Date; end: Date }) => void;
+    draggableAccessor?: (event: CalendarEvent) => boolean;
+  }
+>;
 
 function visitToEvent(visit: SiteVisit): CalendarEvent {
   const [h, m, s] = visit.visitTime.split(":").map(Number);
