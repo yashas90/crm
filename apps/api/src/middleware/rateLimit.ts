@@ -42,7 +42,11 @@ function shouldSkipRateLimit(c: Context): boolean {
     path === "/api/auth/refresh" ||
     path === "/api/auth/forgot-password" ||
     path === "/api/auth/reset-password" ||
-    path.startsWith("/api/auth/reset-password/")
+    path.startsWith("/api/auth/reset-password/") ||
+    path.startsWith("/api/integrations/meta/") ||
+    path.startsWith("/api/integrations/portal/") ||
+    path.startsWith("/api/integrations/whatsapp/") ||
+    path.startsWith("/api/public/")
   ) {
     return true;
   }

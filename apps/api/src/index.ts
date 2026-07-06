@@ -153,7 +153,11 @@ if (process.env.VITEST !== "true") {
     startGoogleAdsLeadSync();
     startFollowupNotificationJob();
     startReportEmailJob();
-    void startBackgroundJobs();
+    void startBackgroundJobs().catch((err) => {
+      logger.error("Background jobs failed to start", {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
   });
   tuneHttpKeepAlive(server as Server);
 }

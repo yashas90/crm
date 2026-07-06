@@ -82,6 +82,14 @@ export async function syncGoogleAdsLeads() {
     const message = error instanceof Error ? error.message : String(error);
     await recordIntegrationSyncFailure(GOOGLE_ADS_INTEGRATION, message);
     logger.error("Google Ads lead sync failed", { error: message });
+    if (isGoogleAdsAuthFailure(message)) {
+      authCircuitOpen = true;
+      stopGoogleAdsLeadSync();
+      logger.error(
+        "Google Ads sync stopped: OAuth refresh token is invalid or expired. " +
+          "Set GOOGLE_ADS_SYNC_ENABLED=false or update GOOGLE_ADS_REFRESH_TOKEN, then redeploy.",
+      );
+    }
     return { ingested, failed, skipped: false, errored: true };
   }
 
@@ -90,9 +98,14 @@ export async function syncGoogleAdsLeads() {
 }
 
 let syncTimer: ReturnType<typeof setInterval> | undefined;
+let authCircuitOpen = false;
+
+function isGoogleAdsAuthFailure(message: string): boolean {
+  return message.includes("invalid_grant") || message.includes("invalid_client");
+}
 
 export function startGoogleAdsLeadSync() {
-  if (!env.GOOGLE_ADS_SYNC_ENABLED) {
+  if (!env.GOOGLE_ADS_SYNC_ENABLED || authCircuitOpen) {
     return;
   }
 
@@ -132,4 +145,8 @@ export function stopGoogleAdsLeadSync() {
     clearInterval(syncTimer);
     syncTimer = undefined;
   }
+}
+
+export function resetGoogleAdsAuthCircuit() {
+  authCircuitOpen = false;
 }

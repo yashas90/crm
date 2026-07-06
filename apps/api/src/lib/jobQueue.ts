@@ -57,56 +57,64 @@ export async function startDurableJobQueue(): Promise<boolean> {
     return false;
   }
 
-  queue = new Queue(JOB_QUEUE_NAME, { connection: connectionOptions() });
+  try {
+    queue = new Queue(JOB_QUEUE_NAME, { connection: connectionOptions() });
 
-  await queue.add(
-    JOB_NAMES.LEAD_SCORING,
-    {},
-    { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.LEAD_SCORING },
-  );
-  await queue.add(
-    JOB_NAMES.FOLLOWUP_REMINDERS,
-    {},
-    { repeat: { every: 60 * 60 * 1000 }, jobId: JOB_NAMES.FOLLOWUP_REMINDERS },
-  );
-  await queue.add(
-    JOB_NAMES.SITE_VISIT_REMINDERS,
-    {},
-    { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.SITE_VISIT_REMINDERS },
-  );
-  await queue.add(
-    JOB_NAMES.DAILY_FOLLOWUP,
-    {},
-    { repeat: { every: 15 * 60 * 1000 }, jobId: JOB_NAMES.DAILY_FOLLOWUP },
-  );
-  await queue.add(
-    JOB_NAMES.REFRESH_SESSION_CLEANUP,
-    {},
-    { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.REFRESH_SESSION_CLEANUP },
-  );
-  await queue.add(
-    JOB_NAMES.NA_POOL_RELEASE,
-    {},
-    { repeat: { every: 30 * 1000 }, jobId: JOB_NAMES.NA_POOL_RELEASE },
-  );
+    await queue.add(
+      JOB_NAMES.LEAD_SCORING,
+      {},
+      { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.LEAD_SCORING },
+    );
+    await queue.add(
+      JOB_NAMES.FOLLOWUP_REMINDERS,
+      {},
+      { repeat: { every: 60 * 60 * 1000 }, jobId: JOB_NAMES.FOLLOWUP_REMINDERS },
+    );
+    await queue.add(
+      JOB_NAMES.SITE_VISIT_REMINDERS,
+      {},
+      { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.SITE_VISIT_REMINDERS },
+    );
+    await queue.add(
+      JOB_NAMES.DAILY_FOLLOWUP,
+      {},
+      { repeat: { every: 15 * 60 * 1000 }, jobId: JOB_NAMES.DAILY_FOLLOWUP },
+    );
+    await queue.add(
+      JOB_NAMES.REFRESH_SESSION_CLEANUP,
+      {},
+      { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.REFRESH_SESSION_CLEANUP },
+    );
+    await queue.add(
+      JOB_NAMES.NA_POOL_RELEASE,
+      {},
+      { repeat: { every: 30 * 1000 }, jobId: JOB_NAMES.NA_POOL_RELEASE },
+    );
 
-  worker = new Worker(
-    JOB_QUEUE_NAME,
-    async (job: { name: string }) => {
-      await runJob(job.name);
-    },
-    { connection: connectionOptions() },
-  );
+    worker = new Worker(
+      JOB_QUEUE_NAME,
+      async (job: { name: string }) => {
+        await runJob(job.name);
+      },
+      { connection: connectionOptions() },
+    );
 
-  worker.on("failed", (job: { name?: string } | undefined, error: Error) => {
-    logger.error("Durable job failed", {
-      name: job?.name,
+    worker.on("failed", (job: { name?: string } | undefined, error: Error) => {
+      logger.error("Durable job failed", {
+        name: job?.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+
+    logger.info("BullMQ durable job queue started", { queue: JOB_QUEUE_NAME });
+    return true;
+  } catch (error) {
+    await stopDurableJobQueue();
+    logger.error("BullMQ startup failed; falling back to in-process schedulers", {
       error: error instanceof Error ? error.message : String(error),
     });
-  });
-
-  logger.info("BullMQ durable job queue started", { queue: JOB_QUEUE_NAME });
-  return true;
+    return false;
+  }
 }
 
 export async function stopDurableJobQueue(): Promise<void> {

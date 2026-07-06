@@ -32,6 +32,9 @@ metaIntegrationsRoute.get("/webhook", (c) => {
   return c.text("Forbidden", 403);
 });
 
+/** Meta/Facebook periodically probes the webhook with HEAD — respond OK to avoid retry storms. */
+metaIntegrationsRoute.on("HEAD", "/webhook", (c) => c.body(null, 200));
+
 async function processMetaLeadWebhook(body: MetaLeadgenWebhookBody) {
   const leadgenChanges = extractLeadgenChanges(body);
 
