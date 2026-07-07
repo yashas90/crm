@@ -24,6 +24,11 @@ import { useUsers } from "@/hooks/use-users";
 import { mergeAssignableUsers } from "@/lib/assignable-users";
 import { getErrorMessage } from "@/lib/errors";
 import {
+  BULK_UPLOAD_SOURCE_OPTIONS,
+  formatLeadSourceDisplay,
+  normalizeLeadSourceValue,
+} from "@/lib/lead-sources";
+import {
   type BulkLeadImportRow,
   downloadLeadsCsvTemplate,
   parseLeadsCsv,
@@ -51,6 +56,7 @@ export function LeadsBulkImportDialog({
   const [parseErrors, setParseErrors] = useState<{ row: number; message: string }[]>([]);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [assignToUserIds, setAssignToUserIds] = useState<string[]>([]);
+  const [bulkLeadSource, setBulkLeadSource] = useState("");
 
   const { hasPermission, canAssignLead } = usePermissions();
   const { session } = useSession();
@@ -73,8 +79,17 @@ export function LeadsBulkImportDialog({
     setRows([]);
     setParseErrors([]);
     setSkipDuplicates(true);
+    setBulkLeadSource("");
     setAssignToUserIds(session?.id ? [session.id] : []);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  const normalizedBulkSource = bulkLeadSource ? normalizeLeadSourceValue(bulkLeadSource) : "";
+
+  function applyBulkSource(row: BulkLeadImportRow): BulkLeadImportRow {
+    if (row.leadSource?.trim()) return row;
+    if (!normalizedBulkSource) return row;
+    return { ...row, leadSource: normalizedBulkSource };
   }
 
   function handleOpenChange(next: boolean) {
@@ -93,10 +108,10 @@ export function LeadsBulkImportDialog({
   }
 
   async function handleImport() {
-    if (rows.length === 0 || assignToUserIds.length === 0) return;
+    if (rows.length === 0 || assignToUserIds.length === 0 || !normalizedBulkSource) return;
 
     const result = await bulkImport.mutateAsync({
-      leads: rows,
+      leads: rows.map(applyBulkSource),
       skipDuplicates,
       assignToUserIds,
       fileName: fileName ?? undefined,
@@ -161,6 +176,27 @@ export function LeadsBulkImportDialog({
                 </p>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="bulk-lead-source">Lead source</Label>
+              <select
+                id="bulk-lead-source"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={bulkLeadSource}
+                onChange={(event) => setBulkLeadSource(event.target.value)}
+              >
+                <option value="">Select source for this upload</option>
+                {BULK_UPLOAD_SOURCE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Applied to all imported rows. A <strong>leadSource</strong> column in the CSV
+                overrides this for that row.
+              </p>
+            </div>
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" onClick={downloadLeadsCsvTemplate}>
@@ -242,7 +278,9 @@ export function LeadsBulkImportDialog({
                         </TableCell>
                         <TableCell>{row.phone}</TableCell>
                         <TableCell>{row.city ?? "—"}</TableCell>
-                        <TableCell>{row.leadSource ?? "—"}</TableCell>
+                        <TableCell>
+                          {formatLeadSourceDisplay(row.leadSource ?? normalizedBulkSource)}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -264,7 +302,12 @@ export function LeadsBulkImportDialog({
           {canImport ? (
             <Button
               onClick={() => void handleImport()}
-              disabled={rows.length === 0 || assignToUserIds.length === 0 || bulkImport.isPending}
+              disabled={
+                rows.length === 0 ||
+                assignToUserIds.length === 0 ||
+                !normalizedBulkSource ||
+                bulkImport.isPending
+              }
             >
               {bulkImport.isPending
                 ? "Importing…"

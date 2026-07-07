@@ -54,6 +54,21 @@ export const OTHER_LEAD_SOURCE_OPTIONS = LEAD_SOURCE_OPTIONS.filter(
   (option) => !(AD_LEAD_SOURCE_LABELS as readonly string[]).includes(option.value),
 );
 
+const bulkUploadSourceChipValues = LEADS_SOURCE_FILTER_CHIPS.filter((chip) => chip.value).map(
+  (chip) => chip.value,
+);
+
+/** Source picker for bulk CSV import (portals, ads, and manual channels). */
+export const BULK_UPLOAD_SOURCE_OPTIONS = [
+  ...bulkUploadSourceChipValues.map((value) => {
+    const chip = LEADS_SOURCE_FILTER_CHIPS.find((item) => item.value === value);
+    return { value, label: chip?.label ?? value };
+  }),
+  ...LEAD_SOURCE_OPTIONS.filter((option) => !bulkUploadSourceChipValues.includes(option.value)).map(
+    (option) => ({ value: option.value, label: option.label }),
+  ),
+];
+
 const LEGACY_TO_CANONICAL: Record<string, string> = {
   website: "Website",
   referral: "Referral",

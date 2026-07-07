@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BULK_UPLOAD_SOURCE_OPTIONS,
   formatLeadSourceDisplay,
   getAdLeadInfo,
   isAdLeadLead,
@@ -37,5 +38,13 @@ describe("lead-sources", () => {
     });
     expect(info.payload?.campaignName).toBe("Summer Launch");
     expect(info.ingestedAt).toBe("2025-06-01T10:00:00.000Z");
+  });
+
+  it("includes portal and ad sources for bulk upload", () => {
+    const values = BULK_UPLOAD_SOURCE_OPTIONS.map((option) => option.value);
+    expect(values).toContain("Meta Ads");
+    expect(values).toContain("Magicbricks");
+    expect(values).toContain("99 Acres");
+    expect(values).toContain("Cold Call");
   });
 });
