@@ -17,9 +17,7 @@ export async function recordReEnquiryActivity(input: {
     metadata: {
       kind: "re_enquiry",
       source: input.source,
-      ...(input.fromStatus && input.toStatus
-        ? { from: input.fromStatus, to: input.toStatus }
-        : {}),
+      ...(input.fromStatus && input.toStatus ? { from: input.fromStatus, to: input.toStatus } : {}),
     },
   });
 }
