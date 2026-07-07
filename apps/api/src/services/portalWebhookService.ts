@@ -340,6 +340,7 @@ export function createPortalWebhookService(db: Database) {
           data: sanitized.data,
           storedPhone,
           actingUserId: auditUserId,
+          source: "portal",
         });
 
         if (!merged) {

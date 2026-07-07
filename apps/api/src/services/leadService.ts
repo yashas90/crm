@@ -224,6 +224,28 @@ async function findLeadByPhone(phone: string) {
   return row ?? null;
 }
 
+export async function recordReEnquiryActivity(input: {
+  leadId: string;
+  actingUserId: string | null;
+  source: string;
+  fromStatus?: string;
+  toStatus?: string;
+}) {
+  await db.insert(leadActivities).values({
+    orgId: SINGLE_TENANT_ORG_ID,
+    leadId: input.leadId,
+    userId: input.actingUserId,
+    type: "status_change",
+    metadata: {
+      kind: "re_enquiry",
+      source: input.source,
+      ...(input.fromStatus && input.toStatus
+        ? { from: input.fromStatus, to: input.toStatus }
+        : {}),
+    },
+  });
+}
+
 /** Lead returned after prior engagement: reopened from won/lost, repeat ad inquiry, or bulk import re-entry. */
 function reEnquiredLeadSql() {
   return sql`(
@@ -661,39 +683,35 @@ export const leadService = {
       const assignedTo = input.assignedToAgents[index % input.assignedToAgents.length]!;
 
       if (existing) {
-        if (input.skipDuplicates) {
-          const merged = await this.mergeImportRow({
-            leadId: existing.id,
-            data: parsed.data,
-            storedPhone,
-            assignedTo,
-            actingUserId: input.actingUserId,
-          });
+        const merged = await this.mergeImportRow({
+          leadId: existing.id,
+          data: parsed.data,
+          storedPhone,
+          assignedTo,
+          actingUserId: input.actingUserId,
+          source: "bulk_import",
+        });
 
-          if (merged) {
-            if (assignedTo && assignedTo !== existing.assignedTo) {
-              trackAssignment(assignedTo);
-            }
-            updated.push({ row: rowNumber, id: merged.id, phone: merged.phone ?? storedPhone });
-            batchItems.push({
-              rowNumber,
-              outcome: "updated",
-              leadId: merged.id,
-              phone: merged.phone ?? storedPhone,
-            });
-          } else {
-            skipped.push({
-              row: rowNumber,
-              phone: parsed.data.phone,
-              reason: "duplicate_phone",
-            });
-            batchItems.push({
-              rowNumber,
-              outcome: "skipped",
-              phone: parsed.data.phone,
-              message: "duplicate_phone",
-            });
-          }
+        if (merged) {
+          updated.push({ row: rowNumber, id: merged.id, phone: merged.phone ?? storedPhone });
+          batchItems.push({
+            rowNumber,
+            outcome: "updated",
+            leadId: merged.id,
+            phone: merged.phone ?? storedPhone,
+          });
+        } else if (input.skipDuplicates) {
+          skipped.push({
+            row: rowNumber,
+            phone: parsed.data.phone,
+            reason: "duplicate_phone",
+          });
+          batchItems.push({
+            rowNumber,
+            outcome: "skipped",
+            phone: parsed.data.phone,
+            message: "duplicate_phone",
+          });
         } else {
           const message = "Phone number already exists for this org";
           failed.push({ row: rowNumber, message });
@@ -756,6 +774,7 @@ export const leadService = {
     storedPhone: string;
     assignedTo?: string;
     actingUserId: string;
+    source?: string;
   }) {
     const [existing] = await db
       .select()
@@ -803,11 +822,6 @@ export const leadService = {
       update.projectId = resolvedProject.projectId;
     }
 
-    const previousAssignee = existing.assignedTo;
-    if (input.assignedTo) {
-      update.assignedTo = input.assignedTo;
-    }
-
     const [merged] = await db
       .update(leads)
       .set(update)
@@ -824,40 +838,20 @@ export const leadService = {
       return null;
     }
 
-    if (input.assignedTo && input.assignedTo !== previousAssignee) {
-      await db.insert(leadActivities).values({
-        orgId: SINGLE_TENANT_ORG_ID,
-        leadId: input.leadId,
-        userId: input.actingUserId,
-        type: "status_change",
-        metadata: {
-          kind: "assignment",
-          assignedTo: input.assignedTo,
-          source: "bulk_import",
-        },
-      });
-    }
-
     const reopenedFromTerminal =
       (existing.leadStatus === "lost" || existing.leadStatus === "won") &&
       merged.leadStatus !== existing.leadStatus &&
       merged.leadStatus !== "lost" &&
       merged.leadStatus !== "won";
 
-    if (reopenedFromTerminal) {
-      await db.insert(leadActivities).values({
-        orgId: SINGLE_TENANT_ORG_ID,
-        leadId: input.leadId,
-        userId: input.actingUserId,
-        type: "status_change",
-        metadata: {
-          kind: "re_enquiry",
-          from: existing.leadStatus,
-          to: merged.leadStatus,
-          source: "bulk_import",
-        },
-      });
-    }
+    await recordReEnquiryActivity({
+      leadId: input.leadId,
+      actingUserId: input.actingUserId,
+      source: input.source ?? "bulk_import",
+      ...(reopenedFromTerminal
+        ? { fromStatus: existing.leadStatus, toStatus: merged.leadStatus }
+        : {}),
+    });
 
     return merged;
   },

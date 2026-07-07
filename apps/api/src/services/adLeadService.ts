@@ -4,6 +4,7 @@ import { notifyNewAdLeadReceived } from "../lib/adLeadNotifications.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
+import { recordReEnquiryActivity } from "./leadService.js";
 
 export interface NormalizedAdLead {
   source: "facebook_ads" | "google_ads";
@@ -314,6 +315,8 @@ export const adLeadService = {
     let leadRow: LeadRow;
 
     if (existing) {
+      const reopenFromTerminal =
+        existing.leadStatus === "lost" || existing.leadStatus === "won";
       const [updated] = await db
         .update(leads)
         .set({
@@ -324,12 +327,22 @@ export const adLeadService = {
           leadSource,
           tags: mergeTags(existing.tags, tags),
           customFields: buildAdLeadCustomFields(input, existing.customFields),
+          ...(reopenFromTerminal ? { leadStatus: "new" as const } : {}),
           updatedAt: new Date(),
         })
         .where(eq(leads.id, existing.id))
         .returning();
 
       leadRow = updated ?? existing;
+
+      await recordReEnquiryActivity({
+        leadId: leadRow.id,
+        actingUserId: null,
+        source: input.source,
+        ...(reopenFromTerminal
+          ? { fromStatus: existing.leadStatus, toStatus: leadRow.leadStatus }
+          : {}),
+      });
     } else {
       const createPhone = resolveCreatePhone(input);
 
@@ -353,18 +366,29 @@ export const adLeadService = {
           .limit(1);
 
         const lead = matched[0]!;
+        const reopenFromTerminal = lead.leadStatus === "lost" || lead.leadStatus === "won";
         const [updated] = await db
           .update(leads)
           .set({
             leadSource,
             tags: mergeTags(lead.tags, tags),
             customFields: buildAdLeadCustomFields(input, lead.customFields),
+            ...(reopenFromTerminal ? { leadStatus: "new" as const } : {}),
             updatedAt: new Date(),
           })
           .where(eq(leads.id, lead.id))
           .returning();
 
         leadRow = updated ?? lead;
+
+        await recordReEnquiryActivity({
+          leadId: leadRow.id,
+          actingUserId: null,
+          source: input.source,
+          ...(reopenFromTerminal
+            ? { fromStatus: lead.leadStatus, toStatus: leadRow.leadStatus }
+            : {}),
+        });
       } else {
         const [created] = await db
           .insert(leads)

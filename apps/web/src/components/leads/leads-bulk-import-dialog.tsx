@@ -202,7 +202,7 @@ export function LeadsBulkImportDialog({
                 className="h-4 w-4 rounded border-input"
               />
               <Label htmlFor="skip-duplicates" className="font-normal">
-                Skip rows with duplicate phone numbers
+                Merge duplicate phone numbers (keep same agent, mark as re-enquiry)
               </Label>
             </div>
 
