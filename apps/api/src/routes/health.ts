@@ -25,6 +25,7 @@ healthRoutes.get("/", async (c) => {
     return c.json({ status: "ok", version, timestamp, service: "propninja-api", db: "ok" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Database unavailable";
-    return c.json({ status: "degraded", version, timestamp, db: "error", message }, 503);
+    // Return 200 so Railway liveness passes while Postgres is still connecting.
+    return c.json({ status: "degraded", version, timestamp, service: "propninja-api", db: "error", message });
   }
 });

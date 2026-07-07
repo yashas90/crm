@@ -4,7 +4,7 @@ import { notifyNewAdLeadReceived } from "../lib/adLeadNotifications.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
-import { recordReEnquiryActivity } from "./leadService.js";
+import { recordReEnquiryActivity } from "./leadReEnquiry.js";
 
 export interface NormalizedAdLead {
   source: "facebook_ads" | "google_ads";
@@ -315,8 +315,7 @@ export const adLeadService = {
     let leadRow: LeadRow;
 
     if (existing) {
-      const reopenFromTerminal =
-        existing.leadStatus === "lost" || existing.leadStatus === "won";
+      const reopenFromTerminal = existing.leadStatus === "lost" || existing.leadStatus === "won";
       const [updated] = await db
         .update(leads)
         .set({

@@ -38,6 +38,7 @@ import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 import { recordLeadAssignment } from "./leadAssignmentService.js";
+import { recordReEnquiryActivity } from "./leadReEnquiry.js";
 import { recalculateLeadScore } from "./leadScoringService.js";
 
 type LeadStatus =
@@ -222,28 +223,6 @@ async function findLeadByPhone(phone: string) {
     .limit(1);
 
   return row ?? null;
-}
-
-export async function recordReEnquiryActivity(input: {
-  leadId: string;
-  actingUserId: string | null;
-  source: string;
-  fromStatus?: string;
-  toStatus?: string;
-}) {
-  await db.insert(leadActivities).values({
-    orgId: SINGLE_TENANT_ORG_ID,
-    leadId: input.leadId,
-    userId: input.actingUserId,
-    type: "status_change",
-    metadata: {
-      kind: "re_enquiry",
-      source: input.source,
-      ...(input.fromStatus && input.toStatus
-        ? { from: input.fromStatus, to: input.toStatus }
-        : {}),
-    },
-  });
 }
 
 /** Lead returned after prior engagement: reopened from won/lost, repeat ad inquiry, or bulk import re-entry. */
