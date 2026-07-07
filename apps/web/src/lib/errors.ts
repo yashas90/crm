@@ -42,7 +42,9 @@ export function getErrorMessage(error: unknown, fallback = "Something went wrong
       return error.message || "Too many requests. Please wait and try again.";
     }
     if (error.code === "INTERNAL_ERROR") {
-      return "Lead counts are temporarily unavailable. Try Retry counts or refresh the page.";
+      return error.message && error.message !== "Something went wrong"
+        ? error.message
+        : "Something went wrong. Please refresh the page or try again.";
     }
     if (error.code === "VALIDATION_ERROR") {
       const details = formatValidationDetails(error.details);
