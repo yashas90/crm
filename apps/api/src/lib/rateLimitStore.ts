@@ -80,6 +80,19 @@ export function clearAllRateLimits(): number {
   return cleared;
 }
 
+/** Evict buckets whose window has expired to prevent unbounded Map growth. */
+export function pruneExpiredRateLimitBuckets(): number {
+  const now = Date.now();
+  let pruned = 0;
+  for (const [key, bucket] of memoryBuckets) {
+    if (now >= bucket.resetAt) {
+      memoryBuckets.delete(key);
+      pruned++;
+    }
+  }
+  return pruned;
+}
+
 export async function incrementRateLimit(
   key: string,
   windowMs: number,

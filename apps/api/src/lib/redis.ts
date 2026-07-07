@@ -23,6 +23,18 @@ export function getRedis(): Redis | null {
     logger.error("Redis client error", { message: error.message });
   });
 
+  client.on("close", () => {
+    logger.warn("Redis connection closed — will reconnect automatically");
+  });
+
+  client.on("reconnecting", (delay: number) => {
+    logger.warn("Redis reconnecting", { delayMs: delay });
+  });
+
+  client.on("connect", () => {
+    logger.info("Redis connected");
+  });
+
   return client;
 }
 

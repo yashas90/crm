@@ -91,6 +91,10 @@ export async function startDurableJobQueue(): Promise<boolean> {
       { repeat: { every: 30 * 1000 }, jobId: JOB_NAMES.NA_POOL_RELEASE },
     );
 
+    queue.on("error", (error: Error) => {
+      logger.error("BullMQ queue error", { message: error.message });
+    });
+
     worker = new Worker(
       JOB_QUEUE_NAME,
       async (job: { name: string }) => {
@@ -104,6 +108,11 @@ export async function startDurableJobQueue(): Promise<boolean> {
         name: job?.name,
         error: error instanceof Error ? error.message : String(error),
       });
+    });
+
+    // Missing error handler = unhandled 'error' event = process crash
+    worker.on("error", (error: Error) => {
+      logger.error("BullMQ worker error", { message: error.message });
     });
 
     logger.info("BullMQ durable job queue started", { queue: JOB_QUEUE_NAME });

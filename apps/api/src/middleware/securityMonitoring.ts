@@ -96,7 +96,7 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
       if (ipWindow.hits === IP_LEADS_HIT_ALERT_THRESHOLD + 1) {
         const db = c.get("db");
         if (db) {
-          void createSecurityAlert(db, {
+          createSecurityAlert(db, {
             alertType: SECURITY_ALERT_TYPES.IP_LEADS_FLOOD,
             details: {
               hits: ipWindow.hits,
@@ -105,7 +105,7 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
               note: "alert-only; IP not auto-blocked",
             },
             ipAddress: ip,
-          });
+          }).catch(() => {});
         }
       }
     }
@@ -150,7 +150,7 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
   if (window.leadRows > LEAD_FETCH_THRESHOLD) {
     const db = c.get("db");
     if (db) {
-      void createSecurityAlert(db, {
+      createSecurityAlert(db, {
         userId: authUser.id,
         alertType: SECURITY_ALERT_TYPES.BULK_LEAD_FETCH,
         details: {
@@ -160,7 +160,7 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
           lastPath: path,
         },
         ipAddress: getClientIp(c),
-      });
+      }).catch(() => {});
     }
   }
 };
@@ -169,6 +169,17 @@ export const securityMonitoringMiddleware = async (c: Context, next: Next) => {
 export function resetSecurityMonitoringState(): void {
   userLeadFetchWindows.clear();
   ipLeadsHitWindows.clear();
+}
+
+/** Evict expired windows to prevent unbounded Map growth under sustained traffic. */
+export function pruneSecurityWindows(): void {
+  const now = Date.now();
+  for (const [key, win] of userLeadFetchWindows) {
+    if (now - win.startedAt >= TEN_MIN_MS) userLeadFetchWindows.delete(key);
+  }
+  for (const [key, win] of ipLeadsHitWindows) {
+    if (now - win.startedAt >= TEN_MIN_MS) ipLeadsHitWindows.delete(key);
+  }
 }
 
 export { LEAD_FETCH_THRESHOLD, IP_LEADS_HIT_ALERT_THRESHOLD, TEN_MIN_MS as SECURITY_WINDOW_MS };

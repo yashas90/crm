@@ -1,9 +1,10 @@
 import { db } from "../lib/db.js";
-import { clearAllIpBlocks } from "../lib/ipBlocklist.js";
+import { clearAllIpBlocks, clearExpiredIpBlocks } from "../lib/ipBlocklist.js";
 import { startDurableJobQueue } from "../lib/jobQueue.js";
 import { logger } from "../lib/logger.js";
 import { clearAllLoginRateLimits } from "../lib/loginBruteForce.js";
-import { clearAllRateLimits } from "../lib/rateLimitStore.js";
+import { clearAllRateLimits, pruneExpiredRateLimitBuckets } from "../lib/rateLimitStore.js";
+import { pruneSecurityWindows } from "../middleware/securityMonitoring.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
@@ -50,4 +51,12 @@ export async function startBackgroundJobs() {
     },
     6 * 60 * 60 * 1000,
   );
+
+  // Prune in-memory Maps every 15 minutes to prevent OOM crashes
+  const PRUNE_INTERVAL = 15 * 60 * 1000;
+  setInterval(() => {
+    pruneSecurityWindows();
+    pruneExpiredRateLimitBuckets();
+    clearExpiredIpBlocks();
+  }, PRUNE_INTERVAL).unref();
 }
