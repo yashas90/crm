@@ -54,9 +54,9 @@ export const OTHER_LEAD_SOURCE_OPTIONS = LEAD_SOURCE_OPTIONS.filter(
   (option) => !(AD_LEAD_SOURCE_LABELS as readonly string[]).includes(option.value),
 );
 
-const bulkUploadSourceChipValues = LEADS_SOURCE_FILTER_CHIPS.filter((chip) => chip.value).map(
+const bulkUploadSourceChipValues: string[] = LEADS_SOURCE_FILTER_CHIPS.filter(
   (chip) => chip.value,
-);
+).map((chip) => chip.value);
 
 /** Source picker for bulk CSV import (portals, ads, and manual channels). */
 export const BULK_UPLOAD_SOURCE_OPTIONS = [
