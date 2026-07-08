@@ -1,6 +1,6 @@
 import { leads, users } from "@propninja/db";
 import type { LeadStatus } from "@propninja/types/enums";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 
@@ -14,8 +14,13 @@ export function lastEngagementAtSql() {
   return sql<Date>`coalesce(${leads.lastActivityAt}, ${leads.lastContactedAt}, ${leads.createdAt})`;
 }
 
+/** Cast a JS Date to a bound timestamptz so postgres.js can serialize it in raw SQL. */
+function tstz(date: Date) {
+  return sql`${date.toISOString()}::timestamptz`;
+}
+
 function activeStatusSql() {
-  return sql`${leads.leadStatus} = any(${SLA_ACTIVE_STATUSES})`;
+  return inArray(leads.leadStatus, SLA_ACTIVE_STATUSES);
 }
 
 export type SlaListParams = {
@@ -36,7 +41,7 @@ function buildBreachConditions(params: SlaListParams) {
     eq(leads.orgId, SINGLE_TENANT_ORG_ID),
     isNull(leads.deletedAt),
     activeStatusSql(),
-    sql`${lastEngagementAtSql()} < ${cutoff}`,
+    sql`${lastEngagementAtSql()} < ${tstz(cutoff)}`,
   ];
 
   if (params.status) {
@@ -136,7 +141,7 @@ export const slaService = {
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(leads)
-        .where(and(...baseConditions, sql`${lastEngagement} < ${cutoff}`));
+        .where(and(...baseConditions, sql`${lastEngagement} < ${tstz(cutoff)}`));
       result[`inactive_${days}d`] = count;
     }
 
@@ -171,7 +176,7 @@ export const slaService = {
           isNull(leads.deletedAt),
           activeStatusSql(),
           isNull(leads.slaBreachedAt),
-          sql`${lastEngagement} < ${cutoff}`,
+          sql`${lastEngagement} < ${tstz(cutoff)}`,
         ),
       )
       .returning({ id: leads.id });
@@ -184,7 +189,7 @@ export const slaService = {
           eq(leads.orgId, SINGLE_TENANT_ORG_ID),
           isNull(leads.deletedAt),
           sql`${leads.slaBreachedAt} is not null`,
-          sql`(${lastEngagement} >= ${cutoff} or not (${activeStatusSql()}))`,
+          sql`(${lastEngagement} >= ${tstz(cutoff)} or not (${activeStatusSql()}))`,
         ),
       )
       .returning({ id: leads.id });

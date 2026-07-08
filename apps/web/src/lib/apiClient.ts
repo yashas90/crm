@@ -25,6 +25,14 @@ function getApiUrl(): string {
   return cachedApiUrl;
 }
 
+/** Browser production requests use a same-origin rewrite to avoid CORS / third-party cookie issues. */
+export function buildApiRequestUrl(path: string): string {
+  if (process.env.NODE_ENV === "production" && typeof window !== "undefined") {
+    return `/backend${path}`;
+  }
+  return `${getApiUrl()}${path}`;
+}
+
 export type ApiSuccess<T> = { ok: true; data: T };
 export type ApiError = {
   ok: false;
@@ -47,7 +55,7 @@ async function tryRefreshSession(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${getApiUrl()}/api/auth/refresh`, {
+      const response = await fetch(buildApiRequestUrl("/api/auth/refresh"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -84,7 +92,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   async function executeRequest(): Promise<Response> {
-    return fetch(`${getApiUrl()}${path}`, {
+    return fetch(buildApiRequestUrl(path), {
       credentials: "include",
       ...init,
       headers,
@@ -160,7 +168,7 @@ export async function apiDownload(path: string, filename: string) {
   }
 
   async function executeDownload(): Promise<Response> {
-    return fetch(`${getApiUrl()}${path}`, {
+    return fetch(buildApiRequestUrl(path), {
       method: "GET",
       credentials: "include",
       headers,

@@ -25,6 +25,11 @@ function toDateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Cast a JS Date to a bound timestamptz so postgres.js can serialize it in raw SQL. */
+function tstz(date: Date) {
+  return sql`${date.toISOString()}::timestamptz`;
+}
+
 type KpiValue = {
   value: number;
   previousValue: number;
@@ -107,15 +112,15 @@ async function countLeadsContacted(range: DateRange) {
             select 1 from ${callRecords} cr
             where cr.lead_id = ${leads.id}
               and cr.org_id = ${SINGLE_TENANT_ORG_ID}
-              and cr.started_at >= ${range.dateFrom}
-              and cr.started_at <= ${range.dateTo}
+              and cr.started_at >= ${tstz(range.dateFrom)}
+              and cr.started_at <= ${tstz(range.dateTo)}
           )`,
           sql`exists (
             select 1 from ${whatsappMessages} wm
             where wm.lead_id = ${leads.id}
               and wm.org_id = ${SINGLE_TENANT_ORG_ID}
-              and wm.sent_at >= ${range.dateFrom}
-              and wm.sent_at <= ${range.dateTo}
+              and wm.sent_at >= ${tstz(range.dateFrom)}
+              and wm.sent_at <= ${tstz(range.dateTo)}
           )`,
         ),
       ),
@@ -501,7 +506,7 @@ async function countColdLeads() {
       and(
         leadBaseFilter(),
         sql`${leads.leadStatus} not in ('won', 'lost')`,
-        lte(sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt})`, cutoff),
+        sql`COALESCE(${leads.lastContactedAt}, ${leads.createdAt}) <= ${tstz(cutoff)}`,
       ),
     );
   return row?.count ?? 0;
@@ -573,7 +578,7 @@ async function fetchStalePipeline() {
   const [countRow] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(leads)
-    .where(and(activeLeadFilter(), lte(stageSinceExpr, staleCutoff)));
+    .where(and(activeLeadFilter(), sql`${stageSinceExpr} <= ${tstz(staleCutoff)}`));
 
   const previewRows = await db
     .select({
@@ -586,7 +591,7 @@ async function fetchStalePipeline() {
     })
     .from(leads)
     .leftJoin(users, eq(leads.assignedTo, users.id))
-    .where(and(activeLeadFilter(), lte(stageSinceExpr, staleCutoff)))
+    .where(and(activeLeadFilter(), sql`${stageSinceExpr} <= ${tstz(staleCutoff)}`))
     .orderBy(asc(stageSinceExpr))
     .limit(10);
 

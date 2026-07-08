@@ -25,6 +25,7 @@ export function useNotifications(enabled = true) {
     enabled,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
+    meta: { suppressErrorToast: true },
   });
 }
 

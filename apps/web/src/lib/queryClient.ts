@@ -2,8 +2,19 @@ import { getErrorMessage } from "@/lib/errors";
 import { isForbiddenError, isRateLimitError } from "@/lib/query-errors";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 
+const recentErrorToasts = new Map<string, number>();
+const ERROR_TOAST_DEDUPE_MS = 10_000;
+
 function showErrorToast(message: string) {
   if (typeof window === "undefined") return;
+
+  const now = Date.now();
+  const lastShown = recentErrorToasts.get(message);
+  if (lastShown !== undefined && now - lastShown < ERROR_TOAST_DEDUPE_MS) {
+    return;
+  }
+  recentErrorToasts.set(message, now);
+
   void import("@/lib/toast").then(({ toast }) => toast.error(message));
 }
 
@@ -22,6 +33,8 @@ export function makeQueryClient() {
         if (query.meta?.suppressErrorToast) return;
         if (isForbiddenError(error)) return;
         if (isRateLimitError(error)) return;
+        // Background refetch failures already have cached data — avoid toast spam.
+        if (query.state.data !== undefined) return;
         showErrorToast(getErrorMessage(error, queryErrorFallback(query)));
       },
     }),

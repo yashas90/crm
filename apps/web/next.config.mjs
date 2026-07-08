@@ -56,10 +56,23 @@ const securityHeaders = [
   },
 ];
 
+function resolveApiRewriteBase() {
+  return originFromUrl(process.env.NEXT_PUBLIC_API_URL) || PRODUCTION_API_ORIGIN;
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
   transpilePackages: ["@propninja/ui", "@propninja/types"],
+  async rewrites() {
+    const apiBase = resolveApiRewriteBase();
+    return [
+      {
+        source: "/backend/:path*",
+        destination: `${apiBase}/:path*`,
+      },
+    ];
+  },
   webpack: (config) => {
     config.resolve.extensionAlias = {
       ".js": [".ts", ".tsx", ".js", ".jsx"],
