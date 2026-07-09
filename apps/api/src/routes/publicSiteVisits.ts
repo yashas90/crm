@@ -63,3 +63,26 @@ publicSiteVisitsRoutes.post("/:token/cancel", writeRateLimit, async (c) => {
     throw error;
   }
 });
+
+publicSiteVisitsRoutes.post("/:token/confirm", writeRateLimit, async (c) => {
+  const token = c.req.param("token");
+  if (!token) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
+  try {
+    const visit = await siteVisitPublicService.confirm(token);
+    if (!visit) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
+    return jsonOk(c, visit);
+  } catch (error) {
+    if (error instanceof CustomerPortalActionError) {
+      return jsonError(c, error.code, error.message, 400);
+    }
+    throw error;
+  }
+});
+
+publicSiteVisitsRoutes.post("/:token/callback-request", writeRateLimit, async (c) => {
+  const token = c.req.param("token");
+  if (!token) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
+  const result = await siteVisitPublicService.requestCallback(token);
+  if (!result) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
+  return jsonOk(c, { requested: true });
+});

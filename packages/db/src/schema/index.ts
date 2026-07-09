@@ -922,6 +922,8 @@ export const siteVisits = pgTable(
       .$type<{ tierMinutes: number; sentAt: string }[]>()
       .notNull()
       .default([]),
+    confirmedByClient: boolean("confirmed_by_client").notNull().default(false),
+    confirmedByClientAt: timestamp("confirmed_by_client_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

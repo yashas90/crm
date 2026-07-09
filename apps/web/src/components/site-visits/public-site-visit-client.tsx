@@ -4,7 +4,12 @@ import {
   AddToCalendarDropdown,
   siteVisitToCalendarEvent,
 } from "@/components/site-visits/add-to-calendar-dropdown";
-import { cancelPublicSiteVisit, reschedulePublicSiteVisit } from "@/lib/public-site-visit-api";
+import {
+  cancelPublicSiteVisit,
+  confirmPublicSiteVisit,
+  requestCallbackPublicSiteVisit,
+  reschedulePublicSiteVisit,
+} from "@/lib/public-site-visit-api";
 import {
   type SiteVisitCalendarEvent,
   buildGoogleCalendarUrl,
@@ -20,10 +25,12 @@ import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
 import {
   CalendarPlus,
+  CheckCircle,
   Download,
   MapPin,
   MessageCircle,
   Phone,
+  PhoneCall,
   RefreshCw,
   XCircle,
 } from "lucide-react";
@@ -77,6 +84,7 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
   const [rescheduleDate, setRescheduleDate] = useState(visit.visitDate);
   const [rescheduleTime, setRescheduleTime] = useState(visit.visitTime.slice(0, 5));
   const [busy, setBusy] = useState(false);
+  const [callbackSent, setCallbackSent] = useState(false);
 
   const calendarEvent = useMemo(() => toCalendarEvent(visit), [visit]);
 
@@ -136,6 +144,30 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
     toast.success("Visit cancelled.");
   }
 
+  async function handleConfirm() {
+    setBusy(true);
+    const result = await confirmPublicSiteVisit(token);
+    setBusy(false);
+    if (!result.data) {
+      toast.error(result.error ?? "Could not confirm visit.");
+      return;
+    }
+    setVisit(result.data);
+    toast.success("Visit confirmed! We'll see you there.");
+  }
+
+  async function handleCallbackRequest() {
+    setBusy(true);
+    const result = await requestCallbackPublicSiteVisit(token);
+    setBusy(false);
+    if (!result.ok) {
+      toast.error(result.error ?? "Could not send request.");
+      return;
+    }
+    setCallbackSent(true);
+    toast.success("Callback requested! Your agent will be in touch soon.");
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white px-4 py-10 dark:from-slate-950 dark:to-slate-900">
       <div className="mx-auto w-full max-w-md">
@@ -183,6 +215,24 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
               </div>
 
               <div className="space-y-2 border-t border-border pt-4">
+                {visit.canReschedule && !visit.confirmedByClient ? (
+                  <Button
+                    className="w-full justify-start gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    disabled={busy}
+                    onClick={() => void handleConfirm()}
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    Yes, I'll be there!
+                  </Button>
+                ) : null}
+
+                {visit.confirmedByClient ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    <CheckCircle className="h-4 w-4" />
+                    You've confirmed this visit
+                  </div>
+                ) : null}
+
                 {mapsUrl ? (
                   <Button variant="outline" className="w-full justify-start gap-2" asChild>
                     <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
@@ -252,6 +302,25 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
                       Chat on WhatsApp
                     </a>
                   </Button>
+                ) : null}
+
+                {visit.canReschedule ? (
+                  callbackSent ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                      <PhoneCall className="h-4 w-4" />
+                      Callback requested — we'll be in touch!
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      disabled={busy}
+                      onClick={() => void handleCallbackRequest()}
+                    >
+                      <PhoneCall className="h-4 w-4" />
+                      Request a callback
+                    </Button>
+                  )
                 ) : null}
               </div>
             </div>

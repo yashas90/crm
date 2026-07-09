@@ -16,6 +16,8 @@ export const NOTIFICATION_TYPES = {
   COLD_LEADS_ALERT: "cold_leads_alert",
   DAILY_DIGEST: "daily_digest",
   NEW_AD_LEAD: "new_ad_lead",
+  SITE_VISIT_CONFIRMED_BY_CLIENT: "site_visit_confirmed_by_client",
+  CALLBACK_REQUESTED: "callback_requested",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];

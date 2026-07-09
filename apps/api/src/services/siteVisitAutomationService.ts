@@ -13,7 +13,10 @@ import {
   cancelSiteVisitGoogleCalendar,
   syncSiteVisitToGoogleCalendar,
 } from "./googleCalendarService.js";
-import { sendSiteVisitWhatsApp } from "./siteVisitWhatsAppService.js";
+import {
+  sendClientSiteVisitWhatsAppDirect,
+  sendSiteVisitWhatsApp,
+} from "./siteVisitWhatsAppService.js";
 
 export type SiteVisitAutomationEvent =
   | "scheduled"
@@ -213,6 +216,17 @@ export async function runSiteVisitAutomation(
         event,
       },
     });
+  }
+
+  // Auto-send WhatsApp directly to the client on schedule and reschedule
+  if (event === "scheduled" || event === "rescheduled") {
+    void sendClientSiteVisitWhatsAppDirect({
+      leadId: row.leadId,
+      sentBy: actorUserId,
+      phone: row.leadPhone,
+      event: messageEvent,
+      context: ctx,
+    }).catch(() => undefined);
   }
 }
 

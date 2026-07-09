@@ -53,3 +53,33 @@ export async function cancelPublicSiteVisit(
   }
   return { data: body.data };
 }
+
+export async function confirmPublicSiteVisit(
+  token: string,
+): Promise<{ data: PublicSiteVisitView | null; error?: string }> {
+  if (!API_URL) return { data: null, error: "API not configured" };
+  const res = await fetch(
+    `${API_URL}/api/public/site-visits/${encodeURIComponent(token)}/confirm`,
+    { method: "POST" },
+  );
+  const body = (await res.json()) as ApiEnvelope<PublicSiteVisitView>;
+  if (!res.ok || !body.ok) {
+    return { data: null, error: body.ok ? "Request failed" : body.error.message };
+  }
+  return { data: body.data };
+}
+
+export async function requestCallbackPublicSiteVisit(
+  token: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!API_URL) return { ok: false, error: "API not configured" };
+  const res = await fetch(
+    `${API_URL}/api/public/site-visits/${encodeURIComponent(token)}/callback-request`,
+    { method: "POST" },
+  );
+  const body = (await res.json()) as ApiEnvelope<{ requested: boolean }>;
+  if (!res.ok || !body.ok) {
+    return { ok: false, error: body.ok ? "Request failed" : body.error.message };
+  }
+  return { ok: true };
+}

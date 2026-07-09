@@ -18,6 +18,7 @@ export type PublicSiteVisitView = {
   propertyLabel: string | null;
   canReschedule: boolean;
   canCancel: boolean;
+  confirmedByClient: boolean;
 };
 
 /** Customer-facing page URL on the web app. */

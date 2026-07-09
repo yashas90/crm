@@ -1,5 +1,8 @@
 export const DEFAULT_SITE_VISIT_REMINDER_MINUTES = [24 * 60, 2 * 60, 30] as const;
 
+/** Sentinel tier for 8 AM IST day-of-visit WhatsApp to client. Never conflicts with minute-based tiers. */
+export const DAY_OF_8AM_TIER = 99999;
+
 export type SiteVisitReminderTier = {
   tierMinutes: number;
   sentAt: string;

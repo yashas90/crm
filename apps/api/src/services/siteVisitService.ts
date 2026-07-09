@@ -6,6 +6,7 @@ import { db } from "../lib/db.js";
 import { LIST_PAGE_SIZE_MAX, boundPageSize } from "../lib/pagination.js";
 import { generateSiteVisitPublicToken } from "../lib/siteVisitPublicToken.js";
 import {
+  DAY_OF_8AM_TIER,
   type SiteVisitReminderTier,
   appendReminderTier,
   hasReminderTierSent,
@@ -64,6 +65,8 @@ export interface UpdateSiteVisitInput {
   customerEmail?: string | null;
   outcome?: string | null;
   outcomeNote?: string | null;
+  confirmedByClient?: boolean;
+  confirmedByClientAt?: Date | null;
 }
 
 export interface ListSiteVisitsParams {
@@ -100,6 +103,8 @@ const visitSelectFields = {
   outcomeNote: siteVisits.outcomeNote,
   reminderSent: siteVisits.reminderSent,
   remindersSent: siteVisits.remindersSent,
+  confirmedByClient: siteVisits.confirmedByClient,
+  confirmedByClientAt: siteVisits.confirmedByClientAt,
   createdAt: siteVisits.createdAt,
   updatedAt: siteVisits.updatedAt,
   lead: {
@@ -146,6 +151,8 @@ function mapVisitRow(row: {
   outcomeNote: string | null;
   reminderSent: boolean;
   remindersSent: SiteVisitReminderTier[];
+  confirmedByClient: boolean;
+  confirmedByClientAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   lead: {
@@ -187,6 +194,8 @@ function mapVisitRow(row: {
     outcomeNote: row.outcomeNote,
     reminderSent: row.reminderSent,
     remindersSent: row.remindersSent ?? [],
+    confirmedByClient: row.confirmedByClient ?? false,
+    confirmedByClientAt: row.confirmedByClientAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     lead: row.lead,
@@ -440,6 +449,14 @@ export const siteVisitService = {
           input.customerEmail !== undefined ? input.customerEmail : existing.customerEmail,
         outcome: input.outcome !== undefined ? input.outcome : existing.outcome,
         outcomeNote: input.outcomeNote !== undefined ? input.outcomeNote : existing.outcomeNote,
+        confirmedByClient:
+          input.confirmedByClient !== undefined ? input.confirmedByClient : existing.confirmedByClient,
+        confirmedByClientAt:
+          input.confirmedByClientAt !== undefined
+            ? input.confirmedByClientAt
+            : existing.confirmedByClientAt
+              ? new Date(existing.confirmedByClientAt)
+              : null,
         reminderSent: resetReminder ? false : existing.reminderSent,
         remindersSent: resetReminder ? [] : existing.remindersSent,
         updatedAt: new Date(),
@@ -508,6 +525,17 @@ export const siteVisitService = {
           due.push({ ...visit, tierMinutes });
           break;
         }
+      }
+    }
+
+    // 8 AM IST day-of reminder — fires once during the 8:00 hour on the visit day
+    for (const row of candidates) {
+      const visit = mapVisitRow(row);
+      if (visit.visitDate !== getIstDateKey()) continue;
+      if (hasReminderTierSent(visit.remindersSent, DAY_OF_8AM_TIER)) continue;
+      const nowIst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      if (nowIst.getHours() === 8) {
+        due.push({ ...visit, tierMinutes: DAY_OF_8AM_TIER });
       }
     }
 

@@ -30,6 +30,7 @@ function toPublicView(visit: VisitRow): PublicSiteVisitView {
     propertyLabel: visit.propertyLabel,
     canReschedule: isScheduled,
     canCancel: isScheduled,
+    confirmedByClient: visit.confirmedByClient ?? false,
   };
 }
 
@@ -177,5 +178,64 @@ export const siteVisitPublicService = {
     );
 
     return toPublicView(visit);
+  },
+
+  async confirm(token: string) {
+    if (!isValidSiteVisitPublicToken(token)) return null;
+    const existing = await siteVisitService.getByPublicToken(token);
+    if (!existing) return null;
+
+    assertScheduled(existing);
+
+    const visit = await siteVisitService.update(existing.id, {
+      confirmedByClient: true,
+      confirmedByClientAt: new Date(),
+    });
+    if (!visit) return null;
+
+    await recordCustomerPortalActivity(visit, "visit_confirmed_by_client", {
+      visitDate: visit.visitDate,
+      visitTime: visit.visitTime,
+    });
+
+    const leadName = visit.lead ? `${visit.lead.firstName} ${visit.lead.lastName}`.trim() : "Lead";
+
+    await notifyAgent(visit, NOTIFICATION_TYPES.SITE_VISIT_CONFIRMED_BY_CLIENT, {
+      siteVisitId: visit.id,
+      leadId: visit.leadId,
+      leadName,
+      visitDate: visit.visitDate,
+      visitTime: visit.visitTime,
+      property: visit.propertyLabel ?? visit.propertyAddress ?? "Property",
+    });
+
+    return toPublicView(visit);
+  },
+
+  async requestCallback(token: string) {
+    if (!isValidSiteVisitPublicToken(token)) return null;
+    const existing = await siteVisitService.getByPublicToken(token);
+    if (!existing) return null;
+
+    await recordCustomerPortalActivity(existing, "callback_requested", {
+      visitDate: existing.visitDate,
+      visitTime: existing.visitTime,
+      requestedAt: new Date().toISOString(),
+    });
+
+    const leadName = existing.lead
+      ? `${existing.lead.firstName} ${existing.lead.lastName}`.trim()
+      : "Lead";
+
+    await notifyAgent(existing, NOTIFICATION_TYPES.CALLBACK_REQUESTED, {
+      siteVisitId: existing.id,
+      leadId: existing.leadId,
+      leadName,
+      visitDate: existing.visitDate,
+      visitTime: existing.visitTime,
+      property: existing.propertyLabel ?? existing.propertyAddress ?? "Property",
+    });
+
+    return true;
   },
 };
