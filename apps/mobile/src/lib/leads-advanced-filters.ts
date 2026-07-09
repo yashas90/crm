@@ -118,9 +118,14 @@ export function mobileFiltersToApiParams(filters: MobileLeadFilters): Record<str
   if (isAgent) {
     const userId = getCurrentUserId();
     if (userId) out.assignedTo = userId;
-    out.unassigned = undefined;
-    out.teamLeads = undefined;
   }
 
-  return out;
+  const cleaned: Record<string, string> = {};
+  for (const [key, value] of Object.entries(out)) {
+    if (typeof value !== "string" || value.length === 0) continue;
+    if (isAgent && (key === "unassigned" || key === "teamLeads")) continue;
+    cleaned[key] = value;
+  }
+
+  return cleaned;
 }

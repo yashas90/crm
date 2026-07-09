@@ -665,25 +665,27 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         ) : null}
       </View>
 
-      <CallLogModal
-        visible={dialerLog.isPendingLog}
-        reviewOnly
-        phoneNumber={dialerLog.pendingLog?.phoneNumber}
-        defaultDurationSeconds={dialerLog.pendingLog?.durationSeconds ?? 60}
-        isSubmitting={logCall.isPending}
-        onClose={dialerLog.dismissPending}
-        onSubmit={(payload) => {
-          void (async () => {
-            try {
-              await dialerLog.confirmLog(payload.outcome, payload.notes, payload.ringSeconds);
-              setStatusSheetAfterCall(true);
-              setStatusSheetOpen(true);
-            } catch {
-              // onLogError surfaces the failure
-            }
-          })();
-        }}
-      />
+      {dialerLog.isPendingLog && dialerLog.pendingLog ? (
+        <CallLogModal
+          visible
+          reviewOnly
+          phoneNumber={dialerLog.pendingLog.phoneNumber}
+          defaultDurationSeconds={dialerLog.pendingLog.durationSeconds}
+          isSubmitting={logCall.isPending}
+          onClose={dialerLog.dismissPending}
+          onSubmit={(payload) => {
+            void (async () => {
+              try {
+                await dialerLog.confirmLog(payload.outcome, payload.notes, payload.ringSeconds);
+                setStatusSheetAfterCall(true);
+                setStatusSheetOpen(true);
+              } catch {
+                // onLogError surfaces the failure
+              }
+            })();
+          }}
+        />
+      ) : null}
 
       <UpdateLeadStatusSheet
         visible={statusSheetVisible}

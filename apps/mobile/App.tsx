@@ -1,4 +1,5 @@
 import { InAppNotificationBanner } from "@/components/InAppNotificationBanner";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { appLinking } from "@/lib/linking";
 import { addNotificationResponseListener } from "@/lib/pushNotifications";
 import { RootNavigator } from "@/navigation/RootNavigator";
@@ -37,13 +38,15 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <Providers>
-        <NavigationContainer ref={navRef} linking={appLinking}>
-          <RootNavigator />
-          <InAppNotificationBanner onNavigateToLead={handleNavigateToLead} />
-        </NavigationContainer>
-        <StatusBar style="light" />
-      </Providers>
+      <ErrorBoundary screenName="app">
+        <Providers>
+          <NavigationContainer ref={navRef} linking={appLinking}>
+            <RootNavigator />
+            <InAppNotificationBanner onNavigateToLead={handleNavigateToLead} />
+          </NavigationContainer>
+          <StatusBar style="light" />
+        </Providers>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }

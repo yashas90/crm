@@ -212,8 +212,11 @@ export function CallLogModal({
     handleOutcomeChange(value);
   }
 
+  // Avoid mounting the native Modal on Android when hidden — can crash on some devices.
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <SafeAreaView edges={["bottom"]} style={styles.sheetSafe}>
           <View style={styles.sheet}>

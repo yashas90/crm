@@ -507,27 +507,29 @@ export function TodayScreen({ route, navigation }: Props) {
         onCompleted={() => void todayVisits.refetch()}
       />
 
-      <CallLogModal
-        visible={dialerLog.isPendingLog}
-        reviewOnly
-        phoneNumber={dialerLog.pendingLog?.phoneNumber}
-        defaultDurationSeconds={dialerLog.pendingLog?.durationSeconds ?? 60}
-        isSubmitting={logCall.isPending}
-        onClose={dialerLog.dismissPending}
-        onSubmit={(payload) => {
-          void (async () => {
-            const leadId = dialerLog.pendingLog?.leadId ?? null;
-            try {
-              await dialerLog.confirmLog(payload.outcome, payload.notes, payload.ringSeconds);
-              setPostCallLeadId(leadId);
-              setStatusSheetAfterCall(true);
-              setStatusSheetOpen(true);
-            } catch {
-              // onLogError surfaces the failure
-            }
-          })();
-        }}
-      />
+      {dialerLog.isPendingLog && dialerLog.pendingLog ? (
+        <CallLogModal
+          visible
+          reviewOnly
+          phoneNumber={dialerLog.pendingLog.phoneNumber}
+          defaultDurationSeconds={dialerLog.pendingLog.durationSeconds}
+          isSubmitting={logCall.isPending}
+          onClose={dialerLog.dismissPending}
+          onSubmit={(payload) => {
+            void (async () => {
+              const leadId = dialerLog.pendingLog?.leadId ?? null;
+              try {
+                await dialerLog.confirmLog(payload.outcome, payload.notes, payload.ringSeconds);
+                setPostCallLeadId(leadId);
+                setStatusSheetAfterCall(true);
+                setStatusSheetOpen(true);
+              } catch {
+                // onLogError surfaces the failure
+              }
+            })();
+          }}
+        />
+      ) : null}
 
       <UpdateLeadStatusSheet
         visible={statusSheetOpen}

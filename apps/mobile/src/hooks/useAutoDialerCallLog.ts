@@ -41,7 +41,10 @@ export function useAutoDialerCallLog({
 }: UseAutoDialerCallLogOptions) {
   const sessionRef = useRef<CallSessionContext | null>(null);
   const [postCallPrompt, setPostCallPrompt] = useState<PostCallPrompt | null>(null);
+  const postCallPromptRef = useRef<PostCallPrompt | null>(null);
   const loggingRef = useRef(false);
+
+  postCallPromptRef.current = postCallPrompt;
 
   const submitCallLog = useCallback(
     async (
@@ -112,6 +115,17 @@ export function useAutoDialerCallLog({
     clearCallSession();
   }, [clearCallSession]);
 
+  const confirmLog = useCallback(
+    async (outcome: CallOutcome, notes?: string, ringSeconds?: number) => {
+      const pending = postCallPromptRef.current;
+      if (!pending) return;
+      await submitCallLog(pending, outcome, notes, ringSeconds);
+      setPostCallPrompt(null);
+      clearCallSession();
+    },
+    [clearCallSession, submitCallLog],
+  );
+
   return {
     beginCall,
     postCallPrompt,
@@ -123,13 +137,7 @@ export function useAutoDialerCallLog({
     pendingLog: postCallPrompt,
     isPendingLog: postCallPrompt !== null,
     dismissPending: dismissPostCall,
-    confirmLog: async (outcome: CallOutcome, notes?: string, ringSeconds?: number) => {
-      const pending = postCallPrompt;
-      if (!pending) return;
-      await submitCallLog(pending, outcome, notes, ringSeconds);
-      setPostCallPrompt(null);
-      clearCallSession();
-    },
+    confirmLog,
     review: postCallPrompt
       ? { durationSeconds: postCallPrompt.durationSeconds, phoneNumber: postCallPrompt.phoneNumber }
       : null,
