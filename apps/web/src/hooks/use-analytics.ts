@@ -1,6 +1,7 @@
 "use client";
 
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { SILENT_QUERY_ERROR_META } from "@/lib/query-meta";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const ANALYTICS_STALE_TIME_MS = 5 * 60 * 1000;
@@ -73,6 +74,7 @@ export function useAnalyticsOverview(dateFrom: string, dateTo: string, enabled =
     enabled,
     placeholderData: keepPreviousData,
     staleTime: ANALYTICS_STALE_TIME_MS,
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
 
@@ -113,5 +115,6 @@ export function useBookedUnits(dateFrom: string, dateTo: string, enabled = true)
       apiGet<{ items: BookedUnitRow[] }>(`/api/analytics/booked-units?${params.toString()}`),
     enabled,
     staleTime: ANALYTICS_STALE_TIME_MS,
+    meta: SILENT_QUERY_ERROR_META,
   });
 }

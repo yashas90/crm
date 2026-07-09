@@ -85,6 +85,7 @@ describe("LeadDetailScreen consent section", () => {
       postCallPrompt: null,
       isPostCallPrompt: false,
       dismissPostCall: jest.fn(),
+      submitCallLog: jest.fn(),
       pendingLog: null,
       isPendingLog: false,
       confirmLog: jest.fn(),

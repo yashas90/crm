@@ -35,6 +35,8 @@ export type LogCallInput = {
   outcome: "answered" | "no_answer" | "busy" | "left_voicemail";
   disposition?: string;
   notes?: string;
+  /** Reserved for future analytics; API ignores this field today. */
+  ring_seconds?: number;
   source: "mobile-manual" | "mobile-auto" | "web-manual";
 };
 

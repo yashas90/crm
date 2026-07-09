@@ -2,6 +2,7 @@
 
 import { apiDownload, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
+import { SILENT_QUERY_ERROR_META } from "@/lib/query-meta";
 import { toast } from "@/lib/toast";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 export { isForbiddenError } from "@/lib/query-errors";
@@ -156,6 +157,7 @@ export function useUsersList(params: UsersQueryParams, options?: { enabled?: boo
     enabled: options?.enabled !== false,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
 

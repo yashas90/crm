@@ -1,3 +1,4 @@
+import { CallLogModal } from "@/components/CallLogModal";
 import { ComplianceChip } from "@/components/ComplianceChip";
 import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
 import { LeadContactActions } from "@/components/LeadContactActions";
@@ -105,6 +106,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const { data: visitsData, refetch: refetchVisits } = useLeadSiteVisits(leadId);
   const addNote = useAddLeadNote(leadId);
   const [statusSheetOpen, setStatusSheetOpen] = useState(false);
+  const [statusSheetAfterCall, setStatusSheetAfterCall] = useState(false);
   const [scheduleVisitVisible, setScheduleVisitVisible] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<SiteVisit | null>(null);
   const [followUpAt, setFollowUpAt] = useState<string | null>(null);
@@ -132,7 +134,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     },
   });
 
-  const statusSheetVisible = statusSheetOpen || dialerLog.isPendingLog;
+  const statusSheetVisible = statusSheetOpen;
 
   const panResponder = useMemo(
     () =>
@@ -160,7 +162,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   async function handleStatusSave(payload: UpdateLeadStatusPayload) {
     if (!lead) return;
 
-    const afterCall = dialerLog.isPendingLog;
+    const afterCall = statusSheetAfterCall;
     const noteText = payload.notes?.trim();
     const closingLead = isNaLeadStatus(payload.leadStatus);
 
@@ -178,6 +180,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
       }
 
       setStatusSheetOpen(false);
+      setStatusSheetAfterCall(false);
       dialerLog.dismissPending();
 
       if (closingLead) {
@@ -662,6 +665,26 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         ) : null}
       </View>
 
+      <CallLogModal
+        visible={dialerLog.isPendingLog}
+        reviewOnly
+        phoneNumber={dialerLog.pendingLog?.phoneNumber}
+        defaultDurationSeconds={dialerLog.pendingLog?.durationSeconds ?? 60}
+        isSubmitting={logCall.isPending}
+        onClose={dialerLog.dismissPending}
+        onSubmit={(payload) => {
+          void (async () => {
+            try {
+              await dialerLog.confirmLog(payload.outcome, payload.notes, payload.ringSeconds);
+              setStatusSheetAfterCall(true);
+              setStatusSheetOpen(true);
+            } catch {
+              // onLogError surfaces the failure
+            }
+          })();
+        }}
+      />
+
       <UpdateLeadStatusSheet
         visible={statusSheetVisible}
         currentStatus={lead.leadStatus}
@@ -671,6 +694,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         isSaving={updateLead.isPending || updateFollowUp.isPending || addNote.isPending}
         onClose={() => {
           setStatusSheetOpen(false);
+          setStatusSheetAfterCall(false);
           dialerLog.dismissPending();
         }}
         onSave={(payload) => void handleStatusSave(payload)}

@@ -3,8 +3,10 @@
 import { DocumentCard } from "@/components/documents/document-card";
 import { UploadDocumentDialog } from "@/components/documents/upload-document-dialog";
 import { type Document, type DocumentFileType, useDocuments } from "@/hooks/use-documents";
+import { getErrorMessage } from "@/lib/errors";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
+import { AlertCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 
 type DocumentsLibraryProps = {
@@ -27,7 +29,7 @@ export function DocumentsLibrary({ projectId, compact, onShare }: DocumentsLibra
     [projectId, fileType, search],
   );
 
-  const { data, isLoading } = useDocuments(params);
+  const { data, isLoading, isError, error, refetch } = useDocuments(params);
   const items = data?.items ?? [];
 
   return (
@@ -71,6 +73,16 @@ export function DocumentsLibrary({ projectId, compact, onShare }: DocumentsLibra
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading documents…</p>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+          <AlertCircle className="h-8 w-8 text-destructive" aria-hidden />
+          <p className="text-sm text-muted-foreground">
+            {getErrorMessage(error, "Could not load documents")}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        </div>
       ) : items.length === 0 ? (
         <p className="text-sm text-muted-foreground">No documents yet.</p>
       ) : (

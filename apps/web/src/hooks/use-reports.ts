@@ -1,6 +1,7 @@
 "use client";
 
 import { apiDownload, apiGet } from "@/lib/apiClient";
+import { SILENT_QUERY_ERROR_META } from "@/lib/query-meta";
 // Web reads call metrics via /api/reports/* and /api/calls (list/summary) only.
 // POST /api/calls/log is mobile-only — SIM calls are logged from the app, not the browser.
 // Report endpoints require manager/admin; use isForbiddenError() in pages for 403 UX.
@@ -292,6 +293,7 @@ export function useDashboardReport(dateFrom?: string, dateTo?: string, userId?: 
     queryKey: ["reports", "dashboard", dateFrom, dateTo, userId],
     queryFn: () =>
       apiGet<DashboardReport>(`/api/reports/dashboard${withDateRange(params.toString())}`),
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
 
@@ -303,6 +305,7 @@ export function useLeadsReport(params: DashboardReportParams, options?: { enable
     queryFn: () => apiGet<LeadsReport>(`/api/reports/leads${withDateRange(query)}`),
     enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
 
@@ -323,6 +326,7 @@ export function useCallsReport(params: DashboardReportParams, options?: { enable
     queryFn: () => apiGet<CallsReport>(`/api/reports/calls${withDateRange(query)}`),
     enabled: options?.enabled ?? true,
     placeholderData: keepPreviousData,
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
 
@@ -372,6 +376,7 @@ export function useOverviewReport(params: DashboardReportParams & { enabled?: bo
     queryFn: () => apiGet<OverviewReport>(`/api/reports/overview${withDateRange(query)}`),
     enabled: enabled ?? true,
     placeholderData: keepPreviousData,
+    meta: { ...SILENT_QUERY_ERROR_META, errorContext: "overview" },
   });
 }
 
@@ -408,6 +413,7 @@ export function useSourceReport(params: DashboardReportParams & { enabled?: bool
     queryFn: () => apiGet<SourcesReport>(`/api/reports/sources${withDateRange(query)}`),
     enabled: enabled ?? true,
     placeholderData: keepPreviousData,
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
 
@@ -415,6 +421,7 @@ export function useRecentActivities() {
   return useQuery({
     queryKey: ["activities", "recent"],
     queryFn: () => apiGet<RecentActivity[]>("/api/leads/activities/recent"),
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
 

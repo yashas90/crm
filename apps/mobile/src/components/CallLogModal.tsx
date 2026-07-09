@@ -18,6 +18,7 @@ export type QuickLogPayload = {
   outcome: CallOutcome;
   durationSeconds: number;
   notes?: string;
+  ringSeconds?: number;
 };
 
 export type SubmitOptions = {
@@ -53,6 +54,15 @@ function formatDuration(seconds: number): string {
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
 }
 
+function parseNonNegativeInt(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+}
+
+function talkDurationSeconds(totalSeconds: number, ringSecondsText: string): number {
+  return Math.max(0, totalSeconds - parseNonNegativeInt(ringSecondsText));
+}
+
 export function CallLogModal({
   visible,
   onClose,
@@ -65,6 +75,7 @@ export function CallLogModal({
 }: CallLogModalProps) {
   const [outcome, setOutcome] = useState<CallOutcome>("answered");
   const [durationSeconds, setDurationSeconds] = useState(String(defaultDurationSeconds));
+  const [ringSeconds, setRingSeconds] = useState("0");
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -75,6 +86,7 @@ export function CallLogModal({
   useEffect(() => {
     if (visible) {
       setDurationSeconds(String(defaultDurationSeconds));
+      setRingSeconds("0");
       setOutcome("answered");
       setShowNotes(false);
       setNotes("");
@@ -100,7 +112,11 @@ export function CallLogModal({
         if (c <= 1) {
           clearInterval(tick);
           if (!timerTouched.current) {
-            onSubmit({ outcome: "answered", durationSeconds: defaultDurationSeconds });
+            onSubmit({
+              outcome: "answered",
+              durationSeconds: defaultDurationSeconds,
+              ringSeconds: 0,
+            });
           }
           return 0;
         }
@@ -118,11 +134,72 @@ export function CallLogModal({
     const duration = Number.parseInt(durationSeconds, 10);
     if (Number.isNaN(duration) || duration < 0) return null;
 
+    const ring = outcome === "answered" ? parseNonNegativeInt(ringSeconds) : 0;
+
     return {
       outcome,
       durationSeconds: duration,
       notes: notes.trim() || undefined,
+      ringSeconds: ring > 0 ? ring : undefined,
     };
+  }
+
+  function handleRingChange(value: string) {
+    timerTouched.current = true;
+    progressAnim.stopAnimation();
+    const sanitized = value.replace(/[^\d]/g, "");
+    setRingSeconds(sanitized);
+    if (reviewOnly) {
+      setDurationSeconds(String(talkDurationSeconds(defaultDurationSeconds, sanitized)));
+    }
+  }
+
+  function handleOutcomeChange(value: CallOutcome) {
+    timerTouched.current = true;
+    progressAnim.stopAnimation();
+    setOutcome(value);
+    if (value !== "answered") {
+      setRingSeconds("0");
+      setDurationSeconds(String(defaultDurationSeconds));
+    }
+  }
+
+  function renderDurationFields() {
+    return (
+      <>
+        <Text style={styles.label}>Duration</Text>
+        {reviewOnly ? (
+          <Text style={styles.elapsedHint}>
+            Total elapsed: {formatDuration(defaultDurationSeconds)}
+          </Text>
+        ) : null}
+        <TextInput
+          style={styles.input}
+          keyboardType="number-pad"
+          value={durationSeconds}
+          onChangeText={(value) => {
+            timerTouched.current = true;
+            progressAnim.stopAnimation();
+            setDurationSeconds(value.replace(/[^\d]/g, ""));
+          }}
+          placeholder="Talk time in seconds"
+          placeholderTextColor="#64748b"
+        />
+        {outcome === "answered" ? (
+          <>
+            <Text style={styles.label}>Ring time (sec)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="number-pad"
+              value={ringSeconds}
+              onChangeText={handleRingChange}
+              placeholder="0"
+              placeholderTextColor="#64748b"
+            />
+          </>
+        ) : null}
+      </>
+    );
   }
 
   function handleSave(goNext = false) {
@@ -132,9 +209,7 @@ export function CallLogModal({
   }
 
   function handleOutcomeChipPress(value: CallOutcome) {
-    timerTouched.current = true;
-    progressAnim.stopAnimation();
-    setOutcome(value);
+    handleOutcomeChange(value);
   }
 
   return (
@@ -186,6 +261,8 @@ export function CallLogModal({
                       </Pressable>
                     ))}
                   </View>
+
+                  {renderDurationFields()}
 
                   {/* Notes toggle */}
                   <Pressable
@@ -250,11 +327,10 @@ export function CallLogModal({
                       disabled={isSubmitting}
                       onPress={() => {
                         timerTouched.current = true;
-                        onSubmit({
-                          outcome,
-                          durationSeconds: defaultDurationSeconds,
-                          notes: notes.trim() || undefined,
-                        });
+                        progressAnim.stopAnimation();
+                        const payload = buildPayload();
+                        if (!payload) return;
+                        onSubmit(payload);
                       }}
                     >
                       <Text style={styles.primaryButtonText}>
@@ -287,7 +363,7 @@ export function CallLogModal({
                             outcome === value && styles.dropdownItemActive,
                           ]}
                           onPress={() => {
-                            setOutcome(value);
+                            handleOutcomeChange(value);
                             setDropdownOpen(false);
                           }}
                         >
@@ -313,7 +389,10 @@ export function CallLogModal({
                           styles.durationChip,
                           durationSeconds === String(preset) && styles.chipActive,
                         ]}
-                        onPress={() => setDurationSeconds(String(preset))}
+                        onPress={() => {
+                          setRingSeconds("0");
+                          setDurationSeconds(String(preset));
+                        }}
                       >
                         <Text
                           style={[
@@ -334,6 +413,19 @@ export function CallLogModal({
                     placeholder="Duration in seconds"
                     placeholderTextColor="#64748b"
                   />
+                  {outcome === "answered" ? (
+                    <>
+                      <Text style={styles.label}>Ring time (sec)</Text>
+                      <TextInput
+                        style={styles.input}
+                        keyboardType="number-pad"
+                        value={ringSeconds}
+                        onChangeText={handleRingChange}
+                        placeholder="0"
+                        placeholderTextColor="#64748b"
+                      />
+                    </>
+                  ) : null}
 
                   <Pressable onPress={() => setShowNotes((v) => !v)}>
                     <Text style={styles.notesToggle}>
@@ -422,6 +514,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   durationPillText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
+  elapsedHint: { color: colors.textMuted, fontSize: 12, marginBottom: 2 },
   // 2×2 outcome chip grid
   outcomeChips: {
     flexDirection: "row",

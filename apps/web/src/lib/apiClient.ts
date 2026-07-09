@@ -3,6 +3,15 @@ import { clearSession, getToken } from "@/lib/auth";
 let cachedApiUrl: string | undefined;
 let refreshPromise: Promise<boolean> | null = null;
 
+/** Strip trailing slashes and a mistaken `/api` suffix from the API base URL. */
+export function normalizeApiBaseUrl(url: string): string {
+  let base = url.trim().replace(/\/+$/, "");
+  if (base.endsWith("/api")) {
+    base = base.slice(0, -4);
+  }
+  return base;
+}
+
 function resolveApiUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
 
@@ -12,10 +21,10 @@ function resolveApiUrl(): string {
         "NEXT_PUBLIC_API_URL must be set to a non-localhost URL in production. Configure it in Vercel before building.",
       );
     }
-    return configured.replace(/\/$/, "");
+    return normalizeApiBaseUrl(configured);
   }
 
-  return configured?.replace(/\/$/, "") ?? "http://localhost:3001";
+  return configured ? normalizeApiBaseUrl(configured) : "http://localhost:3001";
 }
 
 function getApiUrl(): string {
@@ -237,4 +246,79 @@ export function apiPut<T>(path: string, body: unknown) {
 
 export function apiDelete<T>(path: string) {
   return apiFetch<T>(path, { method: "DELETE" });
+}
+
+async function parseApiResponse<T>(response: Response): Promise<T> {
+  const raw = await response.text();
+  let json: ApiSuccess<T> | ApiError;
+  try {
+    json = raw
+      ? (JSON.parse(raw) as ApiSuccess<T> | ApiError)
+      : {
+          ok: false,
+          error: { code: "HTTP_ERROR", message: response.statusText || "Request failed" },
+        };
+  } catch {
+    throw new ApiRequestError(
+      "PARSE_ERROR",
+      response.ok ? "Invalid server response" : `Request failed (${response.status})`,
+    );
+  }
+
+  if (!response.ok || !json.ok) {
+    const error = json.ok ? { code: "HTTP_ERROR", message: response.statusText } : json.error;
+    throw new ApiRequestError(
+      error.code,
+      error.message,
+      "details" in error ? error.details : undefined,
+    );
+  }
+
+  return json.data;
+}
+
+/** Multipart upload — uses same-origin `/backend` proxy and session cookies in production. */
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  async function executeUpload(): Promise<Response> {
+    return fetch(buildApiRequestUrl(path), {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+      headers,
+    });
+  }
+
+  let response: Response;
+  try {
+    response = await executeUpload();
+  } catch {
+    throw new ApiRequestError(
+      "NETWORK_ERROR",
+      "Unable to reach the server. Check your connection and API URL.",
+    );
+  }
+
+  if (response.status === 401 && path !== "/api/auth/login" && path !== "/api/auth/refresh") {
+    const refreshed = await tryRefreshSession();
+    if (refreshed) {
+      try {
+        response = await executeUpload();
+      } catch {
+        throw new ApiRequestError(
+          "NETWORK_ERROR",
+          "Unable to reach the server. Check your connection and API URL.",
+        );
+      }
+    }
+  }
+
+  return parseApiResponse<T>(response);
 }

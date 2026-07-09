@@ -1,3 +1,4 @@
+import { CallLogModal } from "@/components/CallLogModal";
 import { LeadContactActions } from "@/components/LeadContactActions";
 import {
   type UpdateLeadStatusPayload,
@@ -236,6 +237,9 @@ export function TodayScreen({ route, navigation }: Props) {
   const teamMembers = useTeamMembers();
   const canReassign = sessionUser?.role === "admin" || sessionUser?.role === "manager";
 
+  const [statusSheetOpen, setStatusSheetOpen] = useState(false);
+  const [statusSheetAfterCall, setStatusSheetAfterCall] = useState(false);
+  const [postCallLeadId, setPostCallLeadId] = useState<string | null>(null);
   const [savedToast, setSavedToast] = useState<string | null>(null);
 
   const dialerLog = useAutoDialerCallLog({
@@ -249,12 +253,12 @@ export function TodayScreen({ route, navigation }: Props) {
     },
   });
 
-  const postCallLeadId = dialerLog.pendingLog?.leadId ?? "";
-  const updateFollowUp = useUpdateLeadFollowUp(postCallLeadId);
-  const addNote = useAddLeadNote(postCallLeadId);
+  const activePostCallLeadId = postCallLeadId ?? dialerLog.pendingLog?.leadId ?? "";
+  const updateFollowUp = useUpdateLeadFollowUp(activePostCallLeadId);
+  const addNote = useAddLeadNote(activePostCallLeadId);
 
-  const statusLead = dialerLog.pendingLog
-    ? (queueItems.find((item) => item.id === dialerLog.pendingLog?.leadId) ?? null)
+  const statusLead = activePostCallLeadId
+    ? (queueItems.find((item) => item.id === activePostCallLeadId) ?? null)
     : null;
 
   const { planned, overdue } = useMemo(() => {
@@ -305,7 +309,7 @@ export function TodayScreen({ route, navigation }: Props) {
     if (!lead) return;
 
     const noteText = payload.notes?.trim();
-    const afterCall = dialerLog.isPendingLog;
+    const afterCall = statusSheetAfterCall;
 
     try {
       const patch = buildLeadStatusPatch(payload, lead, { canReassign });
@@ -321,6 +325,9 @@ export function TodayScreen({ route, navigation }: Props) {
       }
 
       if (isNaLeadStatus(payload.leadStatus)) {
+        setStatusSheetOpen(false);
+        setStatusSheetAfterCall(false);
+        setPostCallLeadId(null);
         dialerLog.dismissPending();
         setSavedToast("Marked not interested");
         setTimeout(() => setSavedToast(null), 1200);
@@ -333,6 +340,9 @@ export function TodayScreen({ route, navigation }: Props) {
       }
 
       await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
+      setStatusSheetOpen(false);
+      setStatusSheetAfterCall(false);
+      setPostCallLeadId(null);
       dialerLog.dismissPending();
       setSavedToast(afterCall ? "Call logged · status updated" : "Lead status updated");
       setTimeout(() => setSavedToast(null), 2500);
@@ -497,14 +507,41 @@ export function TodayScreen({ route, navigation }: Props) {
         onCompleted={() => void todayVisits.refetch()}
       />
 
-      <UpdateLeadStatusSheet
+      <CallLogModal
         visible={dialerLog.isPendingLog}
+        reviewOnly
+        phoneNumber={dialerLog.pendingLog?.phoneNumber}
+        defaultDurationSeconds={dialerLog.pendingLog?.durationSeconds ?? 60}
+        isSubmitting={logCall.isPending}
+        onClose={dialerLog.dismissPending}
+        onSubmit={(payload) => {
+          void (async () => {
+            const leadId = dialerLog.pendingLog?.leadId ?? null;
+            try {
+              await dialerLog.confirmLog(payload.outcome, payload.notes, payload.ringSeconds);
+              setPostCallLeadId(leadId);
+              setStatusSheetAfterCall(true);
+              setStatusSheetOpen(true);
+            } catch {
+              // onLogError surfaces the failure
+            }
+          })();
+        }}
+      />
+
+      <UpdateLeadStatusSheet
+        visible={statusSheetOpen}
         currentStatus={statusLead?.leadStatus ?? null}
         currentAssigneeId={statusLead?.assignedUser?.id ?? null}
         defaultAssigneeId={statusLead?.assignedUser?.id ?? getCurrentUserId()}
         assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
         isSaving={updateLead.isPending || updateFollowUp.isPending || addNote.isPending}
-        onClose={dialerLog.dismissPending}
+        onClose={() => {
+          setStatusSheetOpen(false);
+          setStatusSheetAfterCall(false);
+          setPostCallLeadId(null);
+          dialerLog.dismissPending();
+        }}
         onSave={(payload) => void handleStatusSave(payload)}
       />
 

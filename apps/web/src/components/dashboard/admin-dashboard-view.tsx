@@ -2,6 +2,7 @@
 
 import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-state";
 import { EmptyState } from "@/components/common/empty-state";
+import { SectionErrorBoundary } from "@/components/common/section-error-boundary";
 import { DashboardFilterBar } from "@/components/dashboard/dashboard-filter-bar";
 import { DashboardSection } from "@/components/dashboard/dashboard-section";
 import {
@@ -123,7 +124,9 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
           >
             {sources.data?.leads_from_source ? (
               <Suspense fallback={<SourcesPanelSkeleton />}>
-                <LeadsSourceHero groups={sources.data.leads_from_source} />
+                <SectionErrorBoundary title="Couldn't load lead sources">
+                  <LeadsSourceHero groups={sources.data.leads_from_source} />
+                </SectionErrorBoundary>
               </Suspense>
             ) : null}
           </DashboardSection>
@@ -137,7 +140,11 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
             onRetry={() => void overview.refetch()}
             skeleton={<KpiStripSkeleton />}
           >
-            {overviewData?.lead_strip ? <OverviewKpiStrip strip={overviewData.lead_strip} /> : null}
+            {overviewData?.lead_strip ? (
+              <SectionErrorBoundary title="Couldn't load lead pipeline">
+                <OverviewKpiStrip strip={overviewData.lead_strip} />
+              </SectionErrorBoundary>
+            ) : null}
           </DashboardSection>
 
           <DashboardSection
@@ -150,7 +157,9 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
             skeleton={<KpiStripSkeleton />}
           >
             {overviewData?.status_breakdown ? (
-              <StatusKpiRow items={overviewData.status_breakdown} />
+              <SectionErrorBoundary title="Couldn't load status breakdown">
+                <StatusKpiRow items={overviewData.status_breakdown} />
+              </SectionErrorBoundary>
             ) : null}
           </DashboardSection>
 
@@ -164,12 +173,14 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
           >
             {leads.data?.leads_over_time ? (
               <Suspense fallback={<ChartCardSkeleton tall />}>
-                <LeadsReceivedChart
-                  rows={leads.data.leads_over_time}
-                  rangeLabel={reportParams.rangeLabel}
-                  dateFrom={reportParams.labelFrom}
-                  dateTo={reportParams.labelTo}
-                />
+                <SectionErrorBoundary title="Couldn't load leads chart">
+                  <LeadsReceivedChart
+                    rows={leads.data.leads_over_time}
+                    rangeLabel={reportParams.rangeLabel}
+                    dateFrom={reportParams.labelFrom}
+                    dateTo={reportParams.labelTo}
+                  />
+                </SectionErrorBoundary>
               </Suspense>
             ) : null}
           </DashboardSection>
@@ -193,13 +204,15 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
             >
               {calls.data?.calls_over_time && calls.data.activity_on_leads_over_time ? (
                 <Suspense fallback={<CallsSectionSkeleton />}>
-                  <CallsSection
-                    callsOverTime={calls.data.calls_over_time}
-                    activityOnLeads={calls.data.activity_on_leads_over_time}
-                    rangeLabel={reportParams.rangeLabel}
-                    dateFrom={reportParams.labelFrom}
-                    dateTo={reportParams.labelTo}
-                  />
+                  <SectionErrorBoundary title="Couldn't load calls chart">
+                    <CallsSection
+                      callsOverTime={calls.data.calls_over_time}
+                      activityOnLeads={calls.data.activity_on_leads_over_time}
+                      rangeLabel={reportParams.rangeLabel}
+                      dateFrom={reportParams.labelFrom}
+                      dateTo={reportParams.labelTo}
+                    />
+                  </SectionErrorBoundary>
                 </Suspense>
               ) : null}
             </DashboardSection>
@@ -254,10 +267,12 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
                     Stage mix and activity for {rangeLabelLower}.
                   </p>
                 </div>
-                <PipelineHealth
-                  leadsByStatus={overviewData.leads_by_status}
-                  activityLast7Days={overviewData.activity_last_7_days ?? []}
-                />
+                <SectionErrorBoundary title="Couldn't load pipeline health">
+                  <PipelineHealth
+                    leadsByStatus={overviewData.leads_by_status}
+                    activityLast7Days={overviewData.activity_last_7_days ?? []}
+                  />
+                </SectionErrorBoundary>
               </section>
 
               <section className="space-y-4">

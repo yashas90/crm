@@ -1,6 +1,7 @@
 "use client";
 
 import { apiGet } from "@/lib/apiClient";
+import { SILENT_QUERY_ERROR_META } from "@/lib/query-meta";
 import type { SlaBreachedList, SlaSummary } from "@/lib/sla";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
@@ -26,6 +27,7 @@ export function useSlaSummary(options?: { enabled?: boolean }) {
     queryFn: () => apiGet<SlaSummary>("/api/sla/summary"),
     enabled: options?.enabled !== false,
     staleTime: 60_000,
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
 

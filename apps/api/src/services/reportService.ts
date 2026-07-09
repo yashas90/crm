@@ -9,6 +9,7 @@ import {
 } from "@propninja/db";
 import { getIstDateKey } from "@propninja/types/ist";
 import { and, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import { answeredCallFilter, connectedTalkTimeFilter } from "../lib/callTalkTime.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
@@ -363,19 +364,22 @@ type CallsPerUserMetricsRow = {
 
 type CallsPerUserTotalsRow = Omit<CallsPerUserMetricsRow, "userId" | "userName">;
 
+const connectedTalk = connectedTalkTimeFilter();
+const answeredCall = answeredCallFilter();
+
 const callsPerUserMetricsSelect = {
   userId: users.id,
   userName: users.name,
-  incomingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'completed')::int`,
+  incomingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming' and ${answeredCall})::int`,
   incomingMissed: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'missed')::int`,
   incomingTotal: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming')::int`,
-  outgoingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} = 'completed')::int`,
+  outgoingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and ${answeredCall})::int`,
   outgoingNotConnected: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} != 'completed')::int`,
   outgoingTotal: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing')::int`,
-  totalTalkTimeSeconds: sql<number>`coalesce(sum(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed'), 0)::int`,
-  avgTalkTimeSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed' and ${callRecords.durationSeconds} > 0)), 0)::int`,
-  minTalkTimeSeconds: sql<number>`coalesce(min(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed' and ${callRecords.durationSeconds} > 0), 0)::int`,
-  maxTalkTimeSeconds: sql<number>`coalesce(max(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed'), 0)::int`,
+  totalTalkTimeSeconds: sql<number>`coalesce(sum(${callRecords.durationSeconds}) filter (where ${connectedTalk}), 0)::int`,
+  avgTalkTimeSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${connectedTalk})), 0)::int`,
+  minTalkTimeSeconds: sql<number>`coalesce(min(${callRecords.durationSeconds}) filter (where ${connectedTalk}), 0)::int`,
+  maxTalkTimeSeconds: sql<number>`coalesce(max(${callRecords.durationSeconds}) filter (where ${connectedTalk}), 0)::int`,
   totalCalls: sql<number>`count(${callRecords.id})::int`,
 };
 
@@ -1765,7 +1769,7 @@ export const reportService = {
         .select({
           totalCalls: sql<number>`count(*)::int`,
           answeredCalls: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
-          avgDurationSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${callRecords.status} = 'completed' and ${callRecords.durationSeconds} > 0)), 0)::int`,
+          avgDurationSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${connectedTalk})), 0)::int`,
         })
         .from(callRecords)
         .where(

@@ -35,6 +35,10 @@ import {
 import { useRouter } from "next/navigation";
 import { type ReactNode, memo, useCallback, useMemo, useState } from "react";
 
+const LEADS_TABLE_ROW_STRIPING =
+  "odd:bg-muted/25 even:bg-background dark:odd:bg-slate-800/50 dark:even:bg-slate-900/30";
+const LEADS_TABLE_ROW_HOVER = "hover:bg-[#204060]/5 hover:shadow-sm dark:hover:bg-slate-800/70";
+
 type LeadsTableProps = {
   leads: LeadRow[];
   onEdit: (lead: LeadRow) => void;
@@ -93,10 +97,7 @@ function LeadsTableBodySkeleton({
   return (
     <>
       {Array.from({ length: rows }, (_, rowIndex) => (
-        <TableRow
-          key={`lead-skeleton-${rowIndex}`}
-          className={rowIndex % 2 === 1 ? "bg-slate-50/60" : "bg-white"}
-        >
+        <TableRow key={`lead-skeleton-${rowIndex}`} className={LEADS_TABLE_ROW_STRIPING}>
           {Array.from({ length: colCount }, (__, cellIndex) => (
             <TableCell key={`lead-skeleton-${rowIndex}-${cellIndex}`}>
               <Skeleton className="h-5 w-full max-w-[12rem]" />
@@ -136,9 +137,9 @@ const LeadsTableRow = memo(function LeadsTableRow({
     <TableRow
       className={cn(
         "cursor-pointer border-b transition-all duration-150",
-        index % 2 === 1 ? "bg-slate-50/60" : "bg-white",
-        "hover:bg-[#204060]/5 hover:shadow-sm",
-        isSelected && "bg-[#204060]/10",
+        LEADS_TABLE_ROW_STRIPING,
+        LEADS_TABLE_ROW_HOVER,
+        isSelected && "bg-[#204060]/10 dark:bg-primary/20",
       )}
       onClick={() => onView(lead.id)}
     >
@@ -176,11 +177,15 @@ const LeadsTableRow = memo(function LeadsTableRow({
       ) : null}
 
       {columnsToShow.assignedTo ? (
-        <TableCell className="text-sm">{lead.assignedUser?.name ?? "Unassigned"}</TableCell>
+        <TableCell className="text-sm text-foreground">
+          {lead.assignedUser?.name ?? "Unassigned"}
+        </TableCell>
       ) : null}
 
       {columnsToShow.source ? (
-        <TableCell className="text-sm">{formatLeadSourceDisplay(lead.leadSource)}</TableCell>
+        <TableCell className="text-sm text-foreground">
+          {formatLeadSourceDisplay(lead.leadSource)}
+        </TableCell>
       ) : null}
 
       {columnsToShow.status ? (
@@ -212,7 +217,7 @@ const LeadsTableRow = memo(function LeadsTableRow({
       ) : null}
 
       {columnsToShow.project ? (
-        <TableCell className="text-sm">{lead.projectName ?? "—"}</TableCell>
+        <TableCell className="text-sm text-foreground">{lead.projectName ?? "—"}</TableCell>
       ) : null}
 
       {columnsToShow.actions ? (

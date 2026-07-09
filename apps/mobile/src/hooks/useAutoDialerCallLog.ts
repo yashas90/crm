@@ -14,6 +14,7 @@ type UseAutoDialerCallLogOptions = {
 };
 
 export type PostCallPrompt = {
+  /** Total elapsed seconds from dial tap to app return (raw measurement). */
   durationSeconds: number;
   phoneNumber: string;
   leadId: string;
@@ -29,9 +30,9 @@ function elapsedSeconds(info: CallReturnInfo): number {
 }
 
 /**
- * Tracks native dialer sessions. When the agent returns from the dialer the call is
- * logged to the API immediately so reports and call counts update even if the agent
- * skips the post-call status sheet.
+ * Tracks native dialer sessions. When the agent returns from the dialer a post-call
+ * prompt is shown so they can confirm outcome, ring time, and talk duration before
+ * the call is logged to the API.
  */
 export function useAutoDialerCallLog({
   logCall,
@@ -43,10 +44,16 @@ export function useAutoDialerCallLog({
   const loggingRef = useRef(false);
 
   const submitCallLog = useCallback(
-    async (pending: PostCallPrompt, notes?: string) => {
+    async (
+      pending: PostCallPrompt,
+      outcome: CallOutcome = "answered",
+      notes?: string,
+      ringSeconds?: number,
+    ) => {
       if (loggingRef.current) return;
       loggingRef.current = true;
       try {
+        const talkSeconds = Math.max(0, pending.durationSeconds - (ringSeconds ?? 0));
         const endedAt = new Date();
         const startedAt = new Date(pending.calledAt);
         await logCall({
@@ -54,14 +61,15 @@ export function useAutoDialerCallLog({
           phone_number: pending.phoneNumber,
           direction: "outgoing",
           status: "completed",
-          duration_seconds: pending.durationSeconds,
+          duration_seconds: talkSeconds,
           started_at: startedAt.toISOString(),
           ended_at: endedAt.toISOString(),
-          outcome: "answered",
+          outcome,
           notes,
+          ring_seconds: ringSeconds,
           source: "mobile-auto",
         });
-        onLogged?.("answered");
+        onLogged?.(outcome);
       } catch (error) {
         onLogError?.(error);
         throw error;
@@ -72,31 +80,19 @@ export function useAutoDialerCallLog({
     [logCall, onLogged, onLogError],
   );
 
-  const handleReturn = useCallback(
-    (info: CallReturnInfo) => {
-      const context = sessionRef.current;
-      if (!context) return;
+  const handleReturn = useCallback((info: CallReturnInfo) => {
+    const context = sessionRef.current;
+    if (!context) return;
 
-      const pending: PostCallPrompt = {
-        durationSeconds: elapsedSeconds(info),
-        phoneNumber: context.phoneNumber,
-        leadId: context.leadId,
-        calledAt: info.calledAt,
-      };
-      sessionRef.current = null;
-
-      void (async () => {
-        try {
-          await submitCallLog(pending);
-          setPostCallPrompt(pending);
-        } catch {
-          // Error surfaced via onLogError; still offer status sheet so agent can retry notes.
-          setPostCallPrompt(pending);
-        }
-      })();
-    },
-    [submitCallLog],
-  );
+    const pending: PostCallPrompt = {
+      durationSeconds: elapsedSeconds(info),
+      phoneNumber: context.phoneNumber,
+      leadId: context.leadId,
+      calledAt: info.calledAt,
+    };
+    sessionRef.current = null;
+    setPostCallPrompt(pending);
+  }, []);
 
   const { beginCall: trackCall, clearCallSession } = useCallDurationTracking({
     onReturn: handleReturn,
@@ -121,15 +117,18 @@ export function useAutoDialerCallLog({
     postCallPrompt,
     isPostCallPrompt: postCallPrompt !== null,
     dismissPostCall,
+    submitCallLog,
     isLogging: loggingRef.current,
     // Legacy aliases used by screens/tests
     pendingLog: postCallPrompt,
     isPendingLog: postCallPrompt !== null,
     dismissPending: dismissPostCall,
-    confirmLog: async (_outcome: CallOutcome, notes?: string) => {
+    confirmLog: async (outcome: CallOutcome, notes?: string, ringSeconds?: number) => {
       const pending = postCallPrompt;
       if (!pending) return;
-      await submitCallLog(pending, notes);
+      await submitCallLog(pending, outcome, notes, ringSeconds);
+      setPostCallPrompt(null);
+      clearCallSession();
     },
     review: postCallPrompt
       ? { durationSeconds: postCallPrompt.durationSeconds, phoneNumber: postCallPrompt.phoneNumber }

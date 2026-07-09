@@ -1,26 +1,8 @@
 "use client";
 
-import { apiDelete, apiGet, apiPost } from "@/lib/apiClient";
+import { apiDelete, apiGet, apiPost, apiUpload } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-let cachedApiUrl: string | undefined;
-
-function resolveApiUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL;
-  if (process.env.NODE_ENV === "production") {
-    if (!configured || configured.includes("localhost")) {
-      throw new Error("NEXT_PUBLIC_API_URL must be set in production.");
-    }
-    return configured.replace(/\/$/, "");
-  }
-  return configured?.replace(/\/$/, "") ?? "http://localhost:3001";
-}
-
-function getApiUrl(): string {
-  if (!cachedApiUrl) cachedApiUrl = resolveApiUrl();
-  return cachedApiUrl;
-}
 
 export type DocumentFileType = "pdf" | "image" | "other";
 export type SharedVia = "whatsapp" | "email" | "link";
@@ -86,17 +68,7 @@ export function leadDocumentsQueryKey(leadId: string) {
 }
 
 export async function apiUploadDocument(formData: FormData): Promise<Document> {
-  const response = await fetch(`${getApiUrl()}/api/documents/upload`, {
-    method: "POST",
-    credentials: "include",
-    body: formData,
-  });
-
-  const json = await response.json();
-  if (!response.ok || !json.ok) {
-    throw new Error(json.error?.message ?? "Upload failed");
-  }
-  return json.data as Document;
+  return apiUpload<Document>("/api/documents/upload", formData);
 }
 
 export function useDocuments(params: ListDocumentsParams = {}) {
@@ -106,6 +78,7 @@ export function useDocuments(params: ListDocumentsParams = {}) {
       apiGet<{ items: Document[]; total: number; page: number; pageSize: number }>(
         `/api/documents${buildQuery(params)}`,
       ),
+    meta: { errorContext: "documents", suppressErrorToast: true },
   });
 }
 
@@ -177,4 +150,4 @@ export function formatFileSize(mb: number): string {
   return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
 }
 
-export { getApiUrl, buildQuery };
+export { buildQuery };

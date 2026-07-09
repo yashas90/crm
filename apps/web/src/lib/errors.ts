@@ -36,6 +36,9 @@ export function getErrorMessage(error: unknown, fallback = "Something went wrong
       return "You do not have permission to perform this action.";
     }
     if (error.code === "NOT_FOUND") {
+      if (error.message === "Route not found") {
+        return "API endpoint not found. Try signing out and back in, or contact support if this continues.";
+      }
       return error.message || "The requested item was not found.";
     }
     if (error.code === "RATE_LIMITED" || error.code === "IP_BLOCKED") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from "@/lib/apiClient";
 import type {
   ProjectBlocksInfo,
   ProjectGalleryInfo,
@@ -300,14 +300,6 @@ export function useToggleProjectAvailability() {
   });
 }
 
-function getApiUrlForUpload(): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL;
-  if (process.env.NODE_ENV === "production") {
-    return (configured ?? "").replace(/\/$/, "");
-  }
-  return configured?.replace(/\/$/, "") ?? "http://localhost:3001";
-}
-
 export function useUploadProjectGalleryImage(projectId: string) {
   const queryClient = useQueryClient();
 
@@ -315,22 +307,10 @@ export function useUploadProjectGalleryImage(projectId: string) {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch(
-        `${getApiUrlForUpload()}/api/projects/${projectId}/gallery/upload`,
-        {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        },
-      );
-      const json = await response.json();
-      if (!response.ok || !json.ok) {
-        throw new Error(json.error?.message ?? "Upload failed");
-      }
-      return json.data as {
+      return apiUpload<{
         item: ProjectGalleryInfo["items"][number];
         gallery: ProjectGalleryInfo;
-      };
+      }>(`/api/projects/${projectId}/gallery/upload`, formData);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["projects", "detail", projectId] });

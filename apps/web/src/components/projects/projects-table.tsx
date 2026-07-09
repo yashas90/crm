@@ -27,6 +27,9 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, memo, useCallback, useMemo, useState } from "react";
 
 const HEADER_CELL = "bg-slate-900 font-semibold text-slate-50";
+const PROJECTS_TABLE_ROW_STRIPING =
+  "odd:bg-muted/25 even:bg-background dark:odd:bg-slate-800/50 dark:even:bg-slate-900/30";
+const PROJECTS_TABLE_ROW_HOVER = "hover:bg-[#204060]/5 hover:shadow-sm dark:hover:bg-slate-800/70";
 
 type ProjectsTableProps = {
   projects: ProjectRow[];
@@ -85,7 +88,7 @@ function ProjectsTableSkeleton({
   return (
     <>
       {Array.from({ length: rows }, (_, rowIndex) => (
-        <TableRow key={`project-skeleton-${rowIndex}`}>
+        <TableRow key={`project-skeleton-${rowIndex}`} className={PROJECTS_TABLE_ROW_STRIPING}>
           {Array.from({ length: colCount }, (__, cellIndex) => (
             <TableCell key={`project-skeleton-${rowIndex}-${cellIndex}`}>
               <Skeleton className="h-5 w-full max-w-[10rem]" />
@@ -133,9 +136,9 @@ const ProjectTableRow = memo(function ProjectTableRow({
     <TableRow
       className={cn(
         "cursor-pointer border-b transition-all duration-150",
-        index % 2 === 1 ? "bg-slate-50/60" : "bg-white",
-        "hover:bg-[#204060]/5 hover:shadow-sm",
-        isSelected && "bg-[#204060]/10",
+        PROJECTS_TABLE_ROW_STRIPING,
+        PROJECTS_TABLE_ROW_HOVER,
+        isSelected && "bg-[#204060]/10 dark:bg-primary/20",
       )}
     >
       <TableCell>

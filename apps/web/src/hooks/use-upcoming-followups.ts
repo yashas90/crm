@@ -1,6 +1,7 @@
 "use client";
 
 import { apiGet } from "@/lib/apiClient";
+import { SILENT_QUERY_ERROR_META } from "@/lib/query-meta";
 import { useQuery } from "@tanstack/react-query";
 
 export type FollowupReminderType = "callback" | "meeting" | "site_visit";
@@ -18,5 +19,6 @@ export function useUpcomingFollowups(days = 14, options?: { enabled?: boolean })
     queryKey: ["leads", "followups", "upcoming", days],
     queryFn: () => apiGet<UpcomingFollowup[]>(`/api/leads/followups/upcoming?days=${days}`),
     enabled: options?.enabled ?? true,
+    meta: SILENT_QUERY_ERROR_META,
   });
 }
