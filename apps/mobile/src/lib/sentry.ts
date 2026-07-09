@@ -1,42 +1,7 @@
-import * as Sentry from "@sentry/react-native";
-import Constants from "expo-constants";
+/** Mobile Sentry is disabled until EXPO_PUBLIC_SENTRY_DSN_MOBILE and the Expo plugin are configured. */
 
-const dsn =
-  (Constants.expoConfig?.extra?.sentryDsn as string | undefined) ??
-  process.env.EXPO_PUBLIC_SENTRY_DSN_MOBILE;
+export function initSentry() {}
 
-let initialized = false;
+export function captureException(_error: unknown, _context?: Record<string, string>) {}
 
-export function initSentry() {
-  if (initialized || !dsn) return;
-  Sentry.init({
-    dsn,
-    tracesSampleRate: 0.2,
-    enabled: Boolean(dsn),
-  });
-  initialized = true;
-}
-
-export function captureException(error: unknown, context?: Record<string, string>) {
-  if (!initialized) return;
-  Sentry.withScope((scope) => {
-    if (context) {
-      for (const [key, value] of Object.entries(context)) {
-        scope.setTag(key, value);
-      }
-    }
-    Sentry.captureException(error);
-  });
-}
-
-export function setSentryUser(user: { id: string; role: string } | null) {
-  if (!initialized) return;
-  if (user) {
-    Sentry.setUser({ id: user.id });
-    Sentry.setTag("role", user.role);
-  } else {
-    Sentry.setUser(null);
-  }
-}
-
-export { Sentry };
+export function setSentryUser(_user: { id: string; role: string } | null) {}

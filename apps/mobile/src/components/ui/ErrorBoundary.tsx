@@ -1,4 +1,3 @@
-import { captureException } from "@/lib/sentry";
 import { colors, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
@@ -22,7 +21,12 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error) {
-    captureException(error, this.props.screenName ? { screen: this.props.screenName } : undefined);
+    if (__DEV__) {
+      console.error(
+        this.props.screenName ? `[${this.props.screenName}]` : "[ErrorBoundary]",
+        error,
+      );
+    }
   }
 
   private handleRetry = () => {
