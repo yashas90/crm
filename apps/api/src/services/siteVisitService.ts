@@ -3,7 +3,7 @@ import { getIstDateKey } from "@propninja/types/ist";
 import { and, asc, count, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
-import { boundPageSize } from "../lib/pagination.js";
+import { boundPageSize, LIST_PAGE_SIZE_MAX } from "../lib/pagination.js";
 import { generateSiteVisitPublicToken } from "../lib/siteVisitPublicToken.js";
 import {
   type SiteVisitReminderTier,
@@ -22,6 +22,15 @@ import {
 
 export type { SiteVisitStatus };
 export { SiteVisitProjectRequiredError } from "../lib/siteVisitTime.js";
+
+/** Normalize postgres `date` / ISO strings to YYYY-MM-DD for API responses. */
+function normalizeVisitDate(value: string | Date): string {
+  if (typeof value === "string") {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match?.[1] ?? value.slice(0, 10);
+  }
+  return value.toISOString().slice(0, 10);
+}
 
 export interface CreateSiteVisitInput {
   leadId: string;
@@ -162,7 +171,7 @@ function mapVisitRow(row: {
     unitId: row.unitId,
     tower: row.tower,
     agentId: row.agentId,
-    visitDate: row.visitDate,
+    visitDate: normalizeVisitDate(row.visitDate),
     visitTime: row.visitTime,
     duration: row.duration,
     status: row.status as SiteVisitStatus,
@@ -302,7 +311,8 @@ export const siteVisitService = {
       agentId: params.agentId,
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
-      pageSize: 500,
+      page: 1,
+      pageSize: LIST_PAGE_SIZE_MAX,
     });
 
     const grouped: Record<string, ReturnType<typeof mapVisitRow>[]> = {};

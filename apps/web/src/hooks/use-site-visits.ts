@@ -105,6 +105,7 @@ export function useSiteVisitsCalendar(dateFrom: string, dateTo: string, agentId?
       ),
     enabled: Boolean(dateFrom && dateTo),
     staleTime: 30_000,
+    meta: { errorContext: "site visits", suppressErrorToast: true },
   });
 }
 
@@ -138,6 +139,7 @@ export function useSiteVisitSummary(agentId?: string) {
     queryKey: ["site-visits", "summary", agentId ?? "all"],
     queryFn: () => apiGet<SiteVisitDashboardSummary>(`/api/site-visits/summary${qs}`),
     staleTime: 30_000,
+    meta: { errorContext: "site visit summary", suppressErrorToast: true },
   });
 }
 

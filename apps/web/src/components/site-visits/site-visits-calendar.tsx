@@ -12,16 +12,19 @@ import {
   visitStatusColor,
 } from "@/hooks/use-site-visits";
 import { toast } from "@/lib/toast";
+import { parseVisitStartIst } from "@propninja/types/ist";
 import { Button } from "@propninja/ui/button";
 import { cn } from "@propninja/ui/lib/utils";
 import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from "date-fns";
+import { enIN } from "date-fns/locale/en-IN";
+import { AlertCircle } from "lucide-react";
 import { type ComponentType, useMemo, useState } from "react";
 import { Calendar, type CalendarProps, type View, dateFnsLocalizer } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
-const locales = { "en-IN": undefined };
+const locales = { "en-IN": enIN };
 const localizer = dateFnsLocalizer({
   format,
   startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
@@ -47,14 +50,13 @@ const DragDropCalendar = withDragAndDrop(Calendar) as ComponentType<
 >;
 
 function visitToEvent(visit: SiteVisit): CalendarEvent {
-  const [h, m, s] = visit.visitTime.split(":").map(Number);
-  const start = new Date(`${visit.visitDate}T00:00:00`);
-  start.setHours(h ?? 0, m ?? 0, s ?? 0, 0);
+  const dateKey = visit.visitDate.slice(0, 10);
+  const start = parseVisitStartIst(dateKey, visit.visitTime);
   const end = new Date(start.getTime() + visit.duration * 60_000);
   const leadName = visit.lead ? `${visit.lead.firstName} ${visit.lead.lastName}` : "Visit";
   return {
     id: visit.id,
-    title: leadName,
+    title: leadName.trim() || "Visit",
     start,
     end,
     resource: visit,
@@ -82,8 +84,6 @@ export function SiteVisitsCalendar({ agentId, initialDate }: SiteVisitsCalendarP
   const [statusTab, setStatusTab] = useState<StatusTab>("all");
   const [selectedVisit, setSelectedVisit] = useState<SiteVisit | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const updateVisit = useUpdateSiteVisit();
-  const summaryQuery = useSiteVisitSummary(agentId);
 
   const rangeStart =
     view === "month"
@@ -94,22 +94,26 @@ export function SiteVisitsCalendar({ agentId, initialDate }: SiteVisitsCalendarP
       ? format(endOfMonth(currentDate), "yyyy-MM-dd")
       : format(endOfWeek(currentDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
 
-  const { data, isLoading } = useSiteVisitsCalendar(rangeStart, rangeEnd, agentId);
+  const calendarQuery = useSiteVisitsCalendar(rangeStart, rangeEnd, agentId);
+  const summaryQuery = useSiteVisitSummary(agentId);
+  const updateVisit = useUpdateSiteVisit();
 
   const events = useMemo(() => {
-    const visits = Object.values(data?.dates ?? {}).flat();
+    const visits = Object.values(calendarQuery.data?.dates ?? {}).flat();
     const todayKey = format(new Date(), "yyyy-MM-dd");
     return visits
       .filter((visit) => {
         if (statusTab === "all") return true;
-        if (statusTab === "today") return visit.visitDate === todayKey;
+        if (statusTab === "today") return visit.visitDate.slice(0, 10) === todayKey;
         if (statusTab === "upcoming")
-          return visit.status === "scheduled" && visit.visitDate >= todayKey;
+          return visit.status === "scheduled" && visit.visitDate.slice(0, 10) >= todayKey;
         if (statusTab === "missed") return visit.status === "no_show";
         return visit.status === statusTab;
       })
       .map(visitToEvent);
-  }, [data?.dates, statusTab]);
+  }, [calendarQuery.data?.dates, statusTab]);
+
+  const showCalendarError = calendarQuery.isError && !calendarQuery.isLoading;
 
   async function handleRescheduleDrop(event: CalendarEvent, start: Date, end: Date) {
     if (event.resource.status !== "scheduled") {
@@ -208,11 +212,27 @@ export function SiteVisitsCalendar({ agentId, initialDate }: SiteVisitsCalendarP
       </div>
 
       <div className="min-h-[640px] rounded-xl border border-slate-200/80 bg-card p-3 dark:border-white/10 [&_.rbc-event]:text-white [&_.rbc-event]:text-xs">
-        {isLoading ? (
+        {calendarQuery.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading calendar…</p>
+        ) : showCalendarError ? (
+          <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+            <AlertCircle className="h-8 w-8 text-destructive" aria-hidden />
+            <p className="text-sm text-muted-foreground">
+              Could not load site visits for this period.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void calendarQuery.refetch()}
+            >
+              Retry
+            </Button>
+          </div>
         ) : (
           <DragDropCalendar
             localizer={localizer}
+            culture="en-IN"
             events={events}
             view={view}
             onView={setView}
