@@ -83,11 +83,6 @@ export function resolveLeadQueue(
     };
   }
 
-  if (cachedIds.length > 1) {
-    const leadIndex = cachedIds.indexOf(params.leadId);
-    return { leadIds: cachedIds, leadIndex: leadIndex >= 0 ? leadIndex : 0 };
-  }
-
   if (paramResolved.leadIds.length === 1) {
     return { leadIds: paramResolved.leadIds, leadIndex: paramResolved.leadIndex };
   }

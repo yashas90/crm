@@ -39,7 +39,8 @@ export async function loadAuth() {
   if (!cachedToken && !cachedRefreshToken) return;
 
   if (cachedToken && !isTokenExpired(cachedToken)) {
-    await runWithSessionLogoutSuppressed(() => refreshCurrentUser());
+    // Don't block startup on the network call — refresh user profile in background
+    void runWithSessionLogoutSuppressed(() => refreshCurrentUser());
     return;
   }
 
@@ -47,7 +48,7 @@ export async function loadAuth() {
     try {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
-        await runWithSessionLogoutSuppressed(() => refreshCurrentUser());
+        void runWithSessionLogoutSuppressed(() => refreshCurrentUser());
         return;
       }
     } catch {
