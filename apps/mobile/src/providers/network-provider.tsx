@@ -27,7 +27,7 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      const online = Boolean(state.isConnected && state.isInternetReachable !== false);
+      const online = state.isConnected !== false;
       setIsOnline(online);
       setNetworkOnline(online);
 
@@ -49,7 +49,7 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
     });
 
     void NetInfo.fetch().then((state) => {
-      const online = Boolean(state.isConnected && state.isInternetReachable !== false);
+      const online = state.isConnected !== false;
       setIsOnline(online);
       setNetworkOnline(online);
     });

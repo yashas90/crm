@@ -12,14 +12,14 @@ export function setupQueryOnlineManager() {
 
   onlineManager.setEventListener((setOnline) => {
     return NetInfo.addEventListener((state) => {
-      const online = Boolean(state.isConnected && state.isInternetReachable !== false);
+      const online = state.isConnected !== false;
       setNetworkOnline(online);
       setOnline(online);
     });
   });
 
   void NetInfo.fetch().then((state) => {
-    const online = Boolean(state.isConnected && state.isInternetReachable !== false);
+    const online = state.isConnected !== false;
     setNetworkOnline(online);
     onlineManager.setOnline(online);
   });
