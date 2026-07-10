@@ -69,7 +69,7 @@ export function collectLeadIdsFromCache(
 
 export function resolveLeadQueue(
   params: LeadBrowserParams,
-  cachedIds: string[],
+  _cachedIds: string[],
 ): { leadIds: string[]; leadIndex: number } {
   const paramResolved = resolveLeadBrowser(params);
 
