@@ -19,6 +19,7 @@ export function LeadsStack() {
       <Stack.Screen
         name="LeadDetailScreen"
         component={LeadDetailScreen}
+        getId={({ params }) => params.leadId}
         options={{ title: "Lead detail" }}
       />
     </Stack.Navigator>

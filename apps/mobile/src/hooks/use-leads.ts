@@ -326,6 +326,8 @@ export function useUpdateLeadFollowUp(leadId: string) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
       await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks", "lead", leadId] });
     },
   });
 }

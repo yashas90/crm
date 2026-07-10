@@ -122,6 +122,7 @@ export function useLogCall() {
       }
       if (variables.lead_id) {
         tasks.push(queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] }));
+        tasks.push(queryClient.invalidateQueries({ queryKey: ["tasks"] }));
       }
       await Promise.all(tasks);
     },

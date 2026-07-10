@@ -34,7 +34,15 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: "#64748b",
 };
 
-function TaskRow({ task, onComplete }: { task: Task; onComplete: (id: string) => void }) {
+function TaskRow({
+  task,
+  onComplete,
+  isCompleting,
+}: {
+  task: Task;
+  onComplete: (id: string) => void;
+  isCompleting: boolean;
+}) {
   const isDone = task.status === "completed" || task.status === "cancelled";
   const isOverdue = !isDone && task.dueAt && new Date(task.dueAt) < new Date();
   const priorityColor = PRIORITY_COLORS[task.priority] ?? colors.textMuted;
@@ -42,11 +50,16 @@ function TaskRow({ task, onComplete }: { task: Task; onComplete: (id: string) =>
   return (
     <View style={[styles.taskRow, isDone && styles.taskRowDone]}>
       <Pressable
-        style={[styles.checkbox, isDone && styles.checkboxDone]}
-        onPress={() => !isDone && onComplete(task.id)}
+        style={[styles.checkbox, isDone && styles.checkboxDone, isCompleting && { opacity: 0.5 }]}
+        onPress={() => !isDone && !isCompleting && onComplete(task.id)}
+        disabled={isDone || isCompleting}
         hitSlop={8}
       >
-        {isDone ? <Ionicons name="checkmark" size={14} color={colors.success} /> : null}
+        {isCompleting ? (
+          <ActivityIndicator color={colors.primary} size="small" />
+        ) : isDone ? (
+          <Ionicons name="checkmark" size={14} color={colors.success} />
+        ) : null}
       </Pressable>
 
       <View style={styles.taskBody}>
@@ -147,13 +160,16 @@ export function TasksSection({ leadId }: { leadId: string }) {
   const { data, isLoading } = useLeadTasks(leadId);
   const completeTask = useCompleteTask();
   const [showCreate, setShowCreate] = useState(false);
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
 
   const tasks = data?.items ?? [];
   const active = tasks.filter((t) => t.status === "pending" || t.status === "in_progress");
   const done = tasks.filter((t) => t.status === "completed" || t.status === "cancelled");
 
   function handleComplete(taskId: string) {
+    setCompletingTaskId(taskId);
     completeTask.mutate(taskId, {
+      onSettled: () => setCompletingTaskId(null),
       onError: (err) => {
         Alert.alert("Error", err instanceof Error ? err.message : "Failed to complete task.");
       },
@@ -180,14 +196,26 @@ export function TasksSection({ leadId }: { leadId: string }) {
       ) : active.length === 0 && !showCreate ? (
         <Text style={styles.empty}>No open tasks. Add one to stay on track.</Text>
       ) : (
-        active.map((task) => <TaskRow key={task.id} task={task} onComplete={handleComplete} />)
+        active.map((task) => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            onComplete={handleComplete}
+            isCompleting={completingTaskId === task.id}
+          />
+        ))
       )}
 
       {done.length > 0 ? (
         <View style={styles.doneSection}>
           <Text style={styles.doneSectionLabel}>{done.length} completed</Text>
           {done.map((task) => (
-            <TaskRow key={task.id} task={task} onComplete={handleComplete} />
+            <TaskRow
+              key={task.id}
+              task={task}
+              onComplete={handleComplete}
+              isCompleting={completingTaskId === task.id}
+            />
           ))}
         </View>
       ) : null}

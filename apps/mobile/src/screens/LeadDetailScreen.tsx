@@ -31,6 +31,7 @@ import {
   visitStatusColor,
   visitStatusLabel,
 } from "@/hooks/use-site-visits";
+import { useLeadTasks } from "@/hooks/use-tasks";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -104,6 +105,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const updateLead = useUpdateLead();
   const updateFollowUp = useUpdateLeadFollowUp(leadId);
   const { data: visitsData, refetch: refetchVisits } = useLeadSiteVisits(leadId);
+  const { refetch: refetchTasks } = useLeadTasks(leadId);
   const addNote = useAddLeadNote(leadId);
   const [statusSheetOpen, setStatusSheetOpen] = useState(false);
   const [statusSheetAfterCall, setStatusSheetAfterCall] = useState(false);
@@ -113,7 +115,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const [savedToast, setSavedToast] = useState<string | null>(null);
   const [editVisible, setEditVisible] = useState(false);
   const [whatsappSheetVisible, setWhatsappSheetVisible] = useState(false);
-  const [tab, setTab] = useState<"calls" | "notes" | "tasks" | "visits" | "documents">("calls");
+  const [tab, setTab] = useState<"calls" | "notes" | "tasks" | "visits" | "documents">(
+    route.params.initialTab ?? "calls",
+  );
   const [noteText, setNoteText] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
   const { data: linkedUnit } = useLeadLinkedUnit(leadId);
@@ -122,6 +126,13 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const canReassign = sessionUser?.role === "admin" || sessionUser?.role === "manager";
   const teamMembers = useTeamMembers({ enabled: canReassign });
+
+  useEffect(() => {
+    setTab(route.params.initialTab ?? "calls");
+    setFollowUpAt(null);
+    setStatusSheetOpen(false);
+    setStatusSheetAfterCall(false);
+  }, [leadId, route.params.initialTab]);
 
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
@@ -202,7 +213,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   useRefreshOnFocus(() => {
     if (isExitingLead) return Promise.resolve();
-    return Promise.all([refetch(), refetchCalls(), refetchTcf()]);
+    return Promise.all([refetch(), refetchCalls(), refetchTcf(), refetchTasks()]);
   });
 
   useEffect(() => {

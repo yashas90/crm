@@ -15,7 +15,12 @@ config.resolver.nodeModulesPaths = [
 ];
 
 // Monorepo TS packages use `.js` import specifiers; Metro should resolve them to `.ts` sources.
+const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.startsWith("@/")) {
+    const target = path.join(projectRoot, "src", moduleName.slice(2));
+    return metroResolve(context, target, platform);
+  }
   if (
     moduleName.startsWith(".") &&
     moduleName.endsWith(".js") &&
@@ -27,6 +32,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     } catch {
       // fall through
     }
+  }
+  if (defaultResolveRequest) {
+    return defaultResolveRequest(context, moduleName, platform);
   }
   return metroResolve(context, moduleName, platform);
 };

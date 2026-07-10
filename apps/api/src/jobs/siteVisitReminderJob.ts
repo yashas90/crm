@@ -7,8 +7,8 @@ import {
   markMissedSiteVisits,
   runSiteVisitAutomation,
 } from "../services/siteVisitAutomationService.js";
-import { sendClientSiteVisitWhatsAppDirect } from "../services/siteVisitWhatsAppService.js";
 import { siteVisitService } from "../services/siteVisitService.js";
+import { sendClientSiteVisitWhatsAppDirect } from "../services/siteVisitWhatsAppService.js";
 
 const INTERVAL_MS = 5 * 60 * 1000;
 

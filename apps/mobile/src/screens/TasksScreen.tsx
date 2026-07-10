@@ -1,5 +1,6 @@
 import { TaskDetailSheet, isTaskOverdue } from "@/components/TaskDetailSheet";
 import { type Task, useMyOpenTasks } from "@/hooks/use-tasks";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { LeadsStackParamList, MainTabParamList } from "@/navigation/types";
 import { colors, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT } from "@/theme/layout";
@@ -50,6 +51,8 @@ export function TasksScreen({ navigation }: Props) {
   const { data, isLoading, refetch, isRefetching } = useMyOpenTasks();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+  useRefreshOnFocus(refetch, { minIntervalMs: 0 });
+
   const tasks = data?.items ?? [];
 
   return (
@@ -87,9 +90,10 @@ export function TasksScreen({ navigation }: Props) {
         visible={Boolean(selectedTaskId)}
         onClose={() => setSelectedTaskId(null)}
         onViewLead={(leadId) => {
+          setSelectedTaskId(null);
           navigation.navigate("LeadsTab", {
             screen: "LeadDetailScreen",
-            params: { leadId },
+            params: { leadId, initialTab: "tasks" },
           });
         }}
       />

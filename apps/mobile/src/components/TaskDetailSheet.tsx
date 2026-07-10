@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   Alert,
+  InteractionManager,
   Modal,
   Pressable,
   ScrollView,
@@ -83,8 +84,11 @@ export function TaskDetailSheet({ taskId, visible, onClose, onViewLead }: TaskDe
                   <Pressable
                     style={styles.secondaryBtn}
                     onPress={() => {
+                      const leadId = task.lead!.id;
                       onClose();
-                      onViewLead(task.lead!.id);
+                      InteractionManager.runAfterInteractions(() => {
+                        onViewLead(leadId);
+                      });
                     }}
                   >
                     <Ionicons name="person-outline" size={18} color={colors.primary} />

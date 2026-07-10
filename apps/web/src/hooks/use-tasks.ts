@@ -145,8 +145,12 @@ export function useCompleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiPatch<Task>(`/api/tasks/${id}/complete`, {}),
-    onSuccess: () => {
+    onSuccess: (data, id) => {
       void qc.invalidateQueries({ queryKey: ["tasks"] });
+      void qc.invalidateQueries({ queryKey: ["task", id] });
+      if (data.leadId) {
+        void qc.invalidateQueries({ queryKey: ["tasks", { leadId: data.leadId }] });
+      }
       toast.success("Task marked complete");
     },
     onError: () => toast.error("Failed to complete task"),
@@ -157,8 +161,9 @@ export function useDeleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiDelete<{ deleted: boolean }>(`/api/tasks/${id}`),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       void qc.invalidateQueries({ queryKey: ["tasks"] });
+      void qc.invalidateQueries({ queryKey: ["task", id] });
       toast.success("Task deleted");
     },
     onError: () => toast.error("Failed to delete task"),

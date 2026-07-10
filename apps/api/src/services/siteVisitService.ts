@@ -450,7 +450,9 @@ export const siteVisitService = {
         outcome: input.outcome !== undefined ? input.outcome : existing.outcome,
         outcomeNote: input.outcomeNote !== undefined ? input.outcomeNote : existing.outcomeNote,
         confirmedByClient:
-          input.confirmedByClient !== undefined ? input.confirmedByClient : existing.confirmedByClient,
+          input.confirmedByClient !== undefined
+            ? input.confirmedByClient
+            : existing.confirmedByClient,
         confirmedByClientAt:
           input.confirmedByClientAt !== undefined
             ? input.confirmedByClientAt
