@@ -4,6 +4,7 @@ import {
   type CallSessionContext,
   useCallDurationTracking,
 } from "@/hooks/useCallDurationTracking";
+import { getOutgoingCallTalkSeconds } from "@/lib/callLogNative";
 import type { CallOutcome } from "@propninja/types/enums";
 import { useCallback, useRef, useState } from "react";
 
@@ -86,15 +87,27 @@ export function useAutoDialerCallLog({
   const handleReturn = useCallback((info: CallReturnInfo) => {
     const context = sessionRef.current;
     if (!context) return;
-
-    const pending: PostCallPrompt = {
-      durationSeconds: elapsedSeconds(info),
-      phoneNumber: context.phoneNumber,
-      leadId: context.leadId,
-      calledAt: info.calledAt,
-    };
     sessionRef.current = null;
-    setPostCallPrompt(pending);
+
+    const calledAt = info.calledAt;
+    const fallbackSeconds = elapsedSeconds(info);
+    const callStartMs = new Date(calledAt).getTime();
+
+    // Android writes the call to the system call log after the call ends.
+    // DURATION in CallLog.Calls is talk time only — ring time is excluded by the OS.
+    // We wait 2 s for the OS to flush the record, then try to read accurate talktime.
+    setTimeout(() => {
+      void getOutgoingCallTalkSeconds(context.phoneNumber, callStartMs - 5_000).then(
+        (nativeSecs) => {
+          setPostCallPrompt({
+            durationSeconds: nativeSecs != null ? nativeSecs : fallbackSeconds,
+            phoneNumber: context.phoneNumber,
+            leadId: context.leadId,
+            calledAt,
+          });
+        },
+      );
+    }, 2_000);
   }, []);
 
   const { beginCall: trackCall, clearCallSession } = useCallDurationTracking({

@@ -8,6 +8,7 @@ import {
   loadAuth,
   setAuth as persistAuth,
 } from "@/lib/auth";
+import { requestCallLogPermission } from "@/lib/callLogNative";
 import { isTokenExpired } from "@/lib/jwt";
 import { registerPushToken } from "@/lib/pushNotifications";
 import { queryClient } from "@/lib/queryClient";
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (status !== "authenticated") return;
     void registerPushToken();
+    void requestCallLogPermission();
   }, [status]);
 
   useEffect(() => {

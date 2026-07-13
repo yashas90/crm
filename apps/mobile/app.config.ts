@@ -60,6 +60,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "./plugins/withAndroidDialerQueries.js",
+    "./plugins/withCallLogModule.js",
   ],
   extra: {
     eas: {
