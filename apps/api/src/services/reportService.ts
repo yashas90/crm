@@ -374,7 +374,7 @@ const callsPerUserMetricsSelect = {
   incomingMissed: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'missed')::int`,
   incomingTotal: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming')::int`,
   outgoingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and ${answeredCall})::int`,
-  outgoingNotConnected: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and ${callRecords.status} != 'completed')::int`,
+  outgoingNotConnected: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and not (${answeredCall}))::int`,
   outgoingTotal: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing')::int`,
   totalTalkTimeSeconds: sql<number>`coalesce(sum(${callRecords.durationSeconds}) filter (where ${connectedTalk}), 0)::int`,
   avgTalkTimeSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${connectedTalk})), 0)::int`,
