@@ -109,6 +109,7 @@ export function useLeadTasks(leadId: string) {
     enabled: ready && Boolean(leadId),
     staleTime: 0,
     refetchInterval: LIVE_REFETCH_MS,
+    meta: { suppressErrorToast: true },
   });
 }
 

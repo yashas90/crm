@@ -79,6 +79,7 @@ export function useSiteVisits(params: SiteVisitsListParams = {}, enabled = true)
       ),
     enabled: ready && enabled,
     staleTime: 30_000,
+    meta: { suppressErrorToast: true },
   });
 }
 

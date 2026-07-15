@@ -1,10 +1,4 @@
-import {
-  ApiRequestError,
-  apiGet,
-  invalidateSession,
-  refreshAccessToken,
-  runWithSessionLogoutSuppressed,
-} from "@/lib/apiClient";
+import { ApiRequestError, apiGet, invalidateSession, refreshAccessToken } from "@/lib/apiClient";
 import { isTokenExpired } from "@/lib/jwt";
 import * as SecureStore from "expo-secure-store";
 
@@ -30,6 +24,18 @@ let cachedToken: string | null = null;
 let cachedRefreshToken: string | null = null;
 let cachedUser: SessionUser | null = null;
 
+/** Silently refresh the cached user profile. Never calls invalidateSession or clearAuth. */
+async function backgroundSyncUser(): Promise<void> {
+  if (!cachedToken) return;
+  try {
+    const user = await apiGet<SessionUser>("/api/auth/me", { skipSessionLogout: true });
+    cachedUser = user;
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+  } catch {
+    // Stale cached profile is fine — ignore all errors
+  }
+}
+
 export async function loadAuth() {
   cachedToken = await SecureStore.getItemAsync(TOKEN_KEY);
   cachedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
@@ -39,8 +45,9 @@ export async function loadAuth() {
   if (!cachedToken && !cachedRefreshToken) return;
 
   if (cachedToken && !isTokenExpired(cachedToken)) {
-    // Don't block startup on the network call — refresh user profile in background
-    void runWithSessionLogoutSuppressed(() => refreshCurrentUser());
+    // Don't block startup on the network call — update profile in background.
+    // Must never trigger logout — use skipSessionLogout and swallow all errors.
+    void backgroundSyncUser();
     return;
   }
 
@@ -48,7 +55,7 @@ export async function loadAuth() {
     try {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
-        void runWithSessionLogoutSuppressed(() => refreshCurrentUser());
+        void backgroundSyncUser();
         return;
       }
     } catch {
