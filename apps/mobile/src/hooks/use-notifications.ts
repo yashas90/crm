@@ -101,6 +101,7 @@ export function useNotifications() {
     queryFn: () => apiGet<NotificationsData>("/api/notifications"),
     enabled: ready,
     refetchInterval: LIVE_REFETCH_MS,
+    meta: { suppressErrorToast: true },
   });
 }
 

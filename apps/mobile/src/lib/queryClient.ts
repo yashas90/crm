@@ -6,6 +6,7 @@ import { Alert } from "react-native";
 
 function shouldSuppressGlobalQueryError(error: unknown): boolean {
   if (!(error instanceof ApiRequestError)) return false;
+  if (error.status === 401) return true; // auth system handles session expiry
   if (error.status === 403 || error.status === 404) return true;
   if (isRateLimitError(error)) return true;
   if (isTransientQueryError(error)) return true;

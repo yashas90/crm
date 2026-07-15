@@ -90,6 +90,7 @@ export function useTodaySiteVisits(agentId?: string) {
     queryFn: () => apiGet<{ items: SiteVisit[]; total: number }>(`/api/site-visits/today${qs}`),
     enabled: ready,
     ...live,
+    meta: { suppressErrorToast: true },
   });
 }
 
