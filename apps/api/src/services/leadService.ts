@@ -379,36 +379,66 @@ function buildListWhere(params: ListLeadsParams) {
   return and(...whereClauses);
 }
 
-async function countLeadsWhere(params: ListLeadsParams) {
-  const whereClause = buildListWhere(params);
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(leads)
-    .where(whereClause);
-  return count ?? 0;
+const EMPTY_STAGE_COUNTS = {
+  active: 0,
+  new: 0,
+  pending: 0,
+  scheduled: 0,
+  overdue: 0,
+  eoi: 0,
+};
+
+const EMPTY_SCOPE_COUNTS = {
+  all: 0,
+  my: 0,
+  teams: 0,
+  unassigned: 0,
+  deleted: 0,
+  duplicate: 0,
+  "re-enquired": 0,
+  naleads: 0,
+};
+
+function asCount(value: number | null | undefined): number {
+  return value ?? 0;
 }
 
-async function safeCountLeadsWhere(label: string, params: ListLeadsParams): Promise<number> {
-  try {
-    return await countLeadsWhere(params);
-  } catch (err) {
-    logger.error("Lead count query failed", {
-      label,
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return 0;
-  }
+/** Shared list filters without assignment / stage / duplicate-bucket flags. */
+function stripBucketOverrides(params: ListLeadsParams): ListLeadsParams {
+  return {
+    ...params,
+    assignedTo: undefined,
+    unassigned: undefined,
+    teamLeadsExcludingUser: undefined,
+    duplicatesOnly: undefined,
+    excludeDuplicates: undefined,
+    reEnquiredOnly: undefined,
+    naLeadsOnly: undefined,
+    status: undefined,
+    activeOnly: undefined,
+    followUpDueBefore: undefined,
+    followUpDueAfter: undefined,
+    deletedOnly: false,
+  };
+}
+
+function canonicalActiveLeadSql() {
+  return sql`(NOT (${leadHasValidPhoneKey()}) OR (${canonicalLeadOnlySql(false)}))`;
+}
+
+function duplicateActiveLeadSql() {
+  return sql`(${leadHasValidPhoneKey()} AND ${duplicatePhoneExistsSql(false)})`;
+}
+
+function activePipelineLeadSql() {
+  return sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
 }
 
 export const leadService = {
   async getStageCounts(baseParams: ListLeadsParams) {
-    const deduped = {
+    const sharedBase: ListLeadsParams = {
       ...baseParams,
       excludeDuplicates: baseParams.duplicatesOnly ? false : (baseParams.excludeDuplicates ?? true),
-    };
-
-    const sharedBase: ListLeadsParams = {
-      ...deduped,
       status: undefined,
       activeOnly: undefined,
       followUpDueBefore: undefined,
@@ -416,33 +446,44 @@ export const leadService = {
       deletedOnly: false,
     };
 
-    const nowIso = new Date().toISOString();
+    const whereClause = buildListWhere(sharedBase);
+    const now = new Date();
 
-    const [active, newCount, pending, scheduled, overdue, eoi] = await Promise.all([
-      safeCountLeadsWhere("stage:active", { ...sharedBase, activeOnly: true }),
-      safeCountLeadsWhere("stage:new", { ...sharedBase, status: "new" }),
-      safeCountLeadsWhere("stage:pending", { ...sharedBase, status: "contacted" }),
-      safeCountLeadsWhere("stage:scheduled", {
-        ...sharedBase,
-        activeOnly: true,
-        followUpDueAfter: nowIso,
-      }),
-      safeCountLeadsWhere("stage:overdue", {
-        ...sharedBase,
-        activeOnly: true,
-        followUpDueBefore: nowIso,
-      }),
-      safeCountLeadsWhere("stage:eoi", { ...sharedBase, status: "qualified" }),
-    ]);
+    try {
+      const [row] = await db
+        .select({
+          active: sql<number>`count(*) filter (where ${activePipelineLeadSql()})::int`,
+          new: sql<number>`count(*) filter (where ${leads.leadStatus} = 'new')::int`,
+          pending: sql<number>`count(*) filter (where ${leads.leadStatus} = 'contacted')::int`,
+          scheduled: sql<number>`count(*) filter (
+            where ${activePipelineLeadSql()}
+              and ${leads.nextFollowupAt} is not null
+              and ${leads.nextFollowupAt} > ${now}
+          )::int`,
+          overdue: sql<number>`count(*) filter (
+            where ${activePipelineLeadSql()}
+              and ${leads.nextFollowupAt} is not null
+              and ${leads.nextFollowupAt} <= ${now}
+          )::int`,
+          eoi: sql<number>`count(*) filter (where ${leads.leadStatus} = 'qualified')::int`,
+        })
+        .from(leads)
+        .where(whereClause);
 
-    return {
-      active,
-      new: newCount,
-      pending,
-      scheduled,
-      overdue,
-      eoi,
-    };
+      return {
+        active: asCount(row?.active),
+        new: asCount(row?.new),
+        pending: asCount(row?.pending),
+        scheduled: asCount(row?.scheduled),
+        overdue: asCount(row?.overdue),
+        eoi: asCount(row?.eoi),
+      };
+    } catch (err) {
+      logger.error("Lead stage count query failed", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return { ...EMPTY_STAGE_COUNTS };
+    }
   },
 
   async getTabCounts(
@@ -464,63 +505,61 @@ export const leadService = {
   ) {
     const isAgent = options?.isAgent ?? false;
     const userId = options?.userId;
-    const agentBook = isAgent && userId ? { assignedTo: userId } : {};
+    const canonical = canonicalActiveLeadSql();
+    const duplicate = duplicateActiveLeadSql();
+    const reEnquired = reEnquiredLeadSql();
+    const agentBookSql = isAgent && userId ? sql`${leads.assignedTo} = ${userId}` : sql`true`;
+    const mySql = userId ? sql`${leads.assignedTo} = ${userId}` : sql`false`;
+    const teamsSql =
+      userId && !isAgent
+        ? sql`${leads.assignedTo} is not null and ${leads.assignedTo} <> ${userId}`
+        : sql`false`;
+    const unassignedSql = isAgent ? sql`false` : sql`${leads.assignedTo} is null`;
+    const naSql = isAgent ? sql`false` : sql`${leads.leadStatus} in ('not_interested', 'dropped')`;
 
-    const deduped = { excludeDuplicates: true as const };
+    const activeWhere = buildListWhere(stripBucketOverrides(baseParams));
+    const deletedWhere = buildListWhere({
+      ...stripBucketOverrides(baseParams),
+      deletedOnly: true,
+      excludeDuplicates: true,
+      ...(isAgent && userId ? { assignedTo: userId } : {}),
+    });
 
-    const [all, my, teams, unassigned, deleted, duplicate, reEnquired, naLeads] = await Promise.all(
-      [
-        safeCountLeadsWhere("scope:all", { ...baseParams, ...agentBook, ...deduped }),
-        userId
-          ? safeCountLeadsWhere("scope:my", { ...baseParams, assignedTo: userId, ...deduped })
-          : Promise.resolve(0),
-        userId && !isAgent
-          ? safeCountLeadsWhere("scope:teams", {
-              ...baseParams,
-              teamLeadsExcludingUser: userId,
-              ...deduped,
-            })
-          : Promise.resolve(0),
-        isAgent
-          ? Promise.resolve(0)
-          : safeCountLeadsWhere("scope:unassigned", {
-              ...baseParams,
-              unassigned: true,
-              ...deduped,
-            }),
-        safeCountLeadsWhere("scope:deleted", {
-          ...baseParams,
-          deletedOnly: true,
-          excludeDuplicates: true,
-          ...(isAgent && userId ? { assignedTo: userId } : {}),
-        }),
-        safeCountLeadsWhere("scope:duplicate", {
-          ...baseParams,
-          ...agentBook,
-          duplicatesOnly: true,
-        }),
-        safeCountLeadsWhere("scope:re-enquired", {
-          ...baseParams,
-          ...agentBook,
-          reEnquiredOnly: true,
-          ...deduped,
-        }),
-        isAgent
-          ? Promise.resolve(0)
-          : safeCountLeadsWhere("scope:naleads", { ...baseParams, naLeadsOnly: true, ...deduped }),
-      ],
-    );
+    try {
+      const [[activeRow], [deletedRow]] = await Promise.all([
+        db
+          .select({
+            all: sql<number>`count(*) filter (where ${canonical} and ${agentBookSql})::int`,
+            my: sql<number>`count(*) filter (where ${canonical} and ${mySql})::int`,
+            teams: sql<number>`count(*) filter (where ${canonical} and ${teamsSql})::int`,
+            unassigned: sql<number>`count(*) filter (where ${canonical} and ${unassignedSql})::int`,
+            duplicate: sql<number>`count(*) filter (where ${duplicate} and ${agentBookSql})::int`,
+            reEnquired: sql<number>`count(*) filter (
+              where ${canonical} and ${reEnquired} and ${agentBookSql}
+            )::int`,
+            naleads: sql<number>`count(*) filter (where ${canonical} and ${naSql})::int`,
+          })
+          .from(leads)
+          .where(activeWhere),
+        db.select({ count: sql<number>`count(*)::int` }).from(leads).where(deletedWhere),
+      ]);
 
-    return {
-      all,
-      my,
-      teams,
-      unassigned,
-      deleted,
-      duplicate,
-      "re-enquired": reEnquired,
-      naleads: naLeads,
-    };
+      return {
+        all: asCount(activeRow?.all),
+        my: asCount(activeRow?.my),
+        teams: asCount(activeRow?.teams),
+        unassigned: asCount(activeRow?.unassigned),
+        deleted: asCount(deletedRow?.count),
+        duplicate: asCount(activeRow?.duplicate),
+        "re-enquired": asCount(activeRow?.reEnquired),
+        naleads: asCount(activeRow?.naleads),
+      };
+    } catch (err) {
+      logger.error("Lead scope count query failed", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return { ...EMPTY_SCOPE_COUNTS };
+    }
   },
 
   async listLeads(params: ListLeadsParams) {
@@ -1021,6 +1060,12 @@ export const leadService = {
         type: "status_change",
         metadata: { from: existing.leadStatus, to: payload.leadStatus },
       });
+
+      void import("./metaConversionService.js")
+        .then(({ enqueueConversionForLeadStatusChange }) =>
+          enqueueConversionForLeadStatusChange(leadId, payload.leadStatus!),
+        )
+        .catch(() => undefined);
     }
 
     if (updated) {

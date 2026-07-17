@@ -41,7 +41,8 @@ export const authMiddleware = async (c: Context, next: Next) => {
     path.startsWith("/api/integrations/portal/") ||
     path.startsWith("/api/integrations/whatsapp/") ||
     /^\/api\/documents\/[^/]+\/view$/.test(path) ||
-    path === "/api/google-calendar/callback"
+    path === "/api/google-calendar/callback" ||
+    path === "/api/meta/oauth/callback"
   ) {
     c.set("db", getDb());
     await next();

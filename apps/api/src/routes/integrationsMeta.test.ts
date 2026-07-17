@@ -2,8 +2,11 @@ import { createHmac } from "node:crypto";
 import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const ingestAdLead = vi.fn(async () => ({ id: "lead-abc-123" }));
-const getLeadDetails = vi.fn();
+const processLeadgenWebhook = vi.fn(async () => undefined);
+const recordWebhookDedupe = vi.fn(async () => ({
+  webhookId: "webhook-1",
+  alreadyProcessed: false,
+}));
 
 vi.mock("../lib/env.js", () => ({
   env: {
@@ -14,21 +17,23 @@ vi.mock("../lib/env.js", () => ({
   },
 }));
 
-vi.mock("../lib/facebook.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/facebook.js")>();
-  return {
-    ...actual,
-    getLeadDetails,
-    enrichFacebookAdLeadMetadata: vi.fn(async (lead: unknown) => lead),
-  };
-});
+vi.mock("../lib/jobQueue.js", () => ({
+  isDurableJobsEnabled: () => false,
+  enqueueMetaLeadIngest: vi.fn(async () => false),
+}));
+
+vi.mock("../services/metaLeadIngestService.js", () => ({
+  processLeadgenWebhook,
+  recordWebhookDedupe,
+}));
 
 vi.mock("../services/adLeadService.js", () => ({
-  adLeadService: { ingestAdLead },
+  adLeadService: { ingestAdLead: vi.fn() },
 }));
 
 vi.mock("../middleware/rateLimit.js", () => ({
   metaWebhookRateLimit: async (_c: unknown, next: () => Promise<void>) => next(),
+  writeRateLimit: async (_c: unknown, next: () => Promise<void>) => next(),
 }));
 
 function signBody(rawBody: string, secret: string) {
@@ -41,14 +46,9 @@ describe("Meta integrations webhook", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    getLeadDetails.mockResolvedValue({
-      id: "leadgen-999",
-      field_data: [
-        { name: "full_name", values: ["Jane Doe"] },
-        { name: "phone_number", values: ["+919876543210"] },
-        { name: "email", values: ["jane@example.com"] },
-        { name: "ad_name", values: ["Summer Promo"] },
-      ],
+    recordWebhookDedupe.mockResolvedValue({
+      webhookId: "webhook-1",
+      alreadyProcessed: false,
     });
     const { metaIntegrationsRoute } = await import("./integrationsMeta.js");
     app = new Hono();
@@ -74,7 +74,7 @@ describe("Meta integrations webhook", () => {
     expect(res.status).toBe(403);
   });
 
-  it("ingests a signed leadgen webhook payload", async () => {
+  it("queues DB-driven ingest for a signed leadgen webhook payload", async () => {
     const body = JSON.stringify({
       object: "page",
       entry: [
@@ -108,31 +108,56 @@ describe("Meta integrations webhook", () => {
     expect(await res.text()).toBe("EVENT_RECEIVED");
 
     await vi.waitFor(() => {
-      expect(getLeadDetails).toHaveBeenCalledWith("leadgen-999");
-      expect(ingestAdLead).toHaveBeenCalled();
+      expect(recordWebhookDedupe).toHaveBeenCalled();
+      expect(processLeadgenWebhook).toHaveBeenCalled();
     });
 
-    expect(ingestAdLead).toHaveBeenCalled();
-    const normalized = ingestAdLead.mock.calls.at(0)?.at(0) as
-      | {
-          source: string;
-          externalLeadId: string;
-          fullName: string;
-          phone: string;
-          email: string;
-          adName: string;
-          adId: string;
-        }
+    const change = processLeadgenWebhook.mock.calls.at(0)?.at(0) as
+      | { leadgen_id: string; page_id: string; form_id: string; ad_id: string }
       | undefined;
-    expect(normalized).toMatchObject({
-      source: "facebook_ads",
-      externalLeadId: "leadgen-999",
-      fullName: "Jane Doe",
-      phone: "+919876543210",
-      email: "jane@example.com",
-      adName: "Summer Promo",
-      adId: "ad-1",
+    expect(change).toMatchObject({
+      leadgen_id: "leadgen-999",
+      page_id: "page-1",
+      form_id: "form-1",
+      ad_id: "ad-1",
     });
+  });
+
+  it("skips already-processed leadgen deliveries", async () => {
+    recordWebhookDedupe.mockResolvedValueOnce({
+      webhookId: "webhook-1",
+      alreadyProcessed: true,
+    });
+
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "page-1",
+          changes: [
+            {
+              field: "leadgen",
+              value: { leadgen_id: "leadgen-dup", page_id: "page-1" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const res = await app.request("/api/integrations/meta/webhook", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": signBody(body, "test-app-secret"),
+      },
+      body,
+    });
+
+    expect(res.status).toBe(200);
+    await vi.waitFor(() => {
+      expect(recordWebhookDedupe).toHaveBeenCalled();
+    });
+    expect(processLeadgenWebhook).not.toHaveBeenCalled();
   });
 
   it("rejects POST webhooks with invalid signature when app secret is set", async () => {
@@ -143,6 +168,6 @@ describe("Meta integrations webhook", () => {
       body,
     });
     expect(res.status).toBe(403);
-    expect(ingestAdLead).not.toHaveBeenCalled();
+    expect(processLeadgenWebhook).not.toHaveBeenCalled();
   });
 });

@@ -56,6 +56,17 @@ const envSchema = z
     META_PAGE_ID: z.string().optional(),
     /** Comma-separated lead form IDs monitored via webhook (display only). */
     META_FORM_IDS: z.string().optional(),
+    /** Meta App ID — required for the admin OAuth connect flow (apps/api/src/routes/meta.ts). */
+    META_APP_ID: z.string().min(1).optional(),
+    /** OAuth redirect URI registered on the Meta app (must match exactly). */
+    META_OAUTH_REDIRECT_URI: z.string().url().optional(),
+    /** Graph API version used by metaGraphClient/metaCapi. */
+    META_GRAPH_API_VERSION: z.string().min(1).default("v21.0"),
+    /** Enables server-side Conversions API (CAPI) event sends. */
+    META_CAPI_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
     GOOGLE_ADS_CLIENT_ID: z.string().optional(),
     GOOGLE_ADS_CLIENT_SECRET: z.string().optional(),
