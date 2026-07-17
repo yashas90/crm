@@ -150,6 +150,9 @@ export default function IntegrationsSettingsPage() {
                 Requires PAGE_ACCESS_TOKEN, META_VERIFY_TOKEN, and META_APP_SECRET on the API
                 server. Leads arrive via POST /api/integrations/meta/webhook.
               </p>
+              <Button asChild variant="outline" size="sm" className="mt-2">
+                <Link href="/settings/integrations/meta">Open Meta Business dashboard</Link>
+              </Button>
             </CardContent>
           </Card>
 

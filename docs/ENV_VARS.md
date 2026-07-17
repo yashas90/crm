@@ -39,8 +39,12 @@ See [REGION_MIGRATION.md](./REGION_MIGRATION.md).
 | `HEALTH_ADMIN_TOKEN` | Optional | Protects `/api/health/detailed` |
 | `META_WEBHOOK_ENABLED` | When live | `true` requires Meta vars |
 | `META_VERIFY_TOKEN` | When Meta live | Webhook handshake |
-| `META_APP_SECRET` | When Meta live | HMAC verification |
-| `PAGE_ACCESS_TOKEN` | When Meta live | Graph API leads |
+| `META_APP_SECRET` | When Meta live | HMAC verification + OAuth |
+| `META_APP_ID` | OAuth connect | Meta Developer App ID |
+| `META_OAUTH_REDIRECT_URI` | OAuth connect | Must match Meta app redirect (e.g. `https://api.../api/meta/oauth/callback`) |
+| `META_GRAPH_API_VERSION` | Optional | Default `v21.0` |
+| `META_CAPI_ENABLED` | Optional | `true` to send Conversions API events on lead status changes |
+| `PAGE_ACCESS_TOKEN` | When Meta live / fallback | Graph API leads (env fallback when DB page tokens missing) |
 | `META_PAGE_ID` | Optional | Page scope |
 | `META_FORM_IDS` | Optional | Form allowlist |
 | `GOOGLE_ADS_*` | When Google live | See `apps/api/src/lib/env.ts` |
