@@ -1133,3 +1133,584 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+/* ─── Meta Business Integration ─────────────────────────────────────────── */
+
+/** OAuth / system-user tokens for Meta Graph API. */
+export const facebookTokens = pgTable(
+  "facebook_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    metaUserId: text("meta_user_id"),
+    tokenType: text("token_type").notNull().default("user"),
+    /** AES-GCM encrypted access token (enc:v1:...). */
+    accessTokenEncrypted: text("access_token_encrypted").notNull(),
+    refreshTokenEncrypted: text("refresh_token_encrypted"),
+    scopes: text("scopes").array(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    tokenDataAccessExpiresAt: timestamp("token_data_access_expires_at", { withTimezone: true }),
+    lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
+    status: text("status").notNull().default("active"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "facebook_tokens_token_type_check",
+      sql`${table.tokenType} in ('user', 'page', 'system')`,
+    ),
+    check(
+      "facebook_tokens_status_check",
+      sql`${table.status} in ('active', 'expired', 'revoked', 'error')`,
+    ),
+    index("facebook_tokens_org_id_idx").on(table.orgId),
+    index("facebook_tokens_status_idx").on(table.orgId, table.status),
+  ],
+);
+
+export const facebookBusinesses = pgTable(
+  "facebook_businesses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    tokenId: uuid("token_id").references(() => facebookTokens.id, { onDelete: "set null" }),
+    businessId: text("business_id").notNull(),
+    name: text("name").notNull(),
+    verificationStatus: text("verification_status"),
+    isActive: boolean("is_active").notNull().default(true),
+    connectedBy: uuid("connected_by").references(() => users.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_businesses_org_business_id_uidx").on(table.orgId, table.businessId),
+    index("facebook_businesses_org_id_idx").on(table.orgId),
+  ],
+);
+
+export const facebookAccounts = pgTable(
+  "facebook_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    businessId: uuid("business_id").references(() => facebookBusinesses.id, {
+      onDelete: "set null",
+    }),
+    adAccountId: text("ad_account_id").notNull(),
+    name: text("name").notNull(),
+    currency: text("currency"),
+    timezoneName: text("timezone_name"),
+    accountStatus: integer("account_status"),
+    isSelected: boolean("is_selected").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_accounts_org_ad_account_uidx").on(table.orgId, table.adAccountId),
+    index("facebook_accounts_org_id_idx").on(table.orgId),
+    index("facebook_accounts_business_id_idx").on(table.businessId),
+  ],
+);
+
+export const facebookPages = pgTable(
+  "facebook_pages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    businessId: uuid("business_id").references(() => facebookBusinesses.id, {
+      onDelete: "set null",
+    }),
+    pageId: text("page_id").notNull(),
+    name: text("name").notNull(),
+    category: text("category"),
+    accessTokenEncrypted: text("access_token_encrypted"),
+    isSelected: boolean("is_selected").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    leadgenSubscribed: boolean("leadgen_subscribed").notNull().default(false),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_pages_org_page_id_uidx").on(table.orgId, table.pageId),
+    index("facebook_pages_org_id_idx").on(table.orgId),
+    index("facebook_pages_page_id_idx").on(table.pageId),
+  ],
+);
+
+export const instagramAccounts = pgTable(
+  "instagram_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    pageId: uuid("page_id").references(() => facebookPages.id, { onDelete: "cascade" }),
+    igUserId: text("ig_user_id").notNull(),
+    username: text("username"),
+    name: text("name"),
+    isActive: boolean("is_active").notNull().default(true),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("instagram_accounts_org_ig_user_uidx").on(table.orgId, table.igUserId),
+    index("instagram_accounts_page_id_idx").on(table.pageId),
+  ],
+);
+
+export const facebookForms = pgTable(
+  "facebook_forms",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    pageId: uuid("page_id")
+      .notNull()
+      .references(() => facebookPages.id, { onDelete: "cascade" }),
+    formId: text("form_id").notNull(),
+    name: text("name").notNull(),
+    status: text("status"),
+    locale: text("locale"),
+    isSelected: boolean("is_selected").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    questions: jsonb("questions").$type<unknown[]>().notNull().default([]),
+    fieldMapping: jsonb("field_mapping").$type<Record<string, string>>().notNull().default({}),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_forms_org_form_id_uidx").on(table.orgId, table.formId),
+    index("facebook_forms_page_id_idx").on(table.pageId),
+    index("facebook_forms_org_id_idx").on(table.orgId),
+  ],
+);
+
+export const facebookPixels = pgTable(
+  "facebook_pixels",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    businessId: uuid("business_id").references(() => facebookBusinesses.id, {
+      onDelete: "set null",
+    }),
+    adAccountId: uuid("ad_account_id").references(() => facebookAccounts.id, {
+      onDelete: "set null",
+    }),
+    pixelId: text("pixel_id").notNull(),
+    name: text("name").notNull(),
+    accessTokenEncrypted: text("access_token_encrypted"),
+    isSelected: boolean("is_selected").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    isDefault: boolean("is_default").notNull().default(false),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_pixels_org_pixel_id_uidx").on(table.orgId, table.pixelId),
+    index("facebook_pixels_org_id_idx").on(table.orgId),
+  ],
+);
+
+export const facebookWebhooks = pgTable(
+  "facebook_webhooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    pageId: uuid("page_id").references(() => facebookPages.id, { onDelete: "set null" }),
+    metaPageId: text("meta_page_id"),
+    eventType: text("event_type").notNull().default("leadgen"),
+    externalEventId: text("external_event_id"),
+    dedupeKey: text("dedupe_key").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    signatureValid: boolean("signature_valid"),
+    status: text("status").notNull().default("received"),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    errorMessage: text("error_message"),
+    retryCount: integer("retry_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "facebook_webhooks_status_check",
+      sql`${table.status} in ('received', 'queued', 'processing', 'processed', 'failed', 'duplicate', 'skipped')`,
+    ),
+    uniqueIndex("facebook_webhooks_org_dedupe_uidx").on(table.orgId, table.dedupeKey),
+    index("facebook_webhooks_status_idx").on(table.orgId, table.status),
+    index("facebook_webhooks_created_at_idx").on(table.createdAt.desc()),
+  ],
+);
+
+export const facebookCampaigns = pgTable(
+  "facebook_campaigns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    adAccountId: uuid("ad_account_id").references(() => facebookAccounts.id, {
+      onDelete: "cascade",
+    }),
+    campaignId: text("campaign_id").notNull(),
+    name: text("name").notNull(),
+    status: text("status"),
+    objective: text("objective"),
+    dailyBudget: numeric("daily_budget", { precision: 14, scale: 2 }),
+    lifetimeBudget: numeric("lifetime_budget", { precision: 14, scale: 2 }),
+    startTime: timestamp("start_time", { withTimezone: true }),
+    stopTime: timestamp("stop_time", { withTimezone: true }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    insights: jsonb("insights").$type<Record<string, unknown>>().notNull().default({}),
+    insightsSyncedAt: timestamp("insights_synced_at", { withTimezone: true }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_campaigns_org_campaign_uidx").on(table.orgId, table.campaignId),
+    index("facebook_campaigns_ad_account_idx").on(table.adAccountId),
+  ],
+);
+
+export const facebookAdsets = pgTable(
+  "facebook_adsets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    campaignId: uuid("campaign_id").references(() => facebookCampaigns.id, {
+      onDelete: "cascade",
+    }),
+    adsetId: text("adset_id").notNull(),
+    name: text("name").notNull(),
+    status: text("status"),
+    dailyBudget: numeric("daily_budget", { precision: 14, scale: 2 }),
+    insights: jsonb("insights").$type<Record<string, unknown>>().notNull().default({}),
+    insightsSyncedAt: timestamp("insights_synced_at", { withTimezone: true }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_adsets_org_adset_uidx").on(table.orgId, table.adsetId),
+    index("facebook_adsets_campaign_idx").on(table.campaignId),
+  ],
+);
+
+export const facebookAds = pgTable(
+  "facebook_ads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    adsetId: uuid("adset_id").references(() => facebookAdsets.id, { onDelete: "cascade" }),
+    adId: text("ad_id").notNull(),
+    name: text("name").notNull(),
+    status: text("status"),
+    creativeId: text("creative_id"),
+    insights: jsonb("insights").$type<Record<string, unknown>>().notNull().default({}),
+    insightsSyncedAt: timestamp("insights_synced_at", { withTimezone: true }),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_ads_org_ad_uidx").on(table.orgId, table.adId),
+    index("facebook_ads_adset_idx").on(table.adsetId),
+  ],
+);
+
+/** Meta lead mirror; CRM ingest dedupe remains on `ad_leads`. */
+export const facebookLeads = pgTable(
+  "facebook_leads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+    leadgenId: text("leadgen_id").notNull(),
+    pageId: text("page_id"),
+    formId: text("form_id"),
+    campaignId: text("campaign_id"),
+    adsetId: text("adset_id"),
+    adId: text("ad_id"),
+    campaignName: text("campaign_name"),
+    adsetName: text("adset_name"),
+    adName: text("ad_name"),
+    formName: text("form_name"),
+    pageName: text("page_name"),
+    pixelId: text("pixel_id"),
+    fullName: text("full_name"),
+    email: text("email"),
+    phone: text("phone"),
+    city: text("city"),
+    state: text("state"),
+    country: text("country"),
+    zip: text("zip"),
+    fbclid: text("fbclid"),
+    fbc: text("fbc"),
+    fbp: text("fbp"),
+    utmSource: text("utm_source"),
+    utmMedium: text("utm_medium"),
+    utmCampaign: text("utm_campaign"),
+    utmContent: text("utm_content"),
+    utmTerm: text("utm_term"),
+    fieldData: jsonb("field_data").$type<Record<string, unknown>>().notNull().default({}),
+    rawPayload: jsonb("raw_payload").$type<Record<string, unknown>>().notNull().default({}),
+    createdTime: timestamp("created_time", { withTimezone: true }),
+    ingestedAt: timestamp("ingested_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_leads_org_leadgen_uidx").on(table.orgId, table.leadgenId),
+    index("facebook_leads_lead_id_idx").on(table.leadId),
+    index("facebook_leads_campaign_id_idx").on(table.orgId, table.campaignId),
+    index("facebook_leads_created_time_idx").on(table.orgId, table.createdTime.desc()),
+  ],
+);
+
+export const facebookEvents = pgTable(
+  "facebook_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    eventName: text("event_name").notNull(),
+    source: text("source").notNull().default("webhook"),
+    externalId: text("external_id"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    status: text("status").notNull().default("received"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("facebook_events_org_created_idx").on(table.orgId, table.createdAt.desc()),
+    index("facebook_events_external_id_idx").on(table.orgId, table.externalId),
+  ],
+);
+
+export const facebookLogs = pgTable(
+  "facebook_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    level: text("level").notNull().default("info"),
+    category: text("category").notNull(),
+    message: text("message").notNull(),
+    requestId: text("request_id"),
+    latencyMs: integer("latency_ms"),
+    context: jsonb("context").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("facebook_logs_level_check", sql`${table.level} in ('debug', 'info', 'warn', 'error')`),
+    index("facebook_logs_org_created_idx").on(table.orgId, table.createdAt.desc()),
+    index("facebook_logs_category_idx").on(table.orgId, table.category),
+  ],
+);
+
+export const facebookConversionEvents = pgTable(
+  "facebook_conversion_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
+    pixelId: text("pixel_id").notNull(),
+    eventName: text("event_name").notNull(),
+    eventId: text("event_id").notNull(),
+    eventTime: timestamp("event_time", { withTimezone: true }).notNull(),
+    actionSource: text("action_source").notNull().default("system_generated"),
+    eventSourceUrl: text("event_source_url"),
+    userData: jsonb("user_data").$type<Record<string, unknown>>().notNull().default({}),
+    customData: jsonb("custom_data").$type<Record<string, unknown>>().notNull().default({}),
+    status: text("status").notNull().default("pending"),
+    httpStatus: integer("http_status"),
+    responsePayload: jsonb("response_payload").$type<Record<string, unknown>>(),
+    errorMessage: text("error_message"),
+    retryCount: integer("retry_count").notNull().default(0),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "facebook_conversion_events_status_check",
+      sql`${table.status} in ('pending', 'sent', 'failed', 'skipped', 'deduped')`,
+    ),
+    uniqueIndex("facebook_conversion_events_event_id_uidx").on(table.orgId, table.eventId),
+    index("facebook_conversion_events_status_idx").on(table.orgId, table.status),
+    index("facebook_conversion_events_lead_idx").on(table.leadId),
+  ],
+);
+
+export const facebookSyncHistory = pgTable(
+  "facebook_sync_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    syncType: text("sync_type").notNull(),
+    status: text("status").notNull().default("running"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    recordsProcessed: integer("records_processed").notNull().default(0),
+    recordsFailed: integer("records_failed").notNull().default(0),
+    errorMessage: text("error_message"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (table) => [
+    check(
+      "facebook_sync_history_status_check",
+      sql`${table.status} in ('running', 'success', 'partial', 'failed')`,
+    ),
+    index("facebook_sync_history_org_started_idx").on(table.orgId, table.startedAt.desc()),
+  ],
+);
+
+export const facebookErrors = pgTable(
+  "facebook_errors",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    source: text("source").notNull(),
+    errorCode: text("error_code"),
+    errorSubcode: text("error_subcode"),
+    message: text("message").notNull(),
+    context: jsonb("context").$type<Record<string, unknown>>().notNull().default({}),
+    resolved: boolean("resolved").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("facebook_errors_org_created_idx").on(table.orgId, table.createdAt.desc()),
+    index("facebook_errors_unresolved_idx").on(table.orgId, table.resolved),
+  ],
+);
+
+export const facebookRateLimits = pgTable(
+  "facebook_rate_limits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    endpoint: text("endpoint").notNull(),
+    callCount: integer("call_count").notNull().default(0),
+    estimatedTimeToRegainAccess: integer("estimated_time_to_regain_access"),
+    appUsagePercent: numeric("app_usage_percent", { precision: 5, scale: 2 }),
+    businessUsagePercent: numeric("business_usage_percent", { precision: 5, scale: 2 }),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("facebook_rate_limits_org_endpoint_uidx").on(table.orgId, table.endpoint),
+  ],
+);
+
+export const facebookTokensRelations = relations(facebookTokens, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [facebookTokens.orgId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [facebookTokens.userId],
+    references: [users.id],
+  }),
+  businesses: many(facebookBusinesses),
+}));
+
+export const facebookBusinessesRelations = relations(facebookBusinesses, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [facebookBusinesses.orgId],
+    references: [organizations.id],
+  }),
+  token: one(facebookTokens, {
+    fields: [facebookBusinesses.tokenId],
+    references: [facebookTokens.id],
+  }),
+  accounts: many(facebookAccounts),
+  pages: many(facebookPages),
+  pixels: many(facebookPixels),
+}));
+
+export const facebookAccountsRelations = relations(facebookAccounts, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [facebookAccounts.orgId],
+    references: [organizations.id],
+  }),
+  business: one(facebookBusinesses, {
+    fields: [facebookAccounts.businessId],
+    references: [facebookBusinesses.id],
+  }),
+  campaigns: many(facebookCampaigns),
+}));
+
+export const facebookPagesRelations = relations(facebookPages, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [facebookPages.orgId],
+    references: [organizations.id],
+  }),
+  business: one(facebookBusinesses, {
+    fields: [facebookPages.businessId],
+    references: [facebookBusinesses.id],
+  }),
+  forms: many(facebookForms),
+  instagramAccounts: many(instagramAccounts),
+}));
+
+export const facebookFormsRelations = relations(facebookForms, ({ one }) => ({
+  page: one(facebookPages, {
+    fields: [facebookForms.pageId],
+    references: [facebookPages.id],
+  }),
+}));
+
+export const facebookLeadsRelations = relations(facebookLeads, ({ one }) => ({
+  lead: one(leads, {
+    fields: [facebookLeads.leadId],
+    references: [leads.id],
+  }),
+}));
+
+export const facebookConversionEventsRelations = relations(facebookConversionEvents, ({ one }) => ({
+  lead: one(leads, {
+    fields: [facebookConversionEvents.leadId],
+    references: [leads.id],
+  }),
+}));

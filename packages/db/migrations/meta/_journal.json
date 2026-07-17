@@ -358,6 +358,13 @@
       "when": 1752076800000,
       "tag": "0050_site_visit_client_confirm",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1752748200000,
+      "tag": "0051_meta_business_integration",
+      "breakpoints": true
     }
   ]
 }
