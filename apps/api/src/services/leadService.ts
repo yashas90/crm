@@ -519,7 +519,7 @@ export const leadService = {
 
     try {
       const heavyFallback = [{ count: 0 }];
-      const withTimeout = async <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+      const withTimeout = async <T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           return await Promise.race([
