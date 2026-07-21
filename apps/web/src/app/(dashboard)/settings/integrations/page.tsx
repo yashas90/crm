@@ -4,7 +4,10 @@ import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-
 import { GoogleCalendarSettingsCard } from "@/components/settings/google-calendar-settings-card";
 import { PropertyPortalsSection } from "@/components/settings/property-portals-section";
 import { Badge } from "@/components/ui/badge";
-import { useIntegrationsStatus } from "@/hooks/use-integrations-status";
+import {
+  type IntegrationConnectionStatus,
+  useIntegrationsStatus,
+} from "@/hooks/use-integrations-status";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
@@ -12,14 +15,16 @@ import { cn } from "@propninja/ui/lib/utils";
 import { Megaphone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
-function StatusBadge({ status }: { status: "live" | "not_configured" | undefined }) {
-  const live = status === "live";
+function StatusBadge({ status }: { status: IntegrationConnectionStatus | undefined }) {
+  if (status === "live") {
+    return <Badge variant="default">Live</Badge>;
+  }
+  if (status === "ready") {
+    return <Badge variant="outline">Ready to connect</Badge>;
+  }
   return (
-    <Badge
-      variant={live ? "default" : "secondary"}
-      className={cn(!live && "text-muted-foreground")}
-    >
-      {live ? "Live" : "Not configured"}
+    <Badge variant="secondary" className="text-muted-foreground">
+      Not configured
     </Badge>
   );
 }
@@ -50,6 +55,7 @@ export default function IntegrationsSettingsPage() {
   }
 
   const status = statusQuery.data;
+  const facebook = status?.facebook;
 
   return (
     <div className="space-y-6">
@@ -98,42 +104,46 @@ export default function IntegrationsSettingsPage() {
                   Meta Lead Ads
                 </CardTitle>
                 <CardDescription>
-                  Webhook ingestion from Meta Lead Ads (Facebook / Instagram).
+                  Multi-page OAuth + webhook ingest (Facebook / Instagram Lead Ads).
                 </CardDescription>
               </div>
-              <StatusBadge status={status?.facebook.status} />
+              <StatusBadge status={facebook?.status} />
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <IntegrationMetaRow
-                label="Active pages"
-                value={String(status?.facebook.activePages ?? 0)}
+                label="OAuth"
+                value={facebook?.oauthConnected ? "Connected" : "Not connected — click Manage Meta"}
               />
-              <IntegrationMetaRow
-                label="Active forms"
-                value={String(status?.facebook.activeForms ?? 0)}
-              />
+              <IntegrationMetaRow label="Active pages" value={String(facebook?.activePages ?? 0)} />
+              <IntegrationMetaRow label="Active forms" value={String(facebook?.activeForms ?? 0)} />
               <IntegrationMetaRow
                 label="Leadgen subscribed"
-                value={String(status?.facebook.leadgenSubscribedPages ?? 0)}
+                value={String(facebook?.leadgenSubscribedPages ?? 0)}
+              />
+              <IntegrationMetaRow
+                label="Verify token"
+                value={
+                  facebook?.verifyTokenConfigured
+                    ? "Set (META_VERIFY_TOKEN)"
+                    : "Missing — set META_VERIFY_TOKEN on Railway"
+                }
               />
               <IntegrationMetaRow
                 label="Webhook signature"
                 value={
-                  status?.facebook.webhookSignatureConfigured
+                  facebook?.webhookSignatureConfigured
                     ? "Enabled (META_APP_SECRET set)"
-                    : "Not enabled — set META_APP_SECRET in production"
+                    : "Not enabled — set META_APP_SECRET on Railway"
                 }
               />
-              <IntegrationMetaRow
-                label="Scoping"
-                value="DB — only enabled pages/forms ingest leads"
-              />
               <p className="pt-2 text-xs text-muted-foreground">
-                Connect via Settings → Meta (OAuth). Page tokens are stored encrypted in the
-                database. Webhook: POST /api/integrations/meta/webhook.
+                No page IDs or page tokens in env. Connect Meta, then Sync Now. Webhook:{" "}
+                <span className="font-mono">POST /api/integrations/meta/webhook</span>
               </p>
-              <Button asChild variant="outline" size="sm" className="mt-2">
-                <Link href="/settings/integrations/meta">Open Meta Business dashboard</Link>
+              <Button asChild size="sm" className="mt-2">
+                <Link href="/settings/integrations/meta">
+                  {facebook?.oauthConnected ? "Manage Meta" : "Connect Meta"}
+                </Link>
               </Button>
             </CardContent>
           </Card>

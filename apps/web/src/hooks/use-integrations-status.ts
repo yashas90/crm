@@ -3,18 +3,20 @@
 import { apiGet } from "@/lib/apiClient";
 import { useQuery } from "@tanstack/react-query";
 
-export type IntegrationConnectionStatus = "live" | "not_configured";
+export type IntegrationConnectionStatus = "live" | "ready" | "not_configured";
 
 export type IntegrationsStatus = {
   facebook: {
     status: IntegrationConnectionStatus;
     enabled: boolean;
+    oauthConnected?: boolean;
     activePages?: number;
     activeForms?: number;
     leadgenSubscribedPages?: number;
     pageId?: string;
     formIds?: string[];
     webhookSignatureConfigured: boolean;
+    verifyTokenConfigured?: boolean;
     pageScopingEnabled: boolean;
     formScopingEnabled: boolean;
   };

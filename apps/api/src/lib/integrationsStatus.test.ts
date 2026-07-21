@@ -46,6 +46,8 @@ describe("getIntegrationsStatus", () => {
     const { getIntegrationsStatus } = await import("./integrationsStatus.js");
     const status = await getIntegrationsStatus();
     expect(status.facebook.status).toBe("live");
+    expect(status.facebook.oauthConnected).toBe(true);
+    expect(status.facebook.verifyTokenConfigured).toBe(true);
     expect(status.facebook.activePages).toBe(2);
     expect(status.facebook.activeForms).toBe(5);
     expect(status.facebook.leadgenSubscribedPages).toBe(2);

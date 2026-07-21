@@ -7,16 +7,18 @@ import { isGoogleAdsConfigured } from "./googleAds.js";
 import { GOOGLE_ADS_INTEGRATION, getIntegrationSyncState } from "./integrationSyncState.js";
 import { getMetaWebhookScopeSummary } from "./metaWebhookScope.js";
 
-export type IntegrationConnectionStatus = "live" | "not_configured";
+export type IntegrationConnectionStatus = "live" | "ready" | "not_configured";
 
 export type IntegrationsStatus = {
   facebook: {
     status: IntegrationConnectionStatus;
     enabled: boolean;
+    oauthConnected: boolean;
     activePages: number;
     activeForms: number;
     leadgenSubscribedPages: number;
     webhookSignatureConfigured: boolean;
+    verifyTokenConfigured: boolean;
     pageScopingEnabled: boolean;
     formScopingEnabled: boolean;
     /** @deprecated Prefer activePages — kept for older UI clients */
@@ -34,11 +36,18 @@ export type IntegrationsStatus = {
   };
 };
 
-function metaIsLive(
-  enabled: boolean,
-  webhookSignatureConfigured: boolean,
-): IntegrationConnectionStatus {
-  return enabled && webhookSignatureConfigured ? "live" : "not_configured";
+function metaConnectionStatus(input: {
+  verifyConfigured: boolean;
+  webhookSignatureConfigured: boolean;
+  oauthOrPages: boolean;
+}): IntegrationConnectionStatus {
+  if (!input.verifyConfigured || !input.webhookSignatureConfigured) {
+    return "not_configured";
+  }
+  if (!input.oauthOrPages) {
+    return "ready";
+  }
+  return "live";
 }
 
 function googleAdsIsLive(enabled: boolean, syncEnabled: boolean): IntegrationConnectionStatus {
@@ -71,7 +80,8 @@ export async function getIntegrationsStatus(): Promise<IntegrationsStatus> {
       ),
     );
 
-  const oauthOrPages = (tokenRow?.value ?? 0) > 0 || (pageTokenRows?.value ?? 0) > 0;
+  const oauthConnected = (tokenRow?.value ?? 0) > 0;
+  const oauthOrPages = oauthConnected || (pageTokenRows?.value ?? 0) > 0;
   const facebookEnabled = verifyConfigured && oauthOrPages;
   const metaScope = await getMetaWebhookScopeSummary(SINGLE_TENANT_ORG_ID);
 
@@ -83,12 +93,18 @@ export async function getIntegrationsStatus(): Promise<IntegrationsStatus> {
 
   return {
     facebook: {
-      status: metaIsLive(facebookEnabled, webhookSignatureConfigured),
+      status: metaConnectionStatus({
+        verifyConfigured,
+        webhookSignatureConfigured,
+        oauthOrPages,
+      }),
       enabled: facebookEnabled,
+      oauthConnected,
       activePages: metaScope.activePages,
       activeForms: metaScope.activeForms,
       leadgenSubscribedPages: metaScope.leadgenSubscribedPages,
       webhookSignatureConfigured,
+      verifyTokenConfigured: verifyConfigured,
       pageScopingEnabled: metaScope.pageScopingEnabled,
       formScopingEnabled: metaScope.formScopingEnabled,
     },
