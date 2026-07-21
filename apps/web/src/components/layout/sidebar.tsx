@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   LineChart,
   MapPin,
+  Megaphone,
   Phone,
   Settings,
   Shield,
@@ -77,6 +78,7 @@ const navItems: NavItem[] = [
   },
   { href: "/reports/sources", label: "Sources", icon: LayoutGrid, roles: ["admin", "manager"] },
   { href: "/users", label: "Users", icon: UserCircle, roles: ["admin", "manager"] },
+  { href: "/settings/meta", label: "Meta", icon: Megaphone, roles: ["admin", "manager"] },
   { href: "/settings/security", label: "Security", icon: Shield, roles: ["admin"] },
   { href: "/settings", label: "Settings", icon: Settings, roles: ["admin", "manager", "agent"] },
 ];
@@ -95,6 +97,21 @@ function getInitials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+/** Prefer the longest matching nav href so /settings/meta wins over /settings. */
+function isNavItemActive(pathname: string, href: string, items: NavItem[]): boolean {
+  const matches = (itemHref: string) =>
+    itemHref === "/"
+      ? pathname === "/"
+      : pathname === itemHref || pathname.startsWith(`${itemHref}/`);
+
+  if (!matches(href)) return false;
+
+  const longerMatch = items.some(
+    (item) => item.href !== href && item.href.length > href.length && matches(item.href),
+  );
+  return !longerMatch;
 }
 
 const roleColors: Record<string, string> = {
@@ -145,10 +162,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-0.5">
             {visibleItems.map(({ href, label, icon: Icon }) => {
-              const active =
-                href === "/"
-                  ? pathname === "/"
-                  : pathname === href || pathname.startsWith(`${href}/`);
+              const active = isNavItemActive(pathname, href, visibleItems);
 
               return (
                 <Link
