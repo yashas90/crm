@@ -67,7 +67,7 @@ describe("leadService count aggregates", () => {
     mocks.db.resetQueue();
   });
 
-  it("returns every scope bucket from two conditional aggregate queries", async () => {
+  it("returns every scope bucket from fast + bucket aggregate queries", async () => {
     const { leadService } = await import("./leadService.js");
     mocks.db.queueResults(
       [
@@ -76,12 +76,12 @@ describe("leadService count aggregates", () => {
           my: 4,
           teams: 3,
           unassigned: 2,
-          duplicate: 5,
-          reEnquired: 1,
           naleads: 6,
         },
       ],
       [{ count: 7 }],
+      [{ count: 5 }],
+      [{ count: 1 }],
     );
 
     const counts = await leadService.getScopeCounts(
@@ -89,7 +89,7 @@ describe("leadService count aggregates", () => {
       { userId: "user-1", isAgent: false },
     );
 
-    expect(mocks.state.selectCalls).toBe(2);
+    expect(mocks.state.selectCalls).toBe(4);
     expect(counts).toEqual({
       all: 10,
       my: 4,
@@ -173,11 +173,11 @@ describe("leadService count aggregates", () => {
           my: 1,
           teams: 0,
           unassigned: 0,
-          duplicate: 0,
-          reEnquired: 0,
           naleads: 9,
         },
       ],
+      [{ count: 0 }],
+      [{ count: 0 }],
       [{ count: 0 }],
       [
         {

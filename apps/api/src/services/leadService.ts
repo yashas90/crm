@@ -422,14 +422,6 @@ function stripBucketOverrides(params: ListLeadsParams): ListLeadsParams {
   };
 }
 
-function canonicalActiveLeadSql() {
-  return sql`(NOT (${leadHasValidPhoneKey()}) OR (${canonicalLeadOnlySql(false)}))`;
-}
-
-function duplicateActiveLeadSql() {
-  return sql`(${leadHasValidPhoneKey()} AND ${duplicatePhoneExistsSql(false)})`;
-}
-
 function activePipelineLeadSql() {
   return sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
 }
@@ -438,7 +430,8 @@ export const leadService = {
   async getStageCounts(baseParams: ListLeadsParams) {
     const sharedBase: ListLeadsParams = {
       ...baseParams,
-      excludeDuplicates: baseParams.duplicatesOnly ? false : (baseParams.excludeDuplicates ?? true),
+      // Badge counts skip phone-dedupe EXISTS — list queries still dedupe.
+      excludeDuplicates: false,
       status: undefined,
       activeOnly: undefined,
       followUpDueBefore: undefined,
@@ -447,7 +440,7 @@ export const leadService = {
     };
 
     const whereClause = buildListWhere(sharedBase);
-    const now = new Date();
+    const nowIso = new Date().toISOString();
 
     try {
       const [row] = await db
@@ -458,12 +451,12 @@ export const leadService = {
           scheduled: sql<number>`count(*) filter (
             where ${activePipelineLeadSql()}
               and ${leads.nextFollowupAt} is not null
-              and ${leads.nextFollowupAt} > ${now}
+              and ${leads.nextFollowupAt} > ${nowIso}::timestamptz
           )::int`,
           overdue: sql<number>`count(*) filter (
             where ${activePipelineLeadSql()}
               and ${leads.nextFollowupAt} is not null
-              and ${leads.nextFollowupAt} <= ${now}
+              and ${leads.nextFollowupAt} <= ${nowIso}::timestamptz
           )::int`,
           eoi: sql<number>`count(*) filter (where ${leads.leadStatus} = 'qualified')::int`,
         })
@@ -505,9 +498,6 @@ export const leadService = {
   ) {
     const isAgent = options?.isAgent ?? false;
     const userId = options?.userId;
-    const canonical = canonicalActiveLeadSql();
-    const duplicate = duplicateActiveLeadSql();
-    const reEnquired = reEnquiredLeadSql();
     const agentBookSql = isAgent && userId ? sql`${leads.assignedTo} = ${userId}` : sql`true`;
     const mySql = userId ? sql`${leads.assignedTo} = ${userId}` : sql`false`;
     const teamsSql =
@@ -517,31 +507,74 @@ export const leadService = {
     const unassignedSql = isAgent ? sql`false` : sql`${leads.assignedTo} is null`;
     const naSql = isAgent ? sql`false` : sql`${leads.leadStatus} in ('not_interested', 'dropped')`;
 
-    const activeWhere = buildListWhere(stripBucketOverrides(baseParams));
+    const base = stripBucketOverrides(baseParams);
+    // Fast path: no correlated phone-dedupe / re-enquiry EXISTS in FILTER clauses.
+    const activeWhere = buildListWhere({ ...base, excludeDuplicates: false });
     const deletedWhere = buildListWhere({
-      ...stripBucketOverrides(baseParams),
+      ...base,
       deletedOnly: true,
-      excludeDuplicates: true,
+      excludeDuplicates: false,
       ...(isAgent && userId ? { assignedTo: userId } : {}),
     });
 
     try {
-      const [[activeRow], [deletedRow]] = await Promise.all([
+      const heavyFallback = [{ count: 0 }];
+      const withTimeout = async <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([
+            promise,
+            new Promise<T>((resolve) => {
+              timer = setTimeout(() => resolve(fallback), ms);
+            }),
+          ]);
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      };
+
+      const [[activeRow], [deletedRow], [duplicateRow], [reEnquiredRow]] = await Promise.all([
         db
           .select({
-            all: sql<number>`count(*) filter (where ${canonical} and ${agentBookSql})::int`,
-            my: sql<number>`count(*) filter (where ${canonical} and ${mySql})::int`,
-            teams: sql<number>`count(*) filter (where ${canonical} and ${teamsSql})::int`,
-            unassigned: sql<number>`count(*) filter (where ${canonical} and ${unassignedSql})::int`,
-            duplicate: sql<number>`count(*) filter (where ${duplicate} and ${agentBookSql})::int`,
-            reEnquired: sql<number>`count(*) filter (
-              where ${canonical} and ${reEnquired} and ${agentBookSql}
-            )::int`,
-            naleads: sql<number>`count(*) filter (where ${canonical} and ${naSql})::int`,
+            all: sql<number>`count(*) filter (where ${agentBookSql})::int`,
+            my: sql<number>`count(*) filter (where ${mySql})::int`,
+            teams: sql<number>`count(*) filter (where ${teamsSql})::int`,
+            unassigned: sql<number>`count(*) filter (where ${unassignedSql})::int`,
+            naleads: sql<number>`count(*) filter (where ${naSql})::int`,
           })
           .from(leads)
           .where(activeWhere),
         db.select({ count: sql<number>`count(*)::int` }).from(leads).where(deletedWhere),
+        withTimeout(
+          db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(leads)
+            .where(
+              buildListWhere({
+                ...base,
+                duplicatesOnly: true,
+                excludeDuplicates: false,
+                ...(isAgent && userId ? { assignedTo: userId } : {}),
+              }),
+            ),
+          2500,
+          heavyFallback,
+        ),
+        withTimeout(
+          db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(leads)
+            .where(
+              buildListWhere({
+                ...base,
+                reEnquiredOnly: true,
+                excludeDuplicates: false,
+                ...(isAgent && userId ? { assignedTo: userId } : {}),
+              }),
+            ),
+          2500,
+          heavyFallback,
+        ),
       ]);
 
       return {
@@ -550,8 +583,8 @@ export const leadService = {
         teams: asCount(activeRow?.teams),
         unassigned: asCount(activeRow?.unassigned),
         deleted: asCount(deletedRow?.count),
-        duplicate: asCount(activeRow?.duplicate),
-        "re-enquired": asCount(activeRow?.reEnquired),
+        duplicate: asCount(duplicateRow?.count),
+        "re-enquired": asCount(reEnquiredRow?.count),
         naleads: asCount(activeRow?.naleads),
       };
     } catch (err) {
