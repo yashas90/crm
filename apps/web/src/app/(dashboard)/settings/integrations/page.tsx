@@ -141,7 +141,7 @@ export default function IntegrationsSettingsPage() {
                 <span className="font-mono">POST /api/integrations/meta/webhook</span>
               </p>
               <Button asChild size="sm" className="mt-2">
-                <Link href="/settings/integrations/meta">
+                <Link href="/settings/meta">
                   {facebook?.oauthConnected ? "Manage Meta" : "Connect Meta"}
                 </Link>
               </Button>

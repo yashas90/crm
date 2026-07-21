@@ -341,7 +341,7 @@ metaRoutes.get("/oauth/callback", async (c) => {
   const state = c.req.query("state");
   const error = c.req.query("error");
   const webUrl = env.WEB_APP_URL ?? process.env.WEB_BASE_URL ?? "http://localhost:3000";
-  const metaSettings = `${webUrl}/settings/integrations/meta`;
+  const metaSettings = `${webUrl}/settings/meta`;
 
   if (error || !code) {
     return c.redirect(`${metaSettings}?meta=error`);
