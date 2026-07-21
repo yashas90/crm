@@ -5,7 +5,7 @@ import { SLA_THRESHOLD_DAYS, SLA_THRESHOLD_LABELS, type SlaSummary } from "@/lib
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
-import { Skeleton } from "@propninja/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
