@@ -133,7 +133,7 @@ export async function enqueueConversionForLeadStatusChange(
   try {
     const { isDurableJobsEnabled, enqueueMetaCapiSend } = await import("../lib/jobQueue.js");
     if (isDurableJobsEnabled()) {
-      await enqueueMetaCapiSend({ reason: "lead_status_change", leadId, eventRecordId: recordId });
+      await enqueueMetaCapiSend();
     } else {
       await sendPendingConversionEvents();
     }

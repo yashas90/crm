@@ -100,7 +100,7 @@ Then in Meta: Callback URL `https://<api-host>/api/integrations/meta/webhook`, s
 | PUT | `/api/meta/token` | Refresh long-lived user token |
 | DELETE/POST | `/api/meta/disconnect` | Revoke connection |
 
-OAuth scopes: `business_management`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`, `pages_manage_ads`, `leads_retrieval`, `ads_management`, `ads_read`, `read_insights`.
+OAuth scopes: `business_management`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`, `pages_manage_ads`, `leads_retrieval`, `ads_management`, `ads_read`.
 
 ## CAPI status mapping
 

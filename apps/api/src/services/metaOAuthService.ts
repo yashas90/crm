@@ -33,7 +33,6 @@ export const META_OAUTH_SCOPES = [
   "leads_retrieval",
   "ads_management",
   "ads_read",
-  "read_insights",
 ];
 
 function getRedirectUri(): string {

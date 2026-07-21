@@ -485,8 +485,13 @@ metaRoutes.post("/pages/:id/reconnect", writeRateLimit, async (c) => {
   const denied = requireManage(c);
   if (denied) return denied;
 
+  const pageRowId = c.req.param("id");
+  if (!pageRowId) {
+    return jsonError(c, "VALIDATION_ERROR", "Page id is required", 400);
+  }
+
   try {
-    const result = await reconnectPage(c.req.param("id"), SINGLE_TENANT_ORG_ID);
+    const result = await reconnectPage(pageRowId, SINGLE_TENANT_ORG_ID);
     return jsonOk(c, result);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

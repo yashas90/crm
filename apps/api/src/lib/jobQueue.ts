@@ -61,7 +61,7 @@ async function runJob(name: string, data?: Record<string, unknown>) {
       }
       return processLeadgenWebhook(payload.change, {
         orgId: payload.orgId,
-        webhookId: payload.webhookId,
+        webhookId: payload.webhookId ?? undefined,
       });
     }
     case JOB_NAMES.META_CAPI_SEND:
