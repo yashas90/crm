@@ -15,20 +15,20 @@ import {
   facebookTokens,
   facebookWebhooks,
 } from "@propninja/db";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 
 function startOfDay(daysAgo = 0): Date {
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - daysAgo);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - daysAgo);
   return d;
 }
 
 async function countLeadsSince(orgId: string, since: Date, until?: Date) {
   const conditions = [eq(facebookLeads.orgId, orgId), gte(facebookLeads.ingestedAt, since)];
-  if (until) conditions.push(sql`${facebookLeads.ingestedAt} < ${until}`);
+  if (until) conditions.push(lt(facebookLeads.ingestedAt, until));
   const [row] = await db
     .select({ value: count() })
     .from(facebookLeads)

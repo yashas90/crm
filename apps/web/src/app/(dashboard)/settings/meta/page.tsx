@@ -3,8 +3,24 @@
 import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-state";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  type MetaAd,
+  type MetaAdAccount,
+  type MetaAdset,
+  type MetaCampaign,
+  type MetaForm,
   useMetaAdAccounts,
+  useMetaAds,
+  useMetaAdsets,
   useMetaBusinesses,
+  useMetaCampaigns,
   useMetaConnect,
   useMetaDashboard,
   useMetaDisconnect,
@@ -12,7 +28,6 @@ import {
   useMetaPages,
   useMetaPatchForm,
   useMetaPatchPage,
-  useMetaPixels,
   useMetaReconnectPage,
   useMetaSync,
   useMetaSyncAssets,
@@ -20,13 +35,25 @@ import {
   useMetaTokenRefresh,
 } from "@/hooks/use-meta";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useProjects } from "@/hooks/use-projects";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
-import { AlertTriangle, Link2, Link2Off, Megaphone, RefreshCw, Unplug } from "lucide-react";
+import {
+  AlertTriangle,
+  Link2,
+  Link2Off,
+  Megaphone,
+  Pencil,
+  RefreshCw,
+  Search,
+  Unplug,
+} from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+
+type MetaTab = "accounts" | "pages" | "forms" | "ads";
 
 function Kpi({ label, value }: { label: string; value: number | string }) {
   return (
@@ -40,7 +67,13 @@ function Kpi({ label, value }: { label: string; value: number | string }) {
 }
 
 function EmptyRows({ message }: { message: string }) {
-  return <p className="text-sm text-muted-foreground">{message}</p>;
+  return <p className="py-6 text-center text-sm text-muted-foreground">{message}</p>;
+}
+
+function StatusBadge({ active, label }: { active: boolean; label?: string }) {
+  return (
+    <Badge variant={active ? "default" : "secondary"}>{label ?? (active ? "ACTIVE" : "OFF")}</Badge>
+  );
 }
 
 function MetaDashboardInner() {
@@ -49,14 +82,21 @@ function MetaDashboardInner() {
   const canManage = hasPermission("org_profile:update");
   const searchParams = useSearchParams();
   const [banner, setBanner] = useState<string | null>(null);
+  const [tab, setTab] = useState<MetaTab>("accounts");
+  const [search, setSearch] = useState("");
+  const [mappingForm, setMappingForm] = useState<MetaForm | null>(null);
+  const [mappingProjectId, setMappingProjectId] = useState<string>("");
 
   const dashboard = useMetaDashboard({ enabled: ready && canView });
   const businesses = useMetaBusinesses({ enabled: ready && canView });
   const pages = useMetaPages({ enabled: ready && canView });
   const forms = useMetaForms({ enabled: ready && canView });
   const adAccounts = useMetaAdAccounts({ enabled: ready && canView });
-  const pixels = useMetaPixels({ enabled: ready && canView });
+  const campaigns = useMetaCampaigns({ enabled: ready && canView && tab === "ads" });
+  const adsets = useMetaAdsets({ enabled: ready && canView && tab === "ads" });
+  const ads = useMetaAds({ enabled: ready && canView && tab === "ads" });
   const syncHistory = useMetaSyncHistory({ enabled: ready && canView });
+  const projects = useProjects();
   const connect = useMetaConnect();
   const disconnect = useMetaDisconnect();
   const sync = useMetaSync();
@@ -72,6 +112,22 @@ function MetaDashboardInner() {
     if (meta === "error") setBanner("Meta connection failed. Check app credentials and try again.");
   }, [searchParams]);
 
+  useEffect(() => {
+    setMappingProjectId(mappingForm?.projectId ?? "");
+  }, [mappingForm]);
+
+  const pageNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const page of pages.data ?? []) map.set(page.id, page.name);
+    return map;
+  }, [pages.data]);
+
+  const pageMetaIdById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const page of pages.data ?? []) map.set(page.id, page.pageId);
+    return map;
+  }, [pages.data]);
+
   const formsByPage = useMemo(() => {
     const map = new Map<string, number>();
     for (const form of forms.data ?? []) {
@@ -80,7 +136,85 @@ function MetaDashboardInner() {
     return map;
   }, [forms.data]);
 
+  const campaignById = useMemo(() => {
+    const map = new Map<string, MetaCampaign>();
+    for (const row of campaigns.data ?? []) map.set(row.id, row);
+    return map;
+  }, [campaigns.data]);
+
+  const adsetById = useMemo(() => {
+    const map = new Map<string, MetaAdset>();
+    for (const row of adsets.data ?? []) map.set(row.id, row);
+    return map;
+  }, [adsets.data]);
+
+  const accountById = useMemo(() => {
+    const map = new Map<string, MetaAdAccount>();
+    for (const row of adAccounts.data ?? []) map.set(row.id, row);
+    return map;
+  }, [adAccounts.data]);
+
+  const projectNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const project of projects.data ?? []) map.set(project.id, project.name);
+    return map;
+  }, [projects.data]);
+
+  const q = search.trim().toLowerCase();
+
+  const filteredAccounts = useMemo(() => {
+    const rows = adAccounts.data ?? [];
+    if (!q) return rows;
+    return rows.filter(
+      (row) => row.name.toLowerCase().includes(q) || row.adAccountId.toLowerCase().includes(q),
+    );
+  }, [adAccounts.data, q]);
+
+  const filteredPages = useMemo(() => {
+    const rows = pages.data ?? [];
+    if (!q) return rows;
+    return rows.filter(
+      (row) => row.name.toLowerCase().includes(q) || row.pageId.toLowerCase().includes(q),
+    );
+  }, [pages.data, q]);
+
+  const filteredForms = useMemo(() => {
+    const rows = forms.data ?? [];
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const pageName = pageNameById.get(row.pageId) ?? "";
+      return (
+        row.name.toLowerCase().includes(q) ||
+        row.formId.toLowerCase().includes(q) ||
+        pageName.toLowerCase().includes(q)
+      );
+    });
+  }, [forms.data, pageNameById, q]);
+
+  const filteredAds = useMemo(() => {
+    const rows = ads.data ?? [];
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const adset = row.adsetId ? adsetById.get(row.adsetId) : undefined;
+      const campaign = adset?.campaignId ? campaignById.get(adset.campaignId) : undefined;
+      return (
+        row.name.toLowerCase().includes(q) ||
+        row.adId.toLowerCase().includes(q) ||
+        (adset?.name ?? "").toLowerCase().includes(q) ||
+        (campaign?.name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [ads.data, adsetById, campaignById, q]);
+
   const lastSync = syncHistory.data?.[0] ?? null;
+  const connected =
+    Boolean(dashboard.data?.token.connected) ||
+    (pages.data?.length ?? 0) > 0 ||
+    (businesses.data?.length ?? 0) > 0 ||
+    (adAccounts.data?.length ?? 0) > 0;
+
+  const assetsLoading =
+    pages.isLoading || forms.isLoading || adAccounts.isLoading || businesses.isLoading;
 
   if (ready && !canView) {
     return (
@@ -91,7 +225,6 @@ function MetaDashboardInner() {
     );
   }
 
-  const data = dashboard.data;
   const busy =
     connect.isPending ||
     disconnect.isPending ||
@@ -113,9 +246,29 @@ function MetaDashboardInner() {
     void pages.refetch();
     void forms.refetch();
     void adAccounts.refetch();
-    void pixels.refetch();
+    void campaigns.refetch();
+    void adsets.refetch();
+    void ads.refetch();
     void syncHistory.refetch();
   }
+
+  async function saveFormMapping() {
+    if (!mappingForm) return;
+    await patchForm.mutateAsync({
+      id: mappingForm.id,
+      projectId: mappingProjectId || null,
+      isActive: true,
+      isSelected: true,
+    });
+    setMappingForm(null);
+  }
+
+  const tabs: Array<{ id: MetaTab; label: string; count: number }> = [
+    { id: "accounts", label: "Accounts", count: adAccounts.data?.length ?? 0 },
+    { id: "pages", label: "Pages", count: pages.data?.length ?? 0 },
+    { id: "forms", label: "Forms", count: forms.data?.length ?? 0 },
+    { id: "ads", label: "Ads", count: ads.data?.length ?? 0 },
+  ];
 
   return (
     <div className="space-y-6">
@@ -137,7 +290,7 @@ function MetaDashboardInner() {
             Meta Lead Ads
           </h1>
           <p className="text-sm text-muted-foreground">
-            Multi-page OAuth connect, leadgen webhooks, forms, and sync — no hardcoded page tokens.
+            Connected accounts, lead forms, and ads — map forms to projects for CRM ingest.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -145,19 +298,24 @@ function MetaDashboardInner() {
             type="button"
             variant="outline"
             size="sm"
-            disabled={dashboard.isFetching}
+            disabled={dashboard.isFetching || pages.isFetching}
             onClick={refetchAll}
           >
-            <RefreshCw className={cn("mr-2 h-4 w-4", dashboard.isFetching && "animate-spin")} />
+            <RefreshCw
+              className={cn(
+                "mr-2 h-4 w-4",
+                (dashboard.isFetching || pages.isFetching) && "animate-spin",
+              )}
+            />
             Refresh
           </Button>
           {canManage ? (
             <>
               <Button type="button" size="sm" disabled={busy} onClick={() => void handleConnect()}>
                 <Link2 className="mr-2 h-4 w-4" />
-                {data?.token.connected ? "Reconnect Meta" : "Connect Meta"}
+                {connected ? "Reconnect Meta" : "Connect Meta"}
               </Button>
-              {data?.token.connected ? (
+              {connected ? (
                 <>
                   <Button
                     type="button"
@@ -166,7 +324,7 @@ function MetaDashboardInner() {
                     disabled={busy}
                     onClick={() => void syncAssets.mutateAsync()}
                   >
-                    Sync Now
+                    Sync assets
                   </Button>
                   <Button
                     type="button"
@@ -213,9 +371,15 @@ function MetaDashboardInner() {
         </div>
       ) : null}
 
-      {dashboard.isLoading ? (
+      {dashboard.isError ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Dashboard summary failed to load. Asset tables below still work — try Refresh.
+        </div>
+      ) : null}
+
+      {assetsLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 8 }, (_, i) => (
+          {Array.from({ length: 4 }, (_, i) => (
             <Card key={`meta-skel-${String(i)}`}>
               <CardHeader>
                 <div className="h-4 w-24 animate-pulse rounded bg-muted" />
@@ -224,18 +388,18 @@ function MetaDashboardInner() {
             </Card>
           ))}
         </div>
-      ) : data ? (
+      ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={data.token.connected ? "default" : "secondary"}>
-              Token: {data.token.connected ? (data.token.status ?? "active") : "Not connected"}
+            <Badge variant={connected ? "default" : "secondary"}>
+              {connected ? "Connected" : "Not connected"}
             </Badge>
-            {data.token.expiresAt ? (
+            {dashboard.data?.token.expiresAt ? (
               <span className="text-sm text-muted-foreground">
-                Expires {new Date(data.token.expiresAt).toLocaleString()}
+                Token expires {new Date(dashboard.data.token.expiresAt).toLocaleString()}
               </span>
             ) : null}
-            {data.token.expiringSoon ? (
+            {dashboard.data?.token.expiringSoon ? (
               <Badge variant="warning" className="gap-1">
                 <AlertTriangle className="h-3 w-3" />
                 Expiring soon
@@ -246,35 +410,330 @@ function MetaDashboardInner() {
                 Last sync: {lastSync.syncType} · {lastSync.status} ·{" "}
                 {new Date(lastSync.startedAt).toLocaleString()}
               </span>
-            ) : (
-              <span className="text-sm text-muted-foreground">Last sync: never</span>
-            )}
+            ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <Kpi label="Businesses" value={data.assets.businesses} />
-            <Kpi label="Pages" value={data.assets.pages} />
-            <Kpi label="Lead forms" value={data.assets.forms} />
-            <Kpi label="Pixels" value={data.assets.pixels} />
-            <Kpi label="Ad accounts" value={data.assets.adAccounts} />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Leads today" value={data.leads.today} />
-            <Kpi label="Leads yesterday" value={data.leads.yesterday} />
-            <Kpi label="Last 7 days" value={data.leads.last7Days} />
-            <Kpi label="Last 30 days" value={data.leads.last30Days} />
+            <Kpi label="Businesses" value={businesses.data?.length ?? 0} />
+            <Kpi label="Ad accounts" value={adAccounts.data?.length ?? 0} />
+            <Kpi label="Pages" value={pages.data?.length ?? 0} />
+            <Kpi label="Lead forms" value={forms.data?.length ?? 0} />
+            <Kpi label="Leads (30d)" value={dashboard.data?.leads.last30Days ?? 0} />
           </div>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Connected businesses</CardTitle>
-              <CardDescription>Business Managers imported via OAuth.</CardDescription>
+            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base">Meta assets</CardTitle>
+                <CardDescription>
+                  Browse accounts, pages, lead forms, and synced ads.
+                </CardDescription>
+              </div>
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Type to search"
+                  className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
             </CardHeader>
-            <CardContent>
-              {(businesses.data ?? []).length === 0 ? (
-                <EmptyRows message="No businesses yet. Click Connect Meta." />
-              ) : (
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {tabs.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setTab(item.id)}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      tab === item.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {item.label} ({item.count})
+                  </button>
+                ))}
+              </div>
+
+              {tab === "accounts" ? (
+                filteredAccounts.length === 0 ? (
+                  <EmptyRows message="No ad accounts yet. Connect Meta, then Sync assets." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-left text-sm">
+                      <thead className="text-muted-foreground">
+                        <tr className="border-b">
+                          <th className="py-2 pr-3 font-medium">Account name</th>
+                          <th className="py-2 pr-3 font-medium">Account ID</th>
+                          <th className="py-2 pr-3 font-medium">Currency</th>
+                          <th className="py-2 pr-3 font-medium">Status</th>
+                          <th className="py-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredAccounts.map((account) => (
+                          <tr key={account.id} className="border-b border-border/60">
+                            <td className="py-3 pr-3 font-medium">{account.name}</td>
+                            <td className="py-3 pr-3 font-mono text-xs text-muted-foreground">
+                              {account.adAccountId}
+                            </td>
+                            <td className="py-3 pr-3">{account.currency ?? "—"}</td>
+                            <td className="py-3 pr-3">
+                              <StatusBadge active={account.isActive && account.isSelected} />
+                            </td>
+                            <td className="py-3">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setTab("ads");
+                                  setSearch(account.name);
+                                }}
+                              >
+                                View ads
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : null}
+
+              {tab === "pages" ? (
+                filteredPages.length === 0 ? (
+                  <EmptyRows message="No pages yet. Connect Meta, then Sync assets." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[720px] text-left text-sm">
+                      <thead className="text-muted-foreground">
+                        <tr className="border-b">
+                          <th className="py-2 pr-3 font-medium">Page</th>
+                          <th className="py-2 pr-3 font-medium">Page ID</th>
+                          <th className="py-2 pr-3 font-medium">Leadgen</th>
+                          <th className="py-2 pr-3 font-medium">Forms</th>
+                          <th className="py-2 pr-3 font-medium">Status</th>
+                          <th className="py-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredPages.map((page) => (
+                          <tr key={page.id} className="border-b border-border/60">
+                            <td className="py-3 pr-3 font-medium">{page.name}</td>
+                            <td className="py-3 pr-3 font-mono text-xs text-muted-foreground">
+                              {page.pageId}
+                            </td>
+                            <td className="py-3 pr-3">
+                              <StatusBadge
+                                active={page.leadgenSubscribed}
+                                label={page.leadgenSubscribed ? "Subscribed" : "No"}
+                              />
+                            </td>
+                            <td className="py-3 pr-3 tabular-nums">
+                              {formsByPage.get(page.id) ?? 0}
+                            </td>
+                            <td className="py-3 pr-3">
+                              <StatusBadge active={page.isActive && page.isSelected} />
+                            </td>
+                            <td className="py-3">
+                              <div className="flex flex-wrap gap-2">
+                                {canManage ? (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void patchPage.mutateAsync({
+                                          id: page.id,
+                                          isActive: !(page.isActive && page.isSelected),
+                                          isSelected: !(page.isActive && page.isSelected),
+                                        })
+                                      }
+                                    >
+                                      {page.isActive && page.isSelected ? "Disable" : "Enable"}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={busy}
+                                      onClick={() => void reconnectPage.mutateAsync(page.id)}
+                                    >
+                                      Reconnect
+                                    </Button>
+                                  </>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : null}
+
+              {tab === "forms" ? (
+                filteredForms.length === 0 ? (
+                  <EmptyRows message="No lead forms yet. Sync assets after connecting Meta." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[800px] text-left text-sm">
+                      <thead className="text-muted-foreground">
+                        <tr className="border-b">
+                          <th className="py-2 pr-3 font-medium">Lead form</th>
+                          <th className="py-2 pr-3 font-medium">Form ID</th>
+                          <th className="py-2 pr-3 font-medium">Page name</th>
+                          <th className="py-2 pr-3 font-medium">Project</th>
+                          <th className="py-2 pr-3 font-medium">Status</th>
+                          <th className="py-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredForms.map((form) => (
+                          <tr key={form.id} className="border-b border-border/60">
+                            <td className="py-3 pr-3 font-medium">{form.name}</td>
+                            <td className="py-3 pr-3 font-mono text-xs text-muted-foreground">
+                              {form.formId}
+                            </td>
+                            <td className="py-3 pr-3">
+                              {pageNameById.get(form.pageId) ??
+                                pageMetaIdById.get(form.pageId) ??
+                                "—"}
+                            </td>
+                            <td className="py-3 pr-3">
+                              {form.projectId
+                                ? (projectNameById.get(form.projectId) ?? "Mapped")
+                                : "—"}
+                            </td>
+                            <td className="py-3 pr-3">
+                              <StatusBadge
+                                active={(form.status ?? "").toUpperCase() === "ACTIVE"}
+                                label={form.status ?? (form.isActive ? "ACTIVE" : "OFF")}
+                              />
+                            </td>
+                            <td className="py-3">
+                              <div className="flex flex-wrap gap-2">
+                                {canManage ? (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setMappingForm(form)}
+                                    >
+                                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                                      Map
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void patchForm.mutateAsync({
+                                          id: form.id,
+                                          isActive: !(form.isActive && form.isSelected),
+                                          isSelected: !(form.isActive && form.isSelected),
+                                        })
+                                      }
+                                    >
+                                      {form.isActive && form.isSelected ? "Disable" : "Enable"}
+                                    </Button>
+                                  </>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : null}
+
+              {tab === "ads" ? (
+                ads.isLoading || campaigns.isLoading || adsets.isLoading ? (
+                  <EmptyRows message="Loading ads…" />
+                ) : filteredAds.length === 0 ? (
+                  <div className="space-y-3 py-6 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No ads synced yet. Run <span className="font-medium">Full sync</span> to
+                      import campaigns, ad sets, and ads.
+                    </p>
+                    {canManage && connected ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void sync.mutateAsync({ type: "all" })}
+                      >
+                        Full sync now
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[960px] text-left text-sm">
+                      <thead className="text-muted-foreground">
+                        <tr className="border-b">
+                          <th className="py-2 pr-3 font-medium">Ad</th>
+                          <th className="py-2 pr-3 font-medium">Ad set</th>
+                          <th className="py-2 pr-3 font-medium">Campaign</th>
+                          <th className="py-2 pr-3 font-medium">Ad account</th>
+                          <th className="py-2 pr-3 font-medium">Budget</th>
+                          <th className="py-2 pr-3 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredAds.map((ad: MetaAd) => {
+                          const adset = ad.adsetId ? adsetById.get(ad.adsetId) : undefined;
+                          const campaign = adset?.campaignId
+                            ? campaignById.get(adset.campaignId)
+                            : undefined;
+                          const account = campaign?.adAccountId
+                            ? accountById.get(campaign.adAccountId)
+                            : undefined;
+                          const budget = adset?.dailyBudget
+                            ? `${account?.currency ?? "INR"} ${adset.dailyBudget}/day`
+                            : "—";
+                          return (
+                            <tr key={ad.id} className="border-b border-border/60">
+                              <td className="py-3 pr-3 font-medium">{ad.name}</td>
+                              <td className="py-3 pr-3">{adset?.name ?? "—"}</td>
+                              <td className="py-3 pr-3">{campaign?.name ?? "—"}</td>
+                              <td className="py-3 pr-3">{account?.name ?? "—"}</td>
+                              <td className="py-3 pr-3">{budget}</td>
+                              <td className="py-3">
+                                <StatusBadge
+                                  active={(ad.status ?? "").toUpperCase() === "ACTIVE"}
+                                  label={ad.status ?? "—"}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : null}
+            </CardContent>
+          </Card>
+
+          {(businesses.data?.length ?? 0) > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Business Managers</CardTitle>
+              </CardHeader>
+              <CardContent>
                 <ul className="space-y-2 text-sm">
                   {(businesses.data ?? []).map((biz) => (
                     <li
@@ -291,307 +750,66 @@ function MetaDashboardInner() {
                     </li>
                   ))}
                 </ul>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Pages</CardTitle>
-              <CardDescription>
-                Enable/disable pages, reconnect tokens, and leadgen subscription status.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {(pages.data ?? []).length === 0 ? (
-                <EmptyRows message="No pages yet. Click Connect Meta, then Sync Now." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead className="text-muted-foreground">
-                      <tr className="border-b">
-                        <th className="py-2 pr-3 font-medium">Page</th>
-                        <th className="py-2 pr-3 font-medium">Token</th>
-                        <th className="py-2 pr-3 font-medium">Leadgen</th>
-                        <th className="py-2 pr-3 font-medium">Forms</th>
-                        <th className="py-2 pr-3 font-medium">Active</th>
-                        <th className="py-2 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(pages.data ?? []).map((page) => (
-                        <tr key={page.id} className="border-b border-border/60">
-                          <td className="py-2 pr-3">
-                            <p className="font-medium">{page.name}</p>
-                            <p className="font-mono text-xs text-muted-foreground">{page.pageId}</p>
-                          </td>
-                          <td className="py-2 pr-3">
-                            <Badge variant={page.hasAccessToken ? "default" : "secondary"}>
-                              {page.hasAccessToken ? "Stored" : "Missing"}
-                            </Badge>
-                          </td>
-                          <td className="py-2 pr-3">
-                            <Badge variant={page.leadgenSubscribed ? "default" : "secondary"}>
-                              {page.leadgenSubscribed ? "Subscribed" : "Not subscribed"}
-                            </Badge>
-                          </td>
-                          <td className="py-2 pr-3 tabular-nums">
-                            {formsByPage.get(page.id) ?? 0}
-                          </td>
-                          <td className="py-2 pr-3">
-                            <Badge
-                              variant={page.isActive && page.isSelected ? "default" : "secondary"}
-                            >
-                              {page.isActive && page.isSelected ? "On" : "Off"}
-                            </Badge>
-                          </td>
-                          <td className="py-2">
-                            {canManage ? (
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={busy}
-                                  onClick={() =>
-                                    void patchPage.mutateAsync({
-                                      id: page.id,
-                                      isActive: !(page.isActive && page.isSelected),
-                                      isSelected: !(page.isActive && page.isSelected),
-                                    })
-                                  }
-                                >
-                                  {page.isActive && page.isSelected ? "Disable" : "Enable"}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={busy}
-                                  onClick={() => void reconnectPage.mutateAsync(page.id)}
-                                >
-                                  Reconnect
-                                </Button>
-                              </div>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Lead forms</CardTitle>
-              <CardDescription>
-                Forms linked to pages. Disable to stop ingest for that form.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {(forms.data ?? []).length === 0 ? (
-                <EmptyRows message="No forms synced yet." />
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[560px] text-left text-sm">
-                    <thead className="text-muted-foreground">
-                      <tr className="border-b">
-                        <th className="py-2 pr-3 font-medium">Form</th>
-                        <th className="py-2 pr-3 font-medium">Status</th>
-                        <th className="py-2 pr-3 font-medium">Active</th>
-                        <th className="py-2 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(forms.data ?? []).map((form) => (
-                        <tr key={form.id} className="border-b border-border/60">
-                          <td className="py-2 pr-3">
-                            <p className="font-medium">{form.name}</p>
-                            <p className="font-mono text-xs text-muted-foreground">{form.formId}</p>
-                          </td>
-                          <td className="py-2 pr-3">{form.status ?? "—"}</td>
-                          <td className="py-2 pr-3">
-                            <Badge
-                              variant={form.isActive && form.isSelected ? "default" : "secondary"}
-                            >
-                              {form.isActive && form.isSelected ? "On" : "Off"}
-                            </Badge>
-                          </td>
-                          <td className="py-2">
-                            {canManage ? (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={busy}
-                                onClick={() =>
-                                  void patchForm.mutateAsync({
-                                    id: form.id,
-                                    isActive: !(form.isActive && form.isSelected),
-                                    isSelected: !(form.isActive && form.isSelected),
-                                  })
-                                }
-                              >
-                                {form.isActive && form.isSelected ? "Disable" : "Enable"}
-                              </Button>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Ad accounts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(adAccounts.data ?? []).length === 0 ? (
-                  <EmptyRows message="No ad accounts synced yet." />
-                ) : (
-                  <ul className="space-y-2 text-sm">
-                    {(adAccounts.data ?? []).map((account) => (
-                      <li
-                        key={account.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2"
-                      >
-                        <div>
-                          <p className="font-medium">{account.name}</p>
-                          <p className="font-mono text-xs text-muted-foreground">
-                            {account.adAccountId}
-                            {account.currency ? ` · ${account.currency}` : ""}
-                          </p>
-                        </div>
-                        <Badge variant={account.isActive ? "default" : "secondary"}>
-                          {account.isActive ? "Active" : "Off"}
-                        </Badge>
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Pixels</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(pixels.data ?? []).length === 0 ? (
-                  <EmptyRows message="No pixels synced yet." />
-                ) : (
-                  <ul className="space-y-2 text-sm">
-                    {(pixels.data ?? []).map((pixel) => (
-                      <li
-                        key={pixel.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2"
-                      >
-                        <div>
-                          <p className="font-medium">{pixel.name}</p>
-                          <p className="font-mono text-xs text-muted-foreground">{pixel.pixelId}</p>
-                        </div>
-                        <div className="flex gap-1">
-                          {pixel.isDefault ? <Badge variant="outline">Default</Badge> : null}
-                          <Badge variant={pixel.isActive ? "default" : "secondary"}>
-                            {pixel.isActive ? "Active" : "Off"}
-                          </Badge>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Sync history</CardTitle>
-                <CardDescription>
-                  Recent page/form and insights sync runs (every 6h).
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(syncHistory.data ?? []).length === 0 ? (
-                  <EmptyRows message="No sync history yet." />
-                ) : (
-                  (syncHistory.data ?? []).map((row) => (
-                    <div
-                      key={row.id}
-                      className="flex items-start justify-between gap-3 rounded-md border px-3 py-2 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium">
-                          {row.syncType} · {row.status}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(row.startedAt).toLocaleString()}
-                          {row.errorMessage ? ` — ${row.errorMessage}` : ""}
-                        </p>
-                      </div>
-                      <span className="tabular-nums text-muted-foreground">
-                        {row.recordsProcessed}/{row.recordsFailed}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Webhook &amp; CAPI health</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="mb-2 text-sm font-medium">Webhooks</p>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(data.webhooks).map(([status, count]) => (
-                      <Badge key={status} variant="secondary">
-                        {status}: {count}
-                      </Badge>
-                    ))}
-                    {Object.keys(data.webhooks).length === 0 ? (
-                      <span className="text-sm text-muted-foreground">No webhook traffic yet.</span>
-                    ) : null}
-                  </div>
-                </div>
-                <div>
-                  <p className="mb-2 text-sm font-medium">Conversion events</p>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(data.conversionEvents).map(([status, count]) => (
-                      <Badge key={status} variant="secondary">
-                        {status}: {count}
-                      </Badge>
-                    ))}
-                    {Object.keys(data.conversionEvents).length === 0 ? (
-                      <span className="text-sm text-muted-foreground">
-                        Enable META_CAPI_ENABLED after connecting a pixel.
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          ) : null}
         </>
-      ) : (
+      )}
+
+      {!assetsLoading && !connected ? (
         <Card>
           <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
             <Link2Off className="h-4 w-4" />
-            Unable to load Meta dashboard.
+            Connect Meta to import ad accounts, pages, and lead forms.
           </CardContent>
         </Card>
-      )}
+      ) : null}
+
+      <Dialog open={Boolean(mappingForm)} onOpenChange={(open) => !open && setMappingForm(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Map lead form</DialogTitle>
+            <DialogDescription>
+              {mappingForm
+                ? `${mappingForm.name} · ${pageNameById.get(mappingForm.pageId) ?? "Page"}`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium">Project</span>
+              <select
+                value={mappingProjectId}
+                onChange={(e) => setMappingProjectId(e.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">No project</option>
+                {(projects.data ?? []).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              New Meta leads from this form inherit the selected project when project is empty on
+              the CRM lead.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setMappingForm(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={busy || !mappingForm}
+              onClick={() => void saveFormMapping()}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -600,7 +818,7 @@ export default function MetaSettingsPage() {
   return (
     <Suspense
       fallback={
-        <div className="space-y-4 p-1">
+        <div className="space-y-4 p-6">
           <div className="h-8 w-48 animate-pulse rounded bg-muted" />
           <div className="h-40 animate-pulse rounded-xl bg-muted" />
         </div>
