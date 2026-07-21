@@ -37,13 +37,18 @@ export function LeadsScopeTabs({
   className,
 }: LeadsScopeTabsProps) {
   const isPrimary = LEADS_PRIMARY_SCOPES.some((tab) => tab.id === value);
-  const primaryValue = isPrimary ? value : "all";
+  // When a secondary bucket is selected, do not fake-highlight "All Leads".
+  const primaryValue = isPrimary ? value : null;
 
   // Sliding pill indicator
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [indicator, setIndicator] = useState({ left: 0, width: 0, ready: false });
 
   useLayoutEffect(() => {
+    if (!primaryValue) {
+      setIndicator({ left: 0, width: 0, ready: false });
+      return;
+    }
     const activeIndex = LEADS_PRIMARY_SCOPES.findIndex((t) => t.id === primaryValue);
     const tab = tabRefs.current[activeIndex];
     if (tab) {
@@ -111,7 +116,7 @@ export function LeadsScopeTabs({
             <button
               key={tab.id}
               type="button"
-              onClick={() => onChange(tab.id)}
+              onClick={() => onChange(active ? "all" : tab.id)}
               className={cn(
                 "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-all duration-150",
                 active

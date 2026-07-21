@@ -63,6 +63,7 @@ export function scopeFromUrlFilters(
 /** Stage chips (active/new/pending/…) conflict with these bucket scopes — skip them in list queries. */
 export function scopeUsesStageFilters(scope: LeadsScope): boolean {
   return !(
+    scope === "unassigned" ||
     scope === "naleads" ||
     scope === "deleted" ||
     scope === "duplicate" ||
