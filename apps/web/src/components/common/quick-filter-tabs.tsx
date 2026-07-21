@@ -59,10 +59,7 @@ export function QuickFilterTabs<T extends string>({
 }: QuickFilterTabsProps<T>) {
   return (
     <div
-      className={cn(
-        "rounded-xl border border-border bg-muted/40 p-2 dark:bg-muted/20",
-        className,
-      )}
+      className={cn("rounded-xl border border-border bg-muted/40 p-2 dark:bg-muted/20", className)}
     >
       <div
         className={cn(

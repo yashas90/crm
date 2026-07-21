@@ -516,7 +516,9 @@ function MetaDashboardInner() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Sync history</CardTitle>
-                <CardDescription>Recent page/form and insights sync runs (every 6h).</CardDescription>
+                <CardDescription>
+                  Recent page/form and insights sync runs (every 6h).
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {(syncHistory.data ?? []).length === 0 ? (
