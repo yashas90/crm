@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await persistAuth(token, sessionUser, refreshToken);
       setUser(sessionUser);
       setStatus("authenticated");
-      await queryClient.invalidateQueries();
+      await queryClient.invalidateQueries({ refetchType: "active" });
       void registerPushToken();
     },
     [],

@@ -1,7 +1,6 @@
 "use client";
 
 import { apiGet, apiPost } from "@/lib/apiClient";
-import { toast } from "@/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type NotificationRow = {
@@ -24,7 +23,9 @@ export function useNotifications(enabled = true) {
     queryFn: () => apiGet<NotificationsData>("/api/notifications"),
     enabled,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+    retry: false,
     meta: { suppressErrorToast: true },
   });
 }
@@ -38,6 +39,5 @@ export function useMarkNotificationsRead() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
-    onError: () => toast.error("Failed to mark notifications as read"),
   });
 }

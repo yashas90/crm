@@ -71,7 +71,7 @@ export function getApiUrl() {
 const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
 const RETRY_BASE_DELAY_MS = 800;
 const RATE_LIMIT_RETRY_DELAY_MS = 1500;
-const MAX_TRANSIENT_RETRIES = 3;
+const MAX_TRANSIENT_RETRIES = 1;
 const REQUEST_TIMEOUT_MS = 45_000;
 
 const NETWORK_ERROR_MESSAGE = "Connection issue. Check your mobile data or Wi‑Fi and try again.";

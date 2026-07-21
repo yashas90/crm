@@ -18,7 +18,7 @@ export function SlaSummaryCards({
   onSelectDays,
 }: SlaSummaryCardsProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {SLA_THRESHOLD_DAYS.map((days) => {
         const count = summary?.[`inactive_${days}d` as keyof SlaSummary] ?? 0;
         const active = selectedDays === days;

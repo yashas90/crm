@@ -51,7 +51,7 @@ export function TasksScreen({ navigation }: Props) {
   const { data, isLoading, refetch, isRefetching } = useMyOpenTasks();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
-  useRefreshOnFocus(refetch, { minIntervalMs: 0 });
+  useRefreshOnFocus(refetch);
 
   const tasks = data?.items ?? [];
 

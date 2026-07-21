@@ -10,7 +10,7 @@ import { CalendarDays, Columns3, Filter, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const dateSelectClass =
-  "h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-medium shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#204060]/20 dark:border-white/10 dark:bg-white/5";
+  "h-9 rounded-lg border border-border bg-background px-2.5 text-sm font-medium text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 type LeadsFilterBarProps = {
   searchDraft: string;
@@ -79,15 +79,15 @@ export function LeadsFilterBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-sm sm:flex-row sm:items-center dark:border-white/10 dark:bg-white/5",
+        "flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-3 sm:flex-row sm:items-center dark:bg-muted/10",
         className,
       )}
     >
       <div className="relative min-w-0 flex-1">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           id={searchId}
-          className="h-10 rounded-full border-slate-200 bg-white pl-10 pr-16 shadow-sm transition-shadow focus-visible:border-[#204060]/40 focus-visible:ring-2 focus-visible:ring-[#204060]/20 dark:bg-slate-900"
+          className="h-10 rounded-full border-border bg-background pl-10 pr-16 shadow-sm transition-shadow focus-visible:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/20"
           placeholder="Search leads…"
           value={searchDraft}
           onChange={(event) => onSearchDraftChange(event.target.value)}
@@ -98,7 +98,7 @@ export function LeadsFilterBar({
             }
           }}
         />
-        <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden select-none items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 sm:flex dark:border-white/10 dark:bg-white/5">
+        <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground sm:flex">
           /
         </kbd>
       </div>
@@ -109,18 +109,18 @@ export function LeadsFilterBar({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 gap-2"
+            className="h-9 gap-2 border-border bg-background text-foreground"
             onClick={() => setDateOpen((open) => !open)}
           >
-            <CalendarDays className="h-4 w-4" />
+            <CalendarDays className="h-4 w-4 shrink-0" />
             <span className="hidden sm:inline">
               {LEADS_DATE_PRESETS.find((preset) => preset.id === datePreset)?.label ?? "All"}
             </span>
           </Button>
 
           {dateOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-[#0f1623]">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-600">
+            <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-lg">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                 Created date
               </p>
               <div className="space-y-2">
@@ -190,16 +190,16 @@ export function LeadsFilterBar({
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 gap-2"
+            className="h-9 gap-2 border-border bg-background text-foreground"
             onClick={() => setColumnsOpen((open) => !open)}
           >
-            <Columns3 className="h-4 w-4" />
+            <Columns3 className="h-4 w-4 shrink-0" />
             <span className="hidden sm:inline">Manage Columns</span>
           </Button>
 
           {columnsOpen ? (
-            <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-[#0f1623]">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-600">
+            <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-lg">
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                 Visible columns
               </p>
               <ul className="space-y-2">
@@ -209,7 +209,7 @@ export function LeadsFilterBar({
 
                   return (
                     <li key={column.id}>
-                      <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-input"
@@ -236,10 +236,10 @@ export function LeadsFilterBar({
           type="button"
           variant="outline"
           size="sm"
-          className="relative h-9 gap-2"
+          className="relative h-9 gap-2 border-border bg-background text-foreground"
           onClick={onOpenFilters}
         >
-          <Filter className="h-4 w-4" />
+          <Filter className="h-4 w-4 shrink-0" />
           Filter
           {activeFilterCount > 0 ? (
             <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">

@@ -18,7 +18,7 @@ import {
   facebookPixels,
   facebookSyncHistory,
 } from "@propninja/db";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -41,7 +41,9 @@ import {
   getAuthUrl,
   handleCallback,
   isMetaOAuthConfigured,
+  resyncAssets,
 } from "../services/metaOAuthService.js";
+import { reconnectPage, syncPagesFormsAndSubscribe } from "../services/metaPageSyncService.js";
 import { syncCampaigns, syncInsights } from "../services/metaSyncService.js";
 import { refreshLongLivedUserToken } from "../services/metaTokenService.js";
 
@@ -87,7 +89,21 @@ metaRoutes.get("/pages", async (c) => {
   if (denied) return denied;
 
   const rows = await db
-    .select()
+    .select({
+      id: facebookPages.id,
+      orgId: facebookPages.orgId,
+      businessId: facebookPages.businessId,
+      pageId: facebookPages.pageId,
+      name: facebookPages.name,
+      category: facebookPages.category,
+      hasAccessToken: sql<boolean>`${facebookPages.accessTokenEncrypted} is not null`,
+      isSelected: facebookPages.isSelected,
+      isActive: facebookPages.isActive,
+      leadgenSubscribed: facebookPages.leadgenSubscribed,
+      projectId: facebookPages.projectId,
+      createdAt: facebookPages.createdAt,
+      updatedAt: facebookPages.updatedAt,
+    })
     .from(facebookPages)
     .where(eq(facebookPages.orgId, SINGLE_TENANT_ORG_ID))
     .orderBy(desc(facebookPages.createdAt));
@@ -123,6 +139,33 @@ metaRoutes.get("/pixels", async (c) => {
     .from(facebookPixels)
     .where(eq(facebookPixels.orgId, SINGLE_TENANT_ORG_ID))
     .orderBy(desc(facebookPixels.createdAt));
+  return jsonOk(c, rows);
+});
+
+/** Alias for checklist path `/api/meta/adaccounts` (rows live in `facebook_accounts`). */
+metaRoutes.get("/adaccounts", async (c) => {
+  const denied = requireView(c);
+  if (denied) return denied;
+
+  const rows = await db
+    .select({
+      id: facebookAccounts.id,
+      orgId: facebookAccounts.orgId,
+      businessId: facebookAccounts.businessId,
+      adAccountId: facebookAccounts.adAccountId,
+      name: facebookAccounts.name,
+      currency: facebookAccounts.currency,
+      timezoneName: facebookAccounts.timezoneName,
+      accountStatus: facebookAccounts.accountStatus,
+      isSelected: facebookAccounts.isSelected,
+      isActive: facebookAccounts.isActive,
+      projectId: facebookAccounts.projectId,
+      createdAt: facebookAccounts.createdAt,
+      updatedAt: facebookAccounts.updatedAt,
+    })
+    .from(facebookAccounts)
+    .where(eq(facebookAccounts.orgId, SINGLE_TENANT_ORG_ID))
+    .orderBy(desc(facebookAccounts.createdAt));
   return jsonOk(c, rows);
 });
 
@@ -268,7 +311,7 @@ metaRoutes.get("/dashboard", async (c) => {
 
 /* ─── OAuth connect flow ─────────────────────────────────────────────────── */
 
-metaRoutes.post("/connect", writeRateLimit, async (c) => {
+async function startMetaOAuth(c: Context) {
   const denied = requireManage(c);
   if (denied) return denied;
 
@@ -284,7 +327,13 @@ metaRoutes.post("/connect", writeRateLimit, async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const url = getAuthUrl(authUser.id);
   return jsonOk(c, { url });
-});
+}
+
+/** Preferred checklist path — returns `{ url }` for the Meta consent dialog. */
+metaRoutes.get("/oauth", writeRateLimit, startMetaOAuth);
+metaRoutes.post("/oauth", writeRateLimit, startMetaOAuth);
+/** Legacy alias used by the web Connect button. */
+metaRoutes.post("/connect", writeRateLimit, startMetaOAuth);
 
 /** GET /api/meta/oauth/callback — Meta redirects the browser here with `code`/`state` (state = initiating userId). */
 metaRoutes.get("/oauth/callback", async (c) => {
@@ -292,29 +341,33 @@ metaRoutes.get("/oauth/callback", async (c) => {
   const state = c.req.query("state");
   const error = c.req.query("error");
   const webUrl = env.WEB_APP_URL ?? process.env.WEB_BASE_URL ?? "http://localhost:3000";
+  const metaSettings = `${webUrl}/settings/integrations/meta`;
 
   if (error || !code) {
-    return c.redirect(`${webUrl}/settings/integrations?meta=error`);
+    return c.redirect(`${metaSettings}?meta=error`);
   }
 
   try {
     await handleCallback(code, state ?? null);
-    return c.redirect(`${webUrl}/settings/integrations?meta=connected`);
+    return c.redirect(`${metaSettings}?meta=connected`);
   } catch (err) {
     logger.error("Meta OAuth callback failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return c.redirect(`${webUrl}/settings/integrations?meta=error`);
+    return c.redirect(`${metaSettings}?meta=error`);
   }
 });
 
-metaRoutes.delete("/disconnect", writeRateLimit, async (c) => {
+async function disconnectMeta(c: Context) {
   const denied = requireManage(c);
   if (denied) return denied;
 
   await disconnectMetaOAuth(SINGLE_TENANT_ORG_ID);
   return jsonOk(c, { disconnected: true });
-});
+}
+
+metaRoutes.delete("/disconnect", writeRateLimit, disconnectMeta);
+metaRoutes.post("/disconnect", writeRateLimit, disconnectMeta);
 
 metaRoutes.put("/token", writeRateLimit, async (c) => {
   const denied = requireManage(c);
@@ -330,7 +383,7 @@ metaRoutes.put("/token", writeRateLimit, async (c) => {
 /* ─── Sync / conversion / asset selection ───────────────────────────────── */
 
 const syncBodySchema = z.object({
-  type: z.enum(["campaigns", "insights", "all"]).default("all"),
+  type: z.enum(["campaigns", "insights", "assets", "all"]).default("all"),
   adAccountIds: z.array(z.string()).optional(),
   datePreset: z.string().optional(),
   since: z.string().optional(),
@@ -344,6 +397,16 @@ metaRoutes.post("/sync", writeRateLimit, validate("json", syncBodySchema), async
   const body = c.req.valid("json");
   const results: Record<string, unknown> = {};
 
+  if (body.type === "assets" || body.type === "all") {
+    try {
+      results.assets = await syncPagesFormsAndSubscribe(SINGLE_TENANT_ORG_ID);
+    } catch (error) {
+      if (error instanceof Error && error.message === "NOT_CONNECTED") {
+        return jsonError(c, "NOT_CONNECTED", "Connect Meta OAuth before syncing assets", 400);
+      }
+      throw error;
+    }
+  }
   if (body.type === "campaigns" || body.type === "all") {
     results.campaigns = await syncCampaigns(SINGLE_TENANT_ORG_ID, body.adAccountIds);
   }
@@ -356,6 +419,116 @@ metaRoutes.post("/sync", writeRateLimit, validate("json", syncBodySchema), async
   }
 
   return jsonOk(c, results);
+});
+
+/** Explicit pages/forms discovery + leadgen subscribe (same as sync type=assets). */
+metaRoutes.post("/sync/assets", writeRateLimit, async (c) => {
+  const denied = requireManage(c);
+  if (denied) return denied;
+  try {
+    const result = await syncPagesFormsAndSubscribe(SINGLE_TENANT_ORG_ID);
+    return jsonOk(c, result);
+  } catch (error) {
+    if (error instanceof Error && error.message === "NOT_CONNECTED") {
+      return jsonError(c, "NOT_CONNECTED", "Connect Meta OAuth before syncing assets", 400);
+    }
+    throw error;
+  }
+});
+
+/** Full OAuth asset re-sync (businesses, ad accounts, pages, forms, pixels, subscribe). */
+metaRoutes.post("/sync/oauth-assets", writeRateLimit, async (c) => {
+  const denied = requireManage(c);
+  if (denied) return denied;
+  try {
+    const result = await resyncAssets(SINGLE_TENANT_ORG_ID);
+    return jsonOk(c, result);
+  } catch (error) {
+    if (error instanceof Error && error.message === "NOT_CONNECTED") {
+      return jsonError(c, "NOT_CONNECTED", "Connect Meta OAuth first", 400);
+    }
+    throw error;
+  }
+});
+
+const pagePatchSchema = z.object({
+  isActive: z.boolean().optional(),
+  isSelected: z.boolean().optional(),
+  projectId: z.string().uuid().nullable().optional(),
+});
+
+metaRoutes.patch("/pages/:id", writeRateLimit, validate("json", pagePatchSchema), async (c) => {
+  const denied = requireManage(c);
+  if (denied) return denied;
+
+  const id = c.req.param("id");
+  const body = c.req.valid("json");
+  const [row] = await db
+    .update(facebookPages)
+    .set({ ...body, updatedAt: new Date() })
+    .where(and(eq(facebookPages.id, id), eq(facebookPages.orgId, SINGLE_TENANT_ORG_ID)))
+    .returning({
+      id: facebookPages.id,
+      pageId: facebookPages.pageId,
+      name: facebookPages.name,
+      isActive: facebookPages.isActive,
+      isSelected: facebookPages.isSelected,
+      leadgenSubscribed: facebookPages.leadgenSubscribed,
+      projectId: facebookPages.projectId,
+    });
+
+  if (!row) return jsonError(c, "NOT_FOUND", "Page not found", 404);
+  return jsonOk(c, row);
+});
+
+metaRoutes.post("/pages/:id/reconnect", writeRateLimit, async (c) => {
+  const denied = requireManage(c);
+  if (denied) return denied;
+
+  try {
+    const result = await reconnectPage(c.req.param("id"), SINGLE_TENANT_ORG_ID);
+    return jsonOk(c, result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === "PAGE_NOT_FOUND") return jsonError(c, "NOT_FOUND", "Page not found", 404);
+    if (message === "NOT_CONNECTED") {
+      return jsonError(c, "NOT_CONNECTED", "Connect Meta OAuth first", 400);
+    }
+    if (message === "PAGE_TOKEN_UNAVAILABLE") {
+      return jsonError(c, "PAGE_TOKEN_UNAVAILABLE", "Could not refresh page token from Meta", 400);
+    }
+    throw error;
+  }
+});
+
+const formPatchSchema = z.object({
+  isActive: z.boolean().optional(),
+  isSelected: z.boolean().optional(),
+  projectId: z.string().uuid().nullable().optional(),
+});
+
+metaRoutes.patch("/forms/:id", writeRateLimit, validate("json", formPatchSchema), async (c) => {
+  const denied = requireManage(c);
+  if (denied) return denied;
+
+  const id = c.req.param("id");
+  const body = c.req.valid("json");
+  const [row] = await db
+    .update(facebookForms)
+    .set({ ...body, updatedAt: new Date() })
+    .where(and(eq(facebookForms.id, id), eq(facebookForms.orgId, SINGLE_TENANT_ORG_ID)))
+    .returning({
+      id: facebookForms.id,
+      formId: facebookForms.formId,
+      name: facebookForms.name,
+      isActive: facebookForms.isActive,
+      isSelected: facebookForms.isSelected,
+      projectId: facebookForms.projectId,
+      pageId: facebookForms.pageId,
+    });
+
+  if (!row) return jsonError(c, "NOT_FOUND", "Form not found", 404);
+  return jsonOk(c, row);
 });
 
 const conversionBodySchema = z.object({

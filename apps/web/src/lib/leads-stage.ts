@@ -13,32 +13,38 @@ export const LEAD_STAGES: {
   {
     id: "active",
     label: "Active Leads",
-    chipClass: "bg-emerald-500/10 text-emerald-800 hover:bg-emerald-500/15 dark:text-emerald-300",
+    chipClass:
+      "border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-100",
   },
   {
     id: "new",
     label: "New",
-    chipClass: "bg-sky-500/10 text-sky-800 hover:bg-sky-500/15 dark:text-sky-300",
+    chipClass:
+      "border-sky-300 bg-sky-100 text-sky-950 dark:border-sky-700 dark:bg-sky-950/50 dark:text-sky-100",
   },
   {
     id: "pending",
     label: "Pending",
-    chipClass: "bg-amber-500/10 text-amber-900 hover:bg-amber-500/15 dark:text-amber-300",
+    chipClass:
+      "border-amber-300 bg-amber-100 text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100",
   },
   {
     id: "scheduled",
     label: "Callback",
-    chipClass: "bg-violet-500/10 text-violet-800 hover:bg-violet-500/15 dark:text-violet-300",
+    chipClass:
+      "border-violet-300 bg-violet-100 text-violet-950 dark:border-violet-700 dark:bg-violet-950/50 dark:text-violet-100",
   },
   {
     id: "overdue",
     label: "Overdue",
-    chipClass: "bg-rose-500/10 text-rose-800 hover:bg-rose-500/15 dark:text-rose-300",
+    chipClass:
+      "border-rose-300 bg-rose-100 text-rose-950 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-100",
   },
   {
     id: "eoi",
     label: "Expression of Interest",
-    chipClass: "bg-teal-500/10 text-teal-800 hover:bg-teal-500/15 dark:text-teal-300",
+    chipClass:
+      "border-teal-300 bg-teal-100 text-teal-950 dark:border-teal-700 dark:bg-teal-950/50 dark:text-teal-100",
   },
 ];
 

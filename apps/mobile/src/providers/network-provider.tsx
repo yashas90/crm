@@ -1,4 +1,6 @@
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { QueryErrorBanner } from "@/components/ui/QueryErrorBanner";
+import { useStaleQueryBanner } from "@/hooks/useStaleQueryBanner";
 import { setNetworkOnline } from "@/lib/networkState";
 import { flushOfflineQueue } from "@/lib/offlineQueue";
 import { queryClient } from "@/lib/queryClient";
@@ -13,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { View } from "react-native";
 
 type NetworkContextValue = {
   isOnline: boolean;
@@ -22,6 +25,7 @@ const NetworkContext = createContext<NetworkContextValue>({ isOnline: true });
 
 export function NetworkProvider({ children }: { children: ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
+  const showStaleBanner = useStaleQueryBanner();
   const { showToast } = useToast();
   const wasOffline = useRef(false);
 
@@ -39,7 +43,7 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
       if (wasOffline.current) {
         wasOffline.current = false;
         void queryClient.resumePausedMutations();
-        void queryClient.invalidateQueries();
+        void queryClient.invalidateQueries({ refetchType: "active" });
         void flushOfflineQueue().then((synced) => {
           if (synced > 0) {
             showToast(`Synced ${synced} pending call log${synced === 1 ? "" : "s"}`);
@@ -61,7 +65,10 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
 
   return (
     <NetworkContext.Provider value={value}>
-      {children}
+      <View style={{ flex: 1 }}>
+        {showStaleBanner && isOnline ? <QueryErrorBanner /> : null}
+        {children}
+      </View>
       <OfflineBanner visible={!isOnline} />
     </NetworkContext.Provider>
   );

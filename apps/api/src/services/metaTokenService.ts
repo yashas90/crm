@@ -1,8 +1,8 @@
 /**
  * Stores/retrieves encrypted Meta (Facebook) OAuth tokens for the Meta Business
  * Integration. User tokens are long-lived (~60 days) and are "refreshed" by
- * re-exchanging them before they expire; page tokens are stored per-page and
- * fall back to the legacy `PAGE_ACCESS_TOKEN` env var for single-page setups.
+ * re-exchanging them before they expire; page tokens live on `facebook_pages`
+ * and are the only source used for lead detail fetches (no env page tokens).
  */
 import { facebookPages, facebookTokens } from "@propninja/db";
 import { and, desc, eq } from "drizzle-orm";
@@ -151,27 +151,30 @@ export async function getActiveAccessToken(
 }
 
 /**
- * Resolves an access token to fetch a specific Meta Page's lead data:
- * 1. `facebook_pages.access_token_encrypted` (multi-page, DB-synced setups)
- * 2. `PAGE_ACCESS_TOKEN` env var (legacy single-page setups)
+ * Resolves an access token to fetch a specific Meta Page's lead data from
+ * `facebook_pages.access_token_encrypted` only (multi-page DB model).
+ * Does not use env `PAGE_ACCESS_TOKEN`.
  */
 export async function getPageAccessToken(
   orgId: string,
   metaPageId: string | undefined,
 ): Promise<string | undefined> {
-  if (metaPageId) {
-    const [page] = await db
-      .select({ accessTokenEncrypted: facebookPages.accessTokenEncrypted })
-      .from(facebookPages)
-      .where(and(eq(facebookPages.orgId, orgId), eq(facebookPages.pageId, metaPageId)))
-      .limit(1);
+  if (!metaPageId?.trim()) return undefined;
 
-    if (page?.accessTokenEncrypted) {
-      return decryptSecret(page.accessTokenEncrypted);
-    }
+  const [page] = await db
+    .select({
+      accessTokenEncrypted: facebookPages.accessTokenEncrypted,
+      isActive: facebookPages.isActive,
+    })
+    .from(facebookPages)
+    .where(and(eq(facebookPages.orgId, orgId), eq(facebookPages.pageId, metaPageId)))
+    .limit(1);
+
+  if (!page?.accessTokenEncrypted || !page.isActive) {
+    return undefined;
   }
 
-  return env.PAGE_ACCESS_TOKEN?.trim() || undefined;
+  return decryptSecret(page.accessTokenEncrypted);
 }
 
 /** Marks all active tokens for the org as revoked (used by disconnect). */

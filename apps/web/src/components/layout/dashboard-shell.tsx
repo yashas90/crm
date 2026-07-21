@@ -5,6 +5,7 @@ import { AppErrorBoundary } from "@/components/common/app-error-boundary";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { StaleDataBanner } from "@/components/ui/stale-data-banner";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { ensureSessionCookie, isAuthenticated } from "@/lib/auth";
 import { useRouter } from "next/navigation";
@@ -36,6 +37,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <Sidebar mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
         <div className="md:pl-64">
           <Topbar onMenuClick={() => setSidebarOpen(true)} />
+          <StaleDataBanner />
           <main className="p-4 md:p-6 lg:p-8">
             <div className="mx-auto max-w-7xl">
               <AppErrorBoundary>{children as ReactNode}</AppErrorBoundary>

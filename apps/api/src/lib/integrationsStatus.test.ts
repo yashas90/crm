@@ -1,57 +1,54 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./env.js", () => ({
   env: {
-    PAGE_ACCESS_TOKEN: "page-token",
-    META_VERIFY_TOKEN: "verify-token",
-    META_APP_SECRET: "app-secret",
-    META_PAGE_ID: "1122334455",
-    META_FORM_IDS: "form-a, form-b",
-    GOOGLE_ADS_DEVELOPER_TOKEN: "dev-token",
-    GOOGLE_ADS_CLIENT_ID: "client-id",
-    GOOGLE_ADS_CLIENT_SECRET: "client-secret",
-    GOOGLE_ADS_REFRESH_TOKEN: "refresh-token",
-    GOOGLE_ADS_CUSTOMER_ID: "123-456-7890",
-    GOOGLE_ADS_SYNC_ENABLED: true,
+    META_APP_SECRET: "secret",
+    META_VERIFY_TOKEN: "verify",
+    GOOGLE_ADS_SYNC_ENABLED: false,
   },
 }));
 
+vi.mock("./googleAds.js", () => ({
+  isGoogleAdsConfigured: () => false,
+}));
+
 vi.mock("./integrationSyncState.js", () => ({
-  getIntegrationSyncState: vi.fn(async () => ({
-    integration: "google_ads",
-    orgId: "00000000-0000-0000-0000-0000000000aa",
-    lastSuccessAt: new Date("2025-06-01T10:00:00.000Z"),
-    lastError: null,
-    updatedAt: new Date("2025-06-01T10:00:00.000Z"),
-  })),
   GOOGLE_ADS_INTEGRATION: "google_ads",
+  getIntegrationSyncState: vi.fn(),
+}));
+
+vi.mock("./constants.js", () => ({
+  SINGLE_TENANT_ORG_ID: "00000000-0000-0000-0000-0000000000aa",
+}));
+
+vi.mock("./db.js", () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: async () => [{ value: 1 }],
+      }),
+    }),
+  },
+}));
+
+vi.mock("./metaWebhookScope.js", () => ({
+  getMetaWebhookScopeSummary: async () => ({
+    activePages: 2,
+    activeForms: 5,
+    leadgenSubscribedPages: 2,
+    pageScopingEnabled: true,
+    formScopingEnabled: true,
+  }),
 }));
 
 describe("getIntegrationsStatus", () => {
-  afterEach(() => {
-    vi.resetModules();
-  });
-
-  it("reports live status when integrations are fully configured", async () => {
+  it("reports Meta live from DB pages + app secret", async () => {
     const { getIntegrationsStatus } = await import("./integrationsStatus.js");
-    expect(await getIntegrationsStatus()).toEqual({
-      facebook: {
-        status: "live",
-        enabled: true,
-        pageId: "1122334455",
-        formIds: ["form-a", "form-b"],
-        webhookSignatureConfigured: true,
-        pageScopingEnabled: true,
-        formScopingEnabled: true,
-      },
-      googleAds: {
-        status: "live",
-        enabled: true,
-        customerId: "123-456-7890",
-        syncEnabled: true,
-        lastSyncAt: "2025-06-01T10:00:00.000Z",
-        lastSyncError: undefined,
-      },
-    });
+    const status = await getIntegrationsStatus();
+    expect(status.facebook.status).toBe("live");
+    expect(status.facebook.activePages).toBe(2);
+    expect(status.facebook.activeForms).toBe(5);
+    expect(status.facebook.leadgenSubscribedPages).toBe(2);
+    expect(status.facebook.webhookSignatureConfigured).toBe(true);
   });
 });

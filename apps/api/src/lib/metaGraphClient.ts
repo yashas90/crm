@@ -315,6 +315,34 @@ export function getLeadForms(pageId: string, accessToken: string) {
   });
 }
 
+/**
+ * Subscribes this Meta app to Page `leadgen` webhooks.
+ * Uses the Page access token; requires the app webhook callback to already be configured.
+ * @see https://developers.facebook.com/docs/graph-api/webhooks/getting-started/webhooks-for-pages
+ */
+export async function subscribePageToLeadgen(
+  pageId: string,
+  pageAccessToken: string,
+): Promise<{ success: boolean }> {
+  const { data } = await graphPost<{ success?: boolean }>(
+    `${pageId}/subscribed_apps`,
+    pageAccessToken,
+    {
+      subscribed_fields: "leadgen",
+    },
+  );
+  return { success: data.success !== false };
+}
+
+/** Lists apps currently subscribed to a Page (for diagnostics). */
+export async function getPageSubscribedApps(pageId: string, pageAccessToken: string) {
+  const { data } = await graphGet<{ data?: Array<{ id: string; subscribed_fields?: string[] }> }>(
+    `${pageId}/subscribed_apps`,
+    pageAccessToken,
+  );
+  return data.data ?? [];
+}
+
 export type GraphPixel = { id: string; name: string };
 
 export function getPixels(accessToken: string, businessId?: string) {

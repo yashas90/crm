@@ -92,13 +92,13 @@ export const LeadsFromSource = memo(function LeadsFromSource({ groups }: LeadsFr
   const router = useRouter();
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 xl:grid-cols-3">
       {groups.map((group) => {
         const showAdLeadsAggregate = group.sourceGroup === "Social";
         const totalAdLeads = showAdLeadsAggregate ? adLeadsTotal(group.sources) : 0;
 
         return (
-          <div key={group.sourceGroup} className="space-y-3">
+          <div key={group.sourceGroup} className="min-w-0 space-y-3">
             <h4 className="text-sm font-semibold text-foreground">
               {GROUP_LABELS[group.sourceGroup]}
             </h4>

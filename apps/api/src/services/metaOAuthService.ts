@@ -5,13 +5,7 @@
  * forms/pixels into the DB so the rest of the integration can operate without
  * further Graph calls for asset discovery.
  */
-import {
-  facebookAccounts,
-  facebookBusinesses,
-  facebookForms,
-  facebookPages,
-  facebookPixels,
-} from "@propninja/db";
+import { facebookAccounts, facebookBusinesses, facebookPages, facebookPixels } from "@propninja/db";
 import { eq } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
@@ -23,22 +17,23 @@ import {
   getAdAccountPixels,
   getAdAccounts,
   getBusinesses,
-  getLeadForms,
   getOAuthDialogUrl,
-  getPages,
   graphGet,
 } from "../lib/metaGraphClient.js";
-import { encryptSecret } from "../lib/tokenEncryption.js";
+import { subscribeSelectedPagesToLeadgen, syncPagesAndForms } from "./metaPageSyncService.js";
 import { getActiveAccessToken, revokeOrgTokens, storeUserToken } from "./metaTokenService.js";
 
 /** Scopes requested during the OAuth consent dialog. */
 export const META_OAUTH_SCOPES = [
-  "ads_read",
-  "leads_retrieval",
-  "pages_show_list",
-  "pages_manage_ads",
   "business_management",
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_manage_metadata",
+  "pages_manage_ads",
+  "leads_retrieval",
   "ads_management",
+  "ads_read",
+  "read_insights",
 ];
 
 function getRedirectUri(): string {
@@ -158,72 +153,7 @@ async function upsertAdAccounts(
 }
 
 async function upsertPagesAndForms(orgId: string, accessToken: string) {
-  const pages = await getPages(accessToken).catch((error) => {
-    logger.warn("Meta business sync: failed to list pages", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return [];
-  });
-
-  let formCount = 0;
-
-  for (const page of pages) {
-    const [row] = await db
-      .insert(facebookPages)
-      .values({
-        orgId,
-        pageId: page.id,
-        name: page.name,
-        category: page.category ?? null,
-        accessTokenEncrypted: page.access_token ? encryptSecret(page.access_token) : null,
-      })
-      .onConflictDoUpdate({
-        target: [facebookPages.orgId, facebookPages.pageId],
-        set: {
-          name: page.name,
-          category: page.category ?? null,
-          ...(page.access_token ? { accessTokenEncrypted: encryptSecret(page.access_token) } : {}),
-          updatedAt: new Date(),
-        },
-      })
-      .returning({ id: facebookPages.id });
-
-    if (!row) continue;
-
-    const pageAccessToken = page.access_token ?? accessToken;
-    const forms = await getLeadForms(page.id, pageAccessToken).catch((error) => {
-      logger.warn("Meta business sync: failed to list lead forms", {
-        pageId: page.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return [];
-    });
-
-    for (const form of forms) {
-      await db
-        .insert(facebookForms)
-        .values({
-          orgId,
-          pageId: row.id,
-          formId: form.id,
-          name: form.name,
-          status: form.status ?? null,
-          locale: form.locale ?? null,
-        })
-        .onConflictDoUpdate({
-          target: [facebookForms.orgId, facebookForms.formId],
-          set: {
-            name: form.name,
-            status: form.status ?? null,
-            locale: form.locale ?? null,
-            updatedAt: new Date(),
-          },
-        });
-      formCount += 1;
-    }
-  }
-
-  return { pageCount: pages.length, formCount };
+  return syncPagesAndForms(orgId, accessToken);
 }
 
 async function upsertPixels(
@@ -262,18 +192,21 @@ async function upsertPixels(
   return count;
 }
 
-/** Full asset discovery sync: businesses → ad accounts → pages/forms → pixels. */
+/** Full asset discovery sync: businesses → ad accounts → pages/forms → pixels → leadgen subscribe. */
 export async function syncAllAssets(orgId: string, accessToken: string): Promise<AssetSyncCounts> {
   const businessIdMap = await upsertBusinesses(orgId, accessToken);
   const adAccountIdMap = await upsertAdAccounts(orgId, accessToken, businessIdMap);
-  const { pageCount, formCount } = await upsertPagesAndForms(orgId, accessToken);
+  const { pagesUpserted, formsUpserted } = await upsertPagesAndForms(orgId, accessToken);
   const pixelCount = await upsertPixels(orgId, accessToken, adAccountIdMap);
+  const { subscribed, failed } = await subscribeSelectedPagesToLeadgen(orgId);
+
+  logger.info("Meta leadgen page subscriptions", { orgId, subscribed, failed });
 
   return {
     businesses: businessIdMap.size,
     adAccounts: adAccountIdMap.size,
-    pages: pageCount,
-    forms: formCount,
+    pages: pagesUpserted,
+    forms: formsUpserted,
     pixels: pixelCount,
   };
 }

@@ -277,6 +277,7 @@ export function leadsBaseFiltersToQuery(
     teamLeads: assignment.teamLeads,
     duplicatesOnly: assignment.duplicatesOnly,
     excludeDuplicates: assignment.excludeDuplicates,
+    reEnquiredOnly: assignment.reEnquiredOnly,
     naLeadsOnly: assignment.naLeadsOnly,
     importBatchId: filters.importBatchId || undefined,
     dateFrom: dateRange.dateFrom,

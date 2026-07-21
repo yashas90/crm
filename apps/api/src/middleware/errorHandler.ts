@@ -5,6 +5,7 @@ import { env } from "../lib/env.js";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 import { OrgScopeError } from "../lib/orgScope.js";
+import { extractPostgresErrorMeta } from "../lib/postgresErrorMeta.js";
 import { jsonError } from "../lib/response.js";
 import { captureSentryRouteError } from "../lib/sentry.js";
 import { LeadDuplicatePhoneError } from "../services/leadService.js";
@@ -33,12 +34,15 @@ export const errorHandler: ErrorHandler = (err, c) => {
 
   const requestId = c.get("requestId") ?? randomUUID();
 
+  const postgres = extractPostgresErrorMeta(err);
+
   logger.error("Unhandled error", {
     requestId,
     message: err.message,
     stack: err.stack,
     path: c.req.path,
     method: c.req.method,
+    ...(postgres ? { postgres } : {}),
   });
 
   captureSentryRouteError(err, c);

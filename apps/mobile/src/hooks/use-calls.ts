@@ -1,7 +1,9 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
-import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
+import { lightweightLiveQueryOptions } from "@/lib/liveQuery";
+
+const live = lightweightLiveQueryOptions();
 import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -82,8 +84,7 @@ export function useTodayCalls() {
         `/api/calls?${params.toString()}`,
       ),
     enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
-    refetchIntervalInBackground: false,
+    ...live,
   });
 }
 
@@ -101,8 +102,7 @@ export function useTodayCallSummary() {
     queryKey: ["calls", "summary", "today", userId],
     queryFn: () => apiGet<CallSummary>(`/api/calls/summary?${params.toString()}`),
     enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
-    refetchIntervalInBackground: false,
+    ...live,
   });
 }
 

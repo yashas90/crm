@@ -34,20 +34,21 @@ See [REGION_MIGRATION.md](./REGION_MIGRATION.md).
 | `REDIS_URL` | Optional | Distributed rate limiting |
 | `RESEND_API_KEY` | Recommended | Password reset emails |
 | `RESEND_FROM_EMAIL` | With Resend | From address |
-| `WEB_APP_URL` | Recommended | Password reset link base |
+| `WEB_APP_URL` | Recommended | Password reset + OAuth return base (e.g. `https://crm.propninja.in`) |
+| `PUBLIC_API_BASE_URL` | Recommended | Public API origin for OAuth redirect fallback |
 | `REPORT_EMAIL_UNSUBSCRIBE_SECRET` | Optional | Defaults to JWT secret |
 | `HEALTH_ADMIN_TOKEN` | Optional | Protects `/api/health/detailed` |
 | `META_WEBHOOK_ENABLED` | When live | `true` requires Meta vars |
-| `META_VERIFY_TOKEN` | When Meta live | Webhook handshake |
+| `META_VERIFY_TOKEN` | When Meta live | Webhook handshake (exact match in Meta console) |
 | `META_APP_SECRET` | When Meta live | HMAC verification + OAuth |
 | `META_APP_ID` | OAuth connect | Meta Developer App ID |
-| `META_OAUTH_REDIRECT_URI` | OAuth connect | Must match Meta app redirect (e.g. `https://api.../api/meta/oauth/callback`) |
+| `META_OAUTH_REDIRECT_URI` | OAuth connect | Must match Meta Login redirect (e.g. `https://crm.propninja.in/api/meta/oauth/callback`) |
+| `TOKEN_ENCRYPTION_KEY` | Recommended | Encrypts stored Meta user/page tokens |
 | `META_GRAPH_API_VERSION` | Optional | Default `v21.0` |
 | `META_CAPI_ENABLED` | Optional | `true` to send Conversions API events on lead status changes |
-| `PAGE_ACCESS_TOKEN` | When Meta live / fallback | Graph API leads (env fallback when DB page tokens missing) |
-| `META_PAGE_ID` | Optional | Page scope |
-| `META_FORM_IDS` | Optional | Form allowlist |
 | `GOOGLE_ADS_*` | When Google live | See `apps/api/src/lib/env.ts` |
+
+> **Meta Lead Ads:** do **not** set page IDs or page access tokens in env. After OAuth, page tokens live encrypted in `facebook_pages`. See [META_BUSINESS_INTEGRATION.md](./META_BUSINESS_INTEGRATION.md).
 | `CLOUDFLARE_R2_*` | When docs live | R2 storage credentials |
 | `API_PUBLIC_URL` | Recommended | Document share/view links |
 | `WHATSAPP_API_TOKEN` | When WhatsApp live | Cloud API token |

@@ -1,7 +1,11 @@
+import { facebookPages, facebookTokens } from "@propninja/db";
+import { and, count, eq } from "drizzle-orm";
+import { SINGLE_TENANT_ORG_ID } from "./constants.js";
+import { db } from "./db.js";
 import { env } from "./env.js";
 import { isGoogleAdsConfigured } from "./googleAds.js";
 import { GOOGLE_ADS_INTEGRATION, getIntegrationSyncState } from "./integrationSyncState.js";
-import { getMetaWebhookScopeConfig } from "./metaWebhookScope.js";
+import { getMetaWebhookScopeSummary } from "./metaWebhookScope.js";
 
 export type IntegrationConnectionStatus = "live" | "not_configured";
 
@@ -9,11 +13,16 @@ export type IntegrationsStatus = {
   facebook: {
     status: IntegrationConnectionStatus;
     enabled: boolean;
-    pageId?: string;
-    formIds?: string[];
+    activePages: number;
+    activeForms: number;
+    leadgenSubscribedPages: number;
     webhookSignatureConfigured: boolean;
     pageScopingEnabled: boolean;
     formScopingEnabled: boolean;
+    /** @deprecated Prefer activePages — kept for older UI clients */
+    pageId?: string;
+    /** @deprecated Prefer activeForms */
+    formIds?: string[];
   };
   googleAds: {
     status: IntegrationConnectionStatus;
@@ -37,21 +46,48 @@ function googleAdsIsLive(enabled: boolean, syncEnabled: boolean): IntegrationCon
 }
 
 export async function getIntegrationsStatus(): Promise<IntegrationsStatus> {
-  const facebookEnabled = Boolean(env.PAGE_ACCESS_TOKEN?.trim() && env.META_VERIFY_TOKEN?.trim());
   const webhookSignatureConfigured = Boolean(env.META_APP_SECRET?.trim());
+  const verifyConfigured = Boolean(env.META_VERIFY_TOKEN?.trim());
+
+  const [tokenRow] = await db
+    .select({ value: count() })
+    .from(facebookTokens)
+    .where(
+      and(
+        eq(facebookTokens.orgId, SINGLE_TENANT_ORG_ID),
+        eq(facebookTokens.tokenType, "user"),
+        eq(facebookTokens.status, "active"),
+      ),
+    );
+
+  const [pageTokenRows] = await db
+    .select({ value: count() })
+    .from(facebookPages)
+    .where(
+      and(
+        eq(facebookPages.orgId, SINGLE_TENANT_ORG_ID),
+        eq(facebookPages.isActive, true),
+        eq(facebookPages.isSelected, true),
+      ),
+    );
+
+  const oauthOrPages = (tokenRow?.value ?? 0) > 0 || (pageTokenRows?.value ?? 0) > 0;
+  const facebookEnabled = verifyConfigured && oauthOrPages;
+  const metaScope = await getMetaWebhookScopeSummary(SINGLE_TENANT_ORG_ID);
+
   const googleAdsEnabled = isGoogleAdsConfigured();
   const googleState = googleAdsEnabled
     ? await getIntegrationSyncState(GOOGLE_ADS_INTEGRATION)
     : null;
-  const metaScope = getMetaWebhookScopeConfig();
   const syncEnabled = googleAdsEnabled && env.GOOGLE_ADS_SYNC_ENABLED;
 
   return {
     facebook: {
       status: metaIsLive(facebookEnabled, webhookSignatureConfigured),
       enabled: facebookEnabled,
-      pageId: metaScope.pageId,
-      formIds: metaScope.formIds,
+      activePages: metaScope.activePages,
+      activeForms: metaScope.activeForms,
+      leadgenSubscribedPages: metaScope.leadgenSubscribedPages,
       webhookSignatureConfigured,
       pageScopingEnabled: metaScope.pageScopingEnabled,
       formScopingEnabled: metaScope.formScopingEnabled,

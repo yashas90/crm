@@ -140,68 +140,34 @@ function buildQuery(params: Record<string, string | undefined>) {
   return query ? `?${query}` : "";
 }
 
+/** Stable key covering every API param (including advanced filters). */
+function stableLeadsParamsKey(params: Record<string, string | undefined>) {
+  return Object.keys(params)
+    .sort()
+    .filter((key) => Boolean(params[key]))
+    .map((key) => `${key}=${params[key]}`)
+    .join("&");
+}
+
 /** Stable query key — only changes when filter values change. */
-export function leadsListQueryKey(params: LeadsQueryParams) {
-  return [
-    "leads",
-    "list",
-    params.search ?? null,
-    params.status ?? null,
-    params.temperature ?? null,
-    params.assignedTo ?? null,
-    params.source ?? null,
-    params.adLeads ?? null,
-    params.tags ?? null,
-    params.importBatchId ?? null,
-    params.dateFrom ?? null,
-    params.dateTo ?? null,
-    params.unassigned ?? null,
-    params.teamLeads ?? null,
-    params.duplicatesOnly ?? null,
-    params.excludeDuplicates ?? null,
-    params.reEnquiredOnly ?? null,
-    params.activeOnly ?? null,
-    params.deletedOnly ?? null,
-    params.followUpDueBefore ?? null,
-    params.followUpDueAfter ?? null,
-    params.orderByFollowUp ?? null,
-    params.page ?? "1",
-    params.pageSize ?? "10",
-  ] as const;
+export function leadsListQueryKey(params: Record<string, string | undefined>) {
+  return ["leads", "list", stableLeadsParamsKey(params)] as const;
 }
 
 function sharedCountsQueryKey(
   prefix: "scope-counts" | "stage-counts" | "tab-counts",
   params: Record<string, string | undefined>,
 ) {
-  return [
-    "leads",
-    prefix,
-    params.search ?? null,
-    params.temperature ?? null,
-    params.source ?? null,
-    params.adLeads ?? null,
-    params.tags ?? null,
-    params.importBatchId ?? null,
-    params.dateFrom ?? null,
-    params.dateTo ?? null,
-    params.assignedTo ?? null,
-    params.unassigned ?? null,
-    params.teamLeads ?? null,
-    params.duplicatesOnly ?? null,
-    params.excludeDuplicates ?? null,
-    params.deletedOnly ?? null,
-  ] as const;
+  return ["leads", prefix, stableLeadsParamsKey(params)] as const;
 }
 
 export function leadTabCountsQueryKey(params: Record<string, string | undefined>) {
   return sharedCountsQueryKey("tab-counts", params);
 }
 
-/** Invalidate and immediately refetch all lead list + tab count queries. */
+/** Invalidate and refetch active lead list + tab count queries once. */
 export async function refetchAllLeadQueries(queryClient: QueryClient) {
-  await queryClient.invalidateQueries({ queryKey: ["leads"] });
-  await queryClient.refetchQueries({ queryKey: ["leads"], type: "active" });
+  await queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
 }
 
 export type LeadStageCounts = {
@@ -303,14 +269,13 @@ export function useLeadTabCounts(
     enabled: options?.enabled !== false,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(2000 * (attempt + 1), 8000),
+    retry: 1,
     meta: leadsQueryMeta(options),
   });
 }
 
 export function useLeads(
-  params: LeadsQueryParams,
+  params: LeadsQueryParams & Record<string, string | undefined>,
   options?: { enabled?: boolean; suppressErrorToast?: boolean; errorContext?: string },
 ) {
   const query = buildQuery(params);

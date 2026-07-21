@@ -1,4 +1,11 @@
-import { apiDelete, apiDownload, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import {
+  ApiRequestError,
+  apiDelete,
+  apiDownload,
+  apiGet,
+  apiPatch,
+  apiPost,
+} from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import type { BulkLeadImportRow } from "@/lib/parse-leads-csv";
 import { toast } from "@/lib/toast";
@@ -40,8 +47,26 @@ export function bulkUpdateLeadStatus(leadIds: string[], leadStatus: LeadStatus) 
   );
 }
 
-export function bulkAssignLeads(leadIds: string[], userIds: string[]) {
-  return apiPost<BulkLeadResult>("/api/leads/bulk-assign", { leadIds, userIds });
+export async function bulkAssignLeads(leadIds: string[], userIds: string[]) {
+  try {
+    return await apiPost<BulkLeadResult>("/api/leads/bulk-assign", { leadIds, userIds });
+  } catch (error) {
+    // Older API builds may not have /bulk-assign — fall back to round-robin single assigns.
+    const isMissingRoute =
+      error instanceof ApiRequestError &&
+      error.code === "NOT_FOUND" &&
+      error.message === "Route not found";
+    if (!isMissingRoute || userIds.length === 0) throw error;
+
+    return runBulk(
+      leadIds,
+      (leadId, index) =>
+        apiPost(`/api/leads/${leadId}/assign`, {
+          user_id: userIds[index % userIds.length],
+        }).then(() => undefined),
+      "Assign failed",
+    );
+  }
 }
 
 export function bulkDeleteLeads(leadIds: string[]) {

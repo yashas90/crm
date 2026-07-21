@@ -5,6 +5,7 @@ import { logger } from "../lib/logger.js";
 import { clearAllLoginRateLimits } from "../lib/loginBruteForce.js";
 import { clearAllRateLimits, pruneExpiredRateLimitBuckets } from "../lib/rateLimitStore.js";
 import { pruneSecurityWindows } from "../middleware/securityMonitoring.js";
+import { syncPagesFormsAndSubscribe } from "../services/metaPageSyncService.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
@@ -41,6 +42,16 @@ export async function startBackgroundJobs() {
   startDailyFollowUpJobs();
   startNaPoolJob();
   startSlaBreachJob();
+  setInterval(
+    () => {
+      void syncPagesFormsAndSubscribe().catch((err) => {
+        logger.warn("In-process Meta asset sync failed", {
+          err: err instanceof Error ? err.message : String(err),
+        });
+      });
+    },
+    6 * 60 * 60 * 1000,
+  ).unref();
   setInterval(
     () => {
       void purgeExpiredRefreshSessions(db).catch((err) => {

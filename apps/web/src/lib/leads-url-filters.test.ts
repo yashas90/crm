@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildLeadsSearchParams,
   defaultLeadsUrlFilters,
+  leadsBaseFiltersToQuery,
   leadsFiltersToQuery,
   parseLeadsPageUrl,
   postImportLeadsFilters,
@@ -84,5 +85,14 @@ describe("leads URL filters", () => {
     const query = buildLeadsSearchParams(filters, { scope: "all", stage: "active" });
     expect(query).toContain("import_batch=batch-1");
     expect(query).not.toContain("source=");
+  });
+
+  it("includes scope assignment fields in base query for count parity", () => {
+    const query = leadsBaseFiltersToQuery(defaultLeadsUrlFilters(), {
+      scope: "my",
+      userId: "user-1",
+    });
+    expect(query.assignedTo).toBe("user-1");
+    expect(query.excludeDuplicates).toBe("true");
   });
 });

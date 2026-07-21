@@ -366,8 +366,8 @@ export const LeadsTable = memo(function LeadsTable({
   if (showEmpty) {
     return (
       <EmptyState
-        title="No leads yet"
-        description="Create your first lead to start tracking calls and follow-ups."
+        title="No matching leads"
+        description="Try clearing filters or the CSV upload chip, or add a new lead to get started."
         actionLabel="Add Lead"
         onActionClick={onAddLead}
         icon={<Users className="h-7 w-7" />}

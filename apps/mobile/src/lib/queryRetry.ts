@@ -1,6 +1,6 @@
 import { ApiRequestError } from "@/lib/apiClient";
 
-const MAX_QUERY_RETRIES = 3;
+const MAX_QUERY_RETRIES = 1;
 
 export function isTransientQueryError(error: unknown): boolean {
   if (!(error instanceof ApiRequestError)) return false;

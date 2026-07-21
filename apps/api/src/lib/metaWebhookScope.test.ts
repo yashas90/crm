@@ -1,47 +1,67 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./env.js", () => ({
-  env: {
-    META_PAGE_ID: "page-123",
-    META_FORM_IDS: "form-a, form-b",
+const limitResults: unknown[][] = [];
+let limitCall = 0;
+
+vi.mock("./db.js", () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => {
+            const result = limitResults[limitCall] ?? [];
+            limitCall += 1;
+            return result;
+          },
+        }),
+      }),
+    }),
   },
 }));
 
-describe("metaWebhookScope", () => {
-  afterEach(() => {
+vi.mock("./constants.js", () => ({
+  SINGLE_TENANT_ORG_ID: "00000000-0000-0000-0000-0000000000aa",
+}));
+
+describe("metaWebhookScope (DB)", () => {
+  beforeEach(() => {
     vi.resetModules();
+    limitResults.length = 0;
+    limitCall = 0;
   });
 
-  it("allows matching page and form", async () => {
+  it("rejects unknown page", async () => {
+    limitResults.push([]);
     const { isMetaLeadgenAllowed } = await import("./metaWebhookScope.js");
-    expect(
-      isMetaLeadgenAllowed({
-        leadgen_id: "1",
-        page_id: "page-123",
-        form_id: "form-a",
-      }).allowed,
-    ).toBe(true);
+    await expect(
+      isMetaLeadgenAllowed({ leadgen_id: "1", page_id: "missing", form_id: "f1" }),
+    ).resolves.toEqual({ allowed: false, reason: "page_not_connected" });
   });
 
-  it("rejects mismatched page", async () => {
+  it("rejects disabled page", async () => {
+    limitResults.push([{ id: "p1", isActive: false, isSelected: true, hasToken: "enc" }]);
     const { isMetaLeadgenAllowed } = await import("./metaWebhookScope.js");
-    expect(
-      isMetaLeadgenAllowed({
-        leadgen_id: "1",
-        page_id: "other-page",
-        form_id: "form-a",
-      }),
-    ).toEqual({ allowed: false, reason: "page_id_mismatch" });
+    await expect(
+      isMetaLeadgenAllowed({ leadgen_id: "1", page_id: "page-1", form_id: "f1" }),
+    ).resolves.toEqual({ allowed: false, reason: "page_disabled" });
   });
 
-  it("rejects form outside allowlist", async () => {
+  it("allows active page and selected form", async () => {
+    limitResults.push(
+      [{ id: "p1", isActive: true, isSelected: true, hasToken: "enc" }],
+      [{ id: "frow", isActive: true, isSelected: true }],
+    );
     const { isMetaLeadgenAllowed } = await import("./metaWebhookScope.js");
-    expect(
-      isMetaLeadgenAllowed({
-        leadgen_id: "1",
-        page_id: "page-123",
-        form_id: "form-z",
-      }),
-    ).toEqual({ allowed: false, reason: "form_id_not_allowed" });
+    await expect(
+      isMetaLeadgenAllowed({ leadgen_id: "1", page_id: "page-1", form_id: "form-a" }),
+    ).resolves.toMatchObject({ allowed: true, pageRowId: "p1", formRowId: "frow" });
+  });
+
+  it("allows unknown form on known page (pre-sync)", async () => {
+    limitResults.push([{ id: "p1", isActive: true, isSelected: true, hasToken: "enc" }], []);
+    const { isMetaLeadgenAllowed } = await import("./metaWebhookScope.js");
+    await expect(
+      isMetaLeadgenAllowed({ leadgen_id: "1", page_id: "page-1", form_id: "new-form" }),
+    ).resolves.toMatchObject({ allowed: true, reason: "form_not_synced_yet" });
   });
 });

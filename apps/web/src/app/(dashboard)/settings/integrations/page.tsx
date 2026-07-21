@@ -105,23 +105,17 @@ export default function IntegrationsSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <IntegrationMetaRow
-                label="Page ID"
-                value={status?.facebook.pageId ?? "Not set in server config"}
+                label="Active pages"
+                value={String(status?.facebook.activePages ?? 0)}
               />
-              <div>
-                <p className="text-muted-foreground">Form IDs</p>
-                {status?.facebook.formIds?.length ? (
-                  <ul className="mt-1 list-inside list-disc space-y-0.5">
-                    {status.facebook.formIds.map((formId) => (
-                      <li key={formId} className="font-mono text-xs">
-                        {formId}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-sm">Not set in server config</p>
-                )}
-              </div>
+              <IntegrationMetaRow
+                label="Active forms"
+                value={String(status?.facebook.activeForms ?? 0)}
+              />
+              <IntegrationMetaRow
+                label="Leadgen subscribed"
+                value={String(status?.facebook.leadgenSubscribedPages ?? 0)}
+              />
               <IntegrationMetaRow
                 label="Webhook signature"
                 value={
@@ -131,24 +125,12 @@ export default function IntegrationsSettingsPage() {
                 }
               />
               <IntegrationMetaRow
-                label="Page scoping"
-                value={
-                  status?.facebook.pageScopingEnabled
-                    ? "Active — only configured Page ID is ingested"
-                    : "Off — all subscribed pages are ingested"
-                }
-              />
-              <IntegrationMetaRow
-                label="Form scoping"
-                value={
-                  status?.facebook.formScopingEnabled
-                    ? "Active — only listed form IDs are ingested"
-                    : "Off — all forms on subscribed pages are ingested"
-                }
+                label="Scoping"
+                value="DB — only enabled pages/forms ingest leads"
               />
               <p className="pt-2 text-xs text-muted-foreground">
-                Requires PAGE_ACCESS_TOKEN, META_VERIFY_TOKEN, and META_APP_SECRET on the API
-                server. Leads arrive via POST /api/integrations/meta/webhook.
+                Connect via Settings → Meta (OAuth). Page tokens are stored encrypted in the
+                database. Webhook: POST /api/integrations/meta/webhook.
               </p>
               <Button asChild variant="outline" size="sm" className="mt-2">
                 <Link href="/settings/integrations/meta">Open Meta Business dashboard</Link>

@@ -319,9 +319,11 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
           </section>
         </div>
 
-        <aside className="hidden space-y-4 lg:col-span-3 lg:block">
-          <SlaAlertPanel />
-          <RemindersPanel className="sticky top-24" />
+        <aside className="hidden min-w-0 space-y-4 lg:col-span-3 lg:block">
+          <div className="sticky top-24 space-y-4">
+            <SlaAlertPanel />
+            <RemindersPanel />
+          </div>
         </aside>
       </div>
 

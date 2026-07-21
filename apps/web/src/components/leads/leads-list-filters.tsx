@@ -1,6 +1,5 @@
 "use client";
 
-import { LeadsAdSourceTabs } from "@/components/leads/leads-ad-source-tabs";
 import { LeadsFilterBar } from "@/components/leads/leads-filter-bar";
 import { LeadsScopeTabs } from "@/components/leads/leads-scope-tabs";
 import { LeadsSourceChips } from "@/components/leads/leads-source-chips";
@@ -60,7 +59,7 @@ export function LeadsListFilters({
 
   return (
     <section
-      className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+      className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm"
       aria-label="Lead filters"
     >
       <LeadsScopeTabs
@@ -74,6 +73,7 @@ export function LeadsListFilters({
         value={filters.source}
         adLeadsOnly={filters.adLeadsOnly}
         onChange={onSourceChange}
+        onAdLeadsOnlyChange={onAdLeadsOnlyChange}
       />
       {showStageBar ? (
         <LeadsStageBar
@@ -83,12 +83,6 @@ export function LeadsListFilters({
           isLoadingCounts={stageCountsLoading}
         />
       ) : null}
-      <LeadsAdSourceTabs
-        adLeadsOnly={filters.adLeadsOnly}
-        onChange={(value) => {
-          onAdLeadsOnlyChange(value);
-        }}
-      />
       <LeadsFilterBar
         searchDraft={searchDraft}
         onSearchDraftChange={onSearchDraftChange}

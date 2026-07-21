@@ -9,6 +9,9 @@ export type IntegrationsStatus = {
   facebook: {
     status: IntegrationConnectionStatus;
     enabled: boolean;
+    activePages?: number;
+    activeForms?: number;
+    leadgenSubscribedPages?: number;
     pageId?: string;
     formIds?: string[];
     webhookSignatureConfigured: boolean;

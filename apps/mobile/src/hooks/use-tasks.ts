@@ -1,8 +1,10 @@
 import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
-import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+const TASK_STALE_MS = 30_000;
+const MY_OPEN_TASKS_KEY = ["tasks", "mine", "open"] as const;
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -49,23 +51,22 @@ function isOpenTaskStatus(status: TaskStatus) {
 
 async function syncTaskCaches(queryClient: QueryClient, taskId: string, leadId?: string | null) {
   const refetches: Promise<void>[] = [
-    queryClient.refetchQueries({ queryKey: ["tasks"], type: "all" }),
-    queryClient.refetchQueries({ queryKey: ["task", taskId], type: "all" }),
+    queryClient.invalidateQueries({ queryKey: ["tasks"], refetchType: "active" }),
+    queryClient.invalidateQueries({ queryKey: ["task", taskId], refetchType: "active" }),
   ];
   if (leadId) {
     refetches.push(
-      queryClient.refetchQueries({ queryKey: ["tasks", "lead", leadId], type: "all" }),
+      queryClient.invalidateQueries({
+        queryKey: ["tasks", "lead", leadId],
+        refetchType: "active",
+      }),
     );
   }
   await Promise.all(refetches);
 }
 
 function removeTaskFromOpenLists(queryClient: QueryClient, taskId: string) {
-  for (const key of [
-    ["tasks", "mine", "open"] as const,
-    ["tasks", "mine", "open-sorted"] as const,
-    ["tasks", "team", "due-today"] as const,
-  ]) {
+  for (const key of [MY_OPEN_TASKS_KEY, ["tasks", "team", "due-today"] as const]) {
     queryClient.setQueryData<OpenTasksList>(key, (current) => {
       if (!current) return current;
       const items = current.items.filter((task) => task.id !== taskId);
@@ -73,6 +74,19 @@ function removeTaskFromOpenLists(queryClient: QueryClient, taskId: string) {
       return { ...current, items, total: Math.max(0, current.total - 1) };
     });
   }
+}
+
+async function fetchMyOpenTasks() {
+  const data = await apiGet<OpenTasksList>("/api/tasks?assigneeId=me&status=open&pageSize=100");
+  const items = [...data.items]
+    .filter((task) => isOpenTaskStatus(task.status))
+    .sort((a, b) => {
+      if (!a.dueAt && !b.dueAt) return 0;
+      if (!a.dueAt) return 1;
+      if (!b.dueAt) return -1;
+      return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    });
+  return { ...data, items, total: items.length };
 }
 
 function markTaskCompletedInCaches(
@@ -107,49 +121,23 @@ export function useLeadTasks(leadId: string) {
         `/api/tasks?leadId=${leadId}&pageSize=50`,
       ),
     enabled: ready && Boolean(leadId),
-    staleTime: 0,
-    refetchInterval: LIVE_REFETCH_MS,
+    staleTime: TASK_STALE_MS,
     meta: { suppressErrorToast: true },
   });
 }
 
-export function useMyTasks() {
-  const ready = useAuthReady();
-  return useQuery({
-    queryKey: ["tasks", "mine", "open"],
-    queryFn: () =>
-      apiGet<{ items: Task[]; total: number; page: number; pageSize: number }>(
-        "/api/tasks?assigneeId=me&status=open&pageSize=100",
-      ),
-    enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
-  });
-}
-
+/** Canonical open-tasks query shared by Tasks tab, Profile badge, and navigation badge. */
 export function useMyOpenTasks() {
   const ready = useAuthReady();
   return useQuery({
-    queryKey: ["tasks", "mine", "open-sorted"],
-    queryFn: async () => {
-      const data = await apiGet<{ items: Task[]; total: number; page: number; pageSize: number }>(
-        "/api/tasks?assigneeId=me&status=open&pageSize=100",
-      );
-      const items = [...data.items]
-        .filter((task) => isOpenTaskStatus(task.status))
-        .sort((a, b) => {
-          if (!a.dueAt && !b.dueAt) return 0;
-          if (!a.dueAt) return 1;
-          if (!b.dueAt) return -1;
-          return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
-        });
-      return { ...data, items, total: items.length };
-    },
+    queryKey: MY_OPEN_TASKS_KEY,
+    queryFn: fetchMyOpenTasks,
     enabled: ready,
-    staleTime: 0,
-    refetchInterval: LIVE_REFETCH_MS,
+    staleTime: TASK_STALE_MS,
   });
 }
 
+export const useMyTasks = useMyOpenTasks;
 export const useTeamOpenTasks = useMyOpenTasks;
 
 export function useTeamTasksDueToday() {
@@ -162,7 +150,7 @@ export function useTeamTasksDueToday() {
         `/api/tasks?status=open&dueBefore=${today}T23:59:59Z&pageSize=100`,
       ),
     enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
+    staleTime: TASK_STALE_MS,
   });
 }
 
@@ -193,9 +181,12 @@ export function useCreateTask() {
       description?: string;
     }) => apiPost<Task>("/api/tasks", input),
     onSuccess: async (_data, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"], refetchType: "active" });
       if (variables.leadId) {
-        await queryClient.invalidateQueries({ queryKey: ["tasks", "lead", variables.leadId] });
+        await queryClient.invalidateQueries({
+          queryKey: ["tasks", "lead", variables.leadId],
+          refetchType: "active",
+        });
       }
     },
   });
@@ -207,12 +198,7 @@ export function useCompleteTask() {
     mutationFn: (taskId: string) => apiPatch<Task>(`/api/tasks/${taskId}/complete`, {}),
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
-      const previousOpenSorted = queryClient.getQueryData<OpenTasksList>([
-        "tasks",
-        "mine",
-        "open-sorted",
-      ]);
-      const previousOpen = queryClient.getQueryData<OpenTasksList>(["tasks", "mine", "open"]);
+      const previousOpen = queryClient.getQueryData<OpenTasksList>(MY_OPEN_TASKS_KEY);
       const previousTask = queryClient.getQueryData<Task>(["task", taskId]);
       const leadId = previousTask?.leadId ?? undefined;
       const previousLeadTasks = leadId
@@ -221,14 +207,11 @@ export function useCompleteTask() {
 
       markTaskCompletedInCaches(queryClient, taskId, leadId);
 
-      return { previousOpenSorted, previousOpen, previousTask, previousLeadTasks, leadId };
+      return { previousOpen, previousTask, previousLeadTasks, leadId };
     },
     onError: (_error, taskId, context) => {
-      if (context?.previousOpenSorted) {
-        queryClient.setQueryData(["tasks", "mine", "open-sorted"], context.previousOpenSorted);
-      }
       if (context?.previousOpen) {
-        queryClient.setQueryData(["tasks", "mine", "open"], context.previousOpen);
+        queryClient.setQueryData(MY_OPEN_TASKS_KEY, context.previousOpen);
       }
       if (context?.previousTask) {
         queryClient.setQueryData(["task", taskId], context.previousTask);

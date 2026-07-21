@@ -20,7 +20,7 @@ function ScopeCount({ count, active }: { count: number; active: boolean }) {
     <span
       className={cn(
         "ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums transition-colors",
-        active ? "bg-white/25 text-white" : "bg-slate-100 text-slate-600",
+        active ? "bg-white/25 text-white" : "bg-muted text-foreground",
       )}
     >
       {count}
@@ -57,14 +57,14 @@ export function LeadsScopeTabs({
     <div className={cn("space-y-3", className)}>
       {/* Primary pill strip with sliding indicator */}
       <div
-        className="relative inline-flex rounded-xl border border-slate-200/80 bg-slate-50/80 p-1 shadow-sm backdrop-blur-sm"
+        className="relative inline-flex rounded-xl border border-border bg-muted/40 p-1 shadow-sm"
         role="tablist"
         aria-label="Lead ownership scope"
       >
         {/* Sliding background pill */}
         {indicator.ready && (
           <div
-            className="absolute top-1 rounded-lg bg-[#204060] shadow-md transition-all duration-200 ease-out dark:bg-[#2d5a8a]"
+            className="absolute top-1 rounded-lg bg-primary shadow-md transition-all duration-200 ease-out"
             style={{
               left: indicator.left,
               width: indicator.width,
@@ -88,7 +88,7 @@ export function LeadsScopeTabs({
               onClick={() => onChange(tab.id)}
               className={cn(
                 "relative z-10 inline-flex items-center rounded-md px-4 py-2 text-sm font-semibold transition-colors duration-150",
-                active ? "text-white" : "text-slate-600 hover:text-slate-900",
+                active ? "text-primary-foreground" : "text-foreground/70 hover:text-foreground",
               )}
             >
               {tab.label}
@@ -115,8 +115,8 @@ export function LeadsScopeTabs({
               className={cn(
                 "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition-all duration-150",
                 active
-                  ? "border-[#204060] bg-[#204060] text-white shadow-sm"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-[#204060]/40 hover:bg-[#204060]/5 hover:text-[#204060]",
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : "border-border bg-background text-foreground hover:bg-accent",
               )}
             >
               {tab.label}
@@ -124,7 +124,10 @@ export function LeadsScopeTabs({
                 <Skeleton className="ml-1.5 h-3.5 w-5 rounded-full" />
               ) : count !== undefined ? (
                 <span
-                  className={cn("ml-1.5 tabular-nums", active ? "text-white/80" : "text-slate-400")}
+                  className={cn(
+                    "ml-1.5 tabular-nums",
+                    active ? "text-primary-foreground/80" : "text-muted-foreground",
+                  )}
                 >
                   {count}
                 </span>

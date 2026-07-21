@@ -1,10 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
-import { liveQueryOptions } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import { formatVisitTimeIst } from "@propninja/types/ist";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-const live = liveQueryOptions();
 
 export type SiteVisitStatus = "scheduled" | "completed" | "cancelled" | "no_show";
 
@@ -90,7 +87,7 @@ export function useTodaySiteVisits(agentId?: string) {
     queryKey: ["site-visits", "today", agentId ?? "all"],
     queryFn: () => apiGet<{ items: SiteVisit[]; total: number }>(`/api/site-visits/today${qs}`),
     enabled: ready,
-    ...live,
+    staleTime: 30_000,
     meta: { suppressErrorToast: true },
   });
 }

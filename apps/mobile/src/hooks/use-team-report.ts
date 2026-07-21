@@ -1,12 +1,10 @@
 import { apiGet } from "@/lib/apiClient";
 import { todayRange } from "@/lib/dates";
-import { liveQueryOptions } from "@/lib/liveQuery";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/providers/auth-provider";
 import { useQuery } from "@tanstack/react-query";
 
 const STALE_TIME_MS = 5 * 60 * 1000;
-const live = liveQueryOptions();
 
 export type TeamMemberStats = {
   userId: string;
@@ -36,6 +34,5 @@ export function useTeamTodayReport() {
     queryFn: () => apiGet<{ users: TeamMemberStats[] }>(`/api/reports/team-today?${params}`),
     enabled: ready,
     staleTime: STALE_TIME_MS,
-    ...live,
   });
 }

@@ -9,6 +9,7 @@ import {
   type MetaLeadIngestJobPayload,
   processLeadgenWebhook,
 } from "../services/metaLeadIngestService.js";
+import { syncPagesFormsAndSubscribe } from "../services/metaPageSyncService.js";
 import { syncInsights } from "../services/metaSyncService.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { db } from "./db.js";
@@ -28,6 +29,7 @@ export const JOB_NAMES = {
   META_LEAD_INGEST: "meta-lead-ingest",
   META_CAPI_SEND: "meta-capi-send",
   META_INSIGHTS_SYNC: "meta-insights-sync",
+  META_ASSET_SYNC: "meta-asset-sync",
 } as const;
 
 let queue: Queue | null = null;
@@ -66,6 +68,12 @@ async function runJob(name: string, data?: Record<string, unknown>) {
       return sendPendingConversionEvents();
     case JOB_NAMES.META_INSIGHTS_SYNC:
       return syncInsights();
+    case JOB_NAMES.META_ASSET_SYNC:
+      return syncPagesFormsAndSubscribe().catch((error) => {
+        logger.warn("Scheduled Meta asset sync failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     default:
       logger.warn("Unknown durable job", { name });
   }
@@ -123,6 +131,11 @@ export async function startDurableJobQueue(): Promise<boolean> {
       JOB_NAMES.META_INSIGHTS_SYNC,
       {},
       { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.META_INSIGHTS_SYNC },
+    );
+    await queue.add(
+      JOB_NAMES.META_ASSET_SYNC,
+      {},
+      { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.META_ASSET_SYNC },
     );
 
     queue.on("error", (error: Error) => {

@@ -27,6 +27,7 @@ import { useSession } from "@/hooks/use-session";
 import { apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import { formatLeadSourceDisplay } from "@/lib/lead-sources";
+import { advancedFiltersToFlatApiParams } from "@/lib/leads-advanced-filters";
 import { type LeadsDatePreset, resolveLeadsDatePreset } from "@/lib/leads-date-filters";
 import type { LeadsScope } from "@/lib/leads-scope";
 import type { LeadsStage } from "@/lib/leads-stage";
@@ -42,6 +43,7 @@ import {
   buildLeadsSearchParams,
   countAdvancedLeadsFilters,
   defaultLeadsUrlFilters,
+  leadsBaseFiltersToQuery,
   leadsFiltersToQuery,
   leadsSharedFiltersToQuery,
   parseLeadsPageUrl,
@@ -118,6 +120,15 @@ export function LeadsPageView() {
 
   const sharedFiltersQuery = useMemo(() => leadsSharedFiltersToQuery(filters), [filters]);
 
+  const baseQuery = useMemo(
+    () =>
+      leadsBaseFiltersToQuery(filters, {
+        scope,
+        userId: ready && session ? session.id : undefined,
+      }),
+    [filters, scope, ready, session],
+  );
+
   const leadsQuery = useMemo(
     () =>
       leadsFiltersToQuery(filters, {
@@ -154,9 +165,18 @@ export function LeadsPageView() {
   const tabCountsParams = useMemo(
     () => ({
       ...sharedFiltersQuery,
-      excludeDuplicates: "true" as const,
+      assignedTo: baseQuery.assignedTo,
+      unassigned: baseQuery.unassigned,
+      deletedOnly: baseQuery.deletedOnly,
+      teamLeads: baseQuery.teamLeads,
+      duplicatesOnly: baseQuery.duplicatesOnly,
+      reEnquiredOnly: baseQuery.reEnquiredOnly,
+      naLeadsOnly: baseQuery.naLeadsOnly,
+      // Advanced filters last so filterAssignTo / team flags match the list query.
+      ...advancedFiltersToFlatApiParams(filters),
+      excludeDuplicates: baseQuery.excludeDuplicates ?? "true",
     }),
-    [sharedFiltersQuery],
+    [sharedFiltersQuery, baseQuery, filters],
   );
 
   const { data, isLoading, isError, isFetching, error } = useLeads(leadsQuery, {
@@ -527,17 +547,18 @@ export function LeadsPageView() {
           setPage(1);
           setScope("all");
           setStage("active");
-          setFilters((current) => ({
-            ...current,
-            importBatchId: batch.id,
-            importBatchLabel:
-              batch.fileName ??
-              `Upload ${new Date(batch.createdAt).toLocaleString("en-IN", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}`,
-          }));
+          setFilters(
+            postImportLeadsFilters({
+              batchId: batch.id,
+              fileName:
+                batch.fileName ??
+                `Upload ${new Date(batch.createdAt).toLocaleString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}`,
+            }),
+          );
         }}
       />
     </div>

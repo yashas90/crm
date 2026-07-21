@@ -18,6 +18,8 @@ export const queryClient = new QueryClient({
     onError: (error, query) => {
       if (query.meta?.suppressErrorToast) return;
       if (shouldSuppressGlobalQueryError(error)) return;
+      // Background refetch failures already have cached data — keep UI on last good payload.
+      if (query.state.data !== undefined) return;
       const message = error instanceof Error ? error.message : "Something went wrong";
       Alert.alert("Could not load data", message);
     },

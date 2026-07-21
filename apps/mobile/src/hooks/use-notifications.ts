@@ -1,7 +1,9 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
-import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
+import { lightweightLiveQueryOptions } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+const live = lightweightLiveQueryOptions();
 
 export const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
 
@@ -100,7 +102,8 @@ export function useNotifications() {
     queryKey: NOTIFICATIONS_QUERY_KEY,
     queryFn: () => apiGet<NotificationsData>("/api/notifications"),
     enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
+    ...live,
+    retry: false,
     meta: { suppressErrorToast: true },
   });
 }

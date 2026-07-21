@@ -2,7 +2,6 @@ import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId, getUser, normalizeRole } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
-import { LIVE_REFETCH_MS } from "@/lib/liveQuery";
 import { useAuth } from "@/providers/auth-provider";
 import {
   keepPreviousData,
@@ -11,6 +10,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+
+const LEAD_STALE_MS = 30_000;
 
 const LEADS_PAGE_SIZE = "50";
 
@@ -208,8 +209,7 @@ export function useLeads(query: LeadsQuery = {}, options?: { enabled?: boolean }
         `/api/leads?${params.toString()}`,
       ),
     enabled: ready && (options?.enabled ?? true),
-    refetchInterval: LIVE_REFETCH_MS,
-    refetchIntervalInBackground: false,
+    staleTime: LEAD_STALE_MS,
   });
 }
 
@@ -232,8 +232,7 @@ export function useInfiniteLeads(query: Omit<LeadsQuery, "page"> = {}) {
       return lastPage.page < totalPages ? lastPage.page + 1 : undefined;
     },
     enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
-    refetchIntervalInBackground: false,
+    staleTime: LEAD_STALE_MS,
     placeholderData: keepPreviousData,
   });
 }
@@ -258,8 +257,7 @@ export function useTodayQueue() {
         `/api/leads?${params.toString()}`,
       ),
     enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
-    refetchIntervalInBackground: false,
+    staleTime: LEAD_STALE_MS,
   });
 }
 
@@ -271,8 +269,7 @@ export function useLead(leadId: string, options?: { enabled?: boolean }) {
     queryKey: ["leads", leadId],
     queryFn: () => apiGet<LeadDetail>(`/api/leads/${leadId}`),
     enabled,
-    refetchInterval: enabled ? LIVE_REFETCH_MS : false,
-    refetchIntervalInBackground: false,
+    staleTime: LEAD_STALE_MS,
     meta: { suppressErrorToast: true },
   });
 }
@@ -307,12 +304,12 @@ export function useUpdateLead() {
             if (query.queryKey[1] === variables.leadId) return false;
             return true;
           },
+          refetchType: "active",
         });
         return;
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["leads"] });
-      await queryClient.invalidateQueries({ queryKey: ["leads", variables.leadId] });
+      await queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
     },
   });
 }
@@ -324,10 +321,8 @@ export function useUpdateLeadFollowUp(leadId: string) {
     mutationFn: (payload: { nextFollowupAt: string; markComplete?: boolean }) =>
       apiPatch(`/api/leads/${leadId}/follow-up`, payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["leads"] });
-      await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      await queryClient.invalidateQueries({ queryKey: ["tasks", "lead", leadId] });
+      await queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"], refetchType: "active" });
     },
   });
 }
@@ -345,8 +340,7 @@ export function useLeadScopeCounts() {
         unassigned: number;
       }>("/api/leads/scope-counts"),
     enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
-    refetchIntervalInBackground: false,
+    staleTime: LEAD_STALE_MS,
   });
 }
 
@@ -389,7 +383,6 @@ export function useMyLeadsTotal() {
       return data.total;
     },
     enabled: ready,
-    refetchInterval: LIVE_REFETCH_MS,
-    refetchIntervalInBackground: false,
+    staleTime: LEAD_STALE_MS,
   });
 }

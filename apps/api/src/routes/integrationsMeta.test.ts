@@ -22,6 +22,10 @@ vi.mock("../lib/jobQueue.js", () => ({
   enqueueMetaLeadIngest: vi.fn(async () => false),
 }));
 
+vi.mock("../lib/metaWebhookScope.js", () => ({
+  isMetaLeadgenAllowed: vi.fn(async () => ({ allowed: true })),
+}));
+
 vi.mock("../services/metaLeadIngestService.js", () => ({
   processLeadgenWebhook,
   recordWebhookDedupe,

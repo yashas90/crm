@@ -10,15 +10,17 @@ export function StatCard({
   hint?: string;
 }) {
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium normal-case tracking-normal text-muted-foreground dark:text-slate-400">
+        <CardTitle className="text-sm font-medium normal-case tracking-normal text-muted-foreground">
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <p className="text-3xl font-bold">{value}</p>
-        {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+      <CardContent className="space-y-1">
+        <p className="break-all text-3xl font-bold tabular-nums text-foreground">
+          {typeof value === "number" ? value.toLocaleString() : value}
+        </p>
+        {hint ? <p className="text-xs leading-snug text-muted-foreground">{hint}</p> : null}
       </CardContent>
     </Card>
   );

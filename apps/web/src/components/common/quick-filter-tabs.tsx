@@ -32,17 +32,17 @@ function CountBubble({
   return (
     <span
       className={cn(
-        "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none",
+        "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums leading-none",
         variant === "pill"
           ? active
-            ? "bg-white/20 text-white"
-            : "bg-slate-100 text-slate-600"
+            ? "bg-white/25 text-white"
+            : "bg-muted text-foreground"
           : active
-            ? "bg-white text-slate-900"
-            : "bg-slate-100 text-slate-500",
+            ? "bg-primary text-primary-foreground"
+            : "bg-background/80 text-foreground",
       )}
     >
-      {count}
+      {count.toLocaleString()}
     </span>
   );
 }
@@ -58,10 +58,15 @@ export function QuickFilterTabs<T extends string>({
   className,
 }: QuickFilterTabsProps<T>) {
   return (
-    <div className={cn("rounded-lg border border-slate-200 bg-slate-50/80 p-1.5", className)}>
+    <div
+      className={cn(
+        "rounded-xl border border-border bg-muted/40 p-2 dark:bg-muted/20",
+        className,
+      )}
+    >
       <div
         className={cn(
-          "flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5",
+          "flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5",
           "snap-x snap-mandatory md:flex-wrap md:overflow-visible md:snap-none",
         )}
         role="tablist"
@@ -79,18 +84,19 @@ export function QuickFilterTabs<T extends string>({
               aria-selected={active}
               onClick={() => onChange(tab.id)}
               className={cn(
-                "inline-flex shrink-0 snap-start items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
+                "inline-flex shrink-0 snap-start items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 variant === "pill" &&
                   (active
-                    ? "bg-[#204060] text-white shadow-sm"
-                    : "text-slate-600 hover:bg-white hover:text-slate-900"),
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-background text-foreground hover:bg-accent"),
                 variant === "chip" &&
                   cn(
+                    "border text-xs sm:text-sm",
                     tab.chipClass,
-                    "border text-xs",
                     active
-                      ? "border-[#204060] bg-[#204060]/10 text-[#204060]"
-                      : "border-slate-200 bg-white text-slate-600",
+                      ? "border-primary ring-2 ring-primary/30"
+                      : "opacity-90 hover:opacity-100",
                   ),
               )}
             >

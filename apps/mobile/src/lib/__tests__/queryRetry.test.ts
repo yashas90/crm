@@ -2,12 +2,11 @@ import { ApiRequestError } from "@/lib/apiClient";
 import { isTransientQueryError, queryRetryCount, queryRetryDelay } from "@/lib/queryRetry";
 
 describe("queryRetry", () => {
-  it("retries transient network errors up to 3 times", () => {
+  it("retries transient network errors once", () => {
     const err = new ApiRequestError("NETWORK_ERROR", "offline");
     expect(isTransientQueryError(err)).toBe(true);
     expect(queryRetryCount(0, err)).toBe(true);
-    expect(queryRetryCount(2, err)).toBe(true);
-    expect(queryRetryCount(3, err)).toBe(false);
+    expect(queryRetryCount(1, err)).toBe(false);
   });
 
   it("uses exponential backoff delays", () => {
