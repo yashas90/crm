@@ -682,12 +682,18 @@ export function LeadDetailScreen({ route, navigation }: Props) {
           reviewOnly
           phoneNumber={dialerLog.pendingLog.phoneNumber}
           defaultDurationSeconds={dialerLog.pendingLog.durationSeconds}
+          durationIsTalkOnly={dialerLog.pendingLog.durationIsTalkOnly}
           isSubmitting={logCall.isPending}
           onClose={dialerLog.dismissPending}
           onSubmit={(payload) => {
             void (async () => {
               try {
-                await dialerLog.confirmLog(payload.outcome, payload.notes, payload.ringSeconds);
+                await dialerLog.confirmLog(
+                  payload.outcome,
+                  payload.notes,
+                  payload.ringSeconds,
+                  payload.durationSeconds,
+                );
                 setStatusSheetAfterCall(true);
                 setStatusSheetOpen(true);
               } catch {

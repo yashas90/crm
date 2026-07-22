@@ -15,8 +15,13 @@ type UseAutoDialerCallLogOptions = {
 };
 
 export type PostCallPrompt = {
-  /** Total elapsed seconds from dial tap to app return (raw measurement). */
+  /**
+   * Measured seconds: native CallLog talk time when available, otherwise dial→return
+   * wall-clock elapsed (includes ringing).
+   */
   durationSeconds: number;
+  /** True when durationSeconds is Android CallLog talk-only (answer → hangup). */
+  durationIsTalkOnly: boolean;
   phoneNumber: string;
   leadId: string;
   calledAt: string;
@@ -30,10 +35,34 @@ function elapsedSeconds(info: CallReturnInfo): number {
   return Math.max(1, fromClock || fromMinutes || 60);
 }
 
+export function resolveTalkSeconds(params: {
+  pending: Pick<PostCallPrompt, "durationSeconds" | "durationIsTalkOnly">;
+  outcome: CallOutcome;
+  ringSeconds?: number;
+  talkOverride?: number;
+}): number {
+  const { pending, outcome, ringSeconds, talkOverride } = params;
+  if (outcome !== "answered") return 0;
+
+  // Modal talk field is authoritative when provided (already adjusted for ring in UI).
+  if (talkOverride != null && Number.isFinite(talkOverride) && talkOverride >= 0) {
+    return Math.round(talkOverride);
+  }
+
+  if (pending.durationIsTalkOnly) {
+    return Math.max(0, Math.round(pending.durationSeconds));
+  }
+
+  // Wall-clock fallback includes ring — subtract ring to get connected talk time.
+  return Math.max(0, Math.round(pending.durationSeconds) - (ringSeconds ?? 0));
+}
+
 /**
  * Tracks native dialer sessions. When the agent returns from the dialer a post-call
  * prompt is shown so they can confirm outcome, ring time, and talk duration before
  * the call is logged to the API.
+ *
+ * Talk time = connected (phone timer 00:00) → hangup. Dial/ring time is excluded.
  */
 export function useAutoDialerCallLog({
   logCall,
@@ -53,13 +82,20 @@ export function useAutoDialerCallLog({
       outcome: CallOutcome = "answered",
       notes?: string,
       ringSeconds?: number,
+      talkOverride?: number,
     ) => {
       if (loggingRef.current) return;
       loggingRef.current = true;
       try {
-        const talkSeconds = Math.max(0, pending.durationSeconds - (ringSeconds ?? 0));
+        const talkSeconds = resolveTalkSeconds({
+          pending,
+          outcome,
+          ringSeconds,
+          talkOverride,
+        });
         const endedAt = new Date();
-        const startedAt = new Date(pending.calledAt);
+        // Persist the connected window (talk start → hangup), not dial-tap → app return.
+        const startedAt = new Date(endedAt.getTime() - talkSeconds * 1000);
         await logCall({
           lead_id: pending.leadId,
           phone_number: pending.phoneNumber,
@@ -101,6 +137,7 @@ export function useAutoDialerCallLog({
         (nativeSecs) => {
           setPostCallPrompt({
             durationSeconds: nativeSecs != null ? nativeSecs : fallbackSeconds,
+            durationIsTalkOnly: nativeSecs != null,
             phoneNumber: context.phoneNumber,
             leadId: context.leadId,
             calledAt,
@@ -129,10 +166,15 @@ export function useAutoDialerCallLog({
   }, [clearCallSession]);
 
   const confirmLog = useCallback(
-    async (outcome: CallOutcome, notes?: string, ringSeconds?: number) => {
+    async (
+      outcome: CallOutcome,
+      notes?: string,
+      ringSeconds?: number,
+      talkSeconds?: number,
+    ) => {
       const pending = postCallPromptRef.current;
       if (!pending) return;
-      await submitCallLog(pending, outcome, notes, ringSeconds);
+      await submitCallLog(pending, outcome, notes, ringSeconds, talkSeconds);
       setPostCallPrompt(null);
       clearCallSession();
     },

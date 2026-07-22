@@ -33,6 +33,11 @@ type CallLogModalProps = {
   onSubmit: (payload: QuickLogPayload, options?: SubmitOptions) => void;
   phoneNumber?: string;
   defaultDurationSeconds?: number;
+  /**
+   * When true, defaultDurationSeconds is already connected talk time (Android CallLog).
+   * Ring time is optional metadata and must not be subtracted again.
+   */
+  durationIsTalkOnly?: boolean;
   isSubmitting?: boolean;
   showSaveAndNext?: boolean;
   reviewOnly?: boolean;
@@ -69,6 +74,7 @@ export function CallLogModal({
   onSubmit,
   phoneNumber,
   defaultDurationSeconds = 60,
+  durationIsTalkOnly = false,
   isSubmitting = false,
   showSaveAndNext = false,
   reviewOnly = false,
@@ -149,7 +155,8 @@ export function CallLogModal({
     progressAnim.stopAnimation();
     const sanitized = value.replace(/[^\d]/g, "");
     setRingSeconds(sanitized);
-    if (reviewOnly) {
+    // Only subtract ring from wall-clock elapsed. Native talk time already excludes ring.
+    if (reviewOnly && !durationIsTalkOnly) {
       setDurationSeconds(String(talkDurationSeconds(defaultDurationSeconds, sanitized)));
     }
   }
@@ -167,10 +174,12 @@ export function CallLogModal({
   function renderDurationFields() {
     return (
       <>
-        <Text style={styles.label}>Duration</Text>
+        <Text style={styles.label}>Talk time (sec)</Text>
         {reviewOnly ? (
           <Text style={styles.elapsedHint}>
-            Total elapsed: {formatDuration(defaultDurationSeconds)}
+            {durationIsTalkOnly
+              ? `Connected talk time: ${formatDuration(defaultDurationSeconds)} (ring excluded)`
+              : `Total elapsed (dial→return): ${formatDuration(defaultDurationSeconds)} — enter ring time to get talk time`}
           </Text>
         ) : null}
         <TextInput
