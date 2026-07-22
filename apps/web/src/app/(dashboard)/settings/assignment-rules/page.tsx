@@ -46,7 +46,7 @@ export default function AssignmentRulesPage() {
 
   const users = useQuery({
     queryKey: ["users", "agents"],
-    queryFn: () => apiGet<{ items: AgentUser[] }>("/api/users?pageSize=200"),
+    queryFn: () => apiGet<{ items: AgentUser[] }>("/api/users?pageSize=100&status=active"),
     select: (d) => d.items.filter((u) => u.role === "agent" || u.role === "manager"),
   });
 

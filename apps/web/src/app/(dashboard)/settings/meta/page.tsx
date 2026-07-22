@@ -107,12 +107,22 @@ function MetaDashboardInner() {
   const assignableUsers = useQuery({
     queryKey: ["users", "meta-assignees"],
     queryFn: () =>
-      apiGet<{ items: Array<{ id: string; name: string; role: string }> }>(
-        "/api/users?pageSize=200",
+      apiGet<{ items: Array<{ id: string; name: string; role: string; isActive?: boolean }> }>(
+        "/api/users?pageSize=100&status=active",
       ),
     enabled: ready && canManage,
-    select: (d) => d.items.filter((u) => u.role === "agent" || u.role === "manager"),
+    select: (d) =>
+      (d.items ?? []).filter((u) => u.role === "agent" || u.role === "manager"),
   });
+  const [assigneeSearch, setAssigneeSearch] = useState("");
+  const filteredAssignableUsers = useMemo(() => {
+    const q = assigneeSearch.trim().toLowerCase();
+    const rows = assignableUsers.data ?? [];
+    if (!q) return rows;
+    return rows.filter(
+      (u) => u.name.toLowerCase().includes(q) || u.role.toLowerCase().includes(q),
+    );
+  }, [assignableUsers.data, assigneeSearch]);
   const allAssignableIds = useMemo(
     () => (assignableUsers.data ?? []).map((u) => u.id),
     [assignableUsers.data],
@@ -134,7 +144,10 @@ function MetaDashboardInner() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!mappingForm) return;
+    if (!mappingForm) {
+      setAssigneeSearch("");
+      return;
+    }
     const saved = mappingForm.assigneeIds ?? [];
     setMappingProjectId(mappingForm.projectId ?? "");
     setMappingAssigneeIds(saved);
@@ -144,6 +157,7 @@ function MetaDashboardInner() {
       saved.length === allAssignableIds.length &&
       allAssignableIds.every((id) => saved.includes(id));
     setMappingAssigneeMode(isAll ? "all" : "selected");
+    setAssigneeSearch("");
   }, [mappingForm, allAssignableIds]);
 
   const pageNameById = useMemo(() => {
@@ -977,13 +991,28 @@ function MetaDashboardInner() {
             {mappingAssigneeMode === "selected" ? (
               <div className="space-y-1.5 text-sm">
                 <span className="font-medium">Select user(s)</span>
+                <input
+                  type="search"
+                  value={assigneeSearch}
+                  onChange={(e) => setAssigneeSearch(e.target.value)}
+                  placeholder="Search agents or managers…"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
                 <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                  {(assignableUsers.data ?? []).length === 0 ? (
+                  {assignableUsers.isLoading ? (
+                    <p className="px-1 py-2 text-xs text-muted-foreground">Loading users…</p>
+                  ) : assignableUsers.isError ? (
+                    <p className="px-1 py-2 text-xs text-destructive">
+                      Could not load users. Refresh and try again.
+                    </p>
+                  ) : filteredAssignableUsers.length === 0 ? (
                     <p className="px-1 py-2 text-xs text-muted-foreground">
-                      No agents/managers found.
+                      {(assignableUsers.data ?? []).length === 0
+                        ? "No agents/managers found."
+                        : "No users match your search."}
                     </p>
                   ) : (
-                    (assignableUsers.data ?? []).map((user) => {
+                    filteredAssignableUsers.map((user) => {
                       const checked = mappingAssigneeIds.includes(user.id);
                       return (
                         <label
@@ -1007,6 +1036,12 @@ function MetaDashboardInner() {
                     })
                   )}
                 </div>
+                {mappingAssigneeIds.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {mappingAssigneeIds.length} user
+                    {mappingAssigneeIds.length === 1 ? "" : "s"} selected
+                  </p>
+                ) : null}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
