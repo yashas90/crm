@@ -111,17 +111,14 @@ function MetaDashboardInner() {
         "/api/users?pageSize=100&status=active",
       ),
     enabled: ready && canManage,
-    select: (d) =>
-      (d.items ?? []).filter((u) => u.role === "agent" || u.role === "manager"),
+    select: (d) => (d.items ?? []).filter((u) => u.role === "agent" || u.role === "manager"),
   });
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const filteredAssignableUsers = useMemo(() => {
     const q = assigneeSearch.trim().toLowerCase();
     const rows = assignableUsers.data ?? [];
     if (!q) return rows;
-    return rows.filter(
-      (u) => u.name.toLowerCase().includes(q) || u.role.toLowerCase().includes(q),
-    );
+    return rows.filter((u) => u.name.toLowerCase().includes(q) || u.role.toLowerCase().includes(q));
   }, [assignableUsers.data, assigneeSearch]);
   const allAssignableIds = useMemo(
     () => (assignableUsers.data ?? []).map((u) => u.id),
