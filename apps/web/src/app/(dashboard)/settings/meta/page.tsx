@@ -285,8 +285,7 @@ function MetaDashboardInner() {
 
   async function saveFormAssignment() {
     if (!mappingForm) return;
-    const assigneeIds =
-      mappingAssigneeMode === "all" ? allAssignableIds : mappingAssigneeIds;
+    const assigneeIds = mappingAssigneeMode === "all" ? allAssignableIds : mappingAssigneeIds;
     if (mappingAssigneeMode === "all" && assigneeIds.length === 0) {
       setBanner("No agents/managers to assign. Add users first.");
       return;
@@ -303,8 +302,7 @@ function MetaDashboardInner() {
       isActive: true,
       isSelected: true,
     });
-    const strategyLabel =
-      mappingStrategy === "round_robin" ? "round-robin" : "always first";
+    const strategyLabel = mappingStrategy === "round_robin" ? "round-robin" : "always first";
     setBanner(
       mappingAssigneeMode === "all"
         ? `Assigned — new Meta leads from this form go to all users (${strategyLabel}).`
