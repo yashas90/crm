@@ -1014,26 +1014,28 @@ function MetaDashboardInner() {
               </p>
             )}
           </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={busy || !mappingForm}
-              onClick={() => void clearFormAssignment()}
-            >
-              Clear assignees
-            </Button>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => setMappingForm(null)}>
-                Cancel
-              </Button>
+          <DialogFooter>
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <Button
                 type="button"
+                variant="ghost"
                 disabled={busy || !mappingForm}
-                onClick={() => void saveFormAssignment()}
+                onClick={() => void clearFormAssignment()}
               >
-                Save
+                Clear assignees
               </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => setMappingForm(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={busy || !mappingForm}
+                  onClick={() => void saveFormAssignment()}
+                >
+                  Save
+                </Button>
+              </div>
             </div>
           </DialogFooter>
         </DialogContent>

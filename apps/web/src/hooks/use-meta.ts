@@ -260,14 +260,16 @@ export function useMetaSync() {
 export function useMetaSyncLeads() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (sinceDays = 7) =>
-      apiPost<{
+    mutationFn: async (sinceDays?: number) => {
+      const days = sinceDays ?? 7;
+      return apiPost<{
         formsScanned: number;
         leadsSeen: number;
         ingested: number;
         skipped: number;
         failed: number;
-      }>(`/api/meta/sync/leads?sinceDays=${sinceDays}`, {}),
+      }>(`/api/meta/sync/leads?sinceDays=${days}`, {});
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["meta"] });
       void qc.invalidateQueries({ queryKey: ["leads"] });
