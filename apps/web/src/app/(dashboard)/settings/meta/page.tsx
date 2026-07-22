@@ -41,6 +41,7 @@ import { apiGet } from "@/lib/apiClient";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Link2,
@@ -54,7 +55,6 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 
 type MetaTab = "accounts" | "pages" | "forms" | "ads";
 
@@ -104,7 +104,10 @@ function MetaDashboardInner() {
   const projects = useProjects();
   const assignableUsers = useQuery({
     queryKey: ["users", "meta-assignees"],
-    queryFn: () => apiGet<{ items: Array<{ id: string; name: string; role: string }> }>("/api/users?pageSize=200"),
+    queryFn: () =>
+      apiGet<{ items: Array<{ id: string; name: string; role: string }> }>(
+        "/api/users?pageSize=200",
+      ),
     enabled: ready && canManage,
     select: (d) => d.items.filter((u) => u.role === "agent" || u.role === "manager"),
   });
@@ -870,7 +873,9 @@ function MetaDashboardInner() {
               <span className="font-medium">Assign to users</span>
               <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
                 {(assignableUsers.data ?? []).length === 0 ? (
-                  <p className="px-1 py-2 text-xs text-muted-foreground">No agents/managers found.</p>
+                  <p className="px-1 py-2 text-xs text-muted-foreground">
+                    No agents/managers found.
+                  </p>
                 ) : (
                   (assignableUsers.data ?? []).map((user) => {
                     const checked = mappingAssigneeIds.includes(user.id);
