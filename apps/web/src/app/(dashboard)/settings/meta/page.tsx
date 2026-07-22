@@ -111,7 +111,10 @@ function MetaDashboardInner() {
         "/api/users?pageSize=100&status=active",
       ),
     enabled: ready && canManage,
-    select: (d) => (d.items ?? []).filter((u) => u.role === "agent" || u.role === "manager"),
+    select: (d) =>
+      (d.items ?? []).filter(
+        (u) => u.role === "agent" || u.role === "manager" || u.role === "admin",
+      ),
   });
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const filteredAssignableUsers = useMemo(() => {
@@ -298,7 +301,7 @@ function MetaDashboardInner() {
     if (!mappingForm) return;
     const assigneeIds = mappingAssigneeMode === "all" ? allAssignableIds : mappingAssigneeIds;
     if (mappingAssigneeMode === "all" && assigneeIds.length === 0) {
-      setBanner("No agents/managers to assign. Add users first.");
+      setBanner("No users to assign. Add agents, managers, or admins first.");
       return;
     }
     if (mappingAssigneeMode === "selected" && assigneeIds.length === 0) {
@@ -979,7 +982,7 @@ function MetaDashboardInner() {
                 <span>
                   All users
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    Round-robin across every agent and manager ({allAssignableIds.length})
+                    Round-robin across every agent, manager, and admin ({allAssignableIds.length})
                   </span>
                 </span>
               </label>
@@ -992,7 +995,7 @@ function MetaDashboardInner() {
                   type="search"
                   value={assigneeSearch}
                   onChange={(e) => setAssigneeSearch(e.target.value)}
-                  placeholder="Search agents or managers…"
+                  placeholder="Search agents, managers, or admins…"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
@@ -1005,7 +1008,7 @@ function MetaDashboardInner() {
                   ) : filteredAssignableUsers.length === 0 ? (
                     <p className="px-1 py-2 text-xs text-muted-foreground">
                       {(assignableUsers.data ?? []).length === 0
-                        ? "No agents/managers found."
+                        ? "No agents, managers, or admins found."
                         : "No users match your search."}
                     </p>
                   ) : (
@@ -1042,7 +1045,7 @@ function MetaDashboardInner() {
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
-                New Meta leads from this form will rotate across all agents and managers.
+                New Meta leads from this form will rotate across all agents, managers, and admins.
               </p>
             )}
           </div>
