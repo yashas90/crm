@@ -24,7 +24,7 @@ After OAuth **Connect Meta**:
 6. Enable/disable pages and forms in **Settings → Integrations → Meta**.
 7. Pages/forms re-sync on demand (`Sync pages & forms`) and every 6 hours when Redis/BullMQ (or in-process fallback) is running.
 8. If **Leads (30d)** stays at 0 while Meta Ads Manager shows leads, live webhooks are not reaching the API — use **Pull leads (7d)** to backfill from Graph, then fix the app webhook callback (below).
-9. On **Forms → Map**, set **Project** and **Assign to users** (sequential round-robin or first user). New Meta leads from that form go directly to those agents; empty assignees fall back to **Settings → Assignment rules**.
+9. On **Forms → Assign**, open **Lead Assignment**: choose sequential (round-robin) or always-first, then **Select users** or **All users**. New Meta leads from that form go directly to those agents; **Clear assignees** falls back to **Settings → Assignment rules**.
 
 **Do not** put Page IDs, Form IDs, or Page Access Tokens in env for this model. App-level secrets only:
 

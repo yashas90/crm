@@ -47,16 +47,17 @@ import {
   Link2,
   Link2Off,
   Megaphone,
-  Pencil,
   RefreshCw,
   Search,
   Unplug,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
 type MetaTab = "accounts" | "pages" | "forms" | "ads";
+type AssigneeMode = "selected" | "all";
 
 function Kpi({ label, value }: { label: string; value: number | string }) {
   return (
@@ -91,6 +92,7 @@ function MetaDashboardInner() {
   const [mappingProjectId, setMappingProjectId] = useState<string>("");
   const [mappingAssigneeIds, setMappingAssigneeIds] = useState<string[]>([]);
   const [mappingStrategy, setMappingStrategy] = useState<"round_robin" | "first">("round_robin");
+  const [mappingAssigneeMode, setMappingAssigneeMode] = useState<AssigneeMode>("selected");
 
   const dashboard = useMetaDashboard({ enabled: ready && canView });
   const businesses = useMetaBusinesses({ enabled: ready && canView });
@@ -111,6 +113,10 @@ function MetaDashboardInner() {
     enabled: ready && canManage,
     select: (d) => d.items.filter((u) => u.role === "agent" || u.role === "manager"),
   });
+  const allAssignableIds = useMemo(
+    () => (assignableUsers.data ?? []).map((u) => u.id),
+    [assignableUsers.data],
+  );
   const connect = useMetaConnect();
   const disconnect = useMetaDisconnect();
   const sync = useMetaSync();
@@ -128,10 +134,17 @@ function MetaDashboardInner() {
   }, [searchParams]);
 
   useEffect(() => {
-    setMappingProjectId(mappingForm?.projectId ?? "");
-    setMappingAssigneeIds(mappingForm?.assigneeIds ?? []);
-    setMappingStrategy(mappingForm?.assignmentStrategy ?? "round_robin");
-  }, [mappingForm]);
+    if (!mappingForm) return;
+    const saved = mappingForm.assigneeIds ?? [];
+    setMappingProjectId(mappingForm.projectId ?? "");
+    setMappingAssigneeIds(saved);
+    setMappingStrategy(mappingForm.assignmentStrategy ?? "round_robin");
+    const isAll =
+      allAssignableIds.length > 0 &&
+      saved.length === allAssignableIds.length &&
+      allAssignableIds.every((id) => saved.includes(id));
+    setMappingAssigneeMode(isAll ? "all" : "selected");
+  }, [mappingForm, allAssignableIds]);
 
   const pageNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -270,28 +283,76 @@ function MetaDashboardInner() {
     void syncHistory.refetch();
   }
 
-  async function saveFormMapping() {
+  async function saveFormAssignment() {
     if (!mappingForm) return;
+    const assigneeIds =
+      mappingAssigneeMode === "all" ? allAssignableIds : mappingAssigneeIds;
+    if (mappingAssigneeMode === "all" && assigneeIds.length === 0) {
+      setBanner("No agents/managers to assign. Add users first.");
+      return;
+    }
+    if (mappingAssigneeMode === "selected" && assigneeIds.length === 0) {
+      setBanner("Select at least one user, or choose All users.");
+      return;
+    }
     await patchForm.mutateAsync({
       id: mappingForm.id,
       projectId: mappingProjectId || null,
-      assigneeIds: mappingAssigneeIds,
+      assigneeIds,
       assignmentStrategy: mappingStrategy,
       isActive: true,
       isSelected: true,
     });
+    const strategyLabel =
+      mappingStrategy === "round_robin" ? "round-robin" : "always first";
     setBanner(
-      mappingAssigneeIds.length > 0
-        ? `Form mapped — new Meta leads will assign to ${mappingAssigneeIds.length} user(s) (${mappingStrategy === "round_robin" ? "round-robin" : "first"}).`
-        : "Form mapping saved (no assignees — global assignment rules still apply).",
+      mappingAssigneeMode === "all"
+        ? `Assigned — new Meta leads from this form go to all users (${strategyLabel}).`
+        : `Assigned — new Meta leads from this form go to ${assigneeIds.length} user(s) (${strategyLabel}).`,
     );
     setMappingForm(null);
   }
 
+  async function clearFormAssignment() {
+    if (!mappingForm) return;
+    await patchForm.mutateAsync({
+      id: mappingForm.id,
+      projectId: mappingProjectId || null,
+      assigneeIds: [],
+      assignmentStrategy: "round_robin",
+      isActive: true,
+      isSelected: true,
+    });
+    setBanner("Assignees cleared — global Assignment Rules apply for this form.");
+    setMappingForm(null);
+  }
+
   function toggleMappingAssignee(userId: string) {
+    setMappingAssigneeMode("selected");
     setMappingAssigneeIds((ids) =>
       ids.includes(userId) ? ids.filter((id) => id !== userId) : [...ids, userId],
     );
+  }
+
+  function selectAllAssignees() {
+    setMappingAssigneeMode("all");
+    setMappingAssigneeIds(allAssignableIds);
+  }
+
+  function selectSpecificAssignees() {
+    setMappingAssigneeMode("selected");
+  }
+
+  function assigneeSummary(form: MetaForm): string {
+    const ids = form.assigneeIds ?? [];
+    if (ids.length === 0) return "—";
+    const strategy = form.assignmentStrategy === "first" ? "first" : "RR";
+    const isAll =
+      allAssignableIds.length > 0 &&
+      ids.length === allAssignableIds.length &&
+      allAssignableIds.every((id) => ids.includes(id));
+    if (isAll) return `All users · ${strategy}`;
+    return `${ids.length} user${ids.length === 1 ? "" : "s"} · ${strategy}`;
   }
 
   const tabs: Array<{ id: MetaTab; label: string; count: number }> = [
@@ -672,9 +733,7 @@ function MetaDashboardInner() {
                                 : "—"}
                             </td>
                             <td className="py-3 pr-3 text-xs text-muted-foreground">
-                              {(form.assigneeIds?.length ?? 0) > 0
-                                ? `${form.assigneeIds!.length} user${form.assigneeIds!.length === 1 ? "" : "s"} · ${form.assignmentStrategy === "first" ? "first" : "RR"}`
-                                : "—"}
+                              {assigneeSummary(form)}
                             </td>
                             <td className="py-3 pr-3">
                               <StatusBadge
@@ -689,11 +748,10 @@ function MetaDashboardInner() {
                                     <Button
                                       type="button"
                                       size="sm"
-                                      variant="outline"
                                       onClick={() => setMappingForm(form)}
                                     >
-                                      <Pencil className="mr-1 h-3.5 w-3.5" />
-                                      Map
+                                      <UserPlus className="mr-1 h-3.5 w-3.5" />
+                                      Assign
                                     </Button>
                                     <Button
                                       type="button"
@@ -831,14 +889,14 @@ function MetaDashboardInner() {
       <Dialog open={Boolean(mappingForm)} onOpenChange={(open) => !open && setMappingForm(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Map lead form</DialogTitle>
+            <DialogTitle>Lead Assignment</DialogTitle>
             <DialogDescription>
               {mappingForm
                 ? `${mappingForm.name} · ${pageNameById.get(mappingForm.pageId) ?? "Page"}`
                 : null}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-5">
             <label className="block space-y-1.5 text-sm">
               <span className="font-medium">Project</span>
               <select
@@ -855,69 +913,130 @@ function MetaDashboardInner() {
               </select>
             </label>
 
-            <div className="space-y-1.5 text-sm">
-              <span className="font-medium">Assignment</span>
-              <select
-                value={mappingStrategy}
-                onChange={(e) =>
-                  setMappingStrategy(e.target.value === "first" ? "first" : "round_robin")
-                }
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="round_robin">Sequential (round-robin)</option>
-                <option value="first">Always first selected user</option>
-              </select>
-            </div>
+            <fieldset className="space-y-2 text-sm">
+              <legend className="font-medium">Assignment basis</legend>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input
+                  type="radio"
+                  name="assignment-basis"
+                  checked={mappingStrategy === "round_robin"}
+                  onChange={() => setMappingStrategy("round_robin")}
+                  className="h-4 w-4"
+                />
+                <span>
+                  Sequential (round-robin)
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Rotate leads across selected users in order
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input
+                  type="radio"
+                  name="assignment-basis"
+                  checked={mappingStrategy === "first"}
+                  onChange={() => setMappingStrategy("first")}
+                  className="h-4 w-4"
+                />
+                <span>
+                  Always first user
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Every lead goes to the first selected user
+                  </span>
+                </span>
+              </label>
+            </fieldset>
 
-            <div className="space-y-1.5 text-sm">
-              <span className="font-medium">Assign to users</span>
-              <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                {(assignableUsers.data ?? []).length === 0 ? (
-                  <p className="px-1 py-2 text-xs text-muted-foreground">
-                    No agents/managers found.
-                  </p>
-                ) : (
-                  (assignableUsers.data ?? []).map((user) => {
-                    const checked = mappingAssigneeIds.includes(user.id);
-                    return (
-                      <label
-                        key={user.id}
-                        className="flex cursor-pointer items-center gap-2 rounded px-1 py-1.5 hover:bg-muted/50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleMappingAssignee(user.id)}
-                          className="h-4 w-4 rounded border-input"
-                        />
-                        <span className="text-sm">
-                          {user.name}{" "}
-                          <span className="text-xs capitalize text-muted-foreground">
-                            ({user.role})
+            <fieldset className="space-y-2 text-sm">
+              <legend className="font-medium">Assignment type</legend>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input
+                  type="radio"
+                  name="assignment-type"
+                  checked={mappingAssigneeMode === "selected"}
+                  onChange={() => selectSpecificAssignees()}
+                  className="h-4 w-4"
+                />
+                <span>Select users</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input
+                  type="radio"
+                  name="assignment-type"
+                  checked={mappingAssigneeMode === "all"}
+                  onChange={() => selectAllAssignees()}
+                  className="h-4 w-4"
+                />
+                <span>
+                  All users
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Round-robin across every agent and manager ({allAssignableIds.length})
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+
+            {mappingAssigneeMode === "selected" ? (
+              <div className="space-y-1.5 text-sm">
+                <span className="font-medium">Select user(s)</span>
+                <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                  {(assignableUsers.data ?? []).length === 0 ? (
+                    <p className="px-1 py-2 text-xs text-muted-foreground">
+                      No agents/managers found.
+                    </p>
+                  ) : (
+                    (assignableUsers.data ?? []).map((user) => {
+                      const checked = mappingAssigneeIds.includes(user.id);
+                      return (
+                        <label
+                          key={user.id}
+                          className="flex cursor-pointer items-center gap-2 rounded px-1 py-1.5 hover:bg-muted/50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleMappingAssignee(user.id)}
+                            className="h-4 w-4 rounded border-input"
+                          />
+                          <span className="text-sm">
+                            {user.name}{" "}
+                            <span className="text-xs capitalize text-muted-foreground">
+                              ({user.role})
+                            </span>
                           </span>
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               </div>
+            ) : (
               <p className="text-xs text-muted-foreground">
-                New Meta leads from this form go directly to selected users. Leave empty to use
-                global Assignment Rules (Settings → Assignment rules) for Meta Ads.
+                New Meta leads from this form will rotate across all agents and managers.
               </p>
-            </div>
+            )}
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setMappingForm(null)}>
-              Cancel
-            </Button>
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
             <Button
               type="button"
+              variant="ghost"
               disabled={busy || !mappingForm}
-              onClick={() => void saveFormMapping()}
+              onClick={() => void clearFormAssignment()}
             >
-              Save
+              Clear assignees
             </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setMappingForm(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={busy || !mappingForm}
+                onClick={() => void saveFormAssignment()}
+              >
+                Save
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
