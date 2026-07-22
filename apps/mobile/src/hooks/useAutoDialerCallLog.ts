@@ -166,12 +166,7 @@ export function useAutoDialerCallLog({
   }, [clearCallSession]);
 
   const confirmLog = useCallback(
-    async (
-      outcome: CallOutcome,
-      notes?: string,
-      ringSeconds?: number,
-      talkSeconds?: number,
-    ) => {
+    async (outcome: CallOutcome, notes?: string, ringSeconds?: number, talkSeconds?: number) => {
       const pending = postCallPromptRef.current;
       if (!pending) return;
       await submitCallLog(pending, outcome, notes, ringSeconds, talkSeconds);
