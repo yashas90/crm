@@ -245,10 +245,30 @@ export function useMetaDisconnect() {
 export function useMetaSync() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body?: { type?: "campaigns" | "insights" | "assets" | "all" }) =>
-      apiPost<Record<string, unknown>>("/api/meta/sync", body ?? { type: "all" }),
+    mutationFn: (body?: {
+      type?: "campaigns" | "insights" | "assets" | "all" | "leads";
+      sinceDays?: number;
+    }) => apiPost<Record<string, unknown>>("/api/meta/sync", body ?? { type: "all" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["meta"] });
+    },
+  });
+}
+
+export function useMetaSyncLeads() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sinceDays = 7) =>
+      apiPost<{
+        formsScanned: number;
+        leadsSeen: number;
+        ingested: number;
+        skipped: number;
+        failed: number;
+      }>(`/api/meta/sync/leads?sinceDays=${sinceDays}`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["meta"] });
+      void qc.invalidateQueries({ queryKey: ["leads"] });
     },
   });
 }

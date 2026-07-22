@@ -23,6 +23,7 @@ After OAuth **Connect Meta**:
 5. On each delivery the API loads the Page token by `page_id`, fetches the lead, and saves it.
 6. Enable/disable pages and forms in **Settings → Integrations → Meta**.
 7. Pages/forms re-sync on demand (`Sync pages & forms`) and every 6 hours when Redis/BullMQ (or in-process fallback) is running.
+8. If **Leads (30d)** stays at 0 while Meta Ads Manager shows leads, live webhooks are not reaching the API — use **Pull leads (7d)** to backfill from Graph, then fix the app webhook callback (below).
 
 **Do not** put Page IDs, Form IDs, or Page Access Tokens in env for this model. App-level secrets only:
 
@@ -91,8 +92,9 @@ Then in Meta: Callback URL `https://<api-host>/api/integrations/meta/webhook`, s
 | GET | `/api/meta/campaigns` | Campaigns |
 | GET | `/api/meta/leads` | Meta lead mirror |
 | GET | `/api/meta/sync-history` | Sync monitor |
-| POST | `/api/meta/sync` | campaigns / insights / assets / all |
+| POST | `/api/meta/sync` | campaigns / insights / assets / all / leads |
 | POST | `/api/meta/sync/assets` | Pages + forms + leadgen subscribe |
+| POST | `/api/meta/sync/leads?sinceDays=7` | Backfill Lead Ads from Graph (missed webhooks) |
 | PATCH | `/api/meta/pages/:id` | Enable/disable page |
 | POST | `/api/meta/pages/:id/reconnect` | Refresh page token + forms |
 | PATCH | `/api/meta/forms/:id` | Enable/disable form |

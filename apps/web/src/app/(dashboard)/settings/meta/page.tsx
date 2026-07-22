@@ -32,6 +32,7 @@ import {
   useMetaSync,
   useMetaSyncAssets,
   useMetaSyncHistory,
+  useMetaSyncLeads,
   useMetaTokenRefresh,
 } from "@/hooks/use-meta";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -101,6 +102,7 @@ function MetaDashboardInner() {
   const disconnect = useMetaDisconnect();
   const sync = useMetaSync();
   const syncAssets = useMetaSyncAssets();
+  const syncLeads = useMetaSyncLeads();
   const refreshToken = useMetaTokenRefresh();
   const patchPage = useMetaPatchPage();
   const reconnectPage = useMetaReconnectPage();
@@ -230,6 +232,7 @@ function MetaDashboardInner() {
     disconnect.isPending ||
     sync.isPending ||
     syncAssets.isPending ||
+    syncLeads.isPending ||
     refreshToken.isPending ||
     patchPage.isPending ||
     reconnectPage.isPending ||
@@ -340,6 +343,20 @@ function MetaDashboardInner() {
                     variant="outline"
                     size="sm"
                     disabled={busy}
+                    onClick={async () => {
+                      const result = await syncLeads.mutateAsync(7);
+                      setBanner(
+                        `Pulled Meta leads (7d): ${result.ingested} ingested, ${result.skipped} already present, ${result.failed} failed (${result.leadsSeen} seen).`,
+                      );
+                    }}
+                  >
+                    Pull leads (7d)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
                     onClick={() => void refreshToken.mutateAsync()}
                   >
                     Refresh token
@@ -420,6 +437,18 @@ function MetaDashboardInner() {
             <Kpi label="Lead forms" value={forms.data?.length ?? 0} />
             <Kpi label="Leads (30d)" value={dashboard.data?.leads.last30Days ?? 0} />
           </div>
+
+          {connected && (dashboard.data?.leads.last30Days ?? 0) === 0 ? (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+              No live Meta Lead Ads have been received via webhook yet. Pages are connected, but
+              Meta may not be delivering events — click <strong>Pull leads (7d)</strong> to import
+              recent form submissions from Graph, and confirm the app webhook callback is{" "}
+              <code className="text-xs">
+                https://crm-production-e81d.up.railway.app/api/integrations/meta/webhook
+              </code>{" "}
+              (Page → leadgen) in Meta Developer Console.
+            </div>
+          ) : null}
 
           <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -454,6 +454,41 @@ export async function getLeadDetails(
   return data;
 }
 
+export type GraphFormLeadSummary = {
+  id: string;
+  created_time?: string;
+  ad_id?: string;
+  adset_id?: string;
+  campaign_id?: string;
+  form_id?: string;
+};
+
+/**
+ * Lists leads for a Lead Form (backfill / catch-up when webhooks were missed).
+ * @see https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving
+ */
+export function getFormLeads(
+  formId: string,
+  accessToken: string,
+  options: { sinceUnix?: number; maxPages?: number } = {},
+) {
+  const params: Record<string, string | number | boolean | undefined> = {
+    fields: "id,created_time,ad_id,adset_id,campaign_id,form_id",
+    limit: 100,
+  };
+  if (options.sinceUnix) {
+    params.filtering = JSON.stringify([
+      { field: "time_created", operator: "GREATER_THAN", value: options.sinceUnix },
+    ]);
+  }
+  return graphGetAllPages<GraphFormLeadSummary>(
+    `${formId}/leads`,
+    accessToken,
+    params,
+    options.maxPages ?? 20,
+  );
+}
+
 /* ─── OAuth token exchange ───────────────────────────────────────────────── */
 
 export function getOAuthDialogUrl(params: {

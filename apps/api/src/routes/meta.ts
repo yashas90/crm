@@ -36,6 +36,7 @@ import {
   sendPendingConversionEvents,
 } from "../services/metaConversionService.js";
 import { getMetaDashboard } from "../services/metaDashboardService.js";
+import { backfillMetaLeads } from "../services/metaLeadBackfillService.js";
 import {
   disconnect as disconnectMetaOAuth,
   getAuthUrl,
@@ -383,11 +384,12 @@ metaRoutes.put("/token", writeRateLimit, async (c) => {
 /* ─── Sync / conversion / asset selection ───────────────────────────────── */
 
 const syncBodySchema = z.object({
-  type: z.enum(["campaigns", "insights", "assets", "all"]).default("all"),
+  type: z.enum(["campaigns", "insights", "assets", "all", "leads"]).default("all"),
   adAccountIds: z.array(z.string()).optional(),
   datePreset: z.string().optional(),
   since: z.string().optional(),
   until: z.string().optional(),
+  sinceDays: z.number().int().min(1).max(90).optional(),
 });
 
 metaRoutes.post("/sync", writeRateLimit, validate("json", syncBodySchema), async (c) => {
@@ -396,6 +398,13 @@ metaRoutes.post("/sync", writeRateLimit, validate("json", syncBodySchema), async
 
   const body = c.req.valid("json");
   const results: Record<string, unknown> = {};
+
+  if (body.type === "leads") {
+    results.leads = await backfillMetaLeads(SINGLE_TENANT_ORG_ID, {
+      sinceDays: body.sinceDays ?? 7,
+    });
+    return jsonOk(c, results);
+  }
 
   if (body.type === "assets" || body.type === "all") {
     try {
@@ -419,6 +428,16 @@ metaRoutes.post("/sync", writeRateLimit, validate("json", syncBodySchema), async
   }
 
   return jsonOk(c, results);
+});
+
+/** Pull Lead Ads from Graph for the last N days (catch-up when webhooks were missed). */
+metaRoutes.post("/sync/leads", writeRateLimit, async (c) => {
+  const denied = requireManage(c);
+  if (denied) return denied;
+  const sinceDaysRaw = Number(c.req.query("sinceDays") ?? "7");
+  const sinceDays = Number.isFinite(sinceDaysRaw) ? sinceDaysRaw : 7;
+  const result = await backfillMetaLeads(SINGLE_TENANT_ORG_ID, { sinceDays });
+  return jsonOk(c, result);
 });
 
 /** Explicit pages/forms discovery + leadgen subscribe (same as sync type=assets). */
