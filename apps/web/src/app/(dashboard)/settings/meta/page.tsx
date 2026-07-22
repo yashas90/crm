@@ -37,6 +37,7 @@ import {
 } from "@/hooks/use-meta";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useProjects } from "@/hooks/use-projects";
+import { apiGet } from "@/lib/apiClient";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
@@ -53,6 +54,7 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 type MetaTab = "accounts" | "pages" | "forms" | "ads";
 
@@ -87,6 +89,8 @@ function MetaDashboardInner() {
   const [search, setSearch] = useState("");
   const [mappingForm, setMappingForm] = useState<MetaForm | null>(null);
   const [mappingProjectId, setMappingProjectId] = useState<string>("");
+  const [mappingAssigneeIds, setMappingAssigneeIds] = useState<string[]>([]);
+  const [mappingStrategy, setMappingStrategy] = useState<"round_robin" | "first">("round_robin");
 
   const dashboard = useMetaDashboard({ enabled: ready && canView });
   const businesses = useMetaBusinesses({ enabled: ready && canView });
@@ -98,6 +102,12 @@ function MetaDashboardInner() {
   const ads = useMetaAds({ enabled: ready && canView && tab === "ads" });
   const syncHistory = useMetaSyncHistory({ enabled: ready && canView });
   const projects = useProjects();
+  const assignableUsers = useQuery({
+    queryKey: ["users", "meta-assignees"],
+    queryFn: () => apiGet<{ items: Array<{ id: string; name: string; role: string }> }>("/api/users?pageSize=200"),
+    enabled: ready && canManage,
+    select: (d) => d.items.filter((u) => u.role === "agent" || u.role === "manager"),
+  });
   const connect = useMetaConnect();
   const disconnect = useMetaDisconnect();
   const sync = useMetaSync();
@@ -116,6 +126,8 @@ function MetaDashboardInner() {
 
   useEffect(() => {
     setMappingProjectId(mappingForm?.projectId ?? "");
+    setMappingAssigneeIds(mappingForm?.assigneeIds ?? []);
+    setMappingStrategy(mappingForm?.assignmentStrategy ?? "round_robin");
   }, [mappingForm]);
 
   const pageNameById = useMemo(() => {
@@ -260,10 +272,23 @@ function MetaDashboardInner() {
     await patchForm.mutateAsync({
       id: mappingForm.id,
       projectId: mappingProjectId || null,
+      assigneeIds: mappingAssigneeIds,
+      assignmentStrategy: mappingStrategy,
       isActive: true,
       isSelected: true,
     });
+    setBanner(
+      mappingAssigneeIds.length > 0
+        ? `Form mapped — new Meta leads will assign to ${mappingAssigneeIds.length} user(s) (${mappingStrategy === "round_robin" ? "round-robin" : "first"}).`
+        : "Form mapping saved (no assignees — global assignment rules still apply).",
+    );
     setMappingForm(null);
+  }
+
+  function toggleMappingAssignee(userId: string) {
+    setMappingAssigneeIds((ids) =>
+      ids.includes(userId) ? ids.filter((id) => id !== userId) : [...ids, userId],
+    );
   }
 
   const tabs: Array<{ id: MetaTab; label: string; count: number }> = [
@@ -621,6 +646,7 @@ function MetaDashboardInner() {
                           <th className="py-2 pr-3 font-medium">Form ID</th>
                           <th className="py-2 pr-3 font-medium">Page name</th>
                           <th className="py-2 pr-3 font-medium">Project</th>
+                          <th className="py-2 pr-3 font-medium">Assignees</th>
                           <th className="py-2 pr-3 font-medium">Status</th>
                           <th className="py-2 font-medium">Actions</th>
                         </tr>
@@ -640,6 +666,11 @@ function MetaDashboardInner() {
                             <td className="py-3 pr-3">
                               {form.projectId
                                 ? (projectNameById.get(form.projectId) ?? "Mapped")
+                                : "—"}
+                            </td>
+                            <td className="py-3 pr-3 text-xs text-muted-foreground">
+                              {(form.assigneeIds?.length ?? 0) > 0
+                                ? `${form.assigneeIds!.length} user${form.assigneeIds!.length === 1 ? "" : "s"} · ${form.assignmentStrategy === "first" ? "first" : "RR"}`
                                 : "—"}
                             </td>
                             <td className="py-3 pr-3">
@@ -795,7 +826,7 @@ function MetaDashboardInner() {
       ) : null}
 
       <Dialog open={Boolean(mappingForm)} onOpenChange={(open) => !open && setMappingForm(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Map lead form</DialogTitle>
             <DialogDescription>
@@ -804,7 +835,7 @@ function MetaDashboardInner() {
                 : null}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <label className="block space-y-1.5 text-sm">
               <span className="font-medium">Project</span>
               <select
@@ -820,10 +851,56 @@ function MetaDashboardInner() {
                 ))}
               </select>
             </label>
-            <p className="text-xs text-muted-foreground">
-              New Meta leads from this form inherit the selected project when project is empty on
-              the CRM lead.
-            </p>
+
+            <div className="space-y-1.5 text-sm">
+              <span className="font-medium">Assignment</span>
+              <select
+                value={mappingStrategy}
+                onChange={(e) =>
+                  setMappingStrategy(e.target.value === "first" ? "first" : "round_robin")
+                }
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="round_robin">Sequential (round-robin)</option>
+                <option value="first">Always first selected user</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5 text-sm">
+              <span className="font-medium">Assign to users</span>
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                {(assignableUsers.data ?? []).length === 0 ? (
+                  <p className="px-1 py-2 text-xs text-muted-foreground">No agents/managers found.</p>
+                ) : (
+                  (assignableUsers.data ?? []).map((user) => {
+                    const checked = mappingAssigneeIds.includes(user.id);
+                    return (
+                      <label
+                        key={user.id}
+                        className="flex cursor-pointer items-center gap-2 rounded px-1 py-1.5 hover:bg-muted/50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleMappingAssignee(user.id)}
+                          className="h-4 w-4 rounded border-input"
+                        />
+                        <span className="text-sm">
+                          {user.name}{" "}
+                          <span className="text-xs capitalize text-muted-foreground">
+                            ({user.role})
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                New Meta leads from this form go directly to selected users. Leave empty to use
+                global Assignment Rules (Settings → Assignment rules) for Meta Ads.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setMappingForm(null)}>

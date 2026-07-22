@@ -529,6 +529,8 @@ const formPatchSchema = z.object({
   isActive: z.boolean().optional(),
   isSelected: z.boolean().optional(),
   projectId: z.string().uuid().nullable().optional(),
+  assigneeIds: z.array(z.string().uuid()).optional(),
+  assignmentStrategy: z.enum(["round_robin", "first"]).optional(),
 });
 
 metaRoutes.patch("/forms/:id", writeRateLimit, validate("json", formPatchSchema), async (c) => {
@@ -539,7 +541,16 @@ metaRoutes.patch("/forms/:id", writeRateLimit, validate("json", formPatchSchema)
   const body = c.req.valid("json");
   const [row] = await db
     .update(facebookForms)
-    .set({ ...body, updatedAt: new Date() })
+    .set({
+      ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      ...(body.isSelected !== undefined ? { isSelected: body.isSelected } : {}),
+      ...(body.projectId !== undefined ? { projectId: body.projectId } : {}),
+      ...(body.assigneeIds !== undefined ? { assigneeIds: body.assigneeIds } : {}),
+      ...(body.assignmentStrategy !== undefined
+        ? { assignmentStrategy: body.assignmentStrategy }
+        : {}),
+      updatedAt: new Date(),
+    })
     .where(and(eq(facebookForms.id, id), eq(facebookForms.orgId, SINGLE_TENANT_ORG_ID)))
     .returning({
       id: facebookForms.id,
@@ -549,6 +560,8 @@ metaRoutes.patch("/forms/:id", writeRateLimit, validate("json", formPatchSchema)
       isSelected: facebookForms.isSelected,
       projectId: facebookForms.projectId,
       pageId: facebookForms.pageId,
+      assigneeIds: facebookForms.assigneeIds,
+      assignmentStrategy: facebookForms.assignmentStrategy,
     });
 
   if (!row) return jsonError(c, "NOT_FOUND", "Form not found", 404);

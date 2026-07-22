@@ -1293,6 +1293,9 @@ export const facebookForms = pgTable(
     isSelected: boolean("is_selected").notNull().default(true),
     isActive: boolean("is_active").notNull().default(true),
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    assigneeIds: text("assignee_ids").array().notNull().default([]),
+    assignmentStrategy: text("assignment_strategy").notNull().default("round_robin"),
+    lastAssignedIndex: integer("last_assigned_index").notNull().default(-1),
     questions: jsonb("questions").$type<unknown[]>().notNull().default([]),
     fieldMapping: jsonb("field_mapping").$type<Record<string, string>>().notNull().default({}),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
@@ -1303,6 +1306,10 @@ export const facebookForms = pgTable(
     uniqueIndex("facebook_forms_org_form_id_uidx").on(table.orgId, table.formId),
     index("facebook_forms_page_id_idx").on(table.pageId),
     index("facebook_forms_org_id_idx").on(table.orgId),
+    check(
+      "facebook_forms_assignment_strategy_check",
+      sql`${table.assignmentStrategy} in ('round_robin', 'first')`,
+    ),
   ],
 );
 

@@ -23,6 +23,7 @@ import { logger } from "../lib/logger.js";
 import { type GraphLeadDetails, getLeadDetails } from "../lib/metaGraphClient.js";
 import { autoAssignLead } from "../routes/assignmentRules.js";
 import { adLeadService } from "./adLeadService.js";
+import { pickMetaFormAssignee } from "./metaFormAssignment.js";
 import { enqueueConversionForLeadStatusChange } from "./metaConversionService.js";
 import { getPageAccessToken } from "./metaTokenService.js";
 
@@ -200,11 +201,14 @@ export async function processLeadgenWebhook(
 
     if (!lead.assignedTo) {
       try {
-        const assigneeId = await autoAssignLead(db, {
-          leadSource: lead.leadSource,
-          city: lead.city,
-          zone: lead.zone,
-        });
+        const formAssigneeId = await pickMetaFormAssignee(orgId, change.form_id);
+        const assigneeId =
+          formAssigneeId ??
+          (await autoAssignLead(db, {
+            leadSource: lead.leadSource,
+            city: lead.city,
+            zone: lead.zone,
+          }));
         if (assigneeId) {
           await db.update(leads).set({ assignedTo: assigneeId }).where(eq(leads.id, lead.id));
         }

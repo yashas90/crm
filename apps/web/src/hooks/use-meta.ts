@@ -56,6 +56,8 @@ export type MetaForm = {
   isSelected: boolean;
   isActive: boolean;
   projectId: string | null;
+  assigneeIds?: string[];
+  assignmentStrategy?: "round_robin" | "first";
 };
 
 export type MetaBusiness = {
@@ -342,6 +344,8 @@ export function useMetaPatchForm() {
       isActive?: boolean;
       isSelected?: boolean;
       projectId?: string | null;
+      assigneeIds?: string[];
+      assignmentStrategy?: "round_robin" | "first";
     }) => apiPatch<MetaForm>(`/api/meta/forms/${id}`, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["meta"] });
