@@ -2,6 +2,10 @@ const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");
 const { resolve: metroResolve } = require("metro-resolver");
 
+// Local Gradle `export:embed` runs without shell env; keep Metro rooted at apps/mobile
+// instead of the pnpm workspace root (otherwise it looks for ./index.js at repo root).
+process.env.EXPO_NO_METRO_WORKSPACE_ROOT = "1";
+
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, "../..");
 
