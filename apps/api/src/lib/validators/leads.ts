@@ -16,7 +16,7 @@ export const listLeadsQuerySchema = z
       .number()
       .int()
       .transform((value) => Math.min(Math.max(1, value), 200))
-      .default(20),
+      .default(25),
     assignedTo: z.string().uuid().optional(),
     projectId: z.string().uuid().optional(),
     importBatchId: z.string().uuid().optional(),

@@ -7,7 +7,7 @@ const SOURCE_ALIAS_GROUPS: Record<string, readonly string[]> = {
   Website: ["Website", "website"],
   Referral: ["Referral", "referral"],
   "Walk In": ["Walk In", "walk-in"],
-  "Cold Call": ["Cold Call", "cold-call"],
+  "Cold Call": ["Cold Call", "cold-call", "cold_call"],
   Other: ["Other", "other"],
 };
 

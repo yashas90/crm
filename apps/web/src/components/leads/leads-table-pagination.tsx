@@ -24,7 +24,7 @@ export function LeadsTablePagination({
   total,
   onPageChange,
   onPageSizeChange,
-  pageSizeOptions = [10, 25, 50, 500],
+  pageSizeOptions = [10, 25, 50, 100],
   className,
 }: LeadsTablePaginationProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));

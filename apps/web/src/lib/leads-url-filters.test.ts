@@ -75,20 +75,20 @@ describe("leads URL filters", () => {
     expect(apiQuery.activeOnly).toBeUndefined();
   });
 
-  it("omits active stage filter for unassigned scope", () => {
+  it("includes active stage filter for unassigned scope (pipeline unassigned)", () => {
     const query = buildLeadsSearchParams(defaultLeadsUrlFilters(), {
       scope: "unassigned",
       stage: "active",
     });
     expect(query).toContain("scope=unassigned");
-    expect(query).not.toContain("active=true");
+    expect(query).toContain("active=true");
 
     const apiQuery = leadsFiltersToQuery(defaultLeadsUrlFilters(), {
       scope: "unassigned",
       stage: "active",
     });
     expect(apiQuery.unassigned).toBe("true");
-    expect(apiQuery.activeOnly).toBeUndefined();
+    expect(apiQuery.activeOnly).toBe("true");
   });
 
   it("post-import filters clear source and set batch id", () => {

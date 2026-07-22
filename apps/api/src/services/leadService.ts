@@ -273,7 +273,11 @@ function buildListWhere(params: ListLeadsParams) {
   if (params.assignedTo && !params.assignWithHistory) {
     whereClauses.push(eq(leads.assignedTo, params.assignedTo));
   } else if (params.unassigned) {
+    // Pipeline unassigned only — NA pool lives under naLeadsOnly (often also unassigned).
     whereClauses.push(isNull(leads.assignedTo));
+    if (!params.naLeadsOnly) {
+      whereClauses.push(sql`${leads.leadStatus} not in ('not_interested', 'dropped')`);
+    }
   } else if (params.teamLeadsExcludingUser) {
     whereClauses.push(isNotNull(leads.assignedTo));
     whereClauses.push(ne(leads.assignedTo, params.teamLeadsExcludingUser));
@@ -504,7 +508,9 @@ export const leadService = {
       userId && !isAgent
         ? sql`${leads.assignedTo} is not null and ${leads.assignedTo} <> ${userId}`
         : sql`false`;
-    const unassignedSql = isAgent ? sql`false` : sql`${leads.assignedTo} is null`;
+    const unassignedSql = isAgent
+      ? sql`false`
+      : sql`${leads.assignedTo} is null and ${leads.leadStatus} not in ('not_interested', 'dropped')`;
     const naSql = isAgent ? sql`false` : sql`${leads.leadStatus} in ('not_interested', 'dropped')`;
 
     const base = stripBucketOverrides(baseParams);
@@ -545,6 +551,7 @@ export const leadService = {
           .from(leads)
           .where(activeWhere),
         db.select({ count: sql<number>`count(*)::int` }).from(leads).where(deletedWhere),
+        // Heavy EXISTS queries — short timeout so tab badges stay snappy.
         withTimeout(
           db
             .select({ count: sql<number>`count(*)::int` })
@@ -557,7 +564,7 @@ export const leadService = {
                 ...(isAgent && userId ? { assignedTo: userId } : {}),
               }),
             ),
-          2500,
+          800,
           heavyFallback,
         ),
         withTimeout(
@@ -572,7 +579,7 @@ export const leadService = {
                 ...(isAgent && userId ? { assignedTo: userId } : {}),
               }),
             ),
-          2500,
+          800,
           heavyFallback,
         ),
       ]);
@@ -597,9 +604,93 @@ export const leadService = {
 
   async listLeads(params: ListLeadsParams) {
     const { page = 1, pageSize = 20 } = params;
+    const offset = (page - 1) * pageSize;
+
+    // Phone-dedupe via window function (one pass) instead of correlated NOT EXISTS per row.
+    if (params.excludeDuplicates && !params.duplicatesOnly) {
+      const baseWhere = buildListWhere({ ...params, excludeDuplicates: false });
+      const orderExpr = params.orderByFollowUp
+        ? sql`next_followup_at ASC NULLS LAST, created_at DESC`
+        : sql`created_at DESC`;
+
+      const [idRows, countRows] = await Promise.all([
+        db.execute<{ id: string }>(sql`
+          WITH filtered AS (
+            SELECT
+              ${leads.id} AS id,
+              ${leads.createdAt} AS created_at,
+              ${leads.nextFollowupAt} AS next_followup_at,
+              CASE
+                WHEN LENGTH(${leadPhoneKeySql}) >= 10 THEN ${leadPhoneKeySql}
+                ELSE ${leads.id}::text
+              END AS dedupe_key,
+              ROW_NUMBER() OVER (
+                PARTITION BY CASE
+                  WHEN LENGTH(${leadPhoneKeySql}) >= 10 THEN ${leadPhoneKeySql}
+                  ELSE ${leads.id}::text
+                END
+                ORDER BY ${leads.createdAt} ASC, ${leads.id} ASC
+              ) AS rn
+            FROM ${leads}
+            WHERE ${baseWhere}
+          )
+          SELECT id FROM filtered
+          WHERE rn = 1
+          ORDER BY ${orderExpr}
+          LIMIT ${pageSize} OFFSET ${offset}
+        `),
+        db.execute<{ count: number }>(sql`
+          WITH filtered AS (
+            SELECT
+              ${leads.id} AS id,
+              ROW_NUMBER() OVER (
+                PARTITION BY CASE
+                  WHEN LENGTH(${leadPhoneKeySql}) >= 10 THEN ${leadPhoneKeySql}
+                  ELSE ${leads.id}::text
+                END
+                ORDER BY ${leads.createdAt} ASC, ${leads.id} ASC
+              ) AS rn
+            FROM ${leads}
+            WHERE ${baseWhere}
+          )
+          SELECT COUNT(*)::int AS count FROM filtered WHERE rn = 1
+        `),
+      ]);
+
+      const ids = idRows.map((row) => row.id);
+      const total = Number(countRows[0]?.count ?? 0);
+
+      if (ids.length === 0) {
+        return { items: [], page, pageSize, total };
+      }
+
+      const rows = await db
+        .select()
+        .from(leads)
+        .leftJoin(users, eq(leads.assignedTo, users.id))
+        .where(inArray(leads.id, ids));
+
+      const byId = new Map(
+        rows.map((row) => [
+          row.leads.id,
+          {
+            ...row.leads,
+            assignedUser: row.users
+              ? { id: row.users.id, name: row.users.name, email: row.users.email }
+              : null,
+          },
+        ]),
+      );
+
+      return {
+        items: ids.map((id) => byId.get(id)!).filter(Boolean),
+        page,
+        pageSize,
+        total,
+      };
+    }
 
     const whereClause = buildListWhere(params);
-    const offset = (page - 1) * pageSize;
 
     const [rows, [{ count }]] = await Promise.all([
       db

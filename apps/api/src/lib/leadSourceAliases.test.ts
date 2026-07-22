@@ -16,6 +16,19 @@ describe("expandLeadSourceFilter", () => {
     expect(expandLeadSourceFilter("google-ads")).toEqual(["Google Ads", "google-ads", "google"]);
   });
 
+  it("expands Cold Call aliases including underscore form", () => {
+    expect(expandLeadSourceFilter("Cold Call")).toEqual([
+      "Cold Call",
+      "cold-call",
+      "cold_call",
+    ]);
+    expect(expandLeadSourceFilter("cold_call")).toEqual([
+      "Cold Call",
+      "cold-call",
+      "cold_call",
+    ]);
+  });
+
   it("returns unknown sources unchanged", () => {
     expect(expandLeadSourceFilter("Billboard")).toEqual(["Billboard"]);
   });
