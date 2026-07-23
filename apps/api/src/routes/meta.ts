@@ -36,7 +36,10 @@ import {
   sendPendingConversionEvents,
 } from "../services/metaConversionService.js";
 import { getMetaDashboard } from "../services/metaDashboardService.js";
+import { getMetaWebhookHealth } from "../lib/metaHealthService.js";
+import { subscribeMetaLiveLeads } from "../lib/metaRealtimeBus.js";
 import { backfillMetaLeads } from "../services/metaLeadBackfillService.js";
+import { listRecentMetaLiveLeads } from "../services/metaLiveLeadsService.js";
 import {
   disconnect as disconnectMetaOAuth,
   getAuthUrl,
@@ -308,6 +311,73 @@ metaRoutes.get("/dashboard", async (c) => {
 
   const data = await getMetaDashboard(SINGLE_TENANT_ORG_ID);
   return jsonOk(c, data);
+});
+
+metaRoutes.get("/health", async (c) => {
+  const denied = requireView(c);
+  if (denied) return denied;
+  const data = await getMetaWebhookHealth(SINGLE_TENANT_ORG_ID);
+  return jsonOk(c, data);
+});
+
+metaRoutes.get("/live-leads", async (c) => {
+  const denied = requireView(c);
+  if (denied) return denied;
+  const limit = Number(c.req.query("limit") ?? "40");
+  const sinceMinutes = Number(c.req.query("sinceMinutes") ?? String(60 * 24));
+  const data = await listRecentMetaLiveLeads(SINGLE_TENANT_ORG_ID, { limit, sinceMinutes });
+  return jsonOk(c, data);
+});
+
+/** Server-Sent Events stream for instant Meta lead UI updates (webhooks primary). */
+metaRoutes.get("/live-leads/stream", async (c) => {
+  const denied = requireView(c);
+  if (denied) return denied;
+
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      const send = (payload: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+      };
+
+      send({ type: "connected", at: new Date().toISOString() });
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: ping ${Date.now()}\n\n`));
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }, 15_000);
+
+      const unsubscribe = subscribeMetaLiveLeads((event) => {
+        try {
+          send(event);
+        } catch {
+          clearInterval(heartbeat);
+          unsubscribe();
+        }
+      });
+
+      c.req.raw.signal.addEventListener("abort", () => {
+        clearInterval(heartbeat);
+        unsubscribe();
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+      });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 });
 
 /* ─── OAuth connect flow ─────────────────────────────────────────────────── */

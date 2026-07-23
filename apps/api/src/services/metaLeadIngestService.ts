@@ -13,19 +13,23 @@ import {
   facebookPages,
   facebookWebhooks,
   leads,
+  users,
 } from "@propninja/db";
 import { and, eq, sql } from "drizzle-orm";
+import { notifyNewAdLeadReceived } from "../lib/adLeadNotifications.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import type { MetaLeadgenWebhookValue } from "../lib/facebook.js";
 import { mapFacebookLeadToNormalizedAdLead } from "../lib/facebook.js";
 import { logger } from "../lib/logger.js";
 import { type GraphLeadDetails, getLeadDetails } from "../lib/metaGraphClient.js";
+import { publishMetaLiveLead } from "../lib/metaRealtimeBus.js";
 import { autoAssignLead } from "../routes/assignmentRules.js";
 import { adLeadService } from "./adLeadService.js";
 import { enqueueConversionForLeadStatusChange } from "./metaConversionService.js";
 import { pickMetaFormAssignee } from "./metaFormAssignment.js";
 import { getPageAccessToken } from "./metaTokenService.js";
+import { taskService } from "./taskService.js";
 
 function dedupeKeyFor(change: MetaLeadgenWebhookValue): string {
   return `leadgen:${change.leadgen_id}`;
@@ -142,7 +146,8 @@ async function upsertFacebookLeadMirror(
 
 export type ProcessLeadgenOptions = {
   orgId?: string;
-  webhookId?: string;
+  webhookId?: string | null;
+  via?: "webhook" | "reconciliation" | "manual_pull";
 };
 
 export type MetaLeadIngestJobPayload = {
@@ -163,6 +168,7 @@ export async function processLeadgenWebhook(
   options: ProcessLeadgenOptions = {},
 ): Promise<void> {
   const orgId = options.orgId ?? SINGLE_TENANT_ORG_ID;
+  const via = options.via ?? "webhook";
   const record = options.webhookId
     ? { webhookId: options.webhookId, alreadyProcessed: false }
     : await recordWebhookDedupe(change, orgId);
@@ -191,7 +197,7 @@ export async function processLeadgenWebhook(
     const normalized = mapFacebookLeadToNormalizedAdLead(change.leadgen_id, leadDetails, change);
     const projectId = await resolveProjectId(change, orgId);
 
-    const lead = await adLeadService.ingestAdLead(normalized);
+    const lead = await adLeadService.ingestAdLead(normalized, { skipNotification: true });
 
     if (projectId && !lead.projectId) {
       await db.update(leads).set({ projectId }).where(eq(leads.id, lead.id));
@@ -199,10 +205,11 @@ export async function processLeadgenWebhook(
 
     await upsertFacebookLeadMirror(orgId, change, leadDetails, lead.id);
 
-    if (!lead.assignedTo) {
+    let assigneeId = lead.assignedTo;
+    if (!assigneeId) {
       try {
         const formAssigneeId = await pickMetaFormAssignee(orgId, change.form_id);
-        const assigneeId =
+        assigneeId =
           formAssigneeId ??
           (await autoAssignLead(db, {
             leadSource: lead.leadSource,
@@ -219,6 +226,96 @@ export async function processLeadgenWebhook(
         });
       }
     }
+
+    const followUpAt = new Date(Date.now() + 60 * 60 * 1000);
+    await db
+      .update(leads)
+      .set({ nextFollowupAt: followUpAt, lastActivityAt: new Date(), updatedAt: new Date() })
+      .where(eq(leads.id, lead.id));
+
+    if (assigneeId) {
+      void taskService
+        .create({
+          title: `Follow up Meta lead: ${lead.firstName}`.slice(0, 120),
+          description: "Auto-created after Meta Lead Ads ingest",
+          dueAt: followUpAt.toISOString(),
+          taskType: "follow_up",
+          priority: "high",
+          leadId: lead.id,
+          assignedTo: assigneeId,
+          createdBy: assigneeId,
+        })
+        .catch((error) => {
+          logger.warn("Meta lead follow-up task create failed", {
+            leadId: lead.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+    }
+
+    void notifyNewAdLeadReceived(
+      db,
+      { ...lead, assignedTo: assigneeId },
+      {
+        source: "facebook_ads",
+        campaignName: normalized.campaignName,
+      },
+    ).catch((error) => {
+      logger.error("Failed to notify Meta lead recipients", {
+        leadId: lead.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+
+    const [mirror] = await db
+      .select({
+        fullName: facebookLeads.fullName,
+        phone: facebookLeads.phone,
+        email: facebookLeads.email,
+        campaignName: facebookLeads.campaignName,
+        adName: facebookLeads.adName,
+        adsetName: facebookLeads.adsetName,
+        formName: facebookLeads.formName,
+        pageName: facebookLeads.pageName,
+        createdTime: facebookLeads.createdTime,
+        ingestedAt: facebookLeads.ingestedAt,
+      })
+      .from(facebookLeads)
+      .where(and(eq(facebookLeads.orgId, orgId), eq(facebookLeads.leadgenId, change.leadgen_id)))
+      .limit(1);
+
+    let assignedName: string | null = null;
+    if (assigneeId) {
+      const [agent] = await db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, assigneeId))
+        .limit(1);
+      assignedName = agent?.name ?? null;
+    }
+
+    publishMetaLiveLead({
+      type: "meta_lead_ingested",
+      at: new Date().toISOString(),
+      leadId: lead.id,
+      leadgenId: change.leadgen_id,
+      fullName: mirror?.fullName ?? `${lead.firstName} ${lead.lastName ?? ""}`.trim(),
+      phone: mirror?.phone ?? lead.phone,
+      email: mirror?.email ?? lead.email,
+      assignedTo: assigneeId,
+      assignedName,
+      projectName: lead.projectName,
+      campaignName: mirror?.campaignName ?? normalized.campaignName ?? null,
+      adName: mirror?.adName ?? null,
+      adsetName: mirror?.adsetName ?? null,
+      formName: mirror?.formName ?? null,
+      pageName: mirror?.pageName ?? null,
+      source: lead.leadSource ?? "Meta Ads",
+      leadStatus: lead.leadStatus,
+      createdTime: mirror?.createdTime?.toISOString() ?? null,
+      ingestedAt: (mirror?.ingestedAt ?? new Date()).toISOString(),
+      via,
+    });
 
     void enqueueConversionForLeadStatusChange(lead.id, lead.leadStatus).catch((error) => {
       logger.error("Failed to enqueue Meta CAPI event for ingested lead", {
@@ -238,6 +335,7 @@ export async function processLeadgenWebhook(
       leadgenId: change.leadgen_id,
       leadId: lead.id,
       pageId: change.page_id,
+      via,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

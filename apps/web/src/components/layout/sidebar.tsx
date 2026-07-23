@@ -17,6 +17,7 @@ import {
   MapPin,
   Megaphone,
   Phone,
+  Radio,
   Settings,
   Shield,
   TrendingUp,
@@ -79,6 +80,12 @@ const navItems: NavItem[] = [
   { href: "/reports/sources", label: "Sources", icon: LayoutGrid, roles: ["admin", "manager"] },
   { href: "/users", label: "Users", icon: UserCircle, roles: ["admin", "manager"] },
   { href: "/settings/meta", label: "Meta", icon: Megaphone, roles: ["admin", "manager"] },
+  {
+    href: "/settings/meta/live",
+    label: "Live Meta Leads",
+    icon: Radio,
+    roles: ["admin", "manager"],
+  },
   { href: "/settings/security", label: "Security", icon: Shield, roles: ["admin"] },
   { href: "/settings", label: "Settings", icon: Settings, roles: ["admin", "manager", "agent"] },
 ];

@@ -12,7 +12,14 @@ PropNinja integrates with Meta (Facebook / Instagram) using **official Graph API
 - Campaign / insights sync jobs
 - Admin UI at **Settings → Integrations → Meta**
 
-## Multi-page Lead Ads (DB-backed)
+## Real-time Lead Ads (24×7)
+
+**Primary:** Meta `leadgen` webhooks → `POST /api/integrations/meta/webhook` → signature verify → BullMQ `meta-webhook` job → Page token from DB → Graph lead fetch → CRM ingest (dedupe) → assign → notify → follow-up task. Target: visible in CRM within seconds.
+
+**Backup only:** every **5 minutes**, reconcile last 1 day of form leads from Graph (skips duplicates). Asset auto-sync + campaign sync also every 5 minutes (does not overwrite Enable/Disable / assignees). Token refresh check hourly.
+
+**Live UI:** Settings → Meta → **Live Meta Leads** (5s refresh) + webhook health **Healthy / Delayed / Offline**.
+
 
 After OAuth **Connect Meta**:
 

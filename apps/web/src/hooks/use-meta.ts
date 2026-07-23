@@ -356,3 +356,65 @@ export function useMetaPatchForm() {
     },
   });
 }
+
+export type MetaWebhookHealth = {
+  status: "healthy" | "delayed" | "offline";
+  label: string;
+  durableJobsEnabled: boolean;
+  lastReceivedAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  avgProcessingMs: number | null;
+  receivedLast15m: number;
+  processedLast15m: number;
+  failedLast15m: number;
+  queuedOrProcessing: number;
+  recoveredLeadsLast24h: number;
+  lastReconciliationAt: string | null;
+  nextReconciliationHint: string;
+  tokenExpiresAt: string | null;
+  tokenExpiringSoon: boolean;
+};
+
+export type MetaLiveLead = {
+  type: "meta_lead_ingested";
+  at: string;
+  leadId: string;
+  leadgenId: string;
+  fullName: string | null;
+  phone: string | null;
+  email: string | null;
+  assignedTo: string | null;
+  assignedName: string | null;
+  projectName: string | null;
+  campaignName: string | null;
+  adName: string | null;
+  adsetName: string | null;
+  formName: string | null;
+  pageName: string | null;
+  source: string;
+  leadStatus: string;
+  createdTime: string | null;
+  ingestedAt: string;
+  via: "webhook" | "reconciliation" | "manual_pull";
+};
+
+export function useMetaWebhookHealth(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["meta", "health"],
+    queryFn: () => apiGet<MetaWebhookHealth>("/api/meta/health"),
+    enabled: options?.enabled !== false,
+    refetchInterval: 5_000,
+    staleTime: 0,
+  });
+}
+
+export function useMetaLiveLeads(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ["meta", "live-leads"],
+    queryFn: () => apiGet<MetaLiveLead[]>("/api/meta/live-leads?limit=50&sinceMinutes=1440"),
+    enabled: options?.enabled !== false,
+    refetchInterval: 5_000,
+    staleTime: 0,
+  });
+}

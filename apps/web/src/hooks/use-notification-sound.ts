@@ -29,6 +29,17 @@ export function useNotificationSound() {
         LEAD_ALERT_NOTIFICATION_TYPES.has(item.type)
       ) {
         playNotificationSound();
+        if (typeof window !== "undefined" && "Notification" in window) {
+          if (Notification.permission === "granted") {
+            const payload = item.payload as { leadName?: string; campaignName?: string };
+            new Notification("New Meta lead", {
+              body: `${payload.leadName ?? "Lead"} · ${payload.campaignName ?? "Meta Ads"}`,
+              tag: item.id,
+            });
+          } else if (Notification.permission === "default") {
+            void Notification.requestPermission();
+          }
+        }
         break;
       }
     }

@@ -51,17 +51,17 @@ export async function startBackgroundJobs() {
         });
       });
     },
-    6 * 60 * 60 * 1000,
+    5 * 60 * 1000,
   ).unref();
   setInterval(
     () => {
-      void backfillMetaLeads(undefined, { sinceDays: 2 }).catch((err) => {
-        logger.warn("In-process Meta lead backfill failed", {
+      void backfillMetaLeads(undefined, { sinceDays: 1 }).catch((err) => {
+        logger.warn("In-process Meta lead reconciliation failed", {
           err: err instanceof Error ? err.message : String(err),
         });
       });
     },
-    15 * 60 * 1000,
+    5 * 60 * 1000,
   ).unref();
   setInterval(
     () => {

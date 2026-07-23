@@ -297,7 +297,10 @@ async function resolveExistingAdLead(input: NormalizedAdLead): Promise<LeadRow |
 }
 
 export const adLeadService = {
-  async ingestAdLead(input: NormalizedAdLead): Promise<LeadRow> {
+  async ingestAdLead(
+    input: NormalizedAdLead,
+    options: { skipNotification?: boolean } = {},
+  ): Promise<LeadRow> {
     const leadSource = LEAD_SOURCE_BY_PLATFORM[input.source];
     const { firstName, lastName } = normalizeName(input);
     const email = normalizeEmail(input.email);
@@ -417,16 +420,18 @@ export const adLeadService = {
 
     await insertAdLeadActivity(leadRow.id, activityMetadata);
 
-    void notifyNewAdLeadReceived(db, leadRow, {
-      source: input.source,
-      campaignName: input.campaignName,
-    }).catch((error) => {
-      logger.error("Failed to notify ad lead recipients", {
-        leadId: leadRow.id,
+    if (!options.skipNotification) {
+      void notifyNewAdLeadReceived(db, leadRow, {
         source: input.source,
-        message: error instanceof Error ? error.message : String(error),
+        campaignName: input.campaignName,
+      }).catch((error) => {
+        logger.error("Failed to notify ad lead recipients", {
+          leadId: leadRow.id,
+          source: input.source,
+          message: error instanceof Error ? error.message : String(error),
+        });
       });
-    });
+    }
 
     return leadRow;
   },

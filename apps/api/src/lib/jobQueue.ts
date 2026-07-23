@@ -10,8 +10,10 @@ import {
   type MetaLeadIngestJobPayload,
   processLeadgenWebhook,
 } from "../services/metaLeadIngestService.js";
+import { resyncAssets } from "../services/metaOAuthService.js";
 import { syncPagesFormsAndSubscribe } from "../services/metaPageSyncService.js";
-import { syncInsights } from "../services/metaSyncService.js";
+import { syncCampaigns, syncInsights } from "../services/metaSyncService.js";
+import { refreshLongLivedUserToken } from "../services/metaTokenService.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { db } from "./db.js";
 import { env } from "./env.js";
@@ -28,10 +30,15 @@ export const JOB_NAMES = {
   REFRESH_SESSION_CLEANUP: "refresh-session-cleanup",
   NA_POOL_RELEASE: "na-pool-release",
   META_LEAD_INGEST: "meta-lead-ingest",
+  /** Alias job name used by webhook enqueue (same handler as META_LEAD_INGEST). */
+  META_WEBHOOK: "meta-webhook",
   META_CAPI_SEND: "meta-capi-send",
   META_INSIGHTS_SYNC: "meta-insights-sync",
   META_ASSET_SYNC: "meta-asset-sync",
+  META_SYNC: "meta-sync",
   META_LEAD_BACKFILL: "meta-lead-backfill",
+  META_RECONCILIATION: "meta-reconciliation",
+  META_TOKEN_REFRESH: "meta-token-refresh",
 } as const;
 
 let queue: Queue | null = null;
@@ -55,15 +62,17 @@ async function runJob(name: string, data?: Record<string, unknown>) {
       return purgeExpiredRefreshSessions(db);
     case JOB_NAMES.NA_POOL_RELEASE:
       return syncNaPoolUnassignments();
-    case JOB_NAMES.META_LEAD_INGEST: {
+    case JOB_NAMES.META_LEAD_INGEST:
+    case JOB_NAMES.META_WEBHOOK: {
       const payload = data as unknown as MetaLeadIngestJobPayload | undefined;
       if (!payload?.change?.leadgen_id) {
-        logger.warn("META_LEAD_INGEST job missing change payload");
+        logger.warn("META webhook ingest job missing change payload");
         return;
       }
       return processLeadgenWebhook(payload.change, {
         orgId: payload.orgId,
         webhookId: payload.webhookId ?? undefined,
+        via: "webhook",
       });
     }
     case JOB_NAMES.META_CAPI_SEND:
@@ -71,20 +80,44 @@ async function runJob(name: string, data?: Record<string, unknown>) {
     case JOB_NAMES.META_INSIGHTS_SYNC:
       return syncInsights();
     case JOB_NAMES.META_ASSET_SYNC:
-      return syncPagesFormsAndSubscribe().catch((error) => {
-        logger.warn("Scheduled Meta asset sync failed", {
+    case JOB_NAMES.META_SYNC:
+      return runMetaAutoSync().catch((error) => {
+        logger.warn("Scheduled Meta auto-sync failed", {
           error: error instanceof Error ? error.message : String(error),
         });
       });
     case JOB_NAMES.META_LEAD_BACKFILL:
-      return backfillMetaLeads(undefined, { sinceDays: 2 }).catch((error) => {
-        logger.warn("Scheduled Meta lead backfill failed", {
+    case JOB_NAMES.META_RECONCILIATION:
+      // Backup only — webhooks remain primary. Narrow window reduces Graph load.
+      return backfillMetaLeads(undefined, { sinceDays: 1 }).catch((error) => {
+        logger.warn("Scheduled Meta lead reconciliation failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    case JOB_NAMES.META_TOKEN_REFRESH:
+      return refreshLongLivedUserToken().catch((error) => {
+        logger.warn("Scheduled Meta token refresh failed", {
           error: error instanceof Error ? error.message : String(error),
         });
       });
     default:
       logger.warn("Unknown durable job", { name });
   }
+}
+
+/** 5‑minute asset sync: pages/forms/subscribe + campaigns; preserves isSelected flags. */
+async function runMetaAutoSync() {
+  await resyncAssets().catch(async (error) => {
+    logger.warn("Meta OAuth asset resync failed; falling back to pages/forms", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    await syncPagesFormsAndSubscribe();
+  });
+  await syncCampaigns().catch((error) => {
+    logger.warn("Meta campaign sync during auto-sync failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
 }
 
 export function isDurableJobsEnabled(): boolean {
@@ -140,15 +173,21 @@ export async function startDurableJobQueue(): Promise<boolean> {
       {},
       { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.META_INSIGHTS_SYNC },
     );
+    // Primary real-time path is webhooks; these are backups / hygiene.
     await queue.add(
-      JOB_NAMES.META_ASSET_SYNC,
+      JOB_NAMES.META_SYNC,
       {},
-      { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.META_ASSET_SYNC },
+      { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.META_SYNC },
     );
     await queue.add(
-      JOB_NAMES.META_LEAD_BACKFILL,
+      JOB_NAMES.META_RECONCILIATION,
       {},
-      { repeat: { every: 15 * 60 * 1000 }, jobId: JOB_NAMES.META_LEAD_BACKFILL },
+      { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.META_RECONCILIATION },
+    );
+    await queue.add(
+      JOB_NAMES.META_TOKEN_REFRESH,
+      {},
+      { repeat: { every: 60 * 60 * 1000 }, jobId: JOB_NAMES.META_TOKEN_REFRESH },
     );
 
     queue.on("error", (error: Error) => {
@@ -207,7 +246,7 @@ export async function enqueueMetaLeadIngest(
 ): Promise<boolean> {
   if (!queue) return false;
   const jobId = `meta-lead-${payload.change.leadgen_id}`;
-  await queue.add(JOB_NAMES.META_LEAD_INGEST, payload, {
+  await queue.add(JOB_NAMES.META_WEBHOOK, payload, {
     ...DEFAULT_META_LEAD_OPTS,
     jobId,
     ...opts,

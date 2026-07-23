@@ -103,17 +103,20 @@ export async function backfillMetaLeads(
       }
 
       try {
-        await processLeadgenWebhook({
-          leadgen_id: leadgenId,
-          page_id: form.metaPageId,
-          form_id: form.formId,
-          ad_id: graphLead.ad_id,
-          adgroup_id: graphLead.adset_id,
-          campaign_id: graphLead.campaign_id,
-          created_time: graphLead.created_time
-            ? Math.floor(new Date(graphLead.created_time).getTime() / 1000)
-            : undefined,
-        });
+        await processLeadgenWebhook(
+          {
+            leadgen_id: leadgenId,
+            page_id: form.metaPageId,
+            form_id: form.formId,
+            ad_id: graphLead.ad_id,
+            adgroup_id: graphLead.adset_id,
+            campaign_id: graphLead.campaign_id,
+            created_time: graphLead.created_time
+              ? Math.floor(new Date(graphLead.created_time).getTime() / 1000)
+              : undefined,
+          },
+          { orgId, via: includeUnselected ? "manual_pull" : "reconciliation" },
+        );
         result.ingested += 1;
       } catch (error) {
         result.failed += 1;

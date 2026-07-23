@@ -34,6 +34,7 @@ import {
   useMetaSyncHistory,
   useMetaSyncLeads,
   useMetaTokenRefresh,
+  useMetaWebhookHealth,
 } from "@/hooks/use-meta";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useProjects } from "@/hooks/use-projects";
@@ -103,6 +104,7 @@ function MetaDashboardInner() {
   const adsets = useMetaAdsets({ enabled: ready && canView && tab === "ads" });
   const ads = useMetaAds({ enabled: ready && canView && tab === "ads" });
   const syncHistory = useMetaSyncHistory({ enabled: ready && canView });
+  const webhookHealth = useMetaWebhookHealth({ enabled: ready && canView });
   const projects = useProjects();
   const assignableUsers = useQuery({
     queryKey: ["users", "meta-assignees"],
@@ -533,6 +535,27 @@ function MetaDashboardInner() {
             <Badge variant={connected ? "default" : "secondary"}>
               {connected ? "Connected" : "Not connected"}
             </Badge>
+            {webhookHealth.data ? (
+              <Badge
+                className={
+                  webhookHealth.data.status === "healthy"
+                    ? "bg-emerald-600 text-white"
+                    : webhookHealth.data.status === "delayed"
+                      ? "bg-amber-500 text-white"
+                      : "bg-rose-600 text-white"
+                }
+              >
+                Webhook{" "}
+                {webhookHealth.data.status === "healthy"
+                  ? "Healthy"
+                  : webhookHealth.data.status === "delayed"
+                    ? "Delayed"
+                    : "Offline"}
+              </Badge>
+            ) : null}
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/meta/live">Live lead dashboard</Link>
+            </Button>
             {dashboard.data?.token.expiresAt ? (
               <span className="text-sm text-muted-foreground">
                 Token expires {new Date(dashboard.data.token.expiresAt).toLocaleString()}
@@ -662,84 +685,84 @@ function MetaDashboardInner() {
                 ) : (
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      To add a new Facebook Page: open <strong>Reconnect Meta</strong>, approve
-                      Page access for that page, then click <strong>Sync assets</strong>. Pages
-                      without a token cannot receive leads until reconnected.
+                      To add a new Facebook Page: open <strong>Reconnect Meta</strong>, approve Page
+                      access for that page, then click <strong>Sync assets</strong>. Pages without a
+                      token cannot receive leads until reconnected.
                     </p>
                     <div className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] text-left text-sm">
-                      <thead className="text-muted-foreground">
-                        <tr className="border-b">
-                          <th className="py-2 pr-3 font-medium">Page</th>
-                          <th className="py-2 pr-3 font-medium">Page ID</th>
-                          <th className="py-2 pr-3 font-medium">Leadgen</th>
-                          <th className="py-2 pr-3 font-medium">Forms</th>
-                          <th className="py-2 pr-3 font-medium">Status</th>
-                          <th className="py-2 font-medium">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredPages.map((page) => (
-                          <tr key={page.id} className="border-b border-border/60">
-                            <td className="py-3 pr-3 font-medium">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span>{page.name}</span>
-                                {!page.hasAccessToken ? (
-                                  <Badge variant="warning">No token</Badge>
-                                ) : null}
-                              </div>
-                            </td>
-                            <td className="py-3 pr-3 font-mono text-xs text-muted-foreground">
-                              {page.pageId}
-                            </td>
-                            <td className="py-3 pr-3">
-                              <StatusBadge
-                                active={page.leadgenSubscribed}
-                                label={page.leadgenSubscribed ? "Subscribed" : "No"}
-                              />
-                            </td>
-                            <td className="py-3 pr-3 tabular-nums">
-                              {formsByPage.get(page.id) ?? 0}
-                            </td>
-                            <td className="py-3 pr-3">
-                              <StatusBadge active={page.isActive && page.isSelected} />
-                            </td>
-                            <td className="py-3">
-                              <div className="flex flex-wrap gap-2">
-                                {canManage ? (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void patchPage.mutateAsync({
-                                          id: page.id,
-                                          isActive: !(page.isActive && page.isSelected),
-                                          isSelected: !(page.isActive && page.isSelected),
-                                        })
-                                      }
-                                    >
-                                      {page.isActive && page.isSelected ? "Disable" : "Enable"}
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={busy}
-                                      onClick={() => void reconnectPage.mutateAsync(page.id)}
-                                    >
-                                      Reconnect
-                                    </Button>
-                                  </>
-                                ) : null}
-                              </div>
-                            </td>
+                      <table className="w-full min-w-[720px] text-left text-sm">
+                        <thead className="text-muted-foreground">
+                          <tr className="border-b">
+                            <th className="py-2 pr-3 font-medium">Page</th>
+                            <th className="py-2 pr-3 font-medium">Page ID</th>
+                            <th className="py-2 pr-3 font-medium">Leadgen</th>
+                            <th className="py-2 pr-3 font-medium">Forms</th>
+                            <th className="py-2 pr-3 font-medium">Status</th>
+                            <th className="py-2 font-medium">Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {filteredPages.map((page) => (
+                            <tr key={page.id} className="border-b border-border/60">
+                              <td className="py-3 pr-3 font-medium">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span>{page.name}</span>
+                                  {!page.hasAccessToken ? (
+                                    <Badge variant="warning">No token</Badge>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="py-3 pr-3 font-mono text-xs text-muted-foreground">
+                                {page.pageId}
+                              </td>
+                              <td className="py-3 pr-3">
+                                <StatusBadge
+                                  active={page.leadgenSubscribed}
+                                  label={page.leadgenSubscribed ? "Subscribed" : "No"}
+                                />
+                              </td>
+                              <td className="py-3 pr-3 tabular-nums">
+                                {formsByPage.get(page.id) ?? 0}
+                              </td>
+                              <td className="py-3 pr-3">
+                                <StatusBadge active={page.isActive && page.isSelected} />
+                              </td>
+                              <td className="py-3">
+                                <div className="flex flex-wrap gap-2">
+                                  {canManage ? (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void patchPage.mutateAsync({
+                                            id: page.id,
+                                            isActive: !(page.isActive && page.isSelected),
+                                            isSelected: !(page.isActive && page.isSelected),
+                                          })
+                                        }
+                                      >
+                                        {page.isActive && page.isSelected ? "Disable" : "Enable"}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={busy}
+                                        onClick={() => void reconnectPage.mutateAsync(page.id)}
+                                      >
+                                        Reconnect
+                                      </Button>
+                                    </>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )
