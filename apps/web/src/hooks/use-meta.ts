@@ -404,8 +404,11 @@ export function useMetaWebhookHealth(options?: { enabled?: boolean }) {
     queryKey: ["meta", "health"],
     queryFn: () => apiGet<MetaWebhookHealth>("/api/meta/health"),
     enabled: options?.enabled !== false,
-    refetchInterval: 5_000,
+    refetchInterval: (query) => (query.state.error ? false : 5_000),
     staleTime: 0,
+    retry: false,
+    // Health is additive; missing route during API/web deploy skew must not toast.
+    meta: { suppressErrorToast: true, errorContext: "Meta webhook health" },
   });
 }
 
@@ -414,7 +417,9 @@ export function useMetaLiveLeads(options?: { enabled?: boolean }) {
     queryKey: ["meta", "live-leads"],
     queryFn: () => apiGet<MetaLiveLead[]>("/api/meta/live-leads?limit=50&sinceMinutes=1440"),
     enabled: options?.enabled !== false,
-    refetchInterval: 5_000,
+    refetchInterval: (query) => (query.state.error ? false : 5_000),
     staleTime: 0,
+    retry: false,
+    meta: { suppressErrorToast: true, errorContext: "Meta live leads" },
   });
 }

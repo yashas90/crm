@@ -552,6 +552,10 @@ function MetaDashboardInner() {
                     ? "Delayed"
                     : "Offline"}
               </Badge>
+            ) : webhookHealth.isError ? (
+              <Badge variant="secondary" title="API health route not available yet — wait for Railway deploy">
+                Webhook status unavailable
+              </Badge>
             ) : null}
             <Button asChild variant="outline" size="sm">
               <Link href="/settings/meta/live">Live lead dashboard</Link>

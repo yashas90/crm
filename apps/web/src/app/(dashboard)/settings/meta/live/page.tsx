@@ -63,7 +63,9 @@ export default function MetaLiveLeadsPage() {
     );
   }
 
-  const badge = healthBadge(health.data?.status ?? "offline");
+  const badge = health.data
+    ? healthBadge(health.data.status)
+    : { label: health.isError ? "Unavailable" : "Loading", className: "bg-muted text-foreground" };
 
   return (
     <div className="space-y-6 p-6">
@@ -74,9 +76,15 @@ export default function MetaLiveLeadsPage() {
             Live Meta Leads
           </h1>
           <p className="text-sm text-muted-foreground">
-            Webhooks are primary. Dashboard auto-refreshes every 5 seconds. Reconciliation runs every
-            5 minutes as backup only.
+            Webhooks are primary. Dashboard auto-refreshes every 5 seconds. Reconciliation runs
+            every 5 minutes as backup only.
           </p>
+          {health.isError ? (
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">
+              Webhook health API is not reachable yet (often means the Railway API deploy is still
+              rolling out). Meta connection and Sync / Pull leads still work from Settings → Meta.
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge className={cn("gap-1", badge.className)}>{badge.label}</Badge>
@@ -123,7 +131,8 @@ export default function MetaLiveLeadsPage() {
         <CardHeader>
           <CardTitle className="text-base">Incoming leads</CardTitle>
           <CardDescription>
-            Last success {health.data?.lastSuccessAt
+            Last success{" "}
+            {health.data?.lastSuccessAt
               ? new Date(health.data.lastSuccessAt).toLocaleString()
               : "—"}{" "}
             · Queue {health.data?.queuedOrProcessing ?? 0} · Durable jobs{" "}
