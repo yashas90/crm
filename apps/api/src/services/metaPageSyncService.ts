@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
-import { getLeadForms, getPages, subscribePageToLeadgen } from "../lib/metaGraphClient.js";
+import { discoverAllPages, getLeadForms, subscribePageToLeadgen } from "../lib/metaGraphClient.js";
 import { decryptSecret, encryptSecret } from "../lib/tokenEncryption.js";
 import { getActiveAccessToken } from "./metaTokenService.js";
 
@@ -53,7 +53,7 @@ export async function syncPagesAndForms(
   orgId: string,
   userAccessToken: string,
 ): Promise<{ pagesUpserted: number; formsUpserted: number }> {
-  const pages = await getPages(userAccessToken);
+  const pages = await discoverAllPages(userAccessToken);
   let formsUpserted = 0;
 
   for (const page of pages) {
@@ -232,7 +232,7 @@ export async function reconnectPage(
     throw new Error("NOT_CONNECTED");
   }
 
-  const pages = await getPages(userToken);
+  const pages = await discoverAllPages(userToken);
   const match = pages.find((p) => p.id === page.pageId);
   if (!match?.access_token) {
     throw new Error("PAGE_TOKEN_UNAVAILABLE");

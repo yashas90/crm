@@ -22,9 +22,10 @@ After OAuth **Connect Meta**:
 4. One webhook URL receives leads for all pages: `/api/integrations/meta/webhook`.
 5. On each delivery the API loads the Page token by `page_id`, fetches the lead, and saves it.
 6. Enable/disable pages and forms in **Settings → Integrations → Meta**.
-7. Pages/forms re-sync on demand (`Sync pages & forms`) and every 6 hours when Redis/BullMQ (or in-process fallback) is running.
-8. If **Leads (30d)** stays at 0 while Meta Ads Manager shows leads, live webhooks are not reaching the API — use **Pull leads (7d)** to backfill from Graph, then fix the app webhook callback (below).
+7. Pages/forms re-sync on demand (**Sync assets**) and every 6 hours when Redis/BullMQ (or in-process fallback) is running. Discovery includes personal pages plus Business Manager **owned** and **client** pages.
+8. If **Leads (30d)** stays at 0 while Meta Ads Manager shows leads, live webhooks are not reaching the API — use **Pull leads (7d)** to backfill from Graph, then fix the app webhook callback (below). The API also auto-pulls the last 2 days of leads every 15 minutes as a webhook fallback.
 9. On **Forms → Assign**, open **Lead Assignment**: choose sequential (round-robin) or always-first, then **Select users** or **All users**. New Meta leads from that form go directly to those agents; **Clear assignees** falls back to **Settings → Assignment rules**.
+10. To **add a new Page**: **Reconnect Meta** → select that Page in the Facebook dialog → **Sync assets**. Pages missing a token show **No token** until reconnect.
 
 **Do not** put Page IDs, Form IDs, or Page Access Tokens in env for this model. App-level secrets only:
 

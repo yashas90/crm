@@ -402,6 +402,7 @@ metaRoutes.post("/sync", writeRateLimit, validate("json", syncBodySchema), async
   if (body.type === "leads") {
     results.leads = await backfillMetaLeads(SINGLE_TENANT_ORG_ID, {
       sinceDays: body.sinceDays ?? 7,
+      includeUnselected: true,
     });
     return jsonOk(c, results);
   }
@@ -436,7 +437,11 @@ metaRoutes.post("/sync/leads", writeRateLimit, async (c) => {
   if (denied) return denied;
   const sinceDaysRaw = Number(c.req.query("sinceDays") ?? "7");
   const sinceDays = Number.isFinite(sinceDaysRaw) ? sinceDaysRaw : 7;
-  const result = await backfillMetaLeads(SINGLE_TENANT_ORG_ID, { sinceDays });
+  // Manual pull scans every active form with a page token (not only selected).
+  const result = await backfillMetaLeads(SINGLE_TENANT_ORG_ID, {
+    sinceDays,
+    includeUnselected: true,
+  });
   return jsonOk(c, result);
 });
 

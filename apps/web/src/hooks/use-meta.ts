@@ -268,6 +268,7 @@ export function useMetaSyncLeads() {
         ingested: number;
         skipped: number;
         failed: number;
+        errors?: Array<{ formId: string; leadgenId?: string; error: string }>;
       }>(`/api/meta/sync/leads?sinceDays=${days}`, {});
     },
     onSuccess: () => {
@@ -282,11 +283,12 @@ export function useMetaSyncAssets() {
   return useMutation({
     mutationFn: () =>
       apiPost<{
-        pagesUpserted: number;
-        formsUpserted: number;
-        subscribed: number;
-        subscribeFailed: number;
-      }>("/api/meta/sync/assets", {}),
+        businesses: number;
+        adAccounts: number;
+        pages: number;
+        forms: number;
+        pixels: number;
+      }>("/api/meta/sync/oauth-assets", {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["meta"] });
     },

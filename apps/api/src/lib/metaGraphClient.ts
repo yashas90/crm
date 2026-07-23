@@ -291,6 +291,12 @@ export type GraphAdAccount = {
   account_status?: number;
 };
 
+export function toMetaAdAccountGraphId(adAccountId: string): string {
+  const id = adAccountId.trim();
+  if (!id) return id;
+  return id.startsWith("act_") ? id : `act_${id}`;
+}
+
 export function getAdAccounts(accessToken: string, businessId?: string) {
   const path = businessId ? `${businessId}/owned_ad_accounts` : "me/adaccounts";
   return graphGetAllPages<GraphAdAccount>(path, accessToken, {
@@ -305,6 +311,79 @@ export function getPages(accessToken: string, businessId?: string) {
   return graphGetAllPages<GraphPage>(path, accessToken, {
     fields: "id,name,category,access_token",
   });
+}
+
+function mergeGraphPage(into: Map<string, GraphPage>, page: GraphPage) {
+  if (!page.id) return;
+  const existing = into.get(page.id);
+  if (!existing) {
+    into.set(page.id, page);
+    return;
+  }
+  into.set(page.id, {
+    ...existing,
+    ...page,
+    name: page.name || existing.name,
+    category: page.category ?? existing.category,
+    access_token: page.access_token ?? existing.access_token,
+  });
+}
+
+/**
+ * Discovers every Page the user/token can see:
+ * personal `me/accounts` + each Business Manager `owned_pages` / `client_pages`.
+ * Resolves missing Page access tokens when the user token can request them.
+ */
+export async function discoverAllPages(accessToken: string): Promise<GraphPage[]> {
+  const byId = new Map<string, GraphPage>();
+
+  const personal = await getPages(accessToken).catch((error) => {
+    logger.warn("Meta page discovery: me/accounts failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [] as GraphPage[];
+  });
+  for (const page of personal) mergeGraphPage(byId, page);
+
+  const businesses = await getBusinesses(accessToken).catch((error) => {
+    logger.warn("Meta page discovery: me/businesses failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [] as GraphBusiness[];
+  });
+
+  for (const business of businesses) {
+    for (const edge of ["owned_pages", "client_pages"] as const) {
+      const pages = await graphGetAllPages<GraphPage>(`${business.id}/${edge}`, accessToken, {
+        fields: "id,name,category,access_token",
+      }).catch((error) => {
+        logger.warn("Meta page discovery: business pages failed", {
+          businessId: business.id,
+          edge,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return [] as GraphPage[];
+      });
+      for (const page of pages) mergeGraphPage(byId, page);
+    }
+  }
+
+  for (const page of [...byId.values()]) {
+    if (page.access_token) continue;
+    try {
+      const { data } = await graphGet<GraphPage>(page.id, accessToken, {
+        fields: "id,name,category,access_token",
+      });
+      mergeGraphPage(byId, data);
+    } catch (error) {
+      logger.warn("Meta page discovery: could not resolve page access token", {
+        pageId: page.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return [...byId.values()];
 }
 
 export type GraphLeadForm = { id: string; name: string; status?: string; locale?: string };
@@ -352,7 +431,7 @@ export function getPixels(accessToken: string, businessId?: string) {
 }
 
 export function getAdAccountPixels(adAccountId: string, accessToken: string) {
-  return graphGetAllPages<GraphPixel>(`${adAccountId}/adspixels`, accessToken, {
+  return graphGetAllPages<GraphPixel>(`${toMetaAdAccountGraphId(adAccountId)}/adspixels`, accessToken, {
     fields: "id,name",
   });
 }
@@ -369,7 +448,7 @@ export type GraphCampaign = {
 };
 
 export function getCampaigns(adAccountId: string, accessToken: string) {
-  return graphGetAllPages<GraphCampaign>(`${adAccountId}/campaigns`, accessToken, {
+  return graphGetAllPages<GraphCampaign>(`${toMetaAdAccountGraphId(adAccountId)}/campaigns`, accessToken, {
     fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time",
   });
 }
@@ -503,6 +582,8 @@ export function getOAuthDialogUrl(params: {
   url.searchParams.set("state", params.state);
   url.searchParams.set("scope", params.scope.join(","));
   url.searchParams.set("response_type", "code");
+  // Re-prompt declined permissions / page selection when reconnecting to add pages.
+  url.searchParams.set("auth_type", "rerequest");
   return url.toString();
 }
 

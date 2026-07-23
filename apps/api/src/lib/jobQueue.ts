@@ -5,6 +5,7 @@ import { syncLeadScores } from "../jobs/leadScoringJob.js";
 import { syncNaPoolUnassignments } from "../jobs/naPoolJob.js";
 import { syncSiteVisitReminders } from "../jobs/siteVisitReminderJob.js";
 import { sendPendingConversionEvents } from "../services/metaConversionService.js";
+import { backfillMetaLeads } from "../services/metaLeadBackfillService.js";
 import {
   type MetaLeadIngestJobPayload,
   processLeadgenWebhook,
@@ -30,6 +31,7 @@ export const JOB_NAMES = {
   META_CAPI_SEND: "meta-capi-send",
   META_INSIGHTS_SYNC: "meta-insights-sync",
   META_ASSET_SYNC: "meta-asset-sync",
+  META_LEAD_BACKFILL: "meta-lead-backfill",
 } as const;
 
 let queue: Queue | null = null;
@@ -71,6 +73,12 @@ async function runJob(name: string, data?: Record<string, unknown>) {
     case JOB_NAMES.META_ASSET_SYNC:
       return syncPagesFormsAndSubscribe().catch((error) => {
         logger.warn("Scheduled Meta asset sync failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    case JOB_NAMES.META_LEAD_BACKFILL:
+      return backfillMetaLeads(undefined, { sinceDays: 2 }).catch((error) => {
+        logger.warn("Scheduled Meta lead backfill failed", {
           error: error instanceof Error ? error.message : String(error),
         });
       });
@@ -136,6 +144,11 @@ export async function startDurableJobQueue(): Promise<boolean> {
       JOB_NAMES.META_ASSET_SYNC,
       {},
       { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.META_ASSET_SYNC },
+    );
+    await queue.add(
+      JOB_NAMES.META_LEAD_BACKFILL,
+      {},
+      { repeat: { every: 15 * 60 * 1000 }, jobId: JOB_NAMES.META_LEAD_BACKFILL },
     );
 
     queue.on("error", (error: Error) => {

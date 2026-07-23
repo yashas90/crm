@@ -426,7 +426,18 @@ function MetaDashboardInner() {
                     variant="outline"
                     size="sm"
                     disabled={busy}
-                    onClick={() => void syncAssets.mutateAsync()}
+                    onClick={async () => {
+                      try {
+                        const result = await syncAssets.mutateAsync();
+                        setBanner(
+                          `Synced Meta assets: ${result.pages} pages, ${result.forms} forms, ${result.adAccounts} ad accounts, ${result.businesses} businesses.`,
+                        );
+                      } catch {
+                        setBanner(
+                          "Sync assets failed. Try Reconnect Meta and grant access to the new Pages.",
+                        );
+                      }
+                    }}
                   >
                     Sync assets
                   </Button>
@@ -445,10 +456,20 @@ function MetaDashboardInner() {
                     size="sm"
                     disabled={busy}
                     onClick={async () => {
-                      const result = await syncLeads.mutateAsync(7);
-                      setBanner(
-                        `Pulled Meta leads (7d): ${result.ingested} ingested, ${result.skipped} already present, ${result.failed} failed (${result.leadsSeen} seen).`,
-                      );
+                      try {
+                        const result = await syncLeads.mutateAsync(7);
+                        const errHint =
+                          result.errors && result.errors.length > 0
+                            ? ` First error: ${result.errors[0]?.error}`
+                            : "";
+                        setBanner(
+                          `Pulled Meta leads (7d): ${result.ingested} ingested, ${result.skipped} already present, ${result.failed} failed (${result.leadsSeen} seen across ${result.formsScanned} forms).${errHint}`,
+                        );
+                      } catch {
+                        setBanner(
+                          "Pull leads failed. Click Sync assets, then Reconnect Meta if page tokens expired.",
+                        );
+                      }
                     }}
                   >
                     Pull leads (7d)
@@ -637,9 +658,15 @@ function MetaDashboardInner() {
 
               {tab === "pages" ? (
                 filteredPages.length === 0 ? (
-                  <EmptyRows message="No pages yet. Connect Meta, then Sync assets." />
+                  <EmptyRows message="No pages yet. Click Reconnect Meta, select every Page in the Facebook dialog, then Sync assets." />
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      To add a new Facebook Page: open <strong>Reconnect Meta</strong>, approve
+                      Page access for that page, then click <strong>Sync assets</strong>. Pages
+                      without a token cannot receive leads until reconnected.
+                    </p>
+                    <div className="overflow-x-auto">
                     <table className="w-full min-w-[720px] text-left text-sm">
                       <thead className="text-muted-foreground">
                         <tr className="border-b">
@@ -654,7 +681,14 @@ function MetaDashboardInner() {
                       <tbody>
                         {filteredPages.map((page) => (
                           <tr key={page.id} className="border-b border-border/60">
-                            <td className="py-3 pr-3 font-medium">{page.name}</td>
+                            <td className="py-3 pr-3 font-medium">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span>{page.name}</span>
+                                {!page.hasAccessToken ? (
+                                  <Badge variant="warning">No token</Badge>
+                                ) : null}
+                              </div>
+                            </td>
                             <td className="py-3 pr-3 font-mono text-xs text-muted-foreground">
                               {page.pageId}
                             </td>
@@ -706,6 +740,7 @@ function MetaDashboardInner() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )
               ) : null}

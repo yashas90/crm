@@ -3,7 +3,7 @@
  * through the same ingest path as webhooks. Used when live webhooks were missed.
  */
 import { facebookForms, facebookLeads, facebookPages, facebookSyncHistory } from "@propninja/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
@@ -22,10 +22,15 @@ export type BackfillMetaLeadsResult = {
 
 export async function backfillMetaLeads(
   orgId: string = SINGLE_TENANT_ORG_ID,
-  options: { sinceDays?: number } = {},
+  options: {
+    sinceDays?: number;
+    /** Manual Pull leads: include forms/pages even if not selected in Settings. */
+    includeUnselected?: boolean;
+  } = {},
 ): Promise<BackfillMetaLeadsResult> {
   const sinceDays = Math.min(Math.max(options.sinceDays ?? 7, 1), 90);
   const sinceUnix = Math.floor(Date.now() / 1000) - sinceDays * 86400;
+  const includeUnselected = options.includeUnselected === true;
 
   const forms = await db
     .select({
@@ -38,9 +43,11 @@ export async function backfillMetaLeads(
       and(
         eq(facebookForms.orgId, orgId),
         eq(facebookForms.isActive, true),
-        eq(facebookForms.isSelected, true),
         eq(facebookPages.isActive, true),
-        eq(facebookPages.isSelected, true),
+        isNotNull(facebookPages.accessTokenEncrypted),
+        ...(includeUnselected
+          ? []
+          : [eq(facebookForms.isSelected, true), eq(facebookPages.isSelected, true)]),
       ),
     );
 
@@ -137,6 +144,7 @@ export async function backfillMetaLeads(
     errorMessage: result.errors[0]?.error ?? null,
     metadata: {
       sinceDays,
+      includeUnselected,
       formsScanned: result.formsScanned,
       leadsSeen: result.leadsSeen,
       skipped: result.skipped,
