@@ -81,7 +81,12 @@ export default function LeadDetailPage() {
     pageSize: "50",
   });
   const { data: tcfData, isLoading: tcfLoading } = useTcfConsent(leadId);
-  const { data: users } = useUsers();
+  const { session } = useSession();
+  const { ready, canDeleteLead, canAssignLead } = usePermissions();
+  const isAgent = session?.role === "agent";
+  const { data: users } = useUsers(isAgent ? "admin" : undefined, {
+    enabled: Boolean(canAssignLead),
+  });
   const addNote = useAddLeadNote(leadId);
   const [noteText, setNoteText] = useState("");
   const [showEdit, setShowEdit] = useState(false);
@@ -93,12 +98,10 @@ export default function LeadDetailPage() {
   const [showWhatsAppSend, setShowWhatsAppSend] = useState(false);
   const [showSmsSend, setShowSmsSend] = useState(false);
   const [whatsappPickerPhone, setWhatsappPickerPhone] = useState<string | null>(null);
-  const { session } = useSession();
   const messageTemplates = useMessageTemplates({ enabled: Boolean(whatsappPickerPhone) });
   const { data: linkedUnit, isLoading: linkedUnitLoading } = useLeadLinkedUnit(leadId);
   const leadScore = useLeadScore(leadId, { enabled: Boolean(leadId) });
 
-  const { ready, canDeleteLead } = usePermissions();
   const callConsent = tcfData?.consents.call?.consented ?? null;
   const smsConsent = tcfData?.consents.sms?.consented ?? null;
 
@@ -135,9 +138,11 @@ export default function LeadDetailPage() {
           <Link href="/leads">← Back to leads</Link>
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowAssign((v) => !v)}>
-            Assign
-          </Button>
+          {canAssignLead ? (
+            <Button variant="outline" size="sm" onClick={() => setShowAssign((v) => !v)}>
+              {isAgent ? "Return to admin" : "Assign"}
+            </Button>
+          ) : null}
           <Button variant="outline" size="sm" onClick={() => setShowEdit((v) => !v)}>
             Edit
           </Button>
@@ -292,20 +297,23 @@ export default function LeadDetailPage() {
       {showAssign ? (
         <Card className="rounded-xl ">
           <CardHeader>
-            <CardTitle className="text-base">Assign lead</CardTitle>
+            <CardTitle className="text-base">
+              {isAgent ? "Return lead to admin" : "Assign lead"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Label htmlFor="assignee">Agent</Label>
+            <Label htmlFor="assignee">{isAgent ? "Admin" : "Agent"}</Label>
             <select
               id="assignee"
               className="flex h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
               value={assignUserId}
               onChange={(e) => setAssignUserId(e.target.value)}
             >
-              <option value="">Select agent</option>
+              <option value="">{isAgent ? "Select admin" : "Select agent"}</option>
               {users?.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.name}
+                  {!isAgent && user.role ? ` (${user.role})` : ""}
                 </option>
               ))}
             </select>
@@ -315,14 +323,15 @@ export default function LeadDetailPage() {
               onClick={() => {
                 void apiPost(`/api/leads/${lead.id}/assign`, { user_id: assignUserId }).then(
                   () => {
-                    toast.success("Lead assigned");
+                    toast.success(isAgent ? "Lead returned to admin" : "Lead assigned");
                     setShowAssign(false);
+                    void refetchLead();
                   },
                   (err) => toast.error(getErrorMessage(err, "Assign failed")),
                 );
               }}
             >
-              Save assignment
+              {isAgent ? "Return to admin" : "Save assignment"}
             </Button>
           </CardContent>
         </Card>

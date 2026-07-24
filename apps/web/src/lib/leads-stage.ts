@@ -91,6 +91,7 @@ export function stageFromUrlFilters(filters: LeadsUrlFilters): LeadsStage {
 type StageQuerySlice = {
   status?: string;
   activeOnly?: string;
+  excludeNew?: string;
   followUpDueBefore?: string;
   followUpDueAfter?: string;
   orderByFollowUp?: string;
@@ -98,7 +99,8 @@ type StageQuerySlice = {
 
 /**
  * Map a stage chip to list API filters.
- * - Pending uses lead_status=contacted (awaiting agent action).
+ * - Active = open pipeline excluding untouched `new` (worked / updated leads).
+ * - Pending uses lead_status=contacted (called/touched, awaiting further update).
  * - EOI uses lead_status=qualified (pipeline stage before negotiation).
  */
 export function stageToQueryParams(stage: LeadsStage): StageQuerySlice {
@@ -106,7 +108,7 @@ export function stageToQueryParams(stage: LeadsStage): StageQuerySlice {
 
   switch (stage) {
     case "active":
-      return { activeOnly: "true" };
+      return { activeOnly: "true", excludeNew: "true" };
     case "new":
       return { status: "new" };
     case "pending":
@@ -126,6 +128,6 @@ export function stageToQueryParams(stage: LeadsStage): StageQuerySlice {
     case "eoi":
       return { status: "qualified" };
     default:
-      return { activeOnly: "true" };
+      return { activeOnly: "true", excludeNew: "true" };
   }
 }

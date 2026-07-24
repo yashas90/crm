@@ -24,7 +24,7 @@ function configuredApiUrl(): string | undefined {
  * Dev base URL when no EXPO_PUBLIC_API_URL is set:
  * - iOS Simulator → host machine localhost
  * - Android Emulator → 10.0.2.2 (maps to host localhost)
- * - Physical device → set EXPO_PUBLIC_API_URL to http://<LAN_IP>:3001
+ * - Physical device → production API (localhost is unreachable on the phone)
  */
 function resolveDevApiBaseUrl(): string {
   const explicit = configuredApiUrl();
@@ -35,6 +35,12 @@ function resolveDevApiBaseUrl(): string {
     if (isEmulator) {
       return `http://10.0.2.2:${DEV_API_PORT}`;
     }
+    // Physical Android debug APK: never use localhost — it hangs until timeout.
+    return PRODUCTION_API_URL;
+  }
+
+  if (Platform.OS === "ios" && Constants.isDevice) {
+    return PRODUCTION_API_URL;
   }
 
   return `http://localhost:${DEV_API_PORT}`;

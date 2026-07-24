@@ -136,10 +136,15 @@ function usersScopeCountsQueryKey(search?: string) {
   return ["users", "scope-counts", search ?? null] as const;
 }
 
-/** Dropdown helper — returns up to 100 users. */
+/** Dropdown helper — returns up to 100 users. Agents should pass role=admin (active only). */
 export function useUsers(role?: string, options?: { enabled?: boolean }) {
   const list = useUsersList(
-    { role, status: "all", page: 1, pageSize: 100 },
+    {
+      role,
+      status: role === "admin" ? "active" : "all",
+      page: 1,
+      pageSize: 100,
+    },
     { enabled: options?.enabled },
   );
   return {

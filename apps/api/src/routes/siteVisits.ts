@@ -3,6 +3,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
+import { maskPhone } from "../lib/leadMasking.js";
 import { listPaginationSchema } from "../lib/pagination.js";
 import { canEditLead } from "../lib/permissions.js";
 import { jsonError, jsonOk } from "../lib/response.js";
@@ -21,6 +22,20 @@ import {
 import { siteVisitService } from "../services/siteVisitService.js";
 
 export const siteVisitsRoutes = new Hono();
+
+function maskVisitLeadPhones<T extends { lead?: { phone?: string | null } | null }>(
+  user: AuthUser,
+  item: T,
+): T {
+  if (user.role === "admin" || user.role === "agent" || !item.lead?.phone) return item;
+  return {
+    ...item,
+    lead: {
+      ...item.lead,
+      phone: maskPhone(item.lead.phone),
+    },
+  };
+}
 
 const visitTimeSchema = z
   .string()
@@ -190,7 +205,15 @@ siteVisitsRoutes.get("/calendar", async (c) => {
     agentId,
   });
 
-  return jsonOk(c, data);
+  if (authUser.role === "admin" || authUser.role === "agent") {
+    return jsonOk(c, data);
+  }
+
+  const dates: Record<string, unknown[]> = {};
+  for (const [key, visits] of Object.entries(data.dates)) {
+    dates[key] = visits.map((item) => maskVisitLeadPhones(authUser, item));
+  }
+  return jsonOk(c, { ...data, dates });
 });
 
 siteVisitsRoutes.get("/today", async (c) => {
@@ -200,7 +223,10 @@ siteVisitsRoutes.get("/today", async (c) => {
 
   if (authUser.role === "agent") {
     const data = await siteVisitService.listToday(authUser.id);
-    return jsonOk(c, data);
+    return jsonOk(c, {
+      ...data,
+      items: data.items.map((item) => maskVisitLeadPhones(authUser, item)),
+    });
   }
 
   const agentId = queryAgentId;
@@ -209,7 +235,10 @@ siteVisitsRoutes.get("/today", async (c) => {
     date: today,
     pageSize: 500,
   });
-  return jsonOk(c, data);
+  return jsonOk(c, {
+    ...data,
+    items: data.items.map((item) => maskVisitLeadPhones(authUser, item)),
+  });
 });
 
 siteVisitsRoutes.get("/", async (c) => {
@@ -223,7 +252,10 @@ siteVisitsRoutes.get("/", async (c) => {
   params.agentId = resolveAgentFilter(authUser, params.agentId);
 
   const data = await siteVisitService.list(params);
-  return jsonOk(c, data);
+  return jsonOk(c, {
+    ...data,
+    items: data.items.map((item) => maskVisitLeadPhones(authUser, item)),
+  });
 });
 
 siteVisitsRoutes.get("/:id/whatsapp-links", async (c) => {

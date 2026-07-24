@@ -25,7 +25,10 @@ import { z } from "zod";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { env } from "../lib/env.js";
+import { maskEmail, maskPhone } from "../lib/leadMasking.js";
 import { logger } from "../lib/logger.js";
+import { getMetaWebhookHealth } from "../lib/metaHealthService.js";
+import { subscribeMetaLiveLeads } from "../lib/metaRealtimeBus.js";
 import { canUpdateOrgProfile, canViewOrgProfile } from "../lib/permissions.js";
 import { jsonError, jsonOk } from "../lib/response.js";
 import { validate } from "../lib/validate.js";
@@ -36,8 +39,6 @@ import {
   sendPendingConversionEvents,
 } from "../services/metaConversionService.js";
 import { getMetaDashboard } from "../services/metaDashboardService.js";
-import { getMetaWebhookHealth } from "../lib/metaHealthService.js";
-import { subscribeMetaLiveLeads } from "../lib/metaRealtimeBus.js";
 import { backfillMetaLeads } from "../services/metaLeadBackfillService.js";
 import { listRecentMetaLiveLeads } from "../services/metaLiveLeadsService.js";
 import {
@@ -323,16 +324,29 @@ metaRoutes.get("/health", async (c) => {
 metaRoutes.get("/live-leads", async (c) => {
   const denied = requireView(c);
   if (denied) return denied;
+  const authUser = c.get("authUser") as AuthUser;
   const limit = Number(c.req.query("limit") ?? "40");
   const sinceMinutes = Number(c.req.query("sinceMinutes") ?? String(60 * 24));
   const data = await listRecentMetaLiveLeads(SINGLE_TENANT_ORG_ID, { limit, sinceMinutes });
-  return jsonOk(c, data);
+  if (authUser.role === "admin") {
+    return jsonOk(c, data);
+  }
+  return jsonOk(
+    c,
+    data.map((row) => ({
+      ...row,
+      phone: row.phone ? maskPhone(row.phone) : row.phone,
+      email: row.email ? maskEmail(row.email) : row.email,
+    })),
+  );
 });
 
 /** Server-Sent Events stream for instant Meta lead UI updates (webhooks primary). */
 metaRoutes.get("/live-leads/stream", async (c) => {
   const denied = requireView(c);
   if (denied) return denied;
+  const authUser = c.get("authUser") as AuthUser;
+  const maskPii = authUser.role !== "admin";
 
   const stream = new ReadableStream({
     start(controller) {
@@ -352,7 +366,15 @@ metaRoutes.get("/live-leads/stream", async (c) => {
 
       const unsubscribe = subscribeMetaLiveLeads((event) => {
         try {
-          send(event);
+          if (!maskPii) {
+            send(event);
+            return;
+          }
+          send({
+            ...event,
+            phone: event.phone ? maskPhone(event.phone) : event.phone,
+            email: event.email ? maskEmail(event.email) : event.email,
+          });
         } catch {
           clearInterval(heartbeat);
           unsubscribe();

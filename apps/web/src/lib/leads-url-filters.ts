@@ -307,6 +307,7 @@ export function leadsFiltersToQuery(
     ...leadsBaseFiltersToQuery(filters, options),
     status: stageParams.status,
     activeOnly: stageParams.activeOnly,
+    excludeNew: stageParams.excludeNew,
     followUpDueBefore: stageParams.followUpDueBefore,
     followUpDueAfter: stageParams.followUpDueAfter,
     orderByFollowUp: stageParams.orderByFollowUp,

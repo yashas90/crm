@@ -1,9 +1,10 @@
 import { initializeSslPinning, isSslPinningAvailable } from "react-native-ssl-public-key-pinning";
 
-/** Railway *.up.railway.app leaf + Let's Encrypt E7 intermediate (backup). */
+/** Railway *.up.railway.app leaf + current intermediate (rotated 2026-07). */
 const RAILWAY_PUBLIC_KEY_HASHES = [
-  "sGDbTDZa6e6YT2TE9XG0KNYPBuV/4YoqFrebzjQs1Ss=",
-  "y7xVm0TVJNahMr2sZydE2jQH8SquXV9yLF9seROHHHU=",
+  "hORJtOUv6S5sVpxykVdj7ceRoUfeLhICfOGA0n68co0=", // leaf *.up.railway.app
+  "brzvtCELCIZUo4sD/qPX0ccRtPsd3DY6RfmxpOU9oB4=", // YE1 intermediate
+  "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=", // ISRG Root X1
 ] as const;
 
 function pinningDomainFromApiUrl(apiUrl: string): string | null {

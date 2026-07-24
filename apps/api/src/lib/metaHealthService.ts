@@ -62,7 +62,9 @@ export async function getMetaWebhookHealth(
           received: sql<number>`count(*)::int`,
           processed: sql<number>`count(*) filter (where ${facebookWebhooks.status} = 'processed')::int`,
           failed: sql<number>`count(*) filter (where ${facebookWebhooks.status} = 'failed')::int`,
-          avgMs: sql<number | null>`round(avg(extract(epoch from (${facebookWebhooks.processedAt} - ${facebookWebhooks.createdAt})) * 1000))::int`,
+          avgMs: sql<
+            number | null
+          >`round(avg(extract(epoch from (${facebookWebhooks.processedAt} - ${facebookWebhooks.createdAt})) * 1000))::int`,
         })
         .from(facebookWebhooks)
         .where(and(eq(facebookWebhooks.orgId, orgId), gte(facebookWebhooks.createdAt, since15m))),

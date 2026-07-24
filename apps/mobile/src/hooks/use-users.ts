@@ -24,11 +24,15 @@ export function useUsers(
 ) {
   const { user, status } = useAuth();
   const ready = status === "authenticated";
-  const canListUsers = user?.role === "admin" || user?.role === "manager";
+  const listingAdminsOnly = filters?.role === "admin";
+  const canListUsers =
+    user?.role === "admin" ||
+    user?.role === "manager" ||
+    (user?.role === "agent" && listingAdminsOnly);
   const params = new URLSearchParams({
     page: "1",
     pageSize: "100",
-    status: filters?.status ?? "all",
+    status: filters?.status ?? (listingAdminsOnly ? "active" : "all"),
   });
   if (filters?.role) params.set("role", filters.role);
 
@@ -43,6 +47,13 @@ export function useUsers(
 
 export function useTeamMembers(options?: { enabled?: boolean }) {
   return useUsers({ status: "active" }, options);
+}
+
+/** Assignees for reassignment pickers — agents only see active admins. */
+export function useAssignableUsers(options?: { enabled?: boolean }) {
+  const { user } = useAuth();
+  const isAgent = user?.role === "agent";
+  return useUsers(isAgent ? { role: "admin", status: "active" } : { status: "active" }, options);
 }
 
 export function useUpdateUser() {

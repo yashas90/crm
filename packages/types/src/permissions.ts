@@ -201,7 +201,6 @@ export const MANAGER_PERMISSIONS: Permission[] = [
   PERMISSIONS.leads.updateNotes,
   PERMISSIONS.leads.updateDocuments,
   PERMISSIONS.leads.updateTags,
-  PERMISSIONS.leads.export,
   PERMISSIONS.leads.communications,
   PERMISSIONS.properties.view,
   PERMISSIONS.properties.search,

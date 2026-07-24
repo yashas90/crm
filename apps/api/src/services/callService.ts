@@ -4,6 +4,7 @@ import { createCallFollowUpTask } from "../lib/callFollowUpTask.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
+import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
 import { recalculateLeadScore } from "../services/leadScoringService.js";
 
 type CallDirection = "incoming" | "outgoing";
@@ -169,6 +170,13 @@ export const callService = {
           attemptedAt: endedAt,
         });
       }
+
+      // Called/touched without an explicit status update → Pending (contacted).
+      await promoteNewLeadToContacted(resolvedLeadId, {
+        userId,
+        reason: "call_logged",
+        at: endedAt,
+      });
 
       void recalculateLeadScore(resolvedLeadId).catch(() => undefined);
     }

@@ -76,6 +76,22 @@ export function canListUsers(user: AuthUser): boolean {
   return hasPermission(user, "users:view");
 }
 
+/**
+ * Agents may list active admins only (reassign-back picker). Full directory still requires users:view.
+ */
+export function canListUsersForQuery(
+  user: AuthUser,
+  query: { role?: string; status?: string },
+): boolean {
+  if (canListUsers(user)) return true;
+  return (
+    user.role === "agent" &&
+    hasPermission(user, "users:view_for_filter") &&
+    query.role === "admin" &&
+    query.status === "active"
+  );
+}
+
 export function canViewOrgProfile(user: AuthUser): boolean {
   return hasPermission(user, "org_profile:view");
 }
@@ -135,7 +151,8 @@ export function canDeleteLead(user: AuthUser): boolean {
 }
 
 export function canExportLeads(user: AuthUser): boolean {
-  return hasPermission(user, "leads:export");
+  // Lead CSV includes phone numbers — admin only.
+  return isAdmin(user) && hasPermission(user, "leads:export");
 }
 
 export function canBulkUploadLeads(user: AuthUser): boolean {

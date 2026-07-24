@@ -49,6 +49,7 @@ type UpdateLeadStatusSheetProps = {
   currentAssigneeId?: string | null;
   assigneeOptions?: OrgUser[];
   defaultAssigneeId?: string | null;
+  assigneeLabel?: string;
   isSaving?: boolean;
 };
 
@@ -60,6 +61,7 @@ export function UpdateLeadStatusSheet({
   currentAssigneeId,
   assigneeOptions = [],
   defaultAssigneeId,
+  assigneeLabel = "Assign to",
   isSaving = false,
 }: UpdateLeadStatusSheetProps) {
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
@@ -152,7 +154,7 @@ export function UpdateLeadStatusSheet({
 
               {showAssignee ? (
                 <>
-                  <Text style={styles.sectionLabel}>Assign to</Text>
+                  <Text style={styles.sectionLabel}>{assigneeLabel}</Text>
                   <Pressable
                     style={styles.assignSelect}
                     onPress={() => setAssignOpen((open) => !open)}

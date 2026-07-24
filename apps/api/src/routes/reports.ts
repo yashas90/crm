@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { maskPhone } from "../lib/leadMasking.js";
 import { canExportReports, canViewReports } from "../lib/permissions.js";
 import {
   callsReportQuerySchema,
@@ -101,6 +102,13 @@ reportsRoutes.get("/overview", async (c) => {
     ...parsed.data,
     userId: resolveReportUserId(authUser, parsed.data.userId),
   });
+
+  if (authUser.role !== "admin" && Array.isArray(data.hot_leads_list)) {
+    data.hot_leads_list = data.hot_leads_list.map((row) => ({
+      ...row,
+      phone: row.phone ? maskPhone(row.phone) : row.phone,
+    }));
+  }
 
   return c.json({ ok: true, data });
 });

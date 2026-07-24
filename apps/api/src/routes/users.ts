@@ -1,7 +1,13 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
-import { canListUsers, canViewUsers, hasPermission, isAdmin } from "../lib/permissions.js";
+import {
+  canListUsers,
+  canListUsersForQuery,
+  canViewUsers,
+  hasPermission,
+  isAdmin,
+} from "../lib/permissions.js";
 import { jsonError, jsonOk } from "../lib/response.js";
 import { resolveUserRoleFields } from "../lib/role-mapping.js";
 import { validate } from "../lib/validate.js";
@@ -76,13 +82,21 @@ usersRoutes.get("/scope-counts", async (c) => {
 });
 
 usersRoutes.get("/", validate("query", listUsersQuerySchema), async (c) => {
-  const denied = requireListUsers(c);
-  if (denied) return denied;
-
   const query = c.req.valid("query");
   const authUser = c.get("authUser");
+
+  if (!canListUsersForQuery(authUser, query)) {
+    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  }
+
+  // Agents only get the active-admin picker — never a broader directory.
+  const listQuery =
+    authUser.role === "agent"
+      ? { ...query, role: "admin" as const, status: "active" as const }
+      : query;
+
   const service = createUserService(c.get("db"));
-  const data = await service.list(query, authUser);
+  const data = await service.list(listQuery, authUser);
 
   return c.json({ ok: true, data });
 });

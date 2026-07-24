@@ -38,6 +38,10 @@ export const listLeadsQuerySchema = z
       .enum(["true", "false"])
       .optional()
       .transform((v) => v === "true"),
+    excludeNew: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
     deletedOnly: z
       .enum(["true", "false"])
       .optional()
@@ -173,6 +177,7 @@ export const leadStageCountsQuerySchema = listLeadsQuerySchema.omit({
   pageSize: true,
   status: true,
   activeOnly: true,
+  excludeNew: true,
   followUpDueBefore: true,
   followUpDueAfter: true,
   orderByFollowUp: true,

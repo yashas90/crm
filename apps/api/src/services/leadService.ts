@@ -36,6 +36,7 @@ import type { LeadAdvancedListQuery } from "../lib/leadAdvancedListQuery.js";
 import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
+import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 import { recordLeadAssignment } from "./leadAssignmentService.js";
 import { recordReEnquiryActivity } from "./leadReEnquiry.js";
@@ -79,6 +80,8 @@ export type ListLeadsParams = {
   reEnquiredOnly?: boolean;
   naLeadsOnly?: boolean;
   activeOnly?: boolean;
+  /** Active Leads stage: open pipeline excluding untouched `new` leads. */
+  excludeNew?: boolean;
   deletedOnly?: boolean;
   adLeadsOnly?: boolean;
   /** Return leads whose tags share at least one value with this list. */
@@ -291,6 +294,10 @@ function buildListWhere(params: ListLeadsParams) {
     whereClauses.push(sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`);
   }
 
+  if (params.excludeNew) {
+    whereClauses.push(ne(leads.leadStatus, "new"));
+  }
+
   if (params.projectId) {
     whereClauses.push(eq(leads.projectId, params.projectId));
   }
@@ -420,6 +427,7 @@ function stripBucketOverrides(params: ListLeadsParams): ListLeadsParams {
     naLeadsOnly: undefined,
     status: undefined,
     activeOnly: undefined,
+    excludeNew: undefined,
     followUpDueBefore: undefined,
     followUpDueAfter: undefined,
     deletedOnly: false,
@@ -430,6 +438,11 @@ function activePipelineLeadSql() {
   return sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
 }
 
+/** Worked open leads — Active Leads chip (excludes untouched New). */
+function activeWorkedLeadSql() {
+  return sql`${leads.leadStatus} not in ('new', 'lost', 'won', 'not_interested', 'dropped')`;
+}
+
 export const leadService = {
   async getStageCounts(baseParams: ListLeadsParams) {
     const sharedBase: ListLeadsParams = {
@@ -438,6 +451,7 @@ export const leadService = {
       excludeDuplicates: false,
       status: undefined,
       activeOnly: undefined,
+      excludeNew: undefined,
       followUpDueBefore: undefined,
       followUpDueAfter: undefined,
       deletedOnly: false,
@@ -449,7 +463,7 @@ export const leadService = {
     try {
       const [row] = await db
         .select({
-          active: sql<number>`count(*) filter (where ${activePipelineLeadSql()})::int`,
+          active: sql<number>`count(*) filter (where ${activeWorkedLeadSql()})::int`,
           new: sql<number>`count(*) filter (where ${leads.leadStatus} = 'new')::int`,
           pending: sql<number>`count(*) filter (where ${leads.leadStatus} = 'contacted')::int`,
           scheduled: sql<number>`count(*) filter (
@@ -1190,6 +1204,17 @@ export const leadService = {
           enqueueConversionForLeadStatusChange(leadId, payload.leadStatus!),
         )
         .catch(() => undefined);
+    } else if (
+      updated &&
+      existing.leadStatus === "new" &&
+      payload.leadStatus === undefined &&
+      (payload.nextFollowupAt !== undefined || payload.notes !== undefined)
+    ) {
+      // Touched (follow-up / note) without status change → Pending.
+      await promoteNewLeadToContacted(leadId, {
+        userId: actingUserId,
+        reason: "follow_up_set",
+      });
     }
 
     if (updated) {

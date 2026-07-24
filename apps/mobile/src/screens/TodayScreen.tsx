@@ -18,7 +18,7 @@ import {
   useUpdateLeadFollowUp,
 } from "@/hooks/use-leads";
 import { type SiteVisit, formatVisitTime, useTodaySiteVisits } from "@/hooks/use-site-visits";
-import { useTeamMembers } from "@/hooks/use-users";
+import { useAssignableUsers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId, getUser } from "@/lib/auth";
@@ -234,8 +234,11 @@ export function TodayScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const listBottomPadding = TAB_BAR_SCROLL_PADDING + insets.bottom;
   const sessionUser = getUser();
-  const teamMembers = useTeamMembers();
-  const canReassign = sessionUser?.role === "admin" || sessionUser?.role === "manager";
+  const canReassign =
+    sessionUser?.role === "admin" ||
+    sessionUser?.role === "manager" ||
+    sessionUser?.role === "agent";
+  const assignableUsers = useAssignableUsers({ enabled: canReassign });
 
   const [statusSheetOpen, setStatusSheetOpen] = useState(false);
   const [statusSheetAfterCall, setStatusSheetAfterCall] = useState(false);
@@ -542,7 +545,8 @@ export function TodayScreen({ route, navigation }: Props) {
         currentStatus={statusLead?.leadStatus ?? null}
         currentAssigneeId={statusLead?.assignedUser?.id ?? null}
         defaultAssigneeId={statusLead?.assignedUser?.id ?? getCurrentUserId()}
-        assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
+        assigneeOptions={canReassign ? (assignableUsers.data?.items ?? []) : []}
+        assigneeLabel={sessionUser?.role === "agent" ? "Return to admin" : "Assign to"}
         isSaving={updateLead.isPending || updateFollowUp.isPending || addNote.isPending}
         onClose={() => {
           setStatusSheetOpen(false);

@@ -1,8 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { assertAgentAssigneeAllowed, assertAgentAssigneesAllowed } from "../lib/agentLeadAssign.js";
 import { capExportRows, enforceCsvExportGate } from "../lib/csvExportGate.js";
 import { notifyBulkLeadsAssigned, notifyLeadAssigned } from "../lib/leadAssignmentNotifications.js";
 import { advancedListQueryToServiceParams } from "../lib/leadListQueryMap.js";
+import {
+  maskLeadContactFields,
+  maskLeadList,
+  stripMaskedContactUpdates,
+} from "../lib/leadMasking.js";
 import { normalizeStoredPhone } from "../lib/leadPhone.js";
 import { listPaginationSchema } from "../lib/pagination.js";
 import {
@@ -13,6 +19,7 @@ import {
   canExportLeads,
   canViewLead,
   forbiddenResponse,
+  isAdmin,
   leadNotFoundResponse,
 } from "../lib/permissions.js";
 import { validate } from "../lib/validate.js";
@@ -376,6 +383,7 @@ leadsRoute.get("/", async (c) => {
     orderByFollowUp: query.orderByFollowUp,
     unassigned,
     activeOnly: query.activeOnly,
+    excludeNew: query.excludeNew,
     deletedOnly: query.deletedOnly,
     reEnquiredOnly: query.reEnquiredOnly,
     naLeadsOnly: authUser.role === "admin" ? query.naLeadsOnly : false,
@@ -383,7 +391,13 @@ leadsRoute.get("/", async (c) => {
     ...advancedListQueryToServiceParams(query),
   });
 
-  return c.json({ ok: true, data });
+  return c.json({
+    ok: true,
+    data: {
+      ...data,
+      items: maskLeadList(authUser, data.items),
+    },
+  });
 });
 
 leadsRoute.get("/export", async (c) => {
@@ -431,6 +445,7 @@ leadsRoute.get("/export", async (c) => {
     followUpDueAfter: query.followUpDueAfter,
     unassigned,
     activeOnly: query.activeOnly,
+    excludeNew: query.excludeNew,
     deletedOnly: query.deletedOnly,
     reEnquiredOnly: query.reEnquiredOnly,
     naLeadsOnly: authUser.role === "admin" ? query.naLeadsOnly : false,
@@ -467,20 +482,29 @@ function scopedAgentId(authUser: AuthUser) {
 leadsRoute.get("/overdue", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const items = await leadService.listOverdueLeads(scopedAgentId(authUser));
-  return c.json({ ok: true, data: { items, total: items.length } });
+  return c.json({
+    ok: true,
+    data: { items: maskLeadList(authUser, items), total: items.length },
+  });
 });
 
 leadsRoute.get("/cold", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const items = await leadService.listColdLeads(scopedAgentId(authUser));
-  return c.json({ ok: true, data: { items, total: items.length } });
+  return c.json({
+    ok: true,
+    data: { items: maskLeadList(authUser, items), total: items.length },
+  });
 });
 
 leadsRoute.get("/hot", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const limit = Math.min(Number(c.req.query("limit") ?? 50) || 50, 100);
   const items = await listHotLeads(scopedAgentId(authUser), limit);
-  return c.json({ ok: true, data: { items, total: items.length } });
+  return c.json({
+    ok: true,
+    data: { items: maskLeadList(authUser, items), total: items.length },
+  });
 });
 
 leadsRoute.get("/scoring/config", async (c) => {
@@ -523,7 +547,9 @@ leadsRoute.get("/import-batches/:id/report", async (c) => {
   }
 
   const batchId = c.req.param("id");
-  const report = await leadImportService.getBatchReportCsv(batchId);
+  const report = await leadImportService.getBatchReportCsv(batchId, {
+    maskPhones: !isAdmin(authUser),
+  });
   if (!report) {
     return c.json(
       { ok: false, error: { code: "NOT_FOUND", message: "Import batch not found" } },
@@ -690,7 +716,7 @@ leadsRoute.get("/:id", async (c) => {
   const id = c.req.param("id");
   const { lead, response } = await loadLeadForView(c, id, authUser);
   if (response) return response;
-  return c.json({ ok: true, data: lead });
+  return c.json({ ok: true, data: maskLeadContactFields(authUser, lead!) });
 });
 
 leadsRoute.get("/:id/assignments", async (c) => {
@@ -819,13 +845,28 @@ leadsRoute.patch("/:id", leadsPatchRateLimit, async (c) => {
     );
   }
 
+  if (parsed.data.assignedTo !== undefined && parsed.data.assignedTo !== lead!.assignedTo) {
+    if (!canAssignLead(authUser)) {
+      return c.json(forbiddenResponse(), 403);
+    }
+    const assigneeGate = await assertAgentAssigneeAllowed(authUser, parsed.data.assignedTo);
+    if (!assigneeGate.ok) {
+      return c.json(
+        { ok: false, error: { code: "FORBIDDEN", message: assigneeGate.message } },
+        403,
+      );
+    }
+  }
+
+  const safePayload = stripMaskedContactUpdates(parsed.data);
+
   const terminalStatuses = ["lost", "not_interested"] as const;
   const updatePayload =
-    parsed.data.leadStatus &&
-    (terminalStatuses as readonly string[]).includes(parsed.data.leadStatus) &&
-    !parsed.data.closeReason
-      ? { ...parsed.data, closeReason: "other" }
-      : parsed.data;
+    safePayload.leadStatus &&
+    (terminalStatuses as readonly string[]).includes(safePayload.leadStatus) &&
+    !safePayload.closeReason
+      ? { ...safePayload, closeReason: "other" }
+      : safePayload;
 
   try {
     const updated = await leadService.updateLead({
@@ -836,12 +877,12 @@ leadsRoute.patch("/:id", leadsPatchRateLimit, async (c) => {
 
     if (
       updated &&
-      parsed.data.assignedTo !== undefined &&
-      parsed.data.assignedTo !== lead!.assignedTo &&
-      parsed.data.assignedTo
+      safePayload.assignedTo !== undefined &&
+      safePayload.assignedTo !== lead!.assignedTo &&
+      safePayload.assignedTo
     ) {
       await notifyLeadAssigned(c.get("db"), {
-        assigneeId: parsed.data.assignedTo,
+        assigneeId: safePayload.assignedTo,
         actingUserId: authUser.id,
         assignedByName: authUser.name,
         leadId: id,
@@ -849,7 +890,7 @@ leadsRoute.patch("/:id", leadsPatchRateLimit, async (c) => {
       });
     }
 
-    return c.json({ ok: true, data: updated });
+    return c.json({ ok: true, data: maskLeadContactFields(authUser, updated!) });
   } catch (err) {
     if (err instanceof LeadDuplicatePhoneError) {
       return c.json({ ok: false, error: { code: err.code, message: err.message } }, 409);
@@ -898,9 +939,9 @@ leadsRoute.post("/bulk-assign", validate("json", bulkAssignLeadsBodySchema), asy
   }
 
   const body = c.req.valid("json");
-  const assignsToOthers = body.userIds.some((id) => id !== authUser.id);
-  if (assignsToOthers && authUser.role === "agent") {
-    return c.json(forbiddenResponse(), 403);
+  const assigneeGate = await assertAgentAssigneesAllowed(authUser, body.userIds);
+  if (!assigneeGate.ok) {
+    return c.json({ ok: false, error: { code: "FORBIDDEN", message: assigneeGate.message } }, 403);
   }
 
   const permittedLeadIds: string[] = [];
@@ -966,6 +1007,11 @@ leadsRoute.post("/:id/assign", async (c) => {
   }
 
   const assigneeId = parsed.data.user_id;
+  const assigneeGate = await assertAgentAssigneeAllowed(authUser, assigneeId);
+  if (!assigneeGate.ok) {
+    return c.json({ ok: false, error: { code: "FORBIDDEN", message: assigneeGate.message } }, 403);
+  }
+
   const updated = await leadService.assignLead({
     leadId: id,
     userId: assigneeId,

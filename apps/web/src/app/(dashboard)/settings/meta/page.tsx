@@ -553,7 +553,10 @@ function MetaDashboardInner() {
                     : "Offline"}
               </Badge>
             ) : webhookHealth.isError ? (
-              <Badge variant="secondary" title="API health route not available yet — wait for Railway deploy">
+              <Badge
+                variant="secondary"
+                title="API health route not available yet — wait for Railway deploy"
+              >
                 Webhook status unavailable
               </Badge>
             ) : null}

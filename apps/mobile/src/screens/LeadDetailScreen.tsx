@@ -32,7 +32,7 @@ import {
   visitStatusLabel,
 } from "@/hooks/use-site-visits";
 import { useLeadTasks } from "@/hooks/use-tasks";
-import { useTeamMembers } from "@/hooks/use-users";
+import { useAssignableUsers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import {
@@ -124,8 +124,11 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const messageTemplates = useMessageTemplates({ enabled: whatsappSheetVisible });
   const sessionUser = getUser();
   const insets = useSafeAreaInsets();
-  const canReassign = sessionUser?.role === "admin" || sessionUser?.role === "manager";
-  const teamMembers = useTeamMembers({ enabled: canReassign });
+  const canReassign =
+    sessionUser?.role === "admin" ||
+    sessionUser?.role === "manager" ||
+    sessionUser?.role === "agent";
+  const teamMembers = useAssignableUsers({ enabled: canReassign });
 
   useEffect(() => {
     setTab(route.params.initialTab ?? "calls");
@@ -710,6 +713,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         currentAssigneeId={lead.assignedUser?.id ?? null}
         defaultAssigneeId={lead.assignedUser?.id ?? getCurrentUserId()}
         assigneeOptions={canReassign ? (teamMembers.data?.items ?? []) : []}
+        assigneeLabel={sessionUser?.role === "agent" ? "Return to admin" : "Assign to"}
         isSaving={updateLead.isPending || updateFollowUp.isPending || addNote.isPending}
         onClose={() => {
           setStatusSheetOpen(false);

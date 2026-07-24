@@ -72,6 +72,15 @@ export async function authorizeCsvExport(
     return { ok: false, status: 403, message: "Agents cannot export CSV data" };
   }
 
+  // Lead exports include phone numbers — admin only.
+  if (input.exportKind === "leads" && user.role !== "admin") {
+    return {
+      ok: false,
+      status: 403,
+      message: "Only admins can download lead phone numbers",
+    };
+  }
+
   const dailyLimit = getExportDailyLimit(user.role);
   const exportsToday = await countCsvExportsToday(db, user.id);
   if (exportsToday >= dailyLimit) {

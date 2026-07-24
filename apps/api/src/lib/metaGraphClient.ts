@@ -431,9 +431,13 @@ export function getPixels(accessToken: string, businessId?: string) {
 }
 
 export function getAdAccountPixels(adAccountId: string, accessToken: string) {
-  return graphGetAllPages<GraphPixel>(`${toMetaAdAccountGraphId(adAccountId)}/adspixels`, accessToken, {
-    fields: "id,name",
-  });
+  return graphGetAllPages<GraphPixel>(
+    `${toMetaAdAccountGraphId(adAccountId)}/adspixels`,
+    accessToken,
+    {
+      fields: "id,name",
+    },
+  );
 }
 
 export type GraphCampaign = {
@@ -448,9 +452,13 @@ export type GraphCampaign = {
 };
 
 export function getCampaigns(adAccountId: string, accessToken: string) {
-  return graphGetAllPages<GraphCampaign>(`${toMetaAdAccountGraphId(adAccountId)}/campaigns`, accessToken, {
-    fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time",
-  });
+  return graphGetAllPages<GraphCampaign>(
+    `${toMetaAdAccountGraphId(adAccountId)}/campaigns`,
+    accessToken,
+    {
+      fields: "id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time",
+    },
+  );
 }
 
 export type GraphAdset = {

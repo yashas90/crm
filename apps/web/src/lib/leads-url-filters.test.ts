@@ -89,6 +89,7 @@ describe("leads URL filters", () => {
     });
     expect(apiQuery.unassigned).toBe("true");
     expect(apiQuery.activeOnly).toBe("true");
+    expect(apiQuery.excludeNew).toBe("true");
   });
 
   it("post-import filters clear source and set batch id", () => {

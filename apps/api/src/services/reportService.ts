@@ -385,20 +385,32 @@ const callsPerUserMetricsSelect = {
 
 function siteVisitsCountExpr(query: CallsReportQuery, mode: "booked" | "conducted") {
   const scope = leadScopeFromQuery(query);
-  const dateFromKey = getIstDateKey(scope.dateFrom);
-  const dateToKey = getIstDateKey(scope.dateTo);
   const leadFilter = siteVisitReportLeadExistsFilter(query);
   const leadFilterSql = leadFilter ?? sql`true`;
-  const statusSql =
-    mode === "conducted" ? sql`sv.status = 'completed'` : sql`sv.status <> 'cancelled'`;
 
+  // Booked = when the visit was scheduled (created_at in range).
+  // Conducted = visits completed whose appointment day falls in range.
+  if (mode === "booked") {
+    return sql<number>`coalesce((
+      select count(*)::int from ${siteVisits} sv
+      where sv.agent_id = ${users.id}
+      and sv.org_id = ${SINGLE_TENANT_ORG_ID}
+      and sv.created_at >= ${scope.dateFrom}
+      and sv.created_at <= ${scope.dateTo}
+      and sv.status <> 'cancelled'
+      and ${leadFilterSql}
+    ), 0)::int`;
+  }
+
+  const dateFromKey = getIstDateKey(scope.dateFrom);
+  const dateToKey = getIstDateKey(scope.dateTo);
   return sql<number>`coalesce((
     select count(*)::int from ${siteVisits} sv
     where sv.agent_id = ${users.id}
     and sv.org_id = ${SINGLE_TENANT_ORG_ID}
     and sv.visit_date >= ${dateFromKey}
     and sv.visit_date <= ${dateToKey}
-    and ${statusSql}
+    and sv.status = 'completed'
     and ${leadFilterSql}
   ), 0)::int`;
 }
@@ -607,13 +619,20 @@ async function countCallsPerUserGroups(query: CallsReportQuery) {
 
 function buildSiteVisitsReportWhere(query: CallsReportQuery, mode: "booked" | "conducted") {
   const scope = leadScopeFromQuery(query);
-  const dateFromKey = getIstDateKey(scope.dateFrom);
-  const dateToKey = getIstDateKey(scope.dateTo);
   const filters = [
     eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
-    gte(siteVisits.visitDate, dateFromKey),
-    lte(siteVisits.visitDate, dateToKey),
-    mode === "conducted" ? eq(siteVisits.status, "completed") : ne(siteVisits.status, "cancelled"),
+    mode === "conducted"
+      ? and(
+          gte(siteVisits.visitDate, getIstDateKey(scope.dateFrom)),
+          lte(siteVisits.visitDate, getIstDateKey(scope.dateTo)),
+          eq(siteVisits.status, "completed"),
+        )
+      : and(
+          // Booked today = created today, even if visit_date is in the future.
+          gte(siteVisits.createdAt, scope.dateFrom),
+          lte(siteVisits.createdAt, scope.dateTo),
+          ne(siteVisits.status, "cancelled"),
+        ),
   ];
   const leadFilter = buildReportLeadExistsFilter(query, siteVisits.leadId);
   if (leadFilter) {

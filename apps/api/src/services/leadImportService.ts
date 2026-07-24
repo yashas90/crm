@@ -2,6 +2,7 @@ import { leadImportBatchItems, leadImportBatches, leads, siteVisits, users } fro
 import { and, count, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import { maskPhone } from "../lib/leadMasking.js";
 import { boundPageSize } from "../lib/pagination.js";
 
 export type LeadImportBatchOutcome = "created" | "updated" | "skipped" | "failed";
@@ -140,7 +141,11 @@ function escapeCsvCell(value: string | number) {
 function buildImportReportCsv(
   batch: ReturnType<typeof mapBatchRow>,
   report: LeadImportBatchReport,
+  options?: { maskPhones?: boolean },
 ) {
+  const mask = options?.maskPhones === true;
+  const phoneCell = (phone: string) => escapeCsvCell(mask ? maskPhone(phone) : phone);
+
   const lines = [
     [
       "Batch ID",
@@ -157,15 +162,13 @@ function buildImportReportCsv(
   ];
 
   for (const row of report.created) {
-    lines.push([row.row, "created", escapeCsvCell(row.phone), row.id, ""].join(","));
+    lines.push([row.row, "created", phoneCell(row.phone), row.id, ""].join(","));
   }
   for (const row of report.updated) {
-    lines.push([row.row, "updated", escapeCsvCell(row.phone), row.id, ""].join(","));
+    lines.push([row.row, "updated", phoneCell(row.phone), row.id, ""].join(","));
   }
   for (const row of report.skipped) {
-    lines.push(
-      [row.row, "skipped", escapeCsvCell(row.phone), "", escapeCsvCell(row.reason)].join(","),
-    );
+    lines.push([row.row, "skipped", phoneCell(row.phone), "", escapeCsvCell(row.reason)].join(","));
   }
   for (const row of report.failed) {
     lines.push([row.row, "failed", "", "", escapeCsvCell(row.message)].join(","));
@@ -321,7 +324,7 @@ export const leadImportService = {
     };
   },
 
-  async getBatchReportCsv(batchId: string) {
+  async getBatchReportCsv(batchId: string, options?: { maskPhones?: boolean }) {
     const [row] = await db
       .select({
         batch: leadImportBatches,
@@ -363,7 +366,7 @@ export const leadImportService = {
     const fileName = batch.fileName?.replace(/\.[^.]+$/, "") ?? "lead-import";
     return {
       fileName: `${fileName}-report.csv`,
-      content: buildImportReportCsv(batch, report),
+      content: buildImportReportCsv(batch, report, options),
     };
   },
 };

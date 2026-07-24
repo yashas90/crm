@@ -50,7 +50,8 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
   ) {
     const { canAssignLead, canDeleteLead } = usePermissions();
     const { session } = useSession();
-    const { data: users } = useUsers(undefined, { enabled: canAssignLead });
+    const isAgent = session?.role === "agent";
+    const { data: users } = useUsers(isAgent ? "admin" : undefined, { enabled: canAssignLead });
     const bulk = useBulkLeadActions();
 
     const [statusOpen, setStatusOpen] = useState(false);
@@ -67,13 +68,13 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
 
       if (pendingAction === "status") setStatusOpen(true);
       if (pendingAction === "assign") {
-        setAssignUserIds(session?.id ? [session.id] : []);
+        setAssignUserIds(isAgent ? [] : session?.id ? [session.id] : []);
         setAssignOpen(true);
       }
       if (pendingAction === "delete") setDeleteOpen(true);
 
       onPendingActionHandled?.();
-    }, [pendingAction, hasSelection, onPendingActionHandled, session?.id]);
+    }, [pendingAction, hasSelection, onPendingActionHandled, session?.id, isAgent]);
 
     async function handleStatusSubmit() {
       const result = await bulk.updateStatus.mutateAsync({
@@ -159,11 +160,11 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
                     size="sm"
                     disabled={bulk.isBusy}
                     onClick={() => {
-                      setAssignUserIds(session?.id ? [session.id] : []);
+                      setAssignUserIds(isAgent ? [] : session?.id ? [session.id] : []);
                       setAssignOpen(true);
                     }}
                   >
-                    Assign To
+                    {isAgent ? "Return to Admin" : "Assign To"}
                   </Button>
                 ) : null}
                 {canDeleteLead ? (
@@ -233,19 +234,20 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
         <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Assign leads</DialogTitle>
+              <DialogTitle>{isAgent ? "Return leads to admin" : "Assign leads"}</DialogTitle>
               <DialogDescription>
-                Assign {selectedCount} selected lead{selectedCount === 1 ? "" : "s"} to one or more
-                agents. Multiple agents split leads evenly (round-robin).
+                {isAgent
+                  ? `Return ${selectedCount} selected lead${selectedCount === 1 ? "" : "s"} to an admin.`
+                  : `Assign ${selectedCount} selected lead${selectedCount === 1 ? "" : "s"} to one or more agents. Multiple agents split leads evenly (round-robin).`}
               </DialogDescription>
             </DialogHeader>
             <AgentMultiSelect
               id="bulk-assign-agents"
-              label="Agents"
+              label={isAgent ? "Admins" : "Agents"}
               users={users ?? []}
               selectedIds={assignUserIds}
               onChange={setAssignUserIds}
-              hint={roundRobinDistributionLabel(assignUserIds, selectedCount)}
+              hint={isAgent ? undefined : roundRobinDistributionLabel(assignUserIds, selectedCount)}
             />
             <DialogFooter>
               <Button variant="outline" onClick={() => setAssignOpen(false)}>
@@ -255,7 +257,13 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
                 onClick={() => void handleAssignSubmit()}
                 disabled={assignUserIds.length === 0 || bulk.assign.isPending}
               >
-                {bulk.assign.isPending ? "Assigning..." : "Assign"}
+                {bulk.assign.isPending
+                  ? isAgent
+                    ? "Returning..."
+                    : "Assigning..."
+                  : isAgent
+                    ? "Return to admin"
+                    : "Assign"}
               </Button>
             </DialogFooter>
           </DialogContent>

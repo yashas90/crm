@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { mapCallOutcome } from "../lib/callOutcomes.js";
+import { maskCallPhoneFields } from "../lib/leadMasking.js";
 import { canEditLead } from "../lib/permissions.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { callsLogRateLimit } from "../middleware/rateLimit.js";
@@ -162,7 +163,13 @@ callsRoute.get("/", async (c) => {
     pageSize: q.pageSize,
   });
 
-  return c.json({ ok: true, data: result });
+  return c.json({
+    ok: true,
+    data: {
+      ...result,
+      items: result.items.map((item) => maskCallPhoneFields(authUser, item)),
+    },
+  });
 });
 
 callsRoute.get("/summary", async (c) => {
