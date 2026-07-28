@@ -8,12 +8,15 @@ import { pruneSecurityWindows } from "../middleware/securityMonitoring.js";
 import { backfillMetaLeads } from "../services/metaLeadBackfillService.js";
 import { syncPagesFormsAndSubscribe } from "../services/metaPageSyncService.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
+import { startAgeOutNewLeadsJob } from "./ageOutNewLeadsJob.js";
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
 import { startLeadScoringJob } from "./leadScoringJob.js";
 import { startNaPoolJob } from "./naPoolJob.js";
+import { reclassifyZeroDurationAnsweredCalls } from "./reclassifyZeroDurationCalls.js";
 import { startSiteVisitReminderJob } from "./siteVisitReminderJob.js";
 import { startSlaBreachJob } from "./slaBreachJob.js";
+import { startTaskDueNotificationJob } from "./taskDueNotificationJob.js";
 
 /** Use BullMQ when Redis is configured; otherwise fall back to in-process timers. */
 export async function startBackgroundJobs() {
@@ -31,9 +34,20 @@ export async function startBackgroundJobs() {
     });
   }
 
+  void reclassifyZeroDurationAnsweredCalls().catch((err) => {
+    logger.warn("Zero-duration call reclassify failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  });
+
   const durable = await startDurableJobQueue();
   if (durable) {
     logger.info("Background jobs running via BullMQ + Redis");
+    // Keep critical notify/classification jobs in-process too so they run even if
+    // BullMQ repeatable registration lags on first boot.
+    startAgeOutNewLeadsJob();
+    startSlaBreachJob();
+    startTaskDueNotificationJob();
     return;
   }
 
@@ -43,6 +57,8 @@ export async function startBackgroundJobs() {
   startDailyFollowUpJobs();
   startNaPoolJob();
   startSlaBreachJob();
+  startAgeOutNewLeadsJob();
+  startTaskDueNotificationJob();
   setInterval(
     () => {
       void syncPagesFormsAndSubscribe().catch((err) => {

@@ -10,6 +10,7 @@ export const NOTIFICATION_TYPES = {
   FOLLOWUP_DUE: "followup_due",
   FOLLOWUP_REMINDER: "followup_reminder",
   TASK_ASSIGNED: "task_assigned",
+  TASK_DUE: "task_due",
   CALL_FOLLOWUP_SET: "call_followup_set",
   SITE_VISIT_REMINDER: "site_visit_reminder",
   SITE_VISIT_SCHEDULED: "site_visit_scheduled",
@@ -18,6 +19,7 @@ export const NOTIFICATION_TYPES = {
   NEW_AD_LEAD: "new_ad_lead",
   SITE_VISIT_CONFIRMED_BY_CLIENT: "site_visit_confirmed_by_client",
   CALLBACK_REQUESTED: "callback_requested",
+  SLA_BREACH: "sla_breach",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -70,6 +72,24 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
         title: "Task assigned",
         body: `You were assigned: ${taskTitle}`,
       };
+    case NOTIFICATION_TYPES.TASK_DUE:
+      return {
+        title: "Task due",
+        body: typeof payload.message === "string" ? payload.message : `Due now: ${taskTitle}`,
+      };
+    case NOTIFICATION_TYPES.SLA_BREACH: {
+      const days =
+        typeof payload.daysSinceActivity === "number" ? payload.daysSinceActivity : undefined;
+      return {
+        title: "SLA breach",
+        body:
+          typeof payload.message === "string"
+            ? payload.message
+            : days != null
+              ? `${leadName} inactive for ${days}+ days`
+              : `${leadName} breached inactivity SLA`,
+      };
+    }
     case NOTIFICATION_TYPES.CALL_FOLLOWUP_SET:
       return {
         title: "Follow-up scheduled",
@@ -173,6 +193,39 @@ export function createNotificationService(db: Database) {
             eq(notifications.type, type),
             sql`${notifications.payload}->>'leadId' = ${leadId}`,
             sql`${notifications.payload}->>'nextFollowupAt' = ${nextFollowupAt}`,
+          ),
+        )
+        .limit(1);
+
+      return Boolean(row);
+    },
+
+    async hasSlaBreachNotification(userId: string, leadId: string) {
+      const [row] = await db
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.userId, userId),
+            eq(notifications.type, NOTIFICATION_TYPES.SLA_BREACH),
+            sql`${notifications.payload}->>'leadId' = ${leadId}`,
+          ),
+        )
+        .limit(1);
+
+      return Boolean(row);
+    },
+
+    async hasTaskDueNotification(userId: string, taskId: string, dueAt: string) {
+      const [row] = await db
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.userId, userId),
+            eq(notifications.type, NOTIFICATION_TYPES.TASK_DUE),
+            sql`${notifications.payload}->>'taskId' = ${taskId}`,
+            sql`${notifications.payload}->>'dueAt' = ${dueAt}`,
           ),
         )
         .limit(1);

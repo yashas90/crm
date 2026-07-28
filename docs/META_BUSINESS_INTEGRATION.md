@@ -113,7 +113,15 @@ Then in Meta: Callback URL `https://<api-host>/api/integrations/meta/webhook`, s
 
 OAuth scopes: `business_management`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`, `pages_manage_ads`, `leads_retrieval`, `ads_management`, `ads_read`.
 
-## CAPI status mapping
+## Conversions API (CAPI) — enable checklist
+
+1. Set `META_CAPI_ENABLED=true` on the API (Railway). Optional: `META_CAPI_TEST_EVENT_CODE` from Events Manager → Test Events while validating.
+2. **Settings → Integrations → Meta** → **Connect Meta** (scopes must include `ads_read` / `ads_management` so pixels sync).
+3. Click **Sync assets** — pixels appear under **Pixels / CAPI**.
+4. **Enable** the pixel you use for ads, then **Set default**.
+5. Confirm the CAPI banner shows **Enabled · N ready pixel(s)**.
+6. Change a lead status (`new` / `contacted` / `qualified` / `won`) or click **Flush pending events**.
+7. In Meta **Events Manager** → your Pixel → **Overview** / **Test Events**, confirm server events arrive (often within a few minutes).
 
 | CRM status | CAPI event |
 |------------|------------|
@@ -123,7 +131,7 @@ OAuth scopes: `business_management`, `pages_show_list`, `pages_read_engagement`,
 | site visit scheduled | Schedule |
 | `won` | Purchase |
 
-PII fields are SHA-256 hashed per Meta requirements. Events are deduped by `event_id` in `facebook_conversion_events`.
+PII fields are SHA-256 hashed per Meta requirements. Events are deduped by `event_id` in `facebook_conversion_events`. PATCH `/api/meta/pixels/:id` controls `isActive` / `isSelected` / `isDefault`.
 
 ## Notes vs requested stack
 

@@ -7,7 +7,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 import { db } from "./db.js";
 
-export type PromoteNewLeadReason = "call_logged" | "follow_up_set" | "contact_touch";
+export type PromoteNewLeadReason =
+  | "call_logged"
+  | "follow_up_set"
+  | "contact_touch"
+  | "aged_24h"
+  | "backfill_contacted";
 
 export async function promoteNewLeadToContacted(
   leadId: string,

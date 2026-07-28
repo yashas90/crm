@@ -7,7 +7,7 @@ import {
   tasks,
   users,
 } from "@propninja/db";
-import { getIstDateKey } from "@propninja/types/ist";
+import { getIstDateKey, getIstDayBounds, getIstMonthBounds } from "@propninja/types/ist";
 import { and, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { answeredCallFilter, connectedTalkTimeFilter } from "../lib/callTalkTime.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
@@ -37,22 +37,15 @@ const PIPELINE_STAGES = ["new", "contacted", "negotiation", "won"] as const;
 
 const LEAD_STATUS_ORDER = ["new", "contacted", "qualified", "negotiation", "won", "lost"] as const;
 
+/** Today / offset day in IST (CRM operating timezone). */
 function calendarDayRange(offsetDays = 0) {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() + offsetDays);
-  const end = new Date(start);
-  end.setHours(23, 59, 59, 999);
+  const { start, end } = getIstDayBounds(offsetDays);
   return { start, end };
 }
 
+/** Month-to-date in IST (1st 00:00 → end of today). */
 function calendarMonthRange() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
+  return getIstMonthBounds();
 }
 
 function buildStatusBreakdown(rows: { status: string; count: number }[], overdueCount: number) {
@@ -390,13 +383,16 @@ function siteVisitsCountExpr(query: CallsReportQuery, mode: "booked" | "conducte
 
   // Booked = when the visit was scheduled (created_at in range).
   // Conducted = visits completed whose appointment day falls in range.
+  // Dates must be ISO strings in sql`` — postgres.js rejects Date bind params.
   if (mode === "booked") {
+    const createdFrom = scope.dateFrom.toISOString();
+    const createdTo = scope.dateTo.toISOString();
     return sql<number>`coalesce((
       select count(*)::int from ${siteVisits} sv
       where sv.agent_id = ${users.id}
       and sv.org_id = ${SINGLE_TENANT_ORG_ID}
-      and sv.created_at >= ${scope.dateFrom}
-      and sv.created_at <= ${scope.dateTo}
+      and sv.created_at >= ${createdFrom}
+      and sv.created_at <= ${createdTo}
       and sv.status <> 'cancelled'
       and ${leadFilterSql}
     ), 0)::int`;
@@ -1774,7 +1770,7 @@ export const reportService = {
       db
         .select({
           callsMade: sql<number>`count(*)::int`,
-          callsAnswered: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
+          callsAnswered: sql<number>`count(*) filter (where ${answeredCall})::int`,
         })
         .from(callRecords)
         .where(
@@ -1787,7 +1783,7 @@ export const reportService = {
       db
         .select({
           totalCalls: sql<number>`count(*)::int`,
-          answeredCalls: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
+          answeredCalls: sql<number>`count(*) filter (where ${answeredCall})::int`,
           avgDurationSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${connectedTalk})), 0)::int`,
         })
         .from(callRecords)

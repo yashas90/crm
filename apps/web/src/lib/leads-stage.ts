@@ -100,7 +100,8 @@ type StageQuerySlice = {
 /**
  * Map a stage chip to list API filters.
  * - Active = open pipeline excluding untouched `new` (worked / updated leads).
- * - Pending uses lead_status=contacted (called/touched, awaiting further update).
+ * - New = `lead_status=new` and created within 24h (API enforces freshness).
+ * - Pending = `lead_status=contacted` (called/touched or aged past 24h).
  * - EOI uses lead_status=qualified (pipeline stage before negotiation).
  */
 export function stageToQueryParams(stage: LeadsStage): StageQuerySlice {

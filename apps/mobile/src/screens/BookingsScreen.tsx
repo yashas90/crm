@@ -1,5 +1,6 @@
 import { ErrorState } from "@/components/ui/ErrorState";
 import { type BookingListItem, currentMonthIsoRange, useBookingsList } from "@/hooks/use-projects";
+import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -35,6 +36,8 @@ export function BookingsScreen({ navigation }: Props) {
     dateTo: defaultRange.dateTo,
     search: search.trim() || undefined,
   });
+
+  useRefreshOnFocus(refetch);
 
   if (isLoading) {
     return (

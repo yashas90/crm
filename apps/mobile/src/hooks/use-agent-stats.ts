@@ -3,7 +3,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/providers/auth-provider";
 import { useQuery } from "@tanstack/react-query";
 
-const STALE_TIME_MS = 5 * 60 * 1000;
+const STALE_TIME_MS = 30 * 1000;
+const REFETCH_INTERVAL_MS = 60 * 1000;
 
 export type AgentStatsToday = {
   callsMade: number;
@@ -61,5 +62,8 @@ export function useAgentStats(agentId?: string) {
     queryFn: () => apiGet<AgentStats>(path),
     enabled: status === "authenticated",
     staleTime: STALE_TIME_MS,
+    refetchInterval: REFETCH_INTERVAL_MS,
+    refetchOnMount: "always",
+    refetchOnReconnect: true,
   });
 }

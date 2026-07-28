@@ -24,10 +24,13 @@ import {
   useMetaConnect,
   useMetaDashboard,
   useMetaDisconnect,
+  useMetaFlushConversions,
   useMetaForms,
   useMetaPages,
   useMetaPatchForm,
   useMetaPatchPage,
+  useMetaPatchPixel,
+  useMetaPixels,
   useMetaReconnectPage,
   useMetaSync,
   useMetaSyncAssets,
@@ -57,7 +60,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
-type MetaTab = "accounts" | "pages" | "forms" | "ads";
+type MetaTab = "accounts" | "pages" | "forms" | "ads" | "pixels";
 type AssigneeMode = "selected" | "all";
 
 function Kpi({ label, value }: { label: string; value: number | string }) {
@@ -103,6 +106,7 @@ function MetaDashboardInner() {
   const campaigns = useMetaCampaigns({ enabled: ready && canView && tab === "ads" });
   const adsets = useMetaAdsets({ enabled: ready && canView && tab === "ads" });
   const ads = useMetaAds({ enabled: ready && canView && tab === "ads" });
+  const pixels = useMetaPixels({ enabled: ready && canView });
   const syncHistory = useMetaSyncHistory({ enabled: ready && canView });
   const webhookHealth = useMetaWebhookHealth({ enabled: ready && canView });
   const projects = useProjects();
@@ -138,6 +142,8 @@ function MetaDashboardInner() {
   const patchPage = useMetaPatchPage();
   const reconnectPage = useMetaReconnectPage();
   const patchForm = useMetaPatchForm();
+  const patchPixel = useMetaPatchPixel();
+  const flushConversions = useMetaFlushConversions();
 
   useEffect(() => {
     const meta = searchParams.get("meta");
@@ -280,7 +286,9 @@ function MetaDashboardInner() {
     refreshToken.isPending ||
     patchPage.isPending ||
     reconnectPage.isPending ||
-    patchForm.isPending;
+    patchForm.isPending ||
+    patchPixel.isPending ||
+    flushConversions.isPending;
 
   async function handleConnect() {
     const result = await connect.mutateAsync();
@@ -296,6 +304,7 @@ function MetaDashboardInner() {
     void campaigns.refetch();
     void adsets.refetch();
     void ads.refetch();
+    void pixels.refetch();
     void syncHistory.refetch();
   }
 
@@ -374,6 +383,7 @@ function MetaDashboardInner() {
     { id: "pages", label: "Pages", count: pages.data?.length ?? 0 },
     { id: "forms", label: "Forms", count: forms.data?.length ?? 0 },
     { id: "ads", label: "Ads", count: ads.data?.length ?? 0 },
+    { id: "pixels", label: "Pixels / CAPI", count: pixels.data?.length ?? 0 },
   ];
 
   return (
@@ -582,12 +592,50 @@ function MetaDashboardInner() {
             ) : null}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
             <Kpi label="Businesses" value={businesses.data?.length ?? 0} />
             <Kpi label="Ad accounts" value={adAccounts.data?.length ?? 0} />
             <Kpi label="Pages" value={pages.data?.length ?? 0} />
             <Kpi label="Lead forms" value={forms.data?.length ?? 0} />
+            <Kpi label="Pixels" value={pixels.data?.length ?? 0} />
             <Kpi label="Leads (30d)" value={dashboard.data?.leads.last30Days ?? 0} />
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">Conversions API (CAPI)</p>
+                <p className="text-muted-foreground">
+                  {dashboard.data?.capi?.enabled
+                    ? `Enabled · ${dashboard.data.capi.readyPixels} ready pixel(s)`
+                    : "Disabled on server — set META_CAPI_ENABLED=true"}
+                  {dashboard.data?.conversionEvents
+                    ? ` · sent ${dashboard.data.conversionEvents.sent ?? 0}, pending ${dashboard.data.conversionEvents.pending ?? 0}, failed ${dashboard.data.conversionEvents.failed ?? 0}`
+                    : null}
+                </p>
+              </div>
+              {canManage && connected ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      const result = await flushConversions.mutateAsync();
+                      setBanner(`CAPI flush: ${result.sent} sent, ${result.failed} failed.`);
+                      void dashboard.refetch();
+                    } catch {
+                      setBanner(
+                        "CAPI flush failed. Confirm a pixel is enabled and Meta is connected.",
+                      );
+                    }
+                  }}
+                >
+                  Flush pending events
+                </Button>
+              ) : null}
+            </div>
           </div>
 
           {connected && (dashboard.data?.leads.last30Days ?? 0) === 0 ? (
@@ -920,6 +968,85 @@ function MetaDashboardInner() {
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )
+              ) : null}
+
+              {tab === "pixels" ? (
+                pixels.data?.length === 0 ? (
+                  <EmptyRows message="No pixels synced. Click Sync assets after Connect Meta (needs ads_read access)." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-left text-sm">
+                      <thead className="border-b text-xs uppercase text-muted-foreground">
+                        <tr>
+                          <th className="pb-2 pr-3 font-medium">Pixel</th>
+                          <th className="pb-2 pr-3 font-medium">Pixel ID</th>
+                          <th className="pb-2 pr-3 font-medium">Status</th>
+                          <th className="pb-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(pixels.data ?? []).map((pixel) => (
+                          <tr key={pixel.id} className="border-b border-border/60">
+                            <td className="py-3 pr-3 font-medium">
+                              {pixel.name}
+                              {pixel.isDefault ? (
+                                <Badge className="ml-2" variant="secondary">
+                                  Default
+                                </Badge>
+                              ) : null}
+                            </td>
+                            <td className="py-3 pr-3 font-mono text-xs">{pixel.pixelId}</td>
+                            <td className="py-3 pr-3">
+                              <StatusBadge active={pixel.isActive && pixel.isSelected} />
+                            </td>
+                            <td className="py-3">
+                              {canManage ? (
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      void patchPixel.mutateAsync({
+                                        id: pixel.id,
+                                        isActive: !(pixel.isActive && pixel.isSelected),
+                                        isSelected: !(pixel.isActive && pixel.isSelected),
+                                      })
+                                    }
+                                  >
+                                    {pixel.isActive && pixel.isSelected ? "Disable" : "Enable"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    disabled={busy || pixel.isDefault}
+                                    onClick={() =>
+                                      void patchPixel.mutateAsync({
+                                        id: pixel.id,
+                                        isDefault: true,
+                                        isActive: true,
+                                        isSelected: true,
+                                      })
+                                    }
+                                  >
+                                    Set default
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      CAPI sends Lead / Contact / QualifiedLead / Purchase to the default enabled
+                      pixel when lead status changes. Check Meta Events Manager → Test Events after
+                      updating a lead.
+                    </p>
                   </div>
                 )
               ) : null}

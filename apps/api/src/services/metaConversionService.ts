@@ -3,7 +3,7 @@
  * `facebook_conversion_events` row per CRM lifecycle transition and sends
  * pending events to Meta in batches (grouped by pixel).
  */
-import { facebookConversionEvents, facebookPixels, leads } from "@propninja/db";
+import { facebookConversionEvents, facebookLeads, facebookPixels, leads } from "@propninja/db";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
@@ -12,6 +12,7 @@ import { logger } from "../lib/logger.js";
 import {
   type CapiEvent,
   buildCapiUserData,
+  buildCrmCapiCustomData,
   generateEventId,
   sendCapiEvents,
 } from "../lib/metaCapi.js";
@@ -32,7 +33,70 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
+async function ensurePreferredPixel(orgId: string) {
+  const preferredPixelId = process.env.META_CAPI_PIXEL_ID?.trim();
+  if (!preferredPixelId) return null;
+
+  const existing = await db
+    .select()
+    .from(facebookPixels)
+    .where(and(eq(facebookPixels.orgId, orgId), eq(facebookPixels.pixelId, preferredPixelId)))
+    .limit(1);
+
+  if (existing[0]) {
+    if (!existing[0].isActive || !existing[0].isSelected || !existing[0].isDefault) {
+      await db
+        .update(facebookPixels)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(eq(facebookPixels.orgId, orgId));
+      const [updated] = await db
+        .update(facebookPixels)
+        .set({
+          isActive: true,
+          isSelected: true,
+          isDefault: true,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(facebookPixels.orgId, orgId), eq(facebookPixels.pixelId, preferredPixelId)))
+        .returning();
+      return updated ?? existing[0];
+    }
+    return existing[0];
+  }
+
+  await db
+    .update(facebookPixels)
+    .set({ isDefault: false, updatedAt: new Date() })
+    .where(eq(facebookPixels.orgId, orgId));
+
+  const [created] = await db
+    .insert(facebookPixels)
+    .values({
+      orgId,
+      pixelId: preferredPixelId,
+      name: process.env.META_CAPI_PIXEL_NAME?.trim() || "ninja",
+      isActive: true,
+      isSelected: true,
+      isDefault: true,
+    })
+    .onConflictDoUpdate({
+      target: [facebookPixels.orgId, facebookPixels.pixelId],
+      set: {
+        isActive: true,
+        isSelected: true,
+        isDefault: true,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+
+  return created ?? null;
+}
+
 async function resolveDefaultPixel(orgId: string) {
+  const preferred = await ensurePreferredPixel(orgId);
+  if (preferred) return preferred;
+
   const [pixel] = await db
     .select()
     .from(facebookPixels)
@@ -89,9 +153,55 @@ export async function enqueueConversionForLeadStatusChange(
 
   const pixel = await resolveDefaultPixel(orgId);
   if (!pixel) {
-    logger.warn("Meta CAPI event skipped — no active pixel configured", { orgId, leadId });
-    return { sent: false, skipped: true, reason: "no_pixel" };
+    // Fall back to any active pixel if none marked selected (common after first sync).
+    const [fallback] = await db
+      .select()
+      .from(facebookPixels)
+      .where(and(eq(facebookPixels.orgId, orgId), eq(facebookPixels.isActive, true)))
+      .orderBy(desc(facebookPixels.isDefault), desc(facebookPixels.updatedAt))
+      .limit(1);
+    if (!fallback) {
+      logger.warn("Meta CAPI event skipped — no active pixel configured", { orgId, leadId });
+      return { sent: false, skipped: true, reason: "no_pixel" };
+    }
+    return enqueueWithPixel(leadId, status, orgId, lead, eventName, fallback);
   }
+
+  return enqueueWithPixel(leadId, status, orgId, lead, eventName, pixel);
+}
+
+async function enqueueWithPixel(
+  leadId: string,
+  _status: string,
+  orgId: string,
+  lead: {
+    id: string;
+    email: string | null;
+    phone: string | null;
+    firstName: string;
+    lastName: string;
+    city: string | null;
+    state: string | null;
+    country: string | null;
+  },
+  eventName: string,
+  pixel: typeof facebookPixels.$inferSelect,
+): Promise<EnqueueConversionResult> {
+  const [metaLead] = await db
+    .select({
+      leadgenId: facebookLeads.leadgenId,
+      fbc: facebookLeads.fbc,
+      fbp: facebookLeads.fbp,
+      fbclid: facebookLeads.fbclid,
+    })
+    .from(facebookLeads)
+    .where(and(eq(facebookLeads.orgId, orgId), eq(facebookLeads.leadId, lead.id)))
+    .orderBy(desc(facebookLeads.ingestedAt))
+    .limit(1);
+
+  const fbc =
+    metaLead?.fbc?.trim() ||
+    (metaLead?.fbclid?.trim() ? `fb.1.${Date.now()}.${metaLead.fbclid.trim()}` : null);
 
   const eventId = generateEventId(`lead-${leadId}`);
   const userData = buildCapiUserData({
@@ -103,6 +213,9 @@ export async function enqueueConversionForLeadStatusChange(
     state: lead.state,
     country: lead.country,
     externalId: lead.id,
+    metaLeadId: metaLead?.leadgenId,
+    fbc,
+    fbp: metaLead?.fbp,
   });
 
   let recordId: string;
@@ -118,7 +231,7 @@ export async function enqueueConversionForLeadStatusChange(
         eventTime: new Date(),
         actionSource: "system_generated",
         userData,
-        customData: { leadId: lead.id, leadStatus: status },
+        customData: buildCrmCapiCustomData({ leadId: lead.id, leadStatus: _status }),
         status: "pending",
       })
       .returning({ id: facebookConversionEvents.id });

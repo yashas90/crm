@@ -80,11 +80,11 @@ export function TaskDetailSheet({ taskId, visible, onClose, onViewLead }: TaskDe
                     <Text style={styles.primaryBtnText}>Mark complete</Text>
                   </Pressable>
                 ) : null}
-                {task.lead ? (
+                {task.leadId || task.lead ? (
                   <Pressable
                     style={styles.secondaryBtn}
                     onPress={() => {
-                      const leadId = task.lead!.id;
+                      const leadId = task.leadId ?? task.lead!.id;
                       onClose();
                       InteractionManager.runAfterInteractions(() => {
                         onViewLead(leadId);
@@ -93,7 +93,8 @@ export function TaskDetailSheet({ taskId, visible, onClose, onViewLead }: TaskDe
                   >
                     <Ionicons name="person-outline" size={18} color={colors.primary} />
                     <Text style={styles.secondaryBtnText}>
-                      View {task.lead.firstName} {task.lead.lastName}
+                      View{" "}
+                      {task.lead ? `${task.lead.firstName} ${task.lead.lastName}`.trim() : "lead"}
                     </Text>
                   </Pressable>
                 ) : null}

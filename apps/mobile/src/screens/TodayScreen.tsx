@@ -41,16 +41,7 @@ import {
 } from "@propninja/types/ist";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useCallback, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function greeting() {
@@ -334,7 +325,7 @@ export function TodayScreen({ route, navigation }: Props) {
         dialerLog.dismissPending();
         setSavedToast("Marked not interested");
         setTimeout(() => setSavedToast(null), 1200);
-        await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
+        void Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
         const nextLead = browserQueue.find((item) => item.id !== lead.id);
         if (nextLead) {
           openLeadDetail(nextLead);
@@ -342,13 +333,13 @@ export function TodayScreen({ route, navigation }: Props) {
         return;
       }
 
-      await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
       setStatusSheetOpen(false);
       setStatusSheetAfterCall(false);
       setPostCallLeadId(null);
       dialerLog.dismissPending();
       setSavedToast(afterCall ? "Call logged · status updated" : "Lead status updated");
       setTimeout(() => setSavedToast(null), 2500);
+      void Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
     } catch (err) {
       Alert.alert("Error", err instanceof Error ? err.message : "Could not update lead.");
     }
@@ -368,11 +359,7 @@ export function TodayScreen({ route, navigation }: Props) {
   const isLoading = (queue.isLoading || calls.isLoading || summary.isLoading) && !queue.data;
 
   if (isLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
+    return <ListSkeleton rows={5} />;
   }
 
   if (queue.isError && !queue.data) {

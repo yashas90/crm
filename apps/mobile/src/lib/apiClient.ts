@@ -73,6 +73,7 @@ const RETRY_BASE_DELAY_MS = 800;
 const RATE_LIMIT_RETRY_DELAY_MS = 1500;
 const MAX_TRANSIENT_RETRIES = 1;
 const REQUEST_TIMEOUT_MS = 45_000;
+const JSON_READ_TIMEOUT_MS = 15_000;
 
 const NETWORK_ERROR_MESSAGE = "Connection issue. Check your mobile data or Wi‑Fi and try again.";
 
@@ -94,6 +95,36 @@ function sleep(ms: number) {
   });
 }
 
+function abortError() {
+  const err = new Error("Aborted");
+  err.name = "AbortError";
+  return err;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => reject(abortError()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
+function toNetworkError(err: unknown): ApiRequestError {
+  const timedOut = err instanceof Error && err.name === "AbortError";
+  return new ApiRequestError(
+    "NETWORK_ERROR",
+    timedOut ? TIMEOUT_ERROR_MESSAGE : NETWORK_ERROR_MESSAGE,
+  );
+}
+
 export async function refreshAccessToken(): Promise<boolean> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
@@ -101,13 +132,21 @@ export async function refreshAccessToken(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${getApiUrl()}/api/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ refreshToken }),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      let response: Response;
+      try {
+        response = await fetch(`${getApiUrl()}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ refreshToken }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (!response.ok) return false;
-      const json = (await response.json()) as
+      const json = (await withTimeout(response.json(), JSON_READ_TIMEOUT_MS)) as
         | ApiSuccess<{
             token: string;
             refreshToken: string;
@@ -116,9 +155,9 @@ export async function refreshAccessToken(): Promise<boolean> {
       if (!json.ok) return false;
       await updateTokens(json.data.token, json.data.refreshToken);
       return true;
-    } catch {
+    } catch (err) {
       // Network failure — do not treat as invalid session (caller keeps refresh token).
-      throw new ApiRequestError("NETWORK_ERROR", NETWORK_ERROR_MESSAGE);
+      throw toNetworkError(err);
     } finally {
       refreshPromise = null;
     }
@@ -152,11 +191,7 @@ async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptio
   try {
     response = await fetch(url, { ...requestInit, headers, signal: controller.signal });
   } catch (err) {
-    const timedOut = err instanceof Error && err.name === "AbortError";
-    throw new ApiRequestError(
-      "NETWORK_ERROR",
-      timedOut ? TIMEOUT_ERROR_MESSAGE : NETWORK_ERROR_MESSAGE,
-    );
+    throw toNetworkError(err);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -173,7 +208,12 @@ async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptio
     );
   }
 
-  const json = (await response.json()) as ApiSuccess<T> | ApiError;
+  let json: ApiSuccess<T> | ApiError;
+  try {
+    json = (await withTimeout(response.json(), JSON_READ_TIMEOUT_MS)) as ApiSuccess<T> | ApiError;
+  } catch (err) {
+    throw toNetworkError(err);
+  }
 
   if (!response.ok || !json.ok) {
     const error = json.ok ? { code: "HTTP_ERROR", message: response.statusText } : json.error;

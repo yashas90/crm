@@ -1,4 +1,6 @@
 import { TaskDetailSheet, isTaskOverdue } from "@/components/TaskDetailSheet";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { ListSkeleton } from "@/components/ui/Skeleton";
 import { type Task, useMyOpenTasks } from "@/hooks/use-tasks";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { LeadsStackParamList, MainTabParamList } from "@/navigation/types";
@@ -7,10 +9,10 @@ import { TAB_BAR_HEIGHT } from "@/theme/layout";
 import { screenStyles } from "@/theme/screen";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import type { CompositeScreenProps } from "@react-navigation/native";
+import { CommonActions, type CompositeScreenProps } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = CompositeScreenProps<
@@ -48,12 +50,35 @@ function TaskListRow({ task, onPress }: { task: Task; onPress: () => void }) {
 
 export function TasksScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { data, isLoading, refetch, isRefetching } = useMyOpenTasks();
+  const { data, isLoading, isError, error, refetch, isRefetching } = useMyOpenTasks();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   useRefreshOnFocus(refetch);
 
   const tasks = data?.items ?? [];
+  const openCount = data?.total ?? tasks.length;
+
+  if (isLoading && !data) {
+    return (
+      <View style={[styles.container, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom }]}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle} testID="tasks-screen-title">
+            My tasks
+          </Text>
+        </View>
+        <ListSkeleton rows={5} />
+      </View>
+    );
+  }
+
+  if (isError && !data) {
+    return (
+      <ErrorState
+        message={error instanceof Error ? error.message : undefined}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingBottom: TAB_BAR_HEIGHT + insets.bottom }]}>
@@ -61,12 +86,10 @@ export function TasksScreen({ navigation }: Props) {
         <Text style={styles.headerTitle} testID="tasks-screen-title">
           My tasks
         </Text>
-        <Text style={styles.headerSubtitle}>{tasks.length} open · sorted by due date</Text>
+        <Text style={styles.headerSubtitle}>{openCount} open · sorted by due date</Text>
       </View>
 
-      {isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
-      ) : tasks.length === 0 ? (
+      {tasks.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="checkmark-done-outline" size={48} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>All caught up</Text>
@@ -91,10 +114,17 @@ export function TasksScreen({ navigation }: Props) {
         onClose={() => setSelectedTaskId(null)}
         onViewLead={(leadId) => {
           setSelectedTaskId(null);
-          navigation.navigate("LeadsTab", {
-            screen: "LeadDetailScreen",
-            params: { leadId, initialTab: "tasks" },
-          });
+          // Reset Leads stack onto Lead Detail so we don't land on the New/list screen.
+          navigation.dispatch(
+            CommonActions.navigate({
+              name: "LeadsTab",
+              params: {
+                screen: "LeadDetailScreen",
+                params: { leadId, initialTab: "tasks" },
+                initial: false,
+              },
+            }),
+          );
         }}
       />
     </View>

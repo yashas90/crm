@@ -77,7 +77,7 @@ function removeTaskFromOpenLists(queryClient: QueryClient, taskId: string) {
 }
 
 async function fetchMyOpenTasks() {
-  const data = await apiGet<OpenTasksList>("/api/tasks?assigneeId=me&status=open&pageSize=100");
+  const data = await apiGet<OpenTasksList>("/api/tasks?assigneeId=me&status=open&pageSize=500");
   const items = [...data.items]
     .filter((task) => isOpenTaskStatus(task.status))
     .sort((a, b) => {
@@ -86,7 +86,8 @@ async function fetchMyOpenTasks() {
       if (!b.dueAt) return -1;
       return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
     });
-  return { ...data, items, total: items.length };
+  // Prefer server total so the badge/count drops when completing (page may still be capped).
+  return { ...data, items, total: Math.max(data.total ?? 0, items.length) };
 }
 
 function markTaskCompletedInCaches(
@@ -134,6 +135,7 @@ export function useMyOpenTasks() {
     queryFn: fetchMyOpenTasks,
     enabled: ready,
     staleTime: TASK_STALE_MS,
+    meta: { suppressErrorToast: true },
   });
 }
 
@@ -151,6 +153,7 @@ export function useTeamTasksDueToday() {
       ),
     enabled: ready,
     staleTime: TASK_STALE_MS,
+    meta: { suppressErrorToast: true },
   });
 }
 
@@ -195,12 +198,17 @@ export function useCreateTask() {
 export function useCompleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (taskId: string) => apiPatch<Task>(`/api/tasks/${taskId}/complete`, {}),
+    mutationFn: (taskId: string) => apiPost<Task>(`/api/tasks/${taskId}/complete`, {}),
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
+      await queryClient.cancelQueries({ queryKey: ["task", taskId] });
+
       const previousOpen = queryClient.getQueryData<OpenTasksList>(MY_OPEN_TASKS_KEY);
       const previousTask = queryClient.getQueryData<Task>(["task", taskId]);
-      const leadId = previousTask?.leadId ?? undefined;
+      const leadId =
+        previousTask?.leadId ??
+        previousOpen?.items.find((task) => task.id === taskId)?.leadId ??
+        undefined;
       const previousLeadTasks = leadId
         ? queryClient.getQueryData<OpenTasksList>(["tasks", "lead", leadId])
         : undefined;
@@ -228,7 +236,17 @@ export function useCompleteTask() {
         data.leadId,
         data.completedAt ?? new Date().toISOString(),
       );
-      await syncTaskCaches(queryClient, taskId, data.leadId);
+      // Soft refresh in background — keep optimistic removal so the row stays gone.
+      void queryClient.invalidateQueries({
+        queryKey: MY_OPEN_TASKS_KEY,
+        refetchType: "active",
+      });
+      if (data.leadId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["tasks", "lead", data.leadId],
+          refetchType: "active",
+        });
+      }
     },
   });
 }

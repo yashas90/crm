@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { QueryErrorBanner } from "@/components/ui/QueryErrorBanner";
+import { ListSkeleton } from "@/components/ui/Skeleton";
 import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-leads";
 import { useIsAgent } from "@/hooks/use-role";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -159,11 +160,7 @@ export function LeadsScreen({ navigation }: Props) {
       ];
 
   if (isLoading && !data) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <ListSkeleton rows={5} />;
   }
 
   const showFatalError = isError && !data && !isLoading && !isRefetching;

@@ -45,6 +45,10 @@ type CallLogModalProps = {
 
 const AUTO_SUBMIT_SECONDS = 8;
 
+function defaultOutcomeFromDuration(seconds: number | undefined): CallOutcome {
+  return (seconds ?? 0) > 0 ? "answered" : "no_answer";
+}
+
 const OUTCOME_CHIPS: { value: CallOutcome; label: string; icon: string }[] = [
   { value: "answered", label: "Answered", icon: "checkmark-circle" },
   { value: "no_answer", label: "No Answer", icon: "close-circle" },
@@ -79,7 +83,9 @@ export function CallLogModal({
   showSaveAndNext = false,
   reviewOnly = false,
 }: CallLogModalProps) {
-  const [outcome, setOutcome] = useState<CallOutcome>("answered");
+  const [outcome, setOutcome] = useState<CallOutcome>(() =>
+    defaultOutcomeFromDuration(defaultDurationSeconds),
+  );
   const [durationSeconds, setDurationSeconds] = useState(String(defaultDurationSeconds));
   const [ringSeconds, setRingSeconds] = useState("0");
   const [showNotes, setShowNotes] = useState(false);
@@ -93,7 +99,7 @@ export function CallLogModal({
     if (visible) {
       setDurationSeconds(String(defaultDurationSeconds));
       setRingSeconds("0");
-      setOutcome("answered");
+      setOutcome(defaultOutcomeFromDuration(defaultDurationSeconds));
       setShowNotes(false);
       setNotes("");
       setDropdownOpen(false);
@@ -119,7 +125,7 @@ export function CallLogModal({
           clearInterval(tick);
           if (!timerTouched.current) {
             onSubmit({
-              outcome: "answered",
+              outcome: defaultOutcomeFromDuration(defaultDurationSeconds),
               durationSeconds: defaultDurationSeconds,
               ringSeconds: 0,
             });

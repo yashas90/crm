@@ -18,6 +18,7 @@ import {
 import { and, count, desc, eq, gte, lt } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import { env } from "../lib/env.js";
 
 function startOfDay(daysAgo = 0): Date {
   const d = new Date();
@@ -57,6 +58,20 @@ async function countPixels(orgId: string) {
     .select({ value: count() })
     .from(facebookPixels)
     .where(eq(facebookPixels.orgId, orgId));
+  return row?.value ?? 0;
+}
+
+async function countReadyPixels(orgId: string) {
+  const [row] = await db
+    .select({ value: count() })
+    .from(facebookPixels)
+    .where(
+      and(
+        eq(facebookPixels.orgId, orgId),
+        eq(facebookPixels.isActive, true),
+        eq(facebookPixels.isSelected, true),
+      ),
+    );
   return row?.value ?? 0;
 }
 
@@ -105,17 +120,22 @@ export type MetaDashboardData = {
   };
   webhooks: Record<string, number>;
   conversionEvents: Record<string, number>;
+  capi: {
+    enabled: boolean;
+    readyPixels: number;
+  };
 };
 
 export async function getMetaDashboard(
   orgId: string = SINGLE_TENANT_ORG_ID,
 ): Promise<MetaDashboardData> {
-  const [businesses, pages, pixels, forms, adAccounts] = await Promise.all([
+  const [businesses, pages, pixels, forms, adAccounts, readyPixels] = await Promise.all([
     countBusinesses(orgId),
     countPages(orgId),
     countPixels(orgId),
     countForms(orgId),
     countAdAccounts(orgId),
+    countReadyPixels(orgId),
   ]);
 
   const today = startOfDay(0);
@@ -195,5 +215,9 @@ export async function getMetaDashboard(
     },
     webhooks: Object.fromEntries(webhookRows.map((r) => [r.status, r.value])),
     conversionEvents: Object.fromEntries(conversionRows.map((r) => [r.status, r.value])),
+    capi: {
+      enabled: env.META_CAPI_ENABLED,
+      readyPixels,
+    },
   };
 }

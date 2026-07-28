@@ -68,6 +68,7 @@ export function useCallLogsInfinite(filters: {
       return lastPage.page + 1;
     },
     enabled: ready,
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -84,6 +85,8 @@ export function useCallLogsSummaryBar() {
         `/api/calls/summary?${callsSummaryQuery(today.dateFrom, today.dateTo)}`,
       ),
     enabled: ready,
+    staleTime: 5 * 60_000,
+    meta: { suppressErrorToast: true },
   });
 
   const weekQuery = useQuery({
@@ -93,10 +96,12 @@ export function useCallLogsSummaryBar() {
         `/api/calls/summary?${callsSummaryQuery(week.dateFrom, week.dateTo)}`,
       ),
     enabled: ready,
+    staleTime: 5 * 60_000,
+    meta: { suppressErrorToast: true },
   });
 
   const weekTotal = weekQuery.data?.total_calls ?? 0;
-  const weekAnswered = weekQuery.data?.completed_calls ?? 0;
+  const weekAnswered = weekQuery.data?.answered_calls ?? weekQuery.data?.completed_calls ?? 0;
   const answeredPercent =
     weekTotal > 0 ? Math.round((weekAnswered / weekTotal) * 100) : weekQuery.isSuccess ? 0 : null;
 

@@ -52,7 +52,7 @@ const listTasksSchema = z.object({
   dueBefore: z.string().optional(),
   dueAfter: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  pageSize: z.coerce.number().int().min(1).max(500).default(25),
 });
 
 function resolveListParams(
@@ -142,12 +142,13 @@ tasksRoutes.post("/bulk", writeRateLimit, validate("json", bulkActionSchema), as
       const reassignedTasks = await taskService.getByIds(result.succeeded);
       await Promise.all(
         reassignedTasks
-          .filter((task) => task.assignedTo && task.assignedTo !== authUser.id)
+          .filter((task) => task.assignedTo)
           .map((task) =>
             notifications.createNotification(task.assignedTo!, NOTIFICATION_TYPES.TASK_ASSIGNED, {
               taskId: task.id,
               taskTitle: task.title,
               leadId: task.leadId ?? undefined,
+              createdBy: authUser.name ?? authUser.email ?? "Someone",
             }),
           ),
       );
@@ -182,14 +183,14 @@ tasksRoutes.post("/", writeRateLimit, validate("json", createTaskSchema), async 
     assignedTo: assigneeId,
   });
 
-  if (assigneeId !== authUser.id) {
-    const notifications = createNotificationService(c.get("db"));
-    await notifications.createNotification(assigneeId, NOTIFICATION_TYPES.TASK_ASSIGNED, {
-      taskId: task.id,
-      taskTitle: task.title,
-      leadId: task.leadId ?? undefined,
-    });
-  }
+  // Notify assignee for every new task (including self-assigned).
+  const notifications = createNotificationService(c.get("db"));
+  await notifications.createNotification(assigneeId, NOTIFICATION_TYPES.TASK_ASSIGNED, {
+    taskId: task.id,
+    taskTitle: task.title,
+    leadId: task.leadId ?? undefined,
+    createdBy: authUser.name ?? authUser.email ?? "Someone",
+  });
 
   return jsonOk(c, task, undefined, 201);
 });
@@ -223,12 +224,13 @@ tasksRoutes.patch("/:id", writeRateLimit, validate("json", updateTaskSchema), as
   if (!task) return jsonError(c, "NOT_FOUND", "Task not found", 404);
 
   const newAssignee = body.assignedTo ?? undefined;
-  if (newAssignee && newAssignee !== existing.assignedTo && newAssignee !== authUser.id) {
+  if (newAssignee && newAssignee !== existing.assignedTo) {
     const notifications = createNotificationService(c.get("db"));
     await notifications.createNotification(newAssignee, NOTIFICATION_TYPES.TASK_ASSIGNED, {
       taskId: task.id,
       taskTitle: task.title,
       leadId: task.leadId ?? undefined,
+      createdBy: authUser.name ?? authUser.email ?? "Someone",
     });
   }
 

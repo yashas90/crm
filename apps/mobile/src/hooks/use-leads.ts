@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-query";
 
 const LEAD_STALE_MS = 30_000;
+const LEAD_DETAIL_STALE_MS = 0;
 
 const LEADS_PAGE_SIZE = "50";
 
@@ -59,6 +60,13 @@ export type LeadDetail = LeadRow & {
     daysToFirstCall?: number;
     currentStage: string;
   };
+  adAttribution?: {
+    campaignName: string | null;
+    adsetName: string | null;
+    adName: string | null;
+    formName: string | null;
+    pageName: string | null;
+  } | null;
 };
 
 type LeadsQuery = {
@@ -269,7 +277,7 @@ export function useLead(leadId: string, options?: { enabled?: boolean }) {
     queryKey: ["leads", leadId],
     queryFn: () => apiGet<LeadDetail>(`/api/leads/${leadId}`),
     enabled,
-    staleTime: LEAD_STALE_MS,
+    staleTime: LEAD_DETAIL_STALE_MS,
     meta: { suppressErrorToast: true },
   });
 }
@@ -279,8 +287,9 @@ export function useAddLeadNote(leadId: string) {
 
   return useMutation({
     mutationFn: (text: string) => apiPost(`/api/leads/${leadId}/notes`, { text }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
+    onSuccess: () => {
+      // Don't await — Wi‑Fi refetches can hang and keep Save spinning.
+      void queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
     },
   });
 }
@@ -291,14 +300,14 @@ export function useUpdateLead() {
   return useMutation({
     mutationFn: ({ leadId, payload }: { leadId: string; payload: Record<string, unknown> }) =>
       apiPatch(`/api/leads/${leadId}`, payload),
-    onSuccess: async (_data, variables) => {
+    onSuccess: (_data, variables) => {
       const status = variables.payload.leadStatus;
       const closedLead = typeof status === "string" && isNaLeadStatus(status);
 
       if (closedLead) {
-        await queryClient.cancelQueries({ queryKey: ["leads", variables.leadId] });
+        void queryClient.cancelQueries({ queryKey: ["leads", variables.leadId] });
         queryClient.removeQueries({ queryKey: ["leads", variables.leadId] });
-        await queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           predicate: (query) => {
             if (query.queryKey[0] !== "leads") return false;
             if (query.queryKey[1] === variables.leadId) return false;
@@ -309,7 +318,8 @@ export function useUpdateLead() {
         return;
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
+      // Fire-and-forget so mutation isPending clears after PATCH, not after list refetches.
+      void queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
     },
   });
 }
@@ -320,9 +330,9 @@ export function useUpdateLeadFollowUp(leadId: string) {
   return useMutation({
     mutationFn: (payload: { nextFollowupAt: string; markComplete?: boolean }) =>
       apiPatch(`/api/leads/${leadId}/follow-up`, payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
-      await queryClient.invalidateQueries({ queryKey: ["tasks"], refetchType: "active" });
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
+      void queryClient.invalidateQueries({ queryKey: ["tasks"], refetchType: "active" });
     },
   });
 }

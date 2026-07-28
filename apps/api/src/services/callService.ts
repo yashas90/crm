@@ -1,6 +1,7 @@
 import { callRecords, leadActivities, leads, users } from "@propninja/db";
 import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { createCallFollowUpTask } from "../lib/callFollowUpTask.js";
+import { answeredCallFilter } from "../lib/callTalkTime.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
@@ -252,11 +253,13 @@ export const callService = {
     const { userId, dateFrom, dateTo } = params;
 
     const whereClause = buildWhere({ userId, dateFrom, dateTo });
+    const answered = answeredCallFilter();
 
     const [agg] = await db
       .select({
         total: sql<number>`count(*)::int`,
         completed: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
+        answered: sql<number>`count(*) filter (where ${answered})::int`,
         missed: sql<number>`count(*) filter (where ${callRecords.status} = 'missed')::int`,
         avgDuration: sql<number | null>`avg(${callRecords.durationSeconds})`,
       })
@@ -268,6 +271,7 @@ export const callService = {
         userId: callRecords.userId,
         total: sql<number>`count(*)::int`,
         completed: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
+        answered: sql<number>`count(*) filter (where ${answered})::int`,
         missed: sql<number>`count(*) filter (where ${callRecords.status} = 'missed')::int`,
         avgDuration: sql<number | null>`avg(${callRecords.durationSeconds})`,
       })
@@ -278,12 +282,14 @@ export const callService = {
     return {
       total_calls: Number(agg?.total ?? 0),
       completed_calls: Number(agg?.completed ?? 0),
+      answered_calls: Number(agg?.answered ?? 0),
       missed_calls: Number(agg?.missed ?? 0),
       average_duration: agg?.avgDuration ? Math.round(Number(agg.avgDuration)) : 0,
       calls_by_user: byUser.map((row) => ({
         user_id: row.userId,
         total: Number(row.total),
         completed: Number(row.completed),
+        answered: Number(row.answered),
         missed: Number(row.missed),
         average_duration: row.avgDuration ? Math.round(Number(row.avgDuration)) : 0,
       })),

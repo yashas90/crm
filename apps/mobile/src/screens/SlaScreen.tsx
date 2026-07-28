@@ -34,10 +34,7 @@ export function SlaScreen({ navigation }: Props) {
   const summary = useSlaSummary();
   const breached = useSlaBreached(inactiveDays);
 
-  useRefreshOnFocus(() => {
-    void summary.refetch();
-    void breached.refetch();
-  });
+  useRefreshOnFocus(() => Promise.all([summary.refetch(), breached.refetch()]));
 
   if (summary.isError && breached.isError) {
     return (

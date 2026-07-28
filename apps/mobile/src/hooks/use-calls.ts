@@ -61,6 +61,7 @@ export function useCalls(
         `/api/calls?${search.toString()}`,
       ),
     enabled: ready && Boolean(params.lead_id || params.user_id || params.date_from),
+    staleTime: 5 * 60_000,
     meta: { suppressErrorToast: options?.suppressErrorToast ?? false },
   });
 }
@@ -84,7 +85,9 @@ export function useTodayCalls() {
         `/api/calls?${params.toString()}`,
       ),
     enabled: ready,
+    staleTime: 5 * 60_000,
     ...live,
+    meta: { suppressErrorToast: true },
   });
 }
 
@@ -102,7 +105,9 @@ export function useTodayCallSummary() {
     queryKey: ["calls", "summary", "today", userId],
     queryFn: () => apiGet<CallSummary>(`/api/calls/summary?${params.toString()}`),
     enabled: ready,
+    staleTime: 5 * 60_000,
     ...live,
+    meta: { suppressErrorToast: true },
   });
 }
 

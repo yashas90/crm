@@ -6,6 +6,9 @@ export const LEAD_ALERT_NOTIFICATION_TYPES = new Set([
   "lead_assigned",
   "leads_bulk_assigned",
   "new_ad_lead",
+  "sla_breach",
+  "task_assigned",
+  "task_due",
 ]);
 
 let cachedSound: Audio.Sound | null = null;

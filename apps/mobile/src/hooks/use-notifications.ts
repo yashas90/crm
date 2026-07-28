@@ -38,6 +38,10 @@ export function formatNotificationType(type: string): string {
       return "Follow-up due";
     case "task_assigned":
       return "Task assigned";
+    case "task_due":
+      return "Task due";
+    case "sla_breach":
+      return "SLA breach";
     case "site_visit_scheduled":
       return "Site visit scheduled";
     case "site_visit_reminder":
@@ -79,6 +83,17 @@ export function formatNotificationLabel(notification: NotificationRow): string {
     return `You were assigned: ${taskTitle}`;
   }
 
+  if (notification.type === "task_due") {
+    const taskTitle = typeof payload.taskTitle === "string" ? payload.taskTitle : "a task";
+    return typeof payload.message === "string" ? payload.message : `Due now: ${taskTitle}`;
+  }
+
+  if (notification.type === "sla_breach") {
+    return typeof payload.message === "string"
+      ? payload.message
+      : `${leadName} breached inactivity SLA`;
+  }
+
   if (notification.type === "site_visit_scheduled" || notification.type === "site_visit_reminder") {
     const when =
       typeof payload.visitDate === "string" && typeof payload.visitTime === "string"
@@ -102,6 +117,7 @@ export function useNotifications() {
     queryKey: NOTIFICATIONS_QUERY_KEY,
     queryFn: () => apiGet<NotificationsData>("/api/notifications"),
     enabled: ready,
+    staleTime: 60_000,
     ...live,
     retry: false,
     meta: { suppressErrorToast: true },

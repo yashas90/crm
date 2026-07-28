@@ -573,6 +573,12 @@ const pagePatchSchema = z.object({
   projectId: z.string().uuid().nullable().optional(),
 });
 
+const pixelPatchSchema = z.object({
+  isActive: z.boolean().optional(),
+  isSelected: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+});
+
 metaRoutes.patch("/pages/:id", writeRateLimit, validate("json", pagePatchSchema), async (c) => {
   const denied = requireManage(c);
   if (denied) return denied;
@@ -594,6 +600,37 @@ metaRoutes.patch("/pages/:id", writeRateLimit, validate("json", pagePatchSchema)
     });
 
   if (!row) return jsonError(c, "NOT_FOUND", "Page not found", 404);
+  return jsonOk(c, row);
+});
+
+metaRoutes.patch("/pixels/:id", writeRateLimit, validate("json", pixelPatchSchema), async (c) => {
+  const denied = requireManage(c);
+  if (denied) return denied;
+
+  const id = c.req.param("id");
+  const body = c.req.valid("json");
+
+  if (body.isDefault === true) {
+    await db
+      .update(facebookPixels)
+      .set({ isDefault: false, updatedAt: new Date() })
+      .where(eq(facebookPixels.orgId, SINGLE_TENANT_ORG_ID));
+  }
+
+  const [row] = await db
+    .update(facebookPixels)
+    .set({ ...body, updatedAt: new Date() })
+    .where(and(eq(facebookPixels.id, id), eq(facebookPixels.orgId, SINGLE_TENANT_ORG_ID)))
+    .returning({
+      id: facebookPixels.id,
+      pixelId: facebookPixels.pixelId,
+      name: facebookPixels.name,
+      isActive: facebookPixels.isActive,
+      isSelected: facebookPixels.isSelected,
+      isDefault: facebookPixels.isDefault,
+    });
+
+  if (!row) return jsonError(c, "NOT_FOUND", "Pixel not found", 404);
   return jsonOk(c, row);
 });
 

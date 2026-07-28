@@ -32,6 +32,10 @@ export type MetaDashboardData = {
   };
   webhooks: Record<string, number>;
   conversionEvents: Record<string, number>;
+  capi?: {
+    enabled: boolean;
+    readyPixels: number;
+  };
 };
 
 export type MetaPage = {
@@ -354,6 +358,30 @@ export function useMetaPatchForm() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["meta"] });
     },
+  });
+}
+
+export function useMetaPatchPixel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      isActive?: boolean;
+      isSelected?: boolean;
+      isDefault?: boolean;
+    }) => apiPatch<MetaPixel>(`/api/meta/pixels/${id}`, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["meta"] });
+    },
+  });
+}
+
+export function useMetaFlushConversions() {
+  return useMutation({
+    mutationFn: () => apiPost<{ sent: number; failed: number }>("/api/meta/conversion/flush", {}),
   });
 }
 

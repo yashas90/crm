@@ -32,6 +32,7 @@ export type ApiCallsListResponse = {
 export type ApiCallsSummary = {
   total_calls: number;
   completed_calls: number;
+  answered_calls?: number;
   missed_calls: number;
   average_duration: number;
 };

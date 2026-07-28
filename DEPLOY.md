@@ -4,9 +4,11 @@ Production layout:
 
 | Component | Host | URL (current) |
 |-----------|------|----------------|
-| API + Postgres | **Railway** (or Render) | `https://crm-production-6cfe.up.railway.app` |
-| Web dashboard | **Vercel** | `https://www.ninjamarketing.in` |
+| API + Postgres | **Railway** (or Render) | `https://crm-production-e81d.up.railway.app` |
+| Web dashboard | **Vercel** project **`crm-api`** (Root Directory `apps/web`) | `https://www.ninjamarketing.in` |
 | Mobile app | Expo EAS | Points at Railway API URL |
+
+> Note: A second Vercel project named `propninjacrm` may also be connected to the same GitHub repo. It must use **Root Directory = `apps/web`** and **Framework = Next.js**. If Root Directory is `.`, the build finishes then fails with `No Output Directory named "public"`.
 
 The API runs migrations on every deploy (`pnpm railway:start` → `db:migrate` then `api start`).
 

@@ -1,9 +1,12 @@
 import { type ConnectionOptions, type JobsOptions, Queue, Worker } from "bullmq";
+import { syncAgeOutNewLeads } from "../jobs/ageOutNewLeadsJob.js";
 import { syncDailyFollowUpJobs } from "../jobs/dailyFollowUpJob.js";
 import { syncFollowupReminders } from "../jobs/followUpReminderJob.js";
 import { syncLeadScores } from "../jobs/leadScoringJob.js";
 import { syncNaPoolUnassignments } from "../jobs/naPoolJob.js";
 import { syncSiteVisitReminders } from "../jobs/siteVisitReminderJob.js";
+import { syncSlaBreachFlags } from "../jobs/slaBreachJob.js";
+import { syncTaskDueNotifications } from "../jobs/taskDueNotificationJob.js";
 import { sendPendingConversionEvents } from "../services/metaConversionService.js";
 import { backfillMetaLeads } from "../services/metaLeadBackfillService.js";
 import {
@@ -29,6 +32,9 @@ export const JOB_NAMES = {
   DAILY_FOLLOWUP: "daily-followup",
   REFRESH_SESSION_CLEANUP: "refresh-session-cleanup",
   NA_POOL_RELEASE: "na-pool-release",
+  AGE_OUT_NEW_LEADS: "age-out-new-leads",
+  SLA_BREACH_SYNC: "sla-breach-sync",
+  TASK_DUE_NOTIFICATIONS: "task-due-notifications",
   META_LEAD_INGEST: "meta-lead-ingest",
   /** Alias job name used by webhook enqueue (same handler as META_LEAD_INGEST). */
   META_WEBHOOK: "meta-webhook",
@@ -62,6 +68,12 @@ async function runJob(name: string, data?: Record<string, unknown>) {
       return purgeExpiredRefreshSessions(db);
     case JOB_NAMES.NA_POOL_RELEASE:
       return syncNaPoolUnassignments();
+    case JOB_NAMES.AGE_OUT_NEW_LEADS:
+      return syncAgeOutNewLeads();
+    case JOB_NAMES.SLA_BREACH_SYNC:
+      return syncSlaBreachFlags();
+    case JOB_NAMES.TASK_DUE_NOTIFICATIONS:
+      return syncTaskDueNotifications();
     case JOB_NAMES.META_LEAD_INGEST:
     case JOB_NAMES.META_WEBHOOK: {
       const payload = data as unknown as MetaLeadIngestJobPayload | undefined;
@@ -162,6 +174,21 @@ export async function startDurableJobQueue(): Promise<boolean> {
       JOB_NAMES.NA_POOL_RELEASE,
       {},
       { repeat: { every: 30 * 1000 }, jobId: JOB_NAMES.NA_POOL_RELEASE },
+    );
+    await queue.add(
+      JOB_NAMES.AGE_OUT_NEW_LEADS,
+      {},
+      { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.AGE_OUT_NEW_LEADS },
+    );
+    await queue.add(
+      JOB_NAMES.SLA_BREACH_SYNC,
+      {},
+      { repeat: { every: 15 * 60 * 1000 }, jobId: JOB_NAMES.SLA_BREACH_SYNC },
+    );
+    await queue.add(
+      JOB_NAMES.TASK_DUE_NOTIFICATIONS,
+      {},
+      { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.TASK_DUE_NOTIFICATIONS },
     );
     await queue.add(
       JOB_NAMES.META_CAPI_SEND,

@@ -15,5 +15,6 @@ export function navigateToLeadFromPush(
   navRef.navigate("LeadsTab", {
     screen: "LeadDetailScreen",
     params: { leadId },
+    initial: false,
   });
 }

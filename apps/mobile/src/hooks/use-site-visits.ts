@@ -102,6 +102,7 @@ export function useSiteVisitsCalendar(dateFrom: string, dateTo: string, agentId?
       ),
     enabled: ready && Boolean(dateFrom && dateTo),
     staleTime: 30_000,
+    meta: { suppressErrorToast: true },
   });
 }
 

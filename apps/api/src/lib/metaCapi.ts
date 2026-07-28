@@ -82,6 +82,8 @@ export type CapiUserDataInput = {
   country?: string | null;
   zip?: string | null;
   externalId?: string | null;
+  /** Meta Lead Ads `leadgen_id` (15–17 digits) — sent as-is, not hashed. Highest match priority. */
+  metaLeadId?: string | null;
   /** Facebook browser pixel cookie (`_fbp`) — sent as-is, not hashed. */
   fbp?: string | null;
   /** Facebook click ID cookie (`_fbc`) — sent as-is, not hashed. */
@@ -90,35 +92,42 @@ export type CapiUserDataInput = {
   clientUserAgent?: string | null;
 };
 
-/** Meta CAPI `user_data` object — PII fields hashed, dedup/attribution fields passed through. */
+/** Meta CAPI `user_data` object — PII hashed, match keys (`lead_id`/`fbc`) passed through. */
 export type CapiUserData = {
-  em?: string;
-  ph?: string;
-  fn?: string;
-  ln?: string;
-  ct?: string;
-  st?: string;
-  country?: string;
-  zp?: string;
-  external_id?: string;
+  em?: string[];
+  ph?: string[];
+  fn?: string[];
+  ln?: string[];
+  ct?: string[];
+  st?: string[];
+  country?: string[];
+  zp?: string[];
+  external_id?: string[];
+  /** Meta-generated Lead Ads ID — do not hash. */
+  lead_id?: string;
   fbp?: string;
   fbc?: string;
   client_ip_address?: string;
   client_user_agent?: string;
 };
 
+function asHashArray(value: string | undefined): string[] | undefined {
+  return value ? [value] : undefined;
+}
+
 /** Builds a Meta CAPI `user_data` object: PII hashed (SHA-256), dedup fields passed through. */
 export function buildCapiUserData(input: CapiUserDataInput): CapiUserData {
   const userData: CapiUserData = {
-    em: hashEmail(input.email),
-    ph: hashPhone(input.phone),
-    fn: hashFirstName(input.firstName),
-    ln: hashLastName(input.lastName),
-    ct: hashCity(input.city),
-    st: hashState(input.state),
-    country: hashCountry(input.country),
-    zp: hashZip(input.zip),
-    external_id: hashExternalId(input.externalId),
+    em: asHashArray(hashEmail(input.email)),
+    ph: asHashArray(hashPhone(input.phone)),
+    fn: asHashArray(hashFirstName(input.firstName)),
+    ln: asHashArray(hashLastName(input.lastName)),
+    ct: asHashArray(hashCity(input.city)),
+    st: asHashArray(hashState(input.state)),
+    country: asHashArray(hashCountry(input.country)),
+    zp: asHashArray(hashZip(input.zip)),
+    external_id: asHashArray(hashExternalId(input.externalId)),
+    lead_id: input.metaLeadId?.trim() || undefined,
     fbp: input.fbp?.trim() || undefined,
     fbc: input.fbc?.trim() || undefined,
     client_ip_address: input.clientIpAddress?.trim() || undefined,
@@ -130,6 +139,17 @@ export function buildCapiUserData(input: CapiUserDataInput): CapiUserData {
   }
 
   return userData;
+}
+
+/** CRM → Meta CAPI custom_data fields required by Meta’s qualified-leads guide. */
+export function buildCrmCapiCustomData(
+  extras: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    event_source: "crm",
+    lead_event_source: "PropNinja",
+    ...extras,
+  };
 }
 
 /** Generates a unique `event_id` for CAPI/Pixel event deduplication. */

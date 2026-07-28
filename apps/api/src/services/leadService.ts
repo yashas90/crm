@@ -1,5 +1,6 @@
 import {
   callRecords,
+  facebookLeads,
   leadActivities,
   leadImportBatchItems,
   leads,
@@ -25,6 +26,11 @@ import {
   sql,
 } from "drizzle-orm";
 import { adLeadsOnlyFilter } from "../lib/adLeadFilters.js";
+import {
+  freshNewLeadWhere,
+  newLeadFreshnessCutoff,
+  pendingLeadWhere,
+} from "../lib/ageOutNewLeads.js";
 import { applyAdvancedLeadFilters } from "../lib/applyAdvancedLeadFilters.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { toCsv } from "../lib/csv.js";
@@ -269,7 +275,13 @@ function buildListWhere(params: ListLeadsParams) {
     whereClauses.push(isNull(leads.deletedAt));
   }
 
-  if (params.status) {
+  if (params.status === "new") {
+    // New bucket = fresh untouched leads only (≤24h). Stale `new` rows are aged to Pending.
+    whereClauses.push(freshNewLeadWhere()!);
+  } else if (params.status === "contacted") {
+    // Pending bucket = contacted + any stale new not yet moved by the age-out job.
+    whereClauses.push(pendingLeadWhere()!);
+  } else if (params.status) {
     whereClauses.push(eq(leads.leadStatus, params.status));
   }
 
@@ -458,14 +470,25 @@ export const leadService = {
     };
 
     const whereClause = buildListWhere(sharedBase);
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const freshCutoff = newLeadFreshnessCutoff(now);
 
     try {
       const [row] = await db
         .select({
           active: sql<number>`count(*) filter (where ${activeWorkedLeadSql()})::int`,
-          new: sql<number>`count(*) filter (where ${leads.leadStatus} = 'new')::int`,
-          pending: sql<number>`count(*) filter (where ${leads.leadStatus} = 'contacted')::int`,
+          new: sql<number>`count(*) filter (
+            where ${leads.leadStatus} = 'new'
+              and ${leads.createdAt} >= ${freshCutoff}
+          )::int`,
+          pending: sql<number>`count(*) filter (
+            where ${leads.leadStatus} = 'contacted'
+              or (
+                ${leads.leadStatus} = 'new'
+                and ${leads.createdAt} < ${freshCutoff}
+              )
+          )::int`,
           scheduled: sql<number>`count(*) filter (
             where ${activePipelineLeadSql()}
               and ${leads.nextFollowupAt} is not null
@@ -1028,6 +1051,18 @@ export const leadService = {
 
     const lead = leadRow.leads;
 
+    const [adRow] = await db
+      .select({
+        campaignName: facebookLeads.campaignName,
+        adsetName: facebookLeads.adsetName,
+        adName: facebookLeads.adName,
+        formName: facebookLeads.formName,
+        pageName: facebookLeads.pageName,
+      })
+      .from(facebookLeads)
+      .where(eq(facebookLeads.leadId, leadId))
+      .limit(1);
+
     const activityRows = await db
       .select({
         activity: leadActivities,
@@ -1078,6 +1113,7 @@ export const leadService = {
         daysToFirstCall,
         currentStage: lead.leadStatus,
       },
+      adAttribution: adRow ?? null,
     };
   },
 

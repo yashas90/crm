@@ -100,7 +100,6 @@ export function useAutoDialerCallLog({
           lead_id: pending.leadId,
           phone_number: pending.phoneNumber,
           direction: "outgoing",
-          status: "completed",
           duration_seconds: talkSeconds,
           started_at: startedAt.toISOString(),
           ended_at: endedAt.toISOString(),

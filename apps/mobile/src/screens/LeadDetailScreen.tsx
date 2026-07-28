@@ -17,6 +17,7 @@ import { useCalls, useLogCall } from "@/hooks/use-calls";
 import { useLeadBrowser } from "@/hooks/use-lead-browser";
 import {
   type LeadActivity,
+  type LeadDetail,
   useAddLeadNote,
   useLead,
   useUpdateLead,
@@ -205,7 +206,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         return;
       }
 
-      await Promise.all([refetch(), refetchCalls()]);
+      void Promise.all([refetch(), refetchCalls()]);
       setSavedToast(afterCall ? "Call logged · status updated" : "Lead status updated");
       setTimeout(() => setSavedToast(null), 2500);
     } catch (err) {
@@ -506,6 +507,8 @@ export function LeadDetailScreen({ route, navigation }: Props) {
             />
           </View>
 
+          <LeadSourceBadge leadSource={lead.leadSource} adAttribution={lead.adAttribution} />
+
           <View style={styles.tabs}>
             <Pressable
               style={[styles.tab, tab === "calls" && styles.tabActive]}
@@ -787,6 +790,81 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         }}
       />
     </>
+  );
+}
+
+const META_BLUE = "#1877F2";
+
+function isMetaLeadSource(source: string | null | undefined) {
+  if (!source) return false;
+  const normalized = source.trim().toLowerCase();
+  return (
+    normalized === "meta" ||
+    normalized.includes("meta") ||
+    normalized.includes("facebook") ||
+    normalized === "fb"
+  );
+}
+
+function capitalizeSource(source: string) {
+  return source
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+function LeadSourceBadge({
+  leadSource,
+  adAttribution,
+}: {
+  leadSource: string | null | undefined;
+  adAttribution: LeadDetail["adAttribution"];
+}) {
+  const hasAttribution = Boolean(
+    adAttribution &&
+      (adAttribution.campaignName ||
+        adAttribution.adsetName ||
+        adAttribution.adName ||
+        adAttribution.formName ||
+        adAttribution.pageName),
+  );
+  const isMeta = isMetaLeadSource(leadSource) || hasAttribution;
+
+  if (!leadSource && !hasAttribution) return null;
+
+  if (isMeta) {
+    return (
+      <View style={[styles.sourceCard, styles.sourceCardMeta]}>
+        <View style={styles.sourceHeader}>
+          <Ionicons name="logo-facebook" size={18} color={META_BLUE} />
+          <Text style={styles.sourceHeaderText}>Meta Ad</Text>
+        </View>
+        {adAttribution?.campaignName ? (
+          <Text style={styles.sourceCampaign} numberOfLines={1}>
+            {adAttribution.campaignName}
+          </Text>
+        ) : null}
+        {adAttribution?.adsetName ? (
+          <Text style={styles.sourceMuted} numberOfLines={1}>
+            {adAttribution.adsetName}
+          </Text>
+        ) : null}
+        {adAttribution?.formName ? (
+          <Text style={styles.sourceMuted} numberOfLines={1}>
+            Form: {adAttribution.formName}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.sourceCard, styles.sourceCardOther]}>
+      <View style={styles.sourceHeader}>
+        <Ionicons name="globe-outline" size={18} color={colors.textMuted} />
+        <Text style={styles.sourceHeaderText}>{capitalizeSource(leadSource!)}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -1077,6 +1155,24 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginTop: 4,
   },
+  sourceCard: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: radii.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderLeftWidth: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 2,
+  },
+  sourceCardMeta: { borderLeftColor: META_BLUE },
+  sourceCardOther: { borderLeftColor: colors.textMuted },
+  sourceHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sourceHeaderText: { color: colors.text, fontWeight: "800", fontSize: 13 },
+  sourceCampaign: { color: colors.text, fontWeight: "700", fontSize: 14, marginTop: 4 },
+  sourceMuted: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
   tabs: {
     flexDirection: "row",
     backgroundColor: colors.card,

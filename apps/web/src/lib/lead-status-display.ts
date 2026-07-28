@@ -66,7 +66,7 @@ function followupSecondaryLabel(
 
 /** Maps lead_status + tags/follow-up hints to screenshot-style status chips. */
 export function getLeadStatusDisplay(
-  lead: Pick<LeadRow, "leadStatus" | "tags" | "customFields" | "nextFollowupAt">,
+  lead: Pick<LeadRow, "leadStatus" | "tags" | "customFields" | "nextFollowupAt" | "createdAt">,
 ): LeadStatusDisplay {
   const tags = (lead.tags ?? []).map((tag) => tag.toLowerCase());
 
@@ -86,7 +86,16 @@ export function getLeadStatusDisplay(
     };
   }
 
-  const mapped = PRIMARY_STYLES[lead.leadStatus] ?? {
+  // Stale `new` (>24h) should display as Pending until the age-out job rewrites status.
+  const createdAtMs = lead.createdAt ? new Date(lead.createdAt).getTime() : Number.NaN;
+  const isStaleNew =
+    lead.leadStatus === "new" &&
+    Number.isFinite(createdAtMs) &&
+    Date.now() - createdAtMs > 24 * 60 * 60 * 1000;
+
+  const effectiveStatus = isStaleNew ? "contacted" : lead.leadStatus;
+
+  const mapped = PRIMARY_STYLES[effectiveStatus] ?? {
     label: lead.leadStatus,
     className: "bg-muted text-muted-foreground",
   };

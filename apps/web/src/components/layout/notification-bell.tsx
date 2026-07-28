@@ -44,6 +44,22 @@ function formatNotificationLabel(notification: NotificationRow): string {
     return `Follow-up due for ${leadName}`;
   }
 
+  if (notification.type === "task_assigned") {
+    const taskTitle = typeof payload.taskTitle === "string" ? payload.taskTitle : "a task";
+    return `You were assigned: ${taskTitle}`;
+  }
+
+  if (notification.type === "task_due") {
+    const taskTitle = typeof payload.taskTitle === "string" ? payload.taskTitle : "a task";
+    return typeof payload.message === "string" ? payload.message : `Due now: ${taskTitle}`;
+  }
+
+  if (notification.type === "sla_breach") {
+    return typeof payload.message === "string"
+      ? payload.message
+      : `${leadName} breached inactivity SLA`;
+  }
+
   return leadName;
 }
 

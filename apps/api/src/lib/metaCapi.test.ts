@@ -46,10 +46,19 @@ describe("metaCapi hashing", () => {
       fbp: "fb.1.123",
       fbc: "  ",
     });
-    expect(userData.em).toBeTruthy();
+    expect(userData.em).toEqual([createHash("sha256").update("a@b.com", "utf8").digest("hex")]);
     expect(userData.ph).toBeUndefined();
     expect(userData.fbp).toBe("fb.1.123");
     expect(userData.fbc).toBeUndefined();
+  });
+
+  it("includes unhashed Meta lead_id for CRM matching", () => {
+    const userData = buildCapiUserData({
+      email: "a@b.com",
+      metaLeadId: "1234567890123456",
+    });
+    expect(userData.lead_id).toBe("1234567890123456");
+    expect(userData.em?.[0]).toHaveLength(64);
   });
 
   it("generates unique event ids", () => {

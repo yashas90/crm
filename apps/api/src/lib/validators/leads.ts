@@ -191,13 +191,13 @@ export const leadScopeCountsQuerySchema = leadStageCountsQuerySchema;
 export type LeadScopeCountsQuery = z.infer<typeof leadScopeCountsQuerySchema>;
 export type UpcomingFollowupsQuery = z.infer<typeof upcomingFollowupsQuerySchema>;
 export const bulkImportLeadsBodySchema = z.object({
-  leads: z.array(z.record(z.string(), z.unknown())).min(1).max(500),
+  leads: z.array(z.record(z.string(), z.unknown())).min(1).max(2000),
   skipDuplicates: z.boolean().optional().default(true),
   assignToUserId: z.string().uuid().optional(),
   assignToUserIds: z.array(z.string().uuid()).min(1).max(50).optional(),
   fileName: z.string().max(255).optional(),
-  totalCount: z.number().int().min(1).max(500).optional(),
-  invalidCount: z.number().int().min(0).max(500).optional(),
+  totalCount: z.number().int().min(1).max(2000).optional(),
+  invalidCount: z.number().int().min(0).max(2000).optional(),
   parseErrors: z
     .array(
       z.object({
@@ -205,7 +205,7 @@ export const bulkImportLeadsBodySchema = z.object({
         message: z.string(),
       }),
     )
-    .max(500)
+    .max(2000)
     .optional(),
 });
 

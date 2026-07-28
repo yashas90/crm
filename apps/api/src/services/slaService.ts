@@ -179,7 +179,13 @@ export const slaService = {
           sql`${lastEngagement} < ${tstz(cutoff)}`,
         ),
       )
-      .returning({ id: leads.id });
+      .returning({
+        id: leads.id,
+        firstName: leads.firstName,
+        lastName: leads.lastName,
+        assignedTo: leads.assignedTo,
+        daysSinceActivity: sql<number>`extract(day from now() - ${lastEngagement})::int`,
+      });
 
     const cleared = await db
       .update(leads)
@@ -194,6 +200,10 @@ export const slaService = {
       )
       .returning({ id: leads.id });
 
-    return { flagged: flagged.length, cleared: cleared.length };
+    return {
+      flagged: flagged.length,
+      cleared: cleared.length,
+      newlyFlagged: flagged,
+    };
   },
 };

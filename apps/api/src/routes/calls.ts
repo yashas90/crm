@@ -116,7 +116,8 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
     leadId,
     phoneNumber,
     direction: data.direction ?? "outgoing",
-    status: data.status ?? mapped.status,
+    // Outcome is source of truth — ignore client status which often sends "completed" for every dial.
+    status: mapped.status,
     startedAt,
     endedAt,
     durationSeconds,
