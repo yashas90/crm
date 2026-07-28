@@ -1,6 +1,5 @@
 import { callRecords, leadActivities, leads, users } from "@propninja/db";
 import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
-import { createCallFollowUpTask } from "../lib/callFollowUpTask.js";
 import { answeredCallFilter } from "../lib/callTalkTime.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
@@ -136,7 +135,9 @@ export const callService = {
       })
       .returning();
 
-    let followUpTask = null;
+    // Do not auto-create "Call back" tasks on no_answer/busy/voicemail.
+    // Agents schedule follow-ups explicitly via nextFollowupAt / Tasks.
+    const followUpTask = null;
 
     if (resolvedLeadId) {
       await Promise.all([
@@ -162,15 +163,6 @@ export const callService = {
           },
         }),
       ]);
-
-      if (outcome) {
-        followUpTask = await createCallFollowUpTask({
-          userId,
-          leadId: resolvedLeadId,
-          outcome,
-          attemptedAt: endedAt,
-        });
-      }
 
       // Called/touched without an explicit status update → Pending (contacted).
       await promoteNewLeadToContacted(resolvedLeadId, {

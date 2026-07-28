@@ -373,33 +373,24 @@ describe("API integration", () => {
       };
     }
 
-    it("no_answer creates follow-up task due in 2 hours", async ({ skip }) => {
+    it("no_answer does not auto-create follow-up task", async ({ skip }) => {
       if (!hasDb) skip();
 
-      const adminId = await userIdForToken(token);
       const { leadId, phone } = await createLeadForCall();
       const endedAt = new Date("2026-06-16T14:30:00.000Z");
 
       const logRes = await logCallWithOutcome(leadId, phone, "no_answer", endedAt);
       expect(logRes.status).toBe(201);
       const logJson = (await logRes.json()) as {
-        data: { followUpTask: { dueAt: string; followUpHours: number } | null };
+        data: { followUpTask: unknown };
       };
-      expect(logJson.data.followUpTask).not.toBeNull();
-      expect(logJson.data.followUpTask!.followUpHours).toBe(2);
+      expect(logJson.data.followUpTask).toBeNull();
 
       const tasksJson = await tasksForLead(leadId);
-      expect(tasksJson.data.items).toHaveLength(1);
-      const task = tasksJson.data.items[0]!;
-      expect(task.assignedTo).toBe(adminId);
-      expect(task.leadId).toBe(leadId);
-      expect(task.priority).toBe("high");
-      expect(new Date(task.dueAt!).toISOString()).toBe(
-        new Date(endedAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
-      );
+      expect(tasksJson.data.items).toHaveLength(0);
     });
 
-    it("busy creates follow-up task", async ({ skip }) => {
+    it("busy does not auto-create follow-up task", async ({ skip }) => {
       if (!hasDb) skip();
 
       const { leadId, phone } = await createLeadForCall();
@@ -409,11 +400,10 @@ describe("API integration", () => {
       expect(logRes.status).toBe(201);
 
       const tasksJson = await tasksForLead(leadId);
-      expect(tasksJson.data.items).toHaveLength(1);
-      expect(tasksJson.data.items[0]!.priority).toBe("high");
+      expect(tasksJson.data.items).toHaveLength(0);
     });
 
-    it("left_voicemail creates follow-up task due in 24 hours", async ({ skip }) => {
+    it("left_voicemail does not auto-create follow-up task", async ({ skip }) => {
       if (!hasDb) skip();
 
       const { leadId, phone } = await createLeadForCall();
@@ -422,17 +412,12 @@ describe("API integration", () => {
       const logRes = await logCallWithOutcome(leadId, phone, "left_voicemail", endedAt);
       expect(logRes.status).toBe(201);
       const logJson = (await logRes.json()) as {
-        data: { followUpTask: { followUpHours: number } | null };
+        data: { followUpTask: unknown };
       };
-      expect(logJson.data.followUpTask!.followUpHours).toBe(24);
+      expect(logJson.data.followUpTask).toBeNull();
 
       const tasksJson = await tasksForLead(leadId);
-      expect(tasksJson.data.items).toHaveLength(1);
-      const task = tasksJson.data.items[0]!;
-      expect(task.priority).toBe("medium");
-      expect(new Date(task.dueAt!).toISOString()).toBe(
-        new Date(endedAt.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-      );
+      expect(tasksJson.data.items).toHaveLength(0);
     });
 
     it("answered does not create follow-up task", async ({ skip }) => {
