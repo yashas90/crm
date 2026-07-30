@@ -190,19 +190,14 @@ const LeadsTableRow = memo(function LeadsTableRow({
 
       {columnsToShow.status ? (
         <TableCell>
-          <div className="space-y-0.5">
-            <span
-              className={cn(
-                "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                status.primaryClass,
-              )}
-            >
-              {status.primary}
-            </span>
-            {status.secondary ? (
-              <p className={cn("text-xs font-medium", status.secondaryClass)}>{status.secondary}</p>
-            ) : null}
-          </div>
+          <span
+            className={cn(
+              "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
+              status.primaryClass,
+            )}
+          >
+            {status.primary}
+          </span>
         </TableCell>
       ) : null}
 

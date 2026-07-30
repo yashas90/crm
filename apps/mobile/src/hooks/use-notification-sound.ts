@@ -1,8 +1,8 @@
 import { useNotifications } from "@/hooks/use-notifications";
-import { LEAD_ALERT_NOTIFICATION_TYPES, playLeadAlertSound } from "@/lib/notificationSound";
+import { playNotificationSound } from "@/lib/notificationSound";
 import { useEffect, useRef } from "react";
 
-/** Plays chime when lead alerts appear via API polling (app foreground, no push). */
+/** Plays chime when any unread notification appears via API polling (app foreground). */
 export function useNotificationSound() {
   const { data } = useNotifications();
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -21,12 +21,8 @@ export function useNotificationSound() {
     }
 
     for (const item of items) {
-      if (
-        !seenIdsRef.current.has(item.id) &&
-        !item.isRead &&
-        LEAD_ALERT_NOTIFICATION_TYPES.has(item.type)
-      ) {
-        void playLeadAlertSound();
+      if (!seenIdsRef.current.has(item.id) && !item.isRead) {
+        void playNotificationSound();
         break;
       }
     }

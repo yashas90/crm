@@ -2,6 +2,7 @@ import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { Platform, Vibration } from "react-native";
 
+/** @deprecated Prefer playing sound for every notification type. */
 export const LEAD_ALERT_NOTIFICATION_TYPES = new Set([
   "lead_assigned",
   "leads_bulk_assigned",
@@ -9,12 +10,16 @@ export const LEAD_ALERT_NOTIFICATION_TYPES = new Set([
   "sla_breach",
   "task_assigned",
   "task_due",
+  "followup_due",
+  "site_visit_scheduled",
+  "site_visit_reminder",
 ]);
 
 let cachedSound: Audio.Sound | null = null;
 let lastPlayedAt = 0;
 
-export async function playLeadAlertSound() {
+/** Plays the in-app chime for any notification (foreground push or polled inbox). */
+export async function playNotificationSound() {
   const now = Date.now();
   if (now - lastPlayedAt < 1500) return;
   lastPlayedAt = now;
@@ -43,3 +48,6 @@ export async function playLeadAlertSound() {
     // audio unavailable — haptics/vibration still fired
   }
 }
+
+/** @deprecated Use playNotificationSound */
+export const playLeadAlertSound = playNotificationSound;

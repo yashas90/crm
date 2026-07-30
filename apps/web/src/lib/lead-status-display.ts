@@ -4,108 +4,86 @@ import { inferFollowupType } from "@/lib/followup-type";
 export type LeadStatusDisplay = {
   primary: string;
   primaryClass: string;
+  /** @deprecated Prefer a single primary chip — kept for callers that still read it. */
   secondary?: string;
   secondaryClass: string;
 };
 
-const PRIMARY_STYLES: Record<string, { label: string; className: string }> = {
-  new: {
-    label: "New",
-    className: "bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300",
-  },
-  contacted: {
-    label: "Pending",
-    className: "bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300",
-  },
-  qualified: {
-    label: "Qualified",
-    className: "bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300",
-  },
-  negotiation: {
-    label: "Negotiation",
-    className: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300",
-  },
-  won: {
-    label: "Won",
-    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
-  },
-  lost: {
-    label: "Lost",
-    className: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
-  },
-};
-
-const SECONDARY_CLASS = "text-teal-700 dark:text-teal-300";
-const NEGATIVE_CLASS = "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300";
+const STYLES = {
+  new: "bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300",
+  pending: "bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-300",
+  callback: "bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300",
+  overdue: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
+  qualified: "bg-teal-100 text-teal-800 dark:bg-teal-950/50 dark:text-teal-300",
+  negotiation: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300",
+  won: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
+  lost: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
+  muted: "bg-muted text-muted-foreground",
+} as const;
 
 function tagIncludes(tags: string[], needle: string) {
   return tags.some((tag) => tag.includes(needle));
 }
 
-function followupSecondaryLabel(
-  lead: Pick<LeadRow, "tags" | "customFields" | "nextFollowupAt">,
-): string | undefined {
-  const tags = (lead.tags ?? []).map((tag) => tag.toLowerCase());
-
-  if (tagIncludes(tags, "follow_up") || tagIncludes(tags, "follow-up")) {
-    return "Follow Up";
-  }
-  if (tagIncludes(tags, "callback")) {
-    return "Callback";
-  }
-
-  if (!lead.nextFollowupAt) {
-    return undefined;
-  }
-
-  const type = inferFollowupType(lead);
-  if (type === "meeting") return "Meeting";
-  if (type === "site_visit") return "Site Visit";
-  return "Callback";
+function display(
+  primary: string,
+  primaryClass: string,
+): LeadStatusDisplay {
+  return { primary, primaryClass, secondaryClass: STYLES.callback };
 }
 
-/** Maps lead_status + tags/follow-up hints to screenshot-style status chips. */
+/**
+ * Single status chip for the leads table:
+ * - No follow-up scheduled → Pending (after contact) / New / pipeline stage
+ * - Follow-up scheduled (future) → Callback (or Meeting / Site Visit)
+ * - Follow-up due time passed → Overdue
+ */
 export function getLeadStatusDisplay(
   lead: Pick<LeadRow, "leadStatus" | "tags" | "customFields" | "nextFollowupAt" | "createdAt">,
+  now: Date = new Date(),
 ): LeadStatusDisplay {
   const tags = (lead.tags ?? []).map((tag) => tag.toLowerCase());
 
   if (tagIncludes(tags, "not_interested")) {
-    return {
-      primary: "Not Interested",
-      primaryClass: NEGATIVE_CLASS,
-      secondaryClass: SECONDARY_CLASS,
-    };
+    return display("Not Interested", STYLES.lost);
   }
 
   if (tagIncludes(tags, "no_answer") || tagIncludes(tags, "not_answered")) {
-    return {
-      primary: "Not Answered",
-      primaryClass: NEGATIVE_CLASS,
-      secondaryClass: SECONDARY_CLASS,
-    };
+    return display("Not Answered", STYLES.lost);
   }
 
-  // Stale `new` (>24h) should display as Pending until the age-out job rewrites status.
+  if (lead.nextFollowupAt) {
+    const due = new Date(lead.nextFollowupAt).getTime();
+    if (Number.isFinite(due) && due <= now.getTime()) {
+      return display("Overdue", STYLES.overdue);
+    }
+
+    const type = inferFollowupType(lead);
+    if (type === "meeting") return display("Meeting", STYLES.callback);
+    if (type === "site_visit") return display("Site Visit", STYLES.callback);
+    return display("Callback", STYLES.callback);
+  }
+
   const createdAtMs = lead.createdAt ? new Date(lead.createdAt).getTime() : Number.NaN;
   const isStaleNew =
     lead.leadStatus === "new" &&
     Number.isFinite(createdAtMs) &&
-    Date.now() - createdAtMs > 24 * 60 * 60 * 1000;
+    now.getTime() - createdAtMs > 24 * 60 * 60 * 1000;
 
-  const effectiveStatus = isStaleNew ? "contacted" : lead.leadStatus;
+  if (lead.leadStatus === "new" && !isStaleNew) {
+    return display("New", STYLES.new);
+  }
 
-  const mapped = PRIMARY_STYLES[effectiveStatus] ?? {
-    label: lead.leadStatus,
-    className: "bg-muted text-muted-foreground",
-  };
+  if (lead.leadStatus === "contacted" || isStaleNew) {
+    return display("Pending", STYLES.pending);
+  }
 
-  const secondary = followupSecondaryLabel(lead);
+  if (lead.leadStatus === "qualified") return display("Qualified", STYLES.qualified);
+  if (lead.leadStatus === "negotiation") return display("Negotiation", STYLES.negotiation);
+  if (lead.leadStatus === "won") return display("Won", STYLES.won);
+  if (lead.leadStatus === "lost") return display("Lost", STYLES.lost);
+  if (lead.leadStatus === "not_interested") return display("Not Interested", STYLES.lost);
+  if (lead.leadStatus === "dropped") return display("Dropped", STYLES.muted);
 
-  return {
-    primary: mapped.label,
-    primaryClass: mapped.className,
-    secondary,
-    secondaryClass: SECONDARY_CLASS,
-  };
+  return display(lead.leadStatus, STYLES.muted);
 }
