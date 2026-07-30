@@ -166,7 +166,7 @@ const LeadsTableRow = memo(function LeadsTableRow({
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="font-medium text-slate-800 dark:text-white">{fullName}</span>
-              {lead.leadStatus === "new" ? (
+              {status.primary === "New" ? (
                 <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
                   New
                 </span>

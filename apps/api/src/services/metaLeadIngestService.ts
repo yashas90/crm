@@ -227,11 +227,9 @@ export async function processLeadgenWebhook(
       }
     }
 
+    // Do not set nextFollowupAt here — that field is reserved for agent-scheduled
+    // Call Back / Site Visit. Auto-dating it made untouched New leads show as Overdue.
     const followUpAt = new Date(Date.now() + 60 * 60 * 1000);
-    await db
-      .update(leads)
-      .set({ nextFollowupAt: followUpAt, lastActivityAt: new Date(), updatedAt: new Date() })
-      .where(eq(leads.id, lead.id));
 
     if (assigneeId) {
       void taskService

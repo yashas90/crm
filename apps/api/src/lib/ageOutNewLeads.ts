@@ -4,7 +4,7 @@
  * - Any `new` lead older than 24h with no status update → `contacted` (Pending)
  */
 import { callRecords, leadActivities, leads } from "@propninja/db";
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 import { db } from "./db.js";
 import { logger } from "./logger.js";
@@ -74,6 +74,19 @@ export async function ageOutStaleNewLeads(
       ),
     )
     .returning({ id: leads.id });
+
+  // Clear auto Meta follow-ups on untouched New leads so they never count as Overdue.
+  await db
+    .update(leads)
+    .set({ nextFollowupAt: null, updatedAt: now })
+    .where(
+      and(
+        eq(leads.orgId, orgId),
+        isNull(leads.deletedAt),
+        eq(leads.leadStatus, "new"),
+        isNotNull(leads.nextFollowupAt),
+      ),
+    );
 
   const touchedIds = touched.map((r) => r.id);
   const agedIds = aged.map((r) => r.id);

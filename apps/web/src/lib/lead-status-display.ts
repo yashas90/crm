@@ -21,6 +21,8 @@ const STYLES = {
   muted: "bg-muted text-muted-foreground",
 } as const;
 
+const NEW_LEAD_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 function tagIncludes(tags: string[], needle: string) {
   return tags.some((tag) => tag.includes(needle));
 }
@@ -31,9 +33,12 @@ function display(primary: string, primaryClass: string): LeadStatusDisplay {
 
 /**
  * Single status chip for the leads table:
- * - No follow-up scheduled → Pending (after contact) / New / pipeline stage
- * - Follow-up scheduled (future) → Callback (or Meeting / Site Visit)
- * - Follow-up due time passed → Overdue
+ * - New → stays New until Call Back / Site Visit (or other status change)
+ * - After 24h without a status update → Pending
+ * - Call Back / Site Visit / Meeting when a follow-up is scheduled
+ * - Overdue only after an agent-scheduled follow-up time has passed
+ *
+ * Untouched `new` leads ignore nextFollowupAt (Meta auto-tasks must not force Overdue).
  */
 export function getLeadStatusDisplay(
   lead: Pick<LeadRow, "leadStatus" | "tags" | "customFields" | "nextFollowupAt" | "createdAt">,
@@ -49,6 +54,13 @@ export function getLeadStatusDisplay(
     return display("Not Answered", STYLES.lost);
   }
 
+  if (lead.leadStatus === "new") {
+    const createdAtMs = lead.createdAt ? new Date(lead.createdAt).getTime() : Number.NaN;
+    const isStale =
+      Number.isFinite(createdAtMs) && now.getTime() - createdAtMs > NEW_LEAD_MAX_AGE_MS;
+    return isStale ? display("Pending", STYLES.pending) : display("New", STYLES.new);
+  }
+
   if (lead.nextFollowupAt) {
     const due = new Date(lead.nextFollowupAt).getTime();
     if (Number.isFinite(due) && due <= now.getTime()) {
@@ -61,17 +73,7 @@ export function getLeadStatusDisplay(
     return display("Callback", STYLES.callback);
   }
 
-  const createdAtMs = lead.createdAt ? new Date(lead.createdAt).getTime() : Number.NaN;
-  const isStaleNew =
-    lead.leadStatus === "new" &&
-    Number.isFinite(createdAtMs) &&
-    now.getTime() - createdAtMs > 24 * 60 * 60 * 1000;
-
-  if (lead.leadStatus === "new" && !isStaleNew) {
-    return display("New", STYLES.new);
-  }
-
-  if (lead.leadStatus === "contacted" || isStaleNew) {
+  if (lead.leadStatus === "contacted") {
     return display("Pending", STYLES.pending);
   }
 

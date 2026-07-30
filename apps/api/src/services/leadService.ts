@@ -358,11 +358,14 @@ function buildListWhere(params: ListLeadsParams) {
   if (params.followUpDueBefore) {
     whereClauses.push(isNotNull(leads.nextFollowupAt));
     whereClauses.push(sql`${leads.nextFollowupAt} <= ${sqlTimestamptz(params.followUpDueBefore)}`);
+    // Untouched New leads keep auto/task follow-ups off the Overdue chip.
+    whereClauses.push(sql`${leads.leadStatus} <> 'new'`);
   }
 
   if (params.followUpDueAfter) {
     whereClauses.push(isNotNull(leads.nextFollowupAt));
     whereClauses.push(sql`${leads.nextFollowupAt} > ${sqlTimestamptz(params.followUpDueAfter)}`);
+    whereClauses.push(sql`${leads.leadStatus} <> 'new'`);
   }
 
   if (params.search?.trim()) {
@@ -492,11 +495,13 @@ export const leadService = {
           )::int`,
           scheduled: sql<number>`count(*) filter (
             where ${activePipelineLeadSql()}
+              and ${leads.leadStatus} <> 'new'
               and ${leads.nextFollowupAt} is not null
               and ${leads.nextFollowupAt} > ${nowIso}::timestamptz
           )::int`,
           overdue: sql<number>`count(*) filter (
             where ${activePipelineLeadSql()}
+              and ${leads.leadStatus} <> 'new'
               and ${leads.nextFollowupAt} is not null
               and ${leads.nextFollowupAt} <= ${nowIso}::timestamptz
           )::int`,
