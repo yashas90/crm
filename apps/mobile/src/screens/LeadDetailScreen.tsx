@@ -46,6 +46,7 @@ import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
+import { formatLeadSourceDisplay, isMetaLeadSource } from "@/lib/lead-sources";
 import { buildLeadStatusPatch, isNaLeadStatus } from "@/lib/lead-status-options";
 import { scoreBadgeStyle } from "@/lib/leadScore";
 import type { LeadsStackParamList } from "@/navigation/types";
@@ -420,7 +421,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               <View style={styles.badgesRow}>
                 {lead.city ? <Badge label={lead.city} /> : null}
                 {lead.state ? <Badge label={lead.state} /> : null}
-                {lead.leadSource ? <Badge label={lead.leadSource} /> : null}
+                {lead.leadSource ? (
+                  <Badge label={formatLeadSourceDisplay(lead.leadSource)} />
+                ) : null}
               </View>
             </View>
           </View>
@@ -551,7 +554,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               {(callsData?.items ?? []).length === 0 ? (
                 <Text style={styles.empty}>No calls logged yet.</Text>
               ) : (
-                callsData?.items.map((call) => (
+                (callsData?.items ?? []).map((call) => (
                   <View key={call.id} style={styles.callRow}>
                     <View>
                       <Text style={styles.callTitle}>
@@ -639,7 +642,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               {(visitsData?.items ?? []).length === 0 ? (
                 <Text style={styles.empty}>No site visits scheduled.</Text>
               ) : (
-                visitsData?.items.map((visit) => {
+                (visitsData?.items ?? []).map((visit) => {
                   const statusColor = visitStatusColor(visit.status);
                   return (
                     <Pressable
@@ -795,24 +798,6 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
 const META_BLUE = "#1877F2";
 
-function isMetaLeadSource(source: string | null | undefined) {
-  if (!source) return false;
-  const normalized = source.trim().toLowerCase();
-  return (
-    normalized === "meta" ||
-    normalized.includes("meta") ||
-    normalized.includes("facebook") ||
-    normalized === "fb"
-  );
-}
-
-function capitalizeSource(source: string) {
-  return source
-    .trim()
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (ch) => ch.toUpperCase());
-}
-
 function LeadSourceBadge({
   leadSource,
   adAttribution,
@@ -828,16 +813,17 @@ function LeadSourceBadge({
         adAttribution.formName ||
         adAttribution.pageName),
   );
+  const sourceLabel = formatLeadSourceDisplay(leadSource);
   const isMeta = isMetaLeadSource(leadSource) || hasAttribution;
 
-  if (!leadSource && !hasAttribution) return null;
+  if (!sourceLabel && !hasAttribution) return null;
 
   if (isMeta) {
     return (
       <View style={[styles.sourceCard, styles.sourceCardMeta]}>
         <View style={styles.sourceHeader}>
           <Ionicons name="logo-facebook" size={18} color={META_BLUE} />
-          <Text style={styles.sourceHeaderText}>Meta Ad</Text>
+          <Text style={styles.sourceHeaderText}>Meta Ads</Text>
         </View>
         {adAttribution?.campaignName ? (
           <Text style={styles.sourceCampaign} numberOfLines={1}>
@@ -862,7 +848,7 @@ function LeadSourceBadge({
     <View style={[styles.sourceCard, styles.sourceCardOther]}>
       <View style={styles.sourceHeader}>
         <Ionicons name="globe-outline" size={18} color={colors.textMuted} />
-        <Text style={styles.sourceHeaderText}>{capitalizeSource(leadSource!)}</Text>
+        <Text style={styles.sourceHeaderText}>{sourceLabel}</Text>
       </View>
     </View>
   );

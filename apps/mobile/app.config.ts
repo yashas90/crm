@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "PropNinja",
   slug: "propninja-crm",
-  version: "1.0.3",
+  version: "1.0.4",
   description:
     "PropNinja CRM for real estate agents — manage leads, follow-ups, and log SIM calls from your phone.",
   orientation: "portrait",
@@ -57,6 +57,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         color: "#204060",
         defaultChannel: "leads",
         enableBackgroundRemoteNotifications: false,
+      },
+    ],
+    [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission:
+          "PropNinja uses your location during work hours to coordinate site visits.",
+        locationAlwaysPermission:
+          "PropNinja uses your location during work hours to coordinate site visits.",
+        locationWhenInUsePermission: "PropNinja uses your location to coordinate site visits.",
+        isIosBackgroundLocationEnabled: true,
+        isAndroidBackgroundLocationEnabled: true,
       },
     ],
     "./plugins/withAndroidDialerQueries.js",

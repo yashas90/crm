@@ -82,6 +82,14 @@ const NAV_ITEMS: CommandItem[] = [
     icon: <MapPin className="h-4 w-4" />,
   },
   {
+    id: "locations",
+    label: "Locations",
+    href: "/locations",
+    keywords: "gps map agent tracking live",
+    icon: <MapPin className="h-4 w-4" />,
+    roles: ["admin", "manager"],
+  },
+  {
     id: "bookings",
     label: "Bookings",
     href: "/bookings",

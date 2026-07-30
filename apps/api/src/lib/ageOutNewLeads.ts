@@ -8,6 +8,7 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 import { db } from "./db.js";
 import { logger } from "./logger.js";
+import { sqlTimestamptz } from "./sqlTimestamp.js";
 
 export const NEW_LEAD_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -137,16 +138,15 @@ export function isFreshNewLead(input: {
 
 /** Exported for tests — condition used when status=new list filter is applied. */
 export function freshNewLeadWhere(now: Date = new Date()) {
-  return and(
-    eq(leads.leadStatus, "new"),
-    sql`${leads.createdAt} >= ${newLeadFreshnessCutoff(now)}`,
-  );
+  const cutoff = newLeadFreshnessCutoff(now);
+  return and(eq(leads.leadStatus, "new"), sql`${leads.createdAt} >= ${sqlTimestamptz(cutoff)}`);
 }
 
 /** Pending includes contacted + any stale new that the job has not yet moved (defense). */
 export function pendingLeadWhere(now: Date = new Date()) {
+  const cutoff = newLeadFreshnessCutoff(now);
   return or(
     eq(leads.leadStatus, "contacted"),
-    and(eq(leads.leadStatus, "new"), lt(leads.createdAt, newLeadFreshnessCutoff(now))),
+    and(eq(leads.leadStatus, "new"), sql`${leads.createdAt} < ${sqlTimestamptz(cutoff)}`),
   );
 }

@@ -9,6 +9,7 @@ import { useIsAgent } from "@/hooks/use-role";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
 import { buildLeadBrowserParams } from "@/lib/lead-browser";
+import { formatLeadSourceDisplay, isMetaLeadSource } from "@/lib/lead-sources";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
 import {
   type MobileLeadFilters,
@@ -16,6 +17,12 @@ import {
   defaultMobileLeadFilters,
   mobileFiltersToApiParams,
 } from "@/lib/leads-advanced-filters";
+import {
+  MOBILE_LEAD_STAGES,
+  type MobileLeadsStage,
+  defaultMobileLeadsStage,
+  stageToLeadQuery,
+} from "@/lib/leads-stage";
 import { queryErrorMessage } from "@/lib/query-errors";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
@@ -39,23 +46,27 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<LeadsStackParamList, "LeadsScreen">;
 
-type FilterChip = "all" | "mine" | "hot" | "new";
-
 function initials(lead: LeadRow) {
-  return `${lead.firstName[0] ?? ""}${lead.lastName[0] ?? ""}`.toUpperCase();
+  const first = (lead.firstName ?? "").trim().charAt(0);
+  const last = (lead.lastName ?? "").trim().charAt(0);
+  return `${first}${last}`.toUpperCase() || "?";
 }
 
 function daysSinceContact(value: string | null | undefined) {
   if (!value) return "Never contacted";
   const days = Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000);
+  if (Number.isNaN(days)) return "Never contacted";
   if (days === 0) return "Contacted today";
   if (days === 1) return "1 day ago";
   return `${days} days ago`;
 }
 
 function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
-  const status = statusStyle(lead.leadStatus);
+  const statusKey = lead.leadStatus ?? "new";
+  const status = statusStyle(statusKey);
   const temp = temperatureStyle(lead.temperature);
+  const sourceLabel = formatLeadSourceDisplay(lead.leadSource);
+  const metaSource = isMetaLeadSource(lead.leadSource);
 
   return (
     <Pressable
@@ -71,7 +82,7 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
             {lead.firstName} {lead.lastName}
           </Text>
           <Badge
-            label={formatStatusLabel(lead.leadStatus)}
+            label={formatStatusLabel(statusKey)}
             backgroundColor={status.bg}
             color={status.text}
           />
@@ -81,6 +92,15 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
           {lead.city ? ` · ${lead.city}` : ""}
         </Text>
         <View style={styles.metaRow}>
+          {sourceLabel ? (
+            <Badge
+              label={sourceLabel}
+              backgroundColor={metaSource ? "#E7F0FF" : colors.card}
+              color={metaSource ? "#1877F2" : colors.text}
+            />
+          ) : (
+            <Badge label="No source" backgroundColor={colors.border} color={colors.textMuted} />
+          )}
           <Text style={styles.contactLine}>{daysSinceContact(lead.lastContactedAt)}</Text>
           {temp && lead.temperature ? (
             <Badge label={lead.temperature} backgroundColor={temp.bg} color={temp.text} />
@@ -96,7 +116,7 @@ export function LeadsScreen({ navigation }: Props) {
   const isAgent = useIsAgent();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [chip, setChip] = useState<FilterChip>(() => (isAgent ? "mine" : "all"));
+  const [stage, setStage] = useState<MobileLeadsStage>(() => defaultMobileLeadsStage());
   const [leadFilters, setLeadFilters] = useState<MobileLeadFilters>(() =>
     defaultMobileLeadFilters(isAgent),
   );
@@ -113,16 +133,16 @@ export function LeadsScreen({ navigation }: Props) {
   const queryParams = useMemo(() => {
     const params: Omit<LeadsQuery, "page"> = {
       ...mobileFiltersToApiParams(leadFilters),
+      ...stageToLeadQuery(stage),
     };
     if (debouncedSearch) params.search = debouncedSearch;
-    if (chip === "hot" && !params.temperature) params.temperature = "hot";
-    if (chip === "new" && !params.status) params.status = "new";
-    if (isAgent || chip === "mine") {
+    // Agents always stay on their own assignments (also enforced in the filter sheet).
+    if (isAgent) {
       const userId = getCurrentUserId();
       if (userId) params.assignedTo = userId;
     }
     return params;
-  }, [debouncedSearch, chip, leadFilters, isAgent]);
+  }, [debouncedSearch, stage, leadFilters, isAgent]);
 
   const activeFilterCount = countActiveMobileLeadFilters(leadFilters, { isAgent });
 
@@ -139,25 +159,12 @@ export function LeadsScreen({ navigation }: Props) {
   } = useInfiniteLeads(queryParams);
   useRefreshOnFocus(refetch);
 
-  const leads = data?.pages.flatMap((page) => page.items) ?? [];
+  const leads = data?.pages.flatMap((page) => (Array.isArray(page?.items) ? page.items : [])) ?? [];
   const visibleLeads = useMemo(
     () => (isAgent ? leads.filter((lead) => !isNaLeadStatus(lead.leadStatus)) : leads),
     [isAgent, leads],
   );
   const total = data?.pages[0]?.total ?? visibleLeads.length;
-
-  const chips: { id: FilterChip; label: string }[] = isAgent
-    ? [
-        { id: "mine", label: "Mine" },
-        { id: "hot", label: "Hot" },
-        { id: "new", label: "New" },
-      ]
-    : [
-        { id: "all", label: "All" },
-        { id: "mine", label: "Mine" },
-        { id: "hot", label: "Hot" },
-        { id: "new", label: "New" },
-      ];
 
   if (isLoading && !data) {
     return <ListSkeleton rows={5} />;
@@ -165,7 +172,13 @@ export function LeadsScreen({ navigation }: Props) {
 
   const showFatalError = isError && !data && !isLoading && !isRefetching;
   if (showFatalError) {
-    return <ErrorState message={queryErrorMessage(error)} onRetry={() => void refetch()} />;
+    return (
+      <ErrorState
+        title="Could not load leads"
+        message={queryErrorMessage(error)}
+        onRetry={() => void refetch()}
+      />
+    );
   }
 
   const showStaleBanner = isError && Boolean(data);
@@ -176,7 +189,11 @@ export function LeadsScreen({ navigation }: Props) {
         <View>
           <Text style={styles.headerTitle}>Leads</Text>
           <Text style={styles.headerSub}>
-            {isAgent ? `${total} assigned to you` : `${total} total`}
+            {isAgent
+              ? `${total} assigned to you`
+              : leadFilters.scope === "my"
+                ? `${total} assigned to you`
+                : `${total} total`}
           </Text>
         </View>
       </View>
@@ -211,25 +228,27 @@ export function LeadsScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.chipsRow}>
-        {chips.map((item) => (
+        {MOBILE_LEAD_STAGES.map((item) => (
           <Pressable
             key={item.id}
-            style={[styles.chip, chip === item.id && styles.chipActive]}
-            onPress={() => setChip(item.id)}
+            style={[styles.chip, stage === item.id && styles.chipActive]}
+            onPress={() => setStage(item.id)}
           >
-            <Text style={[styles.chipText, chip === item.id && styles.chipTextActive]}>
+            <Text style={[styles.chipText, stage === item.id && styles.chipTextActive]}>
               {item.label}
             </Text>
           </Pressable>
         ))}
       </View>
 
-      <LeadFilterSheet
-        visible={filterSheetOpen}
-        filters={leadFilters}
-        onClose={() => setFilterSheetOpen(false)}
-        onApply={setLeadFilters}
-      />
+      {filterSheetOpen ? (
+        <LeadFilterSheet
+          visible
+          filters={leadFilters}
+          onClose={() => setFilterSheetOpen(false)}
+          onApply={setLeadFilters}
+        />
+      ) : null}
 
       <FlatList
         style={styles.list}
@@ -346,6 +365,7 @@ const styles = StyleSheet.create({
   chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,

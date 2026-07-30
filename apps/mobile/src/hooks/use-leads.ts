@@ -117,6 +117,11 @@ type LeadsQuery = {
   carpetAreaTo?: string;
   builtUpAreaFrom?: string;
   builtUpAreaTo?: string;
+  followUpDueBefore?: string;
+  followUpDueAfter?: string;
+  activeOnly?: string;
+  excludeNew?: string;
+  orderByFollowUp?: string;
   page?: string;
   pageSize?: string;
   excludeDuplicates?: string;
@@ -172,6 +177,11 @@ const QUERY_KEYS: (keyof LeadsQuery)[] = [
   "carpetAreaTo",
   "builtUpAreaFrom",
   "builtUpAreaTo",
+  "followUpDueBefore",
+  "followUpDueAfter",
+  "activeOnly",
+  "excludeNew",
+  "orderByFollowUp",
 ];
 
 function applyAgentLeadScope(query: LeadsQuery): LeadsQuery {
@@ -236,7 +246,15 @@ export function useInfiniteLeads(query: Omit<LeadsQuery, "page"> = {}) {
       );
     },
     getNextPageParam: (lastPage) => {
-      const totalPages = Math.max(1, Math.ceil(lastPage.total / lastPage.pageSize));
+      if (
+        !lastPage ||
+        typeof lastPage.total !== "number" ||
+        typeof lastPage.pageSize !== "number"
+      ) {
+        return undefined;
+      }
+      const pageSize = Math.max(1, lastPage.pageSize);
+      const totalPages = Math.max(1, Math.ceil(lastPage.total / pageSize));
       return lastPage.page < totalPages ? lastPage.page + 1 : undefined;
     },
     enabled: ready,

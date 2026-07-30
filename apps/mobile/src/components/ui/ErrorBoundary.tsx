@@ -1,6 +1,6 @@
 import { colors, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import type { ReactNode } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -11,26 +11,29 @@ type Props = {
 
 type State = {
   hasError: boolean;
+  message: string | null;
 };
 
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
+  state: State = { hasError: false, message: null };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return {
+      hasError: true,
+      message: error?.message?.trim() ? error.message : "Unexpected error",
+    };
   }
 
-  componentDidCatch(error: Error) {
-    if (__DEV__) {
-      console.error(
-        this.props.screenName ? `[${this.props.screenName}]` : "[ErrorBoundary]",
-        error,
-      );
-    }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(
+      this.props.screenName ? `[${this.props.screenName}]` : "[ErrorBoundary]",
+      error,
+      info.componentStack,
+    );
   }
 
   private handleRetry = () => {
-    this.setState({ hasError: false });
+    this.setState({ hasError: false, message: null });
   };
 
   render() {
@@ -39,7 +42,8 @@ export class ErrorBoundary extends Component<Props, State> {
         <Pressable style={styles.wrap} onPress={this.handleRetry} accessibilityRole="button">
           <Ionicons name="warning-outline" size={48} color={colors.danger} />
           <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.message}>Tap to retry</Text>
+          {this.state.message ? <Text style={styles.message}>{this.state.message}</Text> : null}
+          <Text style={styles.hint}>Tap to retry</Text>
         </Pressable>
       );
     }
@@ -63,6 +67,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   message: {
+    color: colors.danger,
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+    marginTop: spacing.xs,
+  },
+  hint: {
     color: colors.textMuted,
     fontSize: 14,
     textAlign: "center",

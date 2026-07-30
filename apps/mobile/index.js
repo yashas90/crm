@@ -1,5 +1,7 @@
 import NetInfo from "@react-native-community/netinfo";
 import { registerRootComponent } from "expo";
+// Define background location task before the app tree mounts.
+import "@/lib/locationTracking";
 import App from "./App";
 
 // Use our own API for reachability checks — default Google URL is blocked/slow on Indian carriers

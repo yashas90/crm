@@ -43,6 +43,7 @@ import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
+import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 import { recordLeadAssignment } from "./leadAssignmentService.js";
 import { recordReEnquiryActivity } from "./leadReEnquiry.js";
@@ -347,21 +348,21 @@ function buildListWhere(params: ListLeadsParams) {
   }
 
   if (params.dateFrom) {
-    whereClauses.push(gte(leads.createdAt, new Date(params.dateFrom)));
+    whereClauses.push(sql`${leads.createdAt} >= ${sqlTimestamptz(params.dateFrom)}`);
   }
 
   if (params.dateTo) {
-    whereClauses.push(lte(leads.createdAt, new Date(params.dateTo)));
+    whereClauses.push(sql`${leads.createdAt} <= ${sqlTimestamptz(params.dateTo)}`);
   }
 
   if (params.followUpDueBefore) {
     whereClauses.push(isNotNull(leads.nextFollowupAt));
-    whereClauses.push(lte(leads.nextFollowupAt, new Date(params.followUpDueBefore)));
+    whereClauses.push(sql`${leads.nextFollowupAt} <= ${sqlTimestamptz(params.followUpDueBefore)}`);
   }
 
   if (params.followUpDueAfter) {
     whereClauses.push(isNotNull(leads.nextFollowupAt));
-    whereClauses.push(gt(leads.nextFollowupAt, new Date(params.followUpDueAfter)));
+    whereClauses.push(sql`${leads.nextFollowupAt} > ${sqlTimestamptz(params.followUpDueAfter)}`);
   }
 
   if (params.search?.trim()) {
@@ -480,13 +481,13 @@ export const leadService = {
           active: sql<number>`count(*) filter (where ${activeWorkedLeadSql()})::int`,
           new: sql<number>`count(*) filter (
             where ${leads.leadStatus} = 'new'
-              and ${leads.createdAt} >= ${freshCutoff}
+              and ${leads.createdAt} >= ${sqlTimestamptz(freshCutoff)}
           )::int`,
           pending: sql<number>`count(*) filter (
             where ${leads.leadStatus} = 'contacted'
               or (
                 ${leads.leadStatus} = 'new'
-                and ${leads.createdAt} < ${freshCutoff}
+                and ${leads.createdAt} < ${sqlTimestamptz(freshCutoff)}
               )
           )::int`,
           scheduled: sql<number>`count(*) filter (

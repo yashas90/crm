@@ -24,6 +24,7 @@ export function temperatureStyle(temp: string | null | undefined) {
   return map[temp] ?? { bg: colors.card, text: colors.textMuted };
 }
 
-export function formatStatusLabel(status: string) {
+export function formatStatusLabel(status: string | null | undefined) {
+  if (!status?.trim()) return "Unknown";
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

@@ -42,8 +42,8 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   const isManager = useIsManager();
   const unreadCount = useUnreadNotificationCount();
   const todayVisits = useTodaySiteVisits();
-  const visitsBadgeCount =
-    todayVisits.data?.items.filter((v) => v.status === "scheduled").length ?? 0;
+  const visitItems = Array.isArray(todayVisits.data?.items) ? todayVisits.data.items : [];
+  const visitsBadgeCount = visitItems.filter((v) => v.status === "scheduled").length;
   const visitsBadge =
     visitsBadgeCount > 0 ? (visitsBadgeCount > 9 ? "9+" : visitsBadgeCount) : undefined;
   const openTaskCount = useOpenTaskCount();

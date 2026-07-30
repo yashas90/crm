@@ -1,5 +1,6 @@
 import { useTeamMembers } from "@/hooks/use-users";
 import { getUser, normalizeRole } from "@/lib/auth";
+import { LEAD_SOURCE_FILTER_CHIPS } from "@/lib/lead-sources";
 import {
   type MobileLeadFilters,
   type MobileLeadScope,
@@ -254,12 +255,45 @@ export function LeadFilterSheet({ visible, filters, onClose, onApply }: LeadFilt
                 </Pressable>
               ))}
             </View>
-            <TextField
-              label="Source"
-              value={draft.source}
-              onChangeText={(v) => patch({ source: v })}
-              placeholder="e.g. facebook"
-            />
+            <View style={styles.chipsRow}>
+              {LEAD_SOURCE_FILTER_CHIPS.map((chip) => (
+                <Pressable
+                  key={chip.value || "any-source"}
+                  style={[styles.chip, draft.source === chip.value && styles.chipActive]}
+                  onPress={() => patch({ source: chip.value })}
+                >
+                  <Text
+                    style={[styles.chipText, draft.source === chip.value && styles.chipTextActive]}
+                  >
+                    {chip.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <SectionTitle title="Temperature" />
+            <View style={styles.chipsRow}>
+              {(
+                [
+                  ["", "Any"],
+                  ["hot", "Hot"],
+                  ["warm", "Warm"],
+                  ["cold", "Cold"],
+                ] as const
+              ).map(([value, label]) => (
+                <Pressable
+                  key={value || "any"}
+                  style={[styles.chip, draft.temperature === value && styles.chipActive]}
+                  onPress={() => patch({ temperature: value })}
+                >
+                  <Text
+                    style={[styles.chipText, draft.temperature === value && styles.chipTextActive]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
             <SectionTitle title="Tags" />
             <View style={styles.chipsRow}>

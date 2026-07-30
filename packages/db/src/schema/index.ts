@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -469,6 +470,26 @@ export const agentTargets = pgTable(
   ],
 );
 
+/** Background location pings from the mobile app (work hours only). */
+export const agentLocations = pgTable(
+  "agent_locations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracy: doublePrecision("accuracy"),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_agent_locations_user_captured").on(table.userId, table.capturedAt),
+    index("idx_agent_locations_captured").on(table.capturedAt),
+  ],
+);
+
 export const leadAssignmentRules = pgTable(
   "lead_assignment_rules",
   {
@@ -617,6 +638,13 @@ export const integrationSyncStateRelations = relations(integrationSyncState, ({ 
   }),
 }));
 
+export const agentLocationsRelations = relations(agentLocations, ({ one }) => ({
+  user: one(users, {
+    fields: [agentLocations.userId],
+    references: [users.id],
+  }),
+}));
+
 export const usersRelations = relations(users, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [users.orgId],
@@ -628,6 +656,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   leadActivities: many(leadActivities),
   auditLogs: many(auditLogs),
   notifications: many(notifications),
+  locations: many(agentLocations),
 }));
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({

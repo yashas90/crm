@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth";
 import { requestCallLogPermission } from "@/lib/callLogNative";
 import { isTokenExpired } from "@/lib/jwt";
+import { startLocationTracking, stopLocationTracking } from "@/lib/locationTracking";
 import { registerPushToken } from "@/lib/pushNotifications";
 import { queryClient } from "@/lib/queryClient";
 import {
@@ -54,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (status !== "authenticated") return;
     void registerPushToken();
     void requestCallLogPermission();
+    void startLocationTracking();
   }, [status]);
 
   useEffect(() => {
@@ -92,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Token revocation best-effort — proceed with local logout regardless
     }
+    await stopLocationTracking();
     await clearAuth();
     setUser(null);
     setStatus("unauthenticated");
