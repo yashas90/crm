@@ -25,10 +25,7 @@ function tagIncludes(tags: string[], needle: string) {
   return tags.some((tag) => tag.includes(needle));
 }
 
-function display(
-  primary: string,
-  primaryClass: string,
-): LeadStatusDisplay {
+function display(primary: string, primaryClass: string): LeadStatusDisplay {
   return { primary, primaryClass, secondaryClass: STYLES.callback };
 }
 
