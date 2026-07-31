@@ -21,7 +21,7 @@ vi.mock("../lib/db.js", () => ({
             firstName: "Raj",
             lastName: "Kumar",
             assignedTo: "agent-1",
-            nextFollowupAt: new Date(Date.now() + 20 * 60_000),
+            nextFollowupAt: new Date(Date.now() + 3 * 60_000),
           },
         ],
       }),
@@ -30,7 +30,7 @@ vi.mock("../lib/db.js", () => ({
 }));
 
 describe("syncFollowupReminders", () => {
-  it("creates reminders for visits in the next 30 minutes", async () => {
+  it("creates reminders for follow-ups in the next 5 minutes", async () => {
     const { syncFollowupReminders } = await import("../jobs/followUpReminderJob.js");
     const result = await syncFollowupReminders();
     expect(result.checked).toBe(1);

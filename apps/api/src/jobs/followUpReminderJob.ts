@@ -1,4 +1,4 @@
-import { leads, users } from "@propninja/db";
+import { leads } from "@propninja/db";
 import { and, eq, gt, isNotNull, isNull, lte } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { getDb } from "../lib/db.js";
@@ -6,7 +6,7 @@ import { FOLLOWUP_REMINDER_MINUTES } from "../lib/followUp.js";
 import { logger } from "../lib/logger.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 
-const INTERVAL_MS = 60 * 60 * 1000;
+const INTERVAL_MS = 2 * 60 * 1000;
 
 let syncTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -76,7 +76,10 @@ export function startFollowupReminderJob() {
     return;
   }
 
-  logger.info("Starting follow-up reminder scheduler (hourly)", { intervalMs: INTERVAL_MS });
+  logger.info("Starting follow-up reminder scheduler (every 2 minutes)", {
+    intervalMs: INTERVAL_MS,
+    reminderMinutes: FOLLOWUP_REMINDER_MINUTES,
+  });
 
   void syncFollowupReminders().catch((error) => {
     logger.error("Initial follow-up reminder sync failed", {

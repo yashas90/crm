@@ -6,8 +6,9 @@ import {
   getIstHourMinute,
   parseVisitStartIst,
 } from "@propninja/types/ist";
-import { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useMemo, useState } from "react";
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 export function followUpDaysFromNow(days: number, hour = 9, minute = 0): string {
   return followUpAtIstDaysFromNow(days, hour, minute);
@@ -49,6 +50,36 @@ type FollowUpQuickPickerProps = {
   onChange: (iso: string | null) => void;
 };
 
+function dateFromIstParts(dateKey: string, timeHm: string): Date {
+  try {
+    return parseVisitStartIst(dateKey, timeHm);
+  } catch {
+    return new Date();
+  }
+}
+
+function formatDisplayDate(dateKey: string): string {
+  try {
+    return parseVisitStartIst(dateKey, "12:00").toLocaleDateString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return dateKey;
+  }
+}
+
+function formatDisplayTime(timeHm: string): string {
+  const [h, m] = timeHm.split(":").map(Number);
+  const hour = h ?? 0;
+  const minute = m ?? 0;
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
 export function FollowUpQuickPicker({ value, onChange }: FollowUpQuickPickerProps) {
   const [customDate, setCustomDate] = useState(() => getIstDateKey());
   const [customTime, setCustomTime] = useState(() => {
@@ -56,22 +87,40 @@ export function FollowUpQuickPicker({ value, onChange }: FollowUpQuickPickerProp
     const nextHour = Math.min(hour + 1, 21);
     return `${String(nextHour).padStart(2, "0")}:00`;
   });
+  const [pickerMode, setPickerMode] = useState<"date" | "time" | null>(null);
 
-  function applyCustomDateTime() {
-    const trimmedDate = customDate.trim();
-    const trimmedTime = customTime.trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedDate)) {
-      Alert.alert("Invalid date", "Use YYYY-MM-DD format.");
-      return;
-    }
-    if (!/^\d{1,2}:\d{2}$/.test(trimmedTime)) {
-      Alert.alert("Invalid time", "Use HH:MM format (24-hour).");
-      return;
-    }
+  const pickerValue = useMemo(
+    () => dateFromIstParts(customDate, customTime),
+    [customDate, customTime],
+  );
+
+  function applyCustomDateTime(dateKey = customDate, timeHm = customTime) {
     try {
-      onChange(parseVisitStartIst(trimmedDate, trimmedTime).toISOString());
+      onChange(parseVisitStartIst(dateKey, timeHm).toISOString());
     } catch {
       Alert.alert("Invalid date/time", "Could not schedule that follow-up.");
+    }
+  }
+
+  function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === "android") {
+      setPickerMode(null);
+    }
+    if (event.type === "dismissed" || !selected) {
+      if (Platform.OS === "ios") setPickerMode(null);
+      return;
+    }
+
+    const dateKey = getIstDateKey(selected);
+    const { hour, minute } = getIstHourMinute(selected);
+    const timeHm = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+
+    if (pickerMode === "date") {
+      setCustomDate(dateKey);
+      if (Platform.OS === "ios") setPickerMode(null);
+    } else if (pickerMode === "time") {
+      setCustomTime(timeHm);
+      if (Platform.OS === "ios") setPickerMode(null);
     }
   }
 
@@ -110,26 +159,40 @@ export function FollowUpQuickPicker({ value, onChange }: FollowUpQuickPickerProp
 
       <Text style={styles.groupLabel}>Pick date & time</Text>
       <View style={styles.customRow}>
-        <TextInput
+        <Pressable
           style={[styles.input, styles.dateInput]}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.textMuted}
-          value={customDate}
-          onChangeText={setCustomDate}
-        />
-        <TextInput
+          onPress={() => setPickerMode("date")}
+          accessibilityRole="button"
+          accessibilityLabel="Pick follow-up date"
+        >
+          <Text style={styles.inputText}>{formatDisplayDate(customDate)}</Text>
+        </Pressable>
+        <Pressable
           style={[styles.input, styles.timeInput]}
-          placeholder="HH:MM"
-          placeholderTextColor={colors.textMuted}
-          value={customTime}
-          onChangeText={setCustomTime}
-        />
-        <Pressable style={styles.applyBtn} onPress={applyCustomDateTime}>
+          onPress={() => setPickerMode("time")}
+          accessibilityRole="button"
+          accessibilityLabel="Pick follow-up time"
+        >
+          <Text style={styles.inputText}>{formatDisplayTime(customTime)}</Text>
+        </Pressable>
+        <Pressable style={styles.applyBtn} onPress={() => applyCustomDateTime()}>
           <Text style={styles.applyBtnText}>Set</Text>
         </Pressable>
       </View>
+
+      {pickerMode ? (
+        <DateTimePicker
+          value={pickerValue}
+          mode={pickerMode}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={onPickerChange}
+          // Wall clock is IST for CRM follow-ups
+          timeZoneName="Asia/Kolkata"
+        />
+      ) : null}
+
       <Text style={styles.hint}>
-        Times are in India (Kolkata). Use today&apos;s date to reschedule for later today.
+        Times are in India (Kolkata). Tap date for calendar, time for clock.
       </Text>
     </View>
   );
@@ -164,13 +227,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
-    color: colors.text,
     paddingHorizontal: spacing.sm,
     paddingVertical: 10,
-    fontSize: 14,
+    justifyContent: "center",
   },
+  inputText: { color: colors.text, fontSize: 14, fontWeight: "600" },
   dateInput: { flex: 1.4 },
-  timeInput: { flex: 0.8 },
+  timeInput: { flex: 0.9 },
   applyBtn: {
     backgroundColor: colors.primary,
     borderRadius: radii.md,

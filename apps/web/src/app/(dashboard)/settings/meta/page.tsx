@@ -806,7 +806,20 @@ function MetaDashboardInner() {
                                         size="sm"
                                         variant="outline"
                                         disabled={busy}
-                                        onClick={() => void reconnectPage.mutateAsync(page.id)}
+                                        onClick={async () => {
+                                          try {
+                                            const result = await reconnectPage.mutateAsync(page.id);
+                                            setBanner(
+                                              `Reconnected ${page.name}: ${result.formsUpserted} form(s)${result.subscribed ? ", leadgen subscribed" : ""}.`,
+                                            );
+                                          } catch (error) {
+                                            setBanner(
+                                              error instanceof Error
+                                                ? error.message
+                                                : "Could not reconnect page. Use Reconnect Meta and grant Page access first.",
+                                            );
+                                          }
+                                        }}
                                       >
                                         Reconnect
                                       </Button>

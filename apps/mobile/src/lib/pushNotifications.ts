@@ -50,6 +50,15 @@ export async function registerPushToken(): Promise<void> {
         enableVibrate: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
+      await Notifications.setNotificationChannelAsync("followups", {
+        name: "Follow-up reminders",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 300, 150, 300, 150, 300],
+        lightColor: "#204060",
+        sound: "notification_chime.wav",
+        enableVibrate: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
       await Notifications.setNotificationChannelAsync("default", {
         name: "Default",
         importance: Notifications.AndroidImportance.MAX,

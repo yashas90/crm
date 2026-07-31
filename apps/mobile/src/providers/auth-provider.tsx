@@ -13,6 +13,7 @@ import { isTokenExpired } from "@/lib/jwt";
 import { startLocationTracking, stopLocationTracking } from "@/lib/locationTracking";
 import { registerPushToken } from "@/lib/pushNotifications";
 import { queryClient } from "@/lib/queryClient";
+import { refreshLocalFollowUpReminders } from "@/lib/refreshLocalFollowUpReminders";
 import {
   type ReactNode,
   createContext,
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void registerPushToken();
     void requestCallLogPermission();
     void startLocationTracking();
+    void refreshLocalFollowUpReminders();
   }, [status]);
 
   useEffect(() => {
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const sub = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
         void registerPushToken();
+        void refreshLocalFollowUpReminders();
         const token = getToken();
         if (token && isTokenExpired(token)) {
           void refreshAccessToken().catch(() => {
@@ -83,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("authenticated");
       await queryClient.invalidateQueries({ refetchType: "active" });
       void registerPushToken();
+      void refreshLocalFollowUpReminders();
     },
     [],
   );

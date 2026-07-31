@@ -36,7 +36,7 @@ export async function playNotificationSound() {
   try {
     if (!cachedSound) {
       const { sound } = await Audio.Sound.createAsync(
-        require("../../assets/notification-chime.wav"),
+        require("../../assets/notification_chime.wav"),
         { volume: 0.85, shouldPlay: false },
       );
       cachedSound = sound;

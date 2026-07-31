@@ -650,10 +650,20 @@ metaRoutes.post("/pages/:id/reconnect", writeRateLimit, async (c) => {
     const message = error instanceof Error ? error.message : String(error);
     if (message === "PAGE_NOT_FOUND") return jsonError(c, "NOT_FOUND", "Page not found", 404);
     if (message === "NOT_CONNECTED") {
-      return jsonError(c, "NOT_CONNECTED", "Connect Meta OAuth first", 400);
+      return jsonError(
+        c,
+        "NOT_CONNECTED",
+        "Meta is not connected. Click Reconnect Meta (top), approve Page access, then try again.",
+        400,
+      );
     }
     if (message === "PAGE_TOKEN_UNAVAILABLE") {
-      return jsonError(c, "PAGE_TOKEN_UNAVAILABLE", "Could not refresh page token from Meta", 400);
+      return jsonError(
+        c,
+        "PAGE_TOKEN_UNAVAILABLE",
+        "Meta did not return a token for this Page. Click Reconnect Meta, select this Page in the Facebook dialog, then Sync assets.",
+        400,
+      );
     }
     throw error;
   }

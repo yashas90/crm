@@ -496,8 +496,21 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               value={followUpAt ?? lead.nextFollowupAt}
               onChange={(iso) => {
                 setFollowUpAt(iso);
+                if (!iso) {
+                  updateLead.mutate(
+                    { leadId, payload: { nextFollowupAt: null } },
+                    {
+                      onError: (err) =>
+                        Alert.alert(
+                          "Error",
+                          err instanceof Error ? err.message : "Failed to clear follow-up.",
+                        ),
+                    },
+                  );
+                  return;
+                }
                 updateFollowUp.mutate(
-                  { nextFollowupAt: iso as string },
+                  { nextFollowupAt: iso },
                   {
                     onError: (err) =>
                       Alert.alert(

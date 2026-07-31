@@ -466,11 +466,7 @@ export function LeadsPageView() {
           {!tableLoading && data?.total === 0 && (filters.source || filters.adLeadsOnly) ? (
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm">
               <span className="text-sky-900 dark:text-sky-100">
-                No leads match the{" "}
-                <strong>
-                  {filters.adLeadsOnly ? "Ad Leads" : formatLeadSourceDisplay(filters.source)}
-                </strong>{" "}
-                filter. Your CSV upload may use a different source.
+                No leads found for this source filter. Try &quot;All Sources&quot; to see all leads.
               </span>
               <Button variant="outline" size="sm" onClick={handleClearSourceFilter}>
                 Show all sources

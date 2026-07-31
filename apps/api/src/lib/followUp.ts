@@ -1,7 +1,7 @@
 import { isFollowUpDueTodayIst } from "@propninja/types/ist";
 
 export const COLD_LEAD_DAYS = 7;
-export const FOLLOWUP_REMINDER_MINUTES = 30;
+export const FOLLOWUP_REMINDER_MINUTES = 5;
 
 export function daysSinceContact(
   lastContactedAt: Date | string | null | undefined,

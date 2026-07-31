@@ -75,14 +75,28 @@ const LEGACY_TO_CANONICAL: Record<string, string> = {
   website: "Website",
   referral: "Referral",
   "walk-in": "Walk In",
+  walkin: "Walk In",
+  "walk in": "Walk In",
   facebook: "Meta Ads",
   "facebook ads": "Meta Ads",
   "meta ads": "Meta Ads",
+  "facebook / meta": "Meta Ads",
+  "facebook/meta": "Meta Ads",
+  meta: "Meta Ads",
+  fb: "Meta Ads",
   "google-ads": "Google Ads",
+  googleads: "Google Ads",
   google: "Google Ads",
   "cold-call": "Cold Call",
   cold_call: "Cold Call",
+  coldcall: "Cold Call",
   other: "Other",
+  magicbricks: "Magicbricks",
+  "magic bricks": "Magicbricks",
+  "99acres": "99 Acres",
+  whatsapp: "WhatsApp",
+  "housing.com": "Housing.com",
+  housing: "Housing.com",
 };
 
 /** Display label for any stored lead_source (canonical or legacy slug). */
@@ -106,10 +120,14 @@ export function formatLeadSourceDisplay(value: string | null | undefined): strin
 export function normalizeLeadSourceValue(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
-  if (trimmed === "Facebook Ads") return "Meta Ads";
-  if (LEAD_SOURCE_VALUES.includes(trimmed as (typeof LEAD_SOURCE_VALUES)[number])) {
+  // Exact canonical match (incl. portal chips)
+  if (
+    LEAD_SOURCE_VALUES.includes(trimmed as (typeof LEAD_SOURCE_VALUES)[number]) ||
+    LEADS_SOURCE_FILTER_CHIPS.some((chip) => chip.value === trimmed)
+  ) {
     return trimmed;
   }
+  // Legacy alias lookup (case-insensitive)
   return LEGACY_TO_CANONICAL[trimmed.toLowerCase()] ?? trimmed;
 }
 
@@ -119,9 +137,9 @@ export function isAdLeadLead(lead: {
 }): boolean {
   const source = lead.leadSource?.trim() ?? "";
   if ((AD_LEAD_SOURCE_LABELS as readonly string[]).includes(source)) return true;
+  const canonical = LEGACY_TO_CANONICAL[source.toLowerCase()];
+  if (canonical === "Meta Ads" || canonical === "Google Ads") return true;
   if (source === "Facebook Ads") return true;
-  if (LEGACY_TO_CANONICAL[source.toLowerCase()] === "Meta Ads") return true;
-  if (LEGACY_TO_CANONICAL[source.toLowerCase()] === "Google Ads") return true;
   return (lead.tags ?? []).includes(AD_LEAD_TAG);
 }
 

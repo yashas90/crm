@@ -40,7 +40,7 @@ import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.j
 import { inferFollowupType } from "../lib/followupType.js";
 import type { LeadAdvancedListQuery } from "../lib/leadAdvancedListQuery.js";
 import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
-import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
+import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
 import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
@@ -340,10 +340,12 @@ function buildListWhere(params: ListLeadsParams) {
     whereClauses.push(adLeadsOnlyFilter());
   } else if (params.source) {
     const sourceVariants = expandLeadSourceFilter(params.source);
+    const lowerVariants = [...new Set(sourceVariants.map((v) => v.toLowerCase()))];
     whereClauses.push(
-      sourceVariants.length === 1
-        ? eq(leads.leadSource, sourceVariants[0]!)
-        : inArray(leads.leadSource, sourceVariants),
+      sql`lower(${leads.leadSource}) in (${sql.join(
+        lowerVariants.map((v) => sql`${v}`),
+        sql`, `,
+      )})`,
     );
   }
 
@@ -800,7 +802,7 @@ export const leadService = {
         secondaryPhone: secondaryPhone ?? null,
         city: city ?? null,
         state: state ?? null,
-        leadSource: leadSource ?? null,
+        leadSource: canonicalizeLeadSource(leadSource) ?? null,
         leadStatus: leadStatus ?? "new",
         temperature: temperature ?? null,
         notes: notes ?? null,
@@ -992,7 +994,9 @@ export const leadService = {
     if (input.data.email !== undefined) update.email = input.data.email ?? null;
     if (input.data.city !== undefined) update.city = input.data.city ?? null;
     if (input.data.state !== undefined) update.state = input.data.state ?? null;
-    if (input.data.leadSource !== undefined) update.leadSource = input.data.leadSource ?? null;
+    if (input.data.leadSource !== undefined) {
+      update.leadSource = canonicalizeLeadSource(input.data.leadSource) ?? null;
+    }
     if (input.data.temperature !== undefined) update.temperature = input.data.temperature ?? null;
     if (input.data.notes !== undefined) update.notes = input.data.notes ?? null;
     if (input.data.tags !== undefined) update.tags = input.data.tags ?? null;
@@ -1166,7 +1170,9 @@ export const leadService = {
     if (payload.secondaryPhone !== undefined) update.secondaryPhone = payload.secondaryPhone;
     if (payload.city !== undefined) update.city = payload.city;
     if (payload.state !== undefined) update.state = payload.state;
-    if (payload.leadSource !== undefined) update.leadSource = payload.leadSource;
+    if (payload.leadSource !== undefined) {
+      update.leadSource = canonicalizeLeadSource(payload.leadSource) ?? null;
+    }
     if (payload.leadStatus !== undefined) update.leadStatus = payload.leadStatus;
     if (payload.temperature !== undefined) update.temperature = payload.temperature;
     if (payload.notes !== undefined) update.notes = payload.notes;

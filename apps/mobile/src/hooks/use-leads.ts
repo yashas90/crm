@@ -1,6 +1,7 @@
 import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId, getUser, normalizeRole } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
+import { cancelFollowUpReminder, scheduleFollowUpReminder } from "@/lib/followUpLocalReminders";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -319,10 +320,24 @@ export function useUpdateLead() {
     mutationFn: ({ leadId, payload }: { leadId: string; payload: Record<string, unknown> }) =>
       apiPatch(`/api/leads/${leadId}`, payload),
     onSuccess: (_data, variables) => {
+      if ("nextFollowupAt" in variables.payload) {
+        const cached = queryClient.getQueryData<LeadRow>(["leads", variables.leadId]);
+        const leadName = cached
+          ? `${cached.firstName} ${cached.lastName}`.trim()
+          : "Lead follow-up";
+        const next = variables.payload.nextFollowupAt;
+        void scheduleFollowUpReminder({
+          leadId: variables.leadId,
+          leadName,
+          nextFollowupAt: typeof next === "string" ? next : null,
+        });
+      }
+
       const status = variables.payload.leadStatus;
       const closedLead = typeof status === "string" && isNaLeadStatus(status);
 
       if (closedLead) {
+        void cancelFollowUpReminder(variables.leadId);
         void queryClient.cancelQueries({ queryKey: ["leads", variables.leadId] });
         queryClient.removeQueries({ queryKey: ["leads", variables.leadId] });
         void queryClient.invalidateQueries({
@@ -348,7 +363,14 @@ export function useUpdateLeadFollowUp(leadId: string) {
   return useMutation({
     mutationFn: (payload: { nextFollowupAt: string; markComplete?: boolean }) =>
       apiPatch(`/api/leads/${leadId}/follow-up`, payload),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const cached = queryClient.getQueryData<LeadRow>(["leads", leadId]);
+      const leadName = cached ? `${cached.firstName} ${cached.lastName}`.trim() : "Lead follow-up";
+      void scheduleFollowUpReminder({
+        leadId,
+        leadName,
+        nextFollowupAt: variables.nextFollowupAt,
+      });
       void queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
       void queryClient.invalidateQueries({ queryKey: ["tasks"], refetchType: "active" });
     },

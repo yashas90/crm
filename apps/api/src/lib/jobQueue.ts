@@ -153,7 +153,7 @@ export async function startDurableJobQueue(): Promise<boolean> {
     await queue.add(
       JOB_NAMES.FOLLOWUP_REMINDERS,
       {},
-      { repeat: { every: 60 * 60 * 1000 }, jobId: JOB_NAMES.FOLLOWUP_REMINDERS },
+      { repeat: { every: 2 * 60 * 1000 }, jobId: JOB_NAMES.FOLLOWUP_REMINDERS },
     );
     await queue.add(
       JOB_NAMES.SITE_VISIT_REMINDERS,

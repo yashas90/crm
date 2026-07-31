@@ -11,6 +11,8 @@ describe("lead-sources", () => {
   it("normalizes legacy slugs to canonical labels", () => {
     expect(normalizeLeadSourceValue("facebook")).toBe("Meta Ads");
     expect(normalizeLeadSourceValue("Facebook Ads")).toBe("Meta Ads");
+    expect(normalizeLeadSourceValue("Facebook / Meta")).toBe("Meta Ads");
+    expect(normalizeLeadSourceValue("FB")).toBe("Meta Ads");
     expect(normalizeLeadSourceValue("google-ads")).toBe("Google Ads");
     expect(normalizeLeadSourceValue("walk-in")).toBe("Walk In");
   });

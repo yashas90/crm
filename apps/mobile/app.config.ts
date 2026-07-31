@@ -45,18 +45,21 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "INTERNET",
       "RECEIVE_BOOT_COMPLETED",
       "VIBRATE",
+      "SCHEDULE_EXACT_ALARM",
       "android.permission.POST_NOTIFICATIONS",
     ],
     googleServicesFile: undefined,
   },
   plugins: [
     "expo-secure-store",
+    "@react-native-community/datetimepicker",
     [
       "expo-notifications",
       {
         color: "#204060",
         defaultChannel: "leads",
         enableBackgroundRemoteNotifications: false,
+        sounds: ["./assets/notification_chime.wav"],
       },
     ],
     [

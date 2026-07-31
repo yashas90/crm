@@ -3,6 +3,7 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { notifyNewAdLeadReceived } from "../lib/adLeadNotifications.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import { canonicalizeLeadSource } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { recordReEnquiryActivity } from "./leadReEnquiry.js";
 
@@ -301,7 +302,7 @@ export const adLeadService = {
     input: NormalizedAdLead,
     options: { skipNotification?: boolean } = {},
   ): Promise<LeadRow> {
-    const leadSource = LEAD_SOURCE_BY_PLATFORM[input.source];
+    const leadSource = canonicalizeLeadSource(LEAD_SOURCE_BY_PLATFORM[input.source]) ?? "Meta Ads";
     const { firstName, lastName } = normalizeName(input);
     const email = normalizeEmail(input.email);
     const phone = normalizePhone(input.phone);
