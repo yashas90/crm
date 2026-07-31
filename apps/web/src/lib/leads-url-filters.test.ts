@@ -89,7 +89,38 @@ describe("leads URL filters", () => {
     });
     expect(apiQuery.unassigned).toBe("true");
     expect(apiQuery.activeOnly).toBe("true");
-    expect(apiQuery.excludeNew).toBe("true");
+    // Unassigned pool is mostly `new` — Active must not hide them.
+    expect(apiQuery.excludeNew).toBeUndefined();
+  });
+
+  it("keeps excludeNew on Active for all/my/teams scopes", () => {
+    for (const scope of ["all", "my", "teams"] as const) {
+      const apiQuery = leadsFiltersToQuery(defaultLeadsUrlFilters(), {
+        scope,
+        stage: "active",
+        userId: "user-1",
+      });
+      expect(apiQuery.excludeNew).toBe("true");
+      expect(apiQuery.activeOnly).toBe("true");
+    }
+  });
+
+  it("maps New / Pending / source filters without dropping unassigned", () => {
+    const newQuery = leadsFiltersToQuery(
+      { ...defaultLeadsUrlFilters(), source: "Meta Ads" },
+      { scope: "unassigned", stage: "new" },
+    );
+    expect(newQuery.unassigned).toBe("true");
+    expect(newQuery.status).toBe("new");
+    expect(newQuery.source).toBe("Meta Ads");
+    expect(newQuery.excludeNew).toBeUndefined();
+
+    const pendingQuery = leadsFiltersToQuery(defaultLeadsUrlFilters(), {
+      scope: "unassigned",
+      stage: "pending",
+    });
+    expect(pendingQuery.unassigned).toBe("true");
+    expect(pendingQuery.status).toBe("contacted");
   });
 
   it("post-import filters clear source and set batch id", () => {

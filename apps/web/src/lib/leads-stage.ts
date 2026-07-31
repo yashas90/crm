@@ -1,3 +1,4 @@
+import type { LeadsScope } from "@/lib/leads-scope";
 import type { LeadsUrlFilters } from "@/lib/leads-url-filters";
 
 /** Pipeline stage chips shown below scope tabs on the leads list. */
@@ -100,15 +101,21 @@ type StageQuerySlice = {
 /**
  * Map a stage chip to list API filters.
  * - Active = open pipeline excluding untouched `new` (worked / updated leads).
+ * - Unassigned + Active = all open unassigned including `new` (pool is mostly untouched).
  * - New = `lead_status=new` and created within 24h (API enforces freshness).
  * - Pending = `lead_status=contacted` (called/touched or aged past 24h).
  * - EOI uses lead_status=qualified (pipeline stage before negotiation).
  */
-export function stageToQueryParams(stage: LeadsStage): StageQuerySlice {
+export function stageToQueryParams(stage: LeadsStage, scope?: LeadsScope): StageQuerySlice {
   const now = new Date().toISOString();
 
   switch (stage) {
     case "active":
+      // Unassigned leads are usually still `new`; excluding them emptied the list
+      // while the Unassigned badge still showed a count.
+      if (scope === "unassigned") {
+        return { activeOnly: "true" };
+      }
       return { activeOnly: "true", excludeNew: "true" };
     case "new":
       return { status: "new" };
@@ -129,6 +136,9 @@ export function stageToQueryParams(stage: LeadsStage): StageQuerySlice {
     case "eoi":
       return { status: "qualified" };
     default:
+      if (scope === "unassigned") {
+        return { activeOnly: "true" };
+      }
       return { activeOnly: "true", excludeNew: "true" };
   }
 }

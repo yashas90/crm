@@ -301,7 +301,7 @@ export function leadsFiltersToQuery(
 ) {
   const scope = options?.scope ?? "all";
   const stage = options?.stage ?? defaultLeadsStage();
-  const stageParams = scopeUsesStageFilters(scope) ? stageToQueryParams(stage) : {};
+  const stageParams = scopeUsesStageFilters(scope) ? stageToQueryParams(stage, scope) : {};
 
   return {
     ...leadsBaseFiltersToQuery(filters, options),

@@ -483,7 +483,9 @@ export const leadService = {
     try {
       const [row] = await db
         .select({
-          active: sql<number>`count(*) filter (where ${activeWorkedLeadSql()})::int`,
+          active: sql<number>`count(*) filter (where ${
+            baseParams.unassigned ? activePipelineLeadSql() : activeWorkedLeadSql()
+          })::int`,
           new: sql<number>`count(*) filter (
             where ${leads.leadStatus} = 'new'
               and ${leads.createdAt} >= ${sqlTimestamptz(freshCutoff)}
