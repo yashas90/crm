@@ -28,25 +28,25 @@ function buildStaticMapUrl(agents: AgentLocationPing[], apiKey: string): string 
 }
 
 export default function LocationsPage() {
-  const { session, ready, isAdmin, isManager } = useSession();
+  const { session, ready, isAdmin } = useSession();
   const router = useRouter();
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
 
   useEffect(() => {
     if (!ready) return;
-    if (!session || (!isAdmin && !isManager)) {
+    if (!session || !isAdmin) {
       router.replace("/");
     }
-  }, [ready, session, isAdmin, isManager, router]);
+  }, [ready, session, isAdmin, router]);
 
   const live = useQuery({
     queryKey: ["locations", "live"],
     queryFn: () => apiGet<{ agents: AgentLocationPing[] }>("/api/locations/live"),
-    enabled: ready && (isAdmin || isManager),
+    enabled: ready && isAdmin,
     refetchInterval: 30_000,
   });
 
-  const agentsList = useUsers("agent", { enabled: ready && (isAdmin || isManager) });
+  const agentsList = useUsers("agent", { enabled: ready && isAdmin });
   const teamAgents = (agentsList.data ?? []).filter((u) => u.isActive);
 
   const agents = live.data?.agents ?? [];
@@ -56,7 +56,7 @@ export default function LocationsPage() {
     return buildStaticMapUrl(agents, mapsKey);
   }, [agents, mapsKey]);
 
-  if (!ready || !session || (!isAdmin && !isManager)) {
+  if (!ready || !session || !isAdmin) {
     return null;
   }
 

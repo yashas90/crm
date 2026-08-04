@@ -55,7 +55,7 @@ const navItems: NavItem[] = [
     icon: MapPin,
     roles: ["admin", "manager", "agent"],
   },
-  { href: "/locations", label: "Locations", icon: MapPin, roles: ["admin", "manager"] },
+  { href: "/locations", label: "Locations", icon: MapPin, roles: ["admin"] },
   {
     href: "/bookings",
     label: "Bookings",

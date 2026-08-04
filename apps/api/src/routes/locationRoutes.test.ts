@@ -82,7 +82,13 @@ describe("locationRoutes", () => {
     expect(res.status).toBe(403);
   });
 
-  it("allows live locations for managers", async () => {
+  it("forbids live locations for managers", async () => {
+    const app = appWithUser("manager");
+    const res = await app.request("/api/locations/live");
+    expect(res.status).toBe(403);
+  });
+
+  it("allows live locations for admins", async () => {
     execute.mockResolvedValue([
       {
         user_id: "11111111-1111-1111-1111-111111111111",
@@ -94,7 +100,7 @@ describe("locationRoutes", () => {
         email: "a@test.com",
       },
     ]);
-    const app = appWithUser("manager");
+    const app = appWithUser("admin");
     const res = await app.request("/api/locations/live");
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok: boolean; data: { agents: unknown[] } };

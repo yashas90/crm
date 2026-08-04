@@ -47,7 +47,7 @@ function callWhoLabel(call: CallRecord): string {
 }
 
 function LocationHistoryContent() {
-  const { session, ready, isAdmin, isManager } = useSession();
+  const { session, ready, isAdmin } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get("userId") ?? "";
@@ -56,10 +56,10 @@ function LocationHistoryContent() {
 
   useEffect(() => {
     if (!ready) return;
-    if (!session || (!isAdmin && !isManager)) {
+    if (!session || !isAdmin) {
       router.replace("/");
     }
-  }, [ready, session, isAdmin, isManager, router]);
+  }, [ready, session, isAdmin, router]);
 
   const dayBounds = useMemo(() => {
     const start = istWallClockToDate(date, 0, 0);
@@ -70,7 +70,7 @@ function LocationHistoryContent() {
   const userQuery = useQuery({
     queryKey: ["users", userId],
     queryFn: () => apiGet<{ id: string; name: string; email: string }>(`/api/users/${userId}`),
-    enabled: ready && (isAdmin || isManager) && Boolean(userId),
+    enabled: ready && isAdmin && Boolean(userId),
   });
 
   const history = useQuery({
@@ -79,7 +79,7 @@ function LocationHistoryContent() {
       apiGet<{ items: LocationHistoryItem[]; total: number }>(
         `/api/locations/history?userId=${encodeURIComponent(userId)}&date=${encodeURIComponent(date)}`,
       ),
-    enabled: ready && (isAdmin || isManager) && Boolean(userId),
+    enabled: ready && isAdmin && Boolean(userId),
   });
 
   const calls = useCalls({
@@ -90,7 +90,7 @@ function LocationHistoryContent() {
     pageSize: "100",
   });
 
-  if (!ready || !session || (!isAdmin && !isManager)) {
+  if (!ready || !session || !isAdmin) {
     return null;
   }
 

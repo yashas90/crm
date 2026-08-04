@@ -25,8 +25,8 @@ const historyQuerySchema = z.object({
     .optional(),
 });
 
-function requireManager(authUser: AuthUser) {
-  return authUser.role === "admin" || authUser.role === "manager";
+function requireAdmin(authUser: AuthUser) {
+  return authUser.role === "admin";
 }
 
 locationRoutes.post("/ping", writeRateLimit, validate("json", pingBodySchema), async (c) => {
@@ -47,7 +47,7 @@ locationRoutes.post("/ping", writeRateLimit, validate("json", pingBodySchema), a
 
 locationRoutes.get("/live", async (c) => {
   const authUser = c.get("authUser");
-  if (!requireManager(authUser)) {
+  if (!requireAdmin(authUser)) {
     return jsonError(c, "FORBIDDEN", "Access denied", 403);
   }
 
@@ -93,7 +93,7 @@ locationRoutes.get("/live", async (c) => {
 
 locationRoutes.get("/history", validate("query", historyQuerySchema), async (c) => {
   const authUser = c.get("authUser");
-  if (!requireManager(authUser)) {
+  if (!requireAdmin(authUser)) {
     return jsonError(c, "FORBIDDEN", "Access denied", 403);
   }
 
