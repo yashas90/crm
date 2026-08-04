@@ -5,19 +5,15 @@ describe("getLeadStatusDisplay", () => {
 
   it("shows fresh new as New", () => {
     expect(
-      getLeadStatusDisplay(
-        { leadStatus: "new", createdAt: "2026-07-30T10:00:00.000Z" },
-        now,
-      ).primary,
+      getLeadStatusDisplay({ leadStatus: "new", createdAt: "2026-07-30T10:00:00.000Z" }, now)
+        .primary,
     ).toBe("New");
   });
 
   it("shows stale new as Pending", () => {
     expect(
-      getLeadStatusDisplay(
-        { leadStatus: "new", createdAt: "2026-07-28T10:00:00.000Z" },
-        now,
-      ).primary,
+      getLeadStatusDisplay({ leadStatus: "new", createdAt: "2026-07-28T10:00:00.000Z" }, now)
+        .primary,
     ).toBe("Pending");
   });
 

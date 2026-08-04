@@ -10,7 +10,16 @@ export type LeadStatusDisplayInput = {
 
 export type LeadStatusDisplay = {
   primary: string;
-  tone: "new" | "pending" | "callback" | "overdue" | "qualified" | "negotiation" | "won" | "lost" | "muted";
+  tone:
+    | "new"
+    | "pending"
+    | "callback"
+    | "overdue"
+    | "qualified"
+    | "negotiation"
+    | "won"
+    | "lost"
+    | "muted";
 };
 
 const NEW_LEAD_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -46,9 +55,7 @@ export function getLeadStatusDisplay(
     const createdAtMs = lead.createdAt ? new Date(lead.createdAt).getTime() : Number.NaN;
     const isStale =
       Number.isFinite(createdAtMs) && now.getTime() - createdAtMs > NEW_LEAD_MAX_AGE_MS;
-    return isStale
-      ? { primary: "Pending", tone: "pending" }
-      : { primary: "New", tone: "new" };
+    return isStale ? { primary: "Pending", tone: "pending" } : { primary: "New", tone: "new" };
   }
 
   if (lead.nextFollowupAt) {
