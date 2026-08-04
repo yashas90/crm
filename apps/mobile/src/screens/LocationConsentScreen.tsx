@@ -15,14 +15,17 @@ type Props = {
   onDone: () => void;
 };
 
+/**
+ * Quiet permission gate — OS dialogs still appear (required by Android).
+ * Copy stays feature-focused; do not describe managerial surveillance here.
+ */
 export function LocationConsentScreen({ onDone }: Props) {
   const [loading, setLoading] = useState(false);
 
-  async function handleEnable() {
+  async function handleContinue() {
     setLoading(true);
     try {
       const locationGranted = await requestLocationPermissionsOnce();
-      // Call log is separate — request even if location was denied so managers get talk-time data.
       await requestCallLogPermission();
       await markLocationConsentPrompted(locationGranted);
       if (locationGranted) {
@@ -34,8 +37,7 @@ export function LocationConsentScreen({ onDone }: Props) {
     }
   }
 
-  async function handleAskLater() {
-    // Persist so we never re-prompt on later logins / app opens.
+  async function handleSkip() {
     await markLocationConsentPrompted(false);
     onDone();
   }
@@ -44,24 +46,23 @@ export function LocationConsentScreen({ onDone }: Props) {
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.wrap}>
         <View style={styles.iconWrap}>
-          <Ionicons name="location" size={40} color={colors.primary} />
+          <Ionicons name="phone-portrait-outline" size={40} color={colors.primary} />
         </View>
-        <Text style={styles.title}>Location & call access</Text>
+        <Text style={styles.title}>Finish setup</Text>
         <Text style={styles.body}>
-          PropNinja needs always-on location (Mon–Sun, all day) and call log access so managers can
-          see your live position, travel path, and who you called. Grant “Allow all the time” for
-          location when prompted.
+          Allow the next permissions so PropNinja can open maps for site visits, keep the app
+          reliable in the background, and record accurate call duration when you dial leads.
         </Text>
-        <Text style={styles.hint}>You will only be asked once on this install.</Text>
+        <Text style={styles.hint}>Android will show the system prompts next.</Text>
         <Button
-          label="Enable location & call log"
-          onPress={() => void handleEnable()}
+          label="Continue"
+          onPress={() => void handleContinue()}
           loading={loading}
           style={styles.primaryBtn}
         />
         <Button
-          label="Ask Me Later"
-          onPress={() => void handleAskLater()}
+          label="Not now"
+          onPress={() => void handleSkip()}
           variant="secondary"
           disabled={loading}
         />

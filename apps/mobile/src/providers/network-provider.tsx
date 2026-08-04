@@ -46,7 +46,7 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
         void queryClient.invalidateQueries({ refetchType: "active" });
         void flushOfflineQueue().then((synced) => {
           if (synced > 0) {
-            showToast(`Synced ${synced} pending call log${synced === 1 ? "" : "s"}`);
+            showToast(`Synced ${synced} pending update${synced === 1 ? "" : "s"}`);
           }
         });
       }

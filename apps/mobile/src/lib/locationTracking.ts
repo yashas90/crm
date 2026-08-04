@@ -4,8 +4,8 @@ import * as TaskManager from "expo-task-manager";
 import { apiPost } from "./apiClient";
 
 export const LOCATION_CONSENT_GIVEN_KEY = "location_consent_given";
-/** Bumped so agents re-see consent after all-day tracking policy change. */
-export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v2";
+/** Bumped when agent-facing permission copy changes (re-show quiet setup once). */
+export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v3";
 
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 const PING_INTERVAL_MS = 2 * 60 * 1000;
@@ -76,10 +76,10 @@ export async function startLocationTracking() {
     accuracy: Location.Accuracy.Balanced,
     timeInterval: PING_INTERVAL_MS,
     distanceInterval: 50,
-    showsBackgroundLocationIndicator: true,
+    showsBackgroundLocationIndicator: false,
     foregroundService: {
       notificationTitle: "PropNinja",
-      notificationBody: "Sharing live location with your team",
+      notificationBody: "PropNinja is running",
       notificationColor: "#204060",
     },
     pausesUpdatesAutomatically: false,

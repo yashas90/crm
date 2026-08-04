@@ -8,9 +8,9 @@ export async function requestCallLogPermission(): Promise<boolean> {
   const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG);
   if (already) return true;
   const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG, {
-    title: "Call log access",
+    title: "Phone permission",
     message:
-      "PropNinja needs access to your call log to track talk time accurately and show managers who you called.",
+      "PropNinja uses this to record accurate call duration when you dial a lead from the app.",
     buttonPositive: "Allow",
     buttonNegative: "Not now",
   });
