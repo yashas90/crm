@@ -10,7 +10,7 @@ import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { Input } from "@propninja/ui/input";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, MapPin, Phone } from "lucide-react";
+import { ArrowLeft, ExternalLink, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -23,6 +23,10 @@ function formatIstTime(iso: string): string {
     second: "2-digit",
     hour12: true,
   }).format(new Date(iso));
+}
+
+function googleMapsUrl(latitude: number, longitude: number): string {
+  return `https://www.google.com/maps?q=${latitude},${longitude}`;
 }
 
 function buildPathMapUrl(items: LocationHistoryItem[], apiKey: string): string | null {
@@ -189,6 +193,7 @@ function LocationHistoryContent() {
                     <th className="px-2 py-2 font-medium">Latitude</th>
                     <th className="px-2 py-2 font-medium">Longitude</th>
                     <th className="px-2 py-2 font-medium">Accuracy (m)</th>
+                    <th className="px-2 py-2 font-medium">Map</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -201,6 +206,19 @@ function LocationHistoryContent() {
                       <td className="px-2 py-2 font-mono text-xs">{item.longitude.toFixed(6)}</td>
                       <td className="px-2 py-2">
                         {item.accuracy == null ? "—" : Math.round(item.accuracy)}
+                      </td>
+                      <td className="px-2 py-2">
+                        <a
+                          href={googleMapsUrl(item.latitude, item.longitude)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                          title="Open in Google Maps"
+                          aria-label={`Open map at ${item.latitude.toFixed(5)}, ${item.longitude.toFixed(5)}`}
+                        >
+                          <MapPin className="h-4 w-4" />
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
                       </td>
                     </tr>
                   ))}

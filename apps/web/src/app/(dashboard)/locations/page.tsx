@@ -131,6 +131,16 @@ export default function LocationsPage() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button asChild variant="outline" size="sm">
+                    <a
+                      href={`https://www.google.com/maps?q=${agent.latitude},${agent.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MapPin className="mr-1.5 h-3.5 w-3.5" />
+                      Open map
+                    </a>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
                     <Link href={`/locations/history?userId=${encodeURIComponent(agent.userId)}`}>
                       Travel & calls
                     </Link>
