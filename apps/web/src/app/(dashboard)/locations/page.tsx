@@ -110,8 +110,8 @@ export default function LocationsPage() {
           <CardContent className="space-y-2 py-10 text-center text-sm text-muted-foreground">
             <p>No agent pings in the last 24 hours.</p>
             <p className="text-xs">
-              Agents must install the app, tap Enable for location (Allow all the time) and call log,
-              then keep the app installed so pings upload.
+              Agents must install the app, tap Enable for location (Allow all the time) and call
+              log, then keep the app installed so pings upload.
             </p>
           </CardContent>
         </Card>
