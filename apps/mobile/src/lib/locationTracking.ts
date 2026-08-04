@@ -4,27 +4,30 @@ import * as TaskManager from "expo-task-manager";
 import { apiPost } from "./apiClient";
 
 export const LOCATION_CONSENT_GIVEN_KEY = "location_consent_given";
-/** Set after Enable or Ask Me Later — ensures OS/app prompt happens only once per install. */
-export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted";
+/** Bumped so agents re-see consent after all-day tracking policy change. */
+export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v2";
 
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 const PING_INTERVAL_MS = 2 * 60 * 1000;
 
+/**
+ * Location is collected every day, all day (IST). Kept as a named helper so call sites
+ * and tests stay explicit — always returns true.
+ */
+export function isLocationCollectionAllowed(_now: Date = new Date()): boolean {
+  return true;
+}
+
+/** @deprecated Use isLocationCollectionAllowed — work-hours gate removed. */
 export function isWorkHours(now: Date = new Date()): boolean {
-  const istOffset = 5.5 * 60;
-  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const istMinutes = (utcMinutes + istOffset) % (24 * 60);
-  const istHour = Math.floor(istMinutes / 60);
-  const day = new Date(now.getTime() + istOffset * 60_000).getUTCDay();
-  const isWorkday = day >= 1 && day <= 6;
-  return isWorkday && istHour >= 9 && istHour < 19;
+  return isLocationCollectionAllowed(now);
 }
 
 TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   if (error) return;
   const payload = data as { locations?: Location.LocationObject[] } | undefined;
   if (!payload?.locations?.length) return;
-  if (!isWorkHours()) return;
+  if (!isLocationCollectionAllowed()) return;
 
   const loc = payload.locations[0];
   if (!loc) return;
@@ -76,7 +79,7 @@ export async function startLocationTracking() {
     showsBackgroundLocationIndicator: true,
     foregroundService: {
       notificationTitle: "PropNinja",
-      notificationBody: "Location active during work hours",
+      notificationBody: "Sharing live location with your team",
       notificationColor: "#204060",
     },
     pausesUpdatesAutomatically: false,

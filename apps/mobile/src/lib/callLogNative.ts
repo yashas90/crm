@@ -5,10 +5,12 @@ const { CallLogModule } = NativeModules;
 /** Request READ_CALL_LOG at runtime. Returns true if granted. */
 export async function requestCallLogPermission(): Promise<boolean> {
   if (Platform.OS !== "android" || !CallLogModule) return false;
+  const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG);
+  if (already) return true;
   const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG, {
     title: "Call log access",
     message:
-      "PropNinja needs access to your call log to track talk time accurately (ring time is excluded automatically).",
+      "PropNinja needs access to your call log to track talk time accurately and show managers who you called.",
     buttonPositive: "Allow",
     buttonNegative: "Not now",
   });

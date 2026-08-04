@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/Button";
+import { requestCallLogPermission } from "@/lib/callLogNative";
 import {
   markLocationConsentPrompted,
   requestLocationPermissionsOnce,
@@ -20,9 +21,11 @@ export function LocationConsentScreen({ onDone }: Props) {
   async function handleEnable() {
     setLoading(true);
     try {
-      const granted = await requestLocationPermissionsOnce();
-      await markLocationConsentPrompted(granted);
-      if (granted) {
+      const locationGranted = await requestLocationPermissionsOnce();
+      // Call log is separate — request even if location was denied so managers get talk-time data.
+      await requestCallLogPermission();
+      await markLocationConsentPrompted(locationGranted);
+      if (locationGranted) {
         await startLocationTracking();
       }
     } finally {
@@ -43,15 +46,15 @@ export function LocationConsentScreen({ onDone }: Props) {
         <View style={styles.iconWrap}>
           <Ionicons name="location" size={40} color={colors.primary} />
         </View>
-        <Text style={styles.title}>Location during work hours</Text>
+        <Text style={styles.title}>Location & call access</Text>
         <Text style={styles.body}>
-          PropNinja tracks your location during work hours (9 AM – 7 PM, Mon–Sat) so managers can
-          coordinate site visits. Location is never collected outside these hours. You can contact
-          your admin to opt out.
+          PropNinja needs always-on location (Mon–Sun, all day) and call log access so managers can
+          see your live position, travel path, and who you called. Grant “Allow all the time” for
+          location when prompted.
         </Text>
-        <Text style={styles.hint}>You will only be asked for location access once.</Text>
+        <Text style={styles.hint}>You will only be asked once on this install.</Text>
         <Button
-          label="I Understand, Enable"
+          label="Enable location & call log"
           onPress={() => void handleEnable()}
           loading={loading}
           style={styles.primaryBtn}

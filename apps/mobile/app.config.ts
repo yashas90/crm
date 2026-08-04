@@ -66,10 +66,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-location",
       {
         locationAlwaysAndWhenInUsePermission:
-          "PropNinja uses your location during work hours to coordinate site visits.",
+          "PropNinja uses your location Mon–Sunday all day so managers can coordinate field work.",
         locationAlwaysPermission:
-          "PropNinja uses your location during work hours to coordinate site visits.",
-        locationWhenInUsePermission: "PropNinja uses your location to coordinate site visits.",
+          "PropNinja uses your location Mon–Sunday all day so managers can coordinate field work.",
+        locationWhenInUsePermission:
+          "PropNinja uses your location to coordinate field work and show live position.",
         isIosBackgroundLocationEnabled: true,
         isAndroidBackgroundLocationEnabled: true,
       },

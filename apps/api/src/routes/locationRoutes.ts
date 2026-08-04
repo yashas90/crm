@@ -71,7 +71,7 @@ locationRoutes.get("/live", async (c) => {
       ${users.email} AS email
     FROM ${agentLocations}
     INNER JOIN ${users} ON ${users.id} = ${agentLocations.userId}
-    WHERE ${agentLocations.capturedAt} > NOW() - INTERVAL '15 minutes'
+    WHERE ${agentLocations.capturedAt} > NOW() - INTERVAL '24 hours'
     ORDER BY ${agentLocations.userId}, ${agentLocations.capturedAt} DESC
   `);
 

@@ -470,7 +470,7 @@ export const agentTargets = pgTable(
   ],
 );
 
-/** Background location pings from the mobile app (work hours only). */
+/** Background location pings from the mobile app (Mon–Sun, all day). */
 export const agentLocations = pgTable(
   "agent_locations",
   {

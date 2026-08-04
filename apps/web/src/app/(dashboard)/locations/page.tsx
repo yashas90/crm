@@ -1,12 +1,13 @@
 "use client";
 
 import { useSession } from "@/hooks/use-session";
+import { useUsers } from "@/hooks/use-users";
 import { apiGet } from "@/lib/apiClient";
 import type { AgentLocationPing } from "@propninja/types";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, RefreshCw } from "lucide-react";
+import { MapPin, Phone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
@@ -15,7 +16,10 @@ function minutesAgo(iso: string): string {
   const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000));
   if (mins <= 0) return "just now";
   if (mins === 1) return "1 minute ago";
-  return `${mins} minutes ago`;
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours === 1) return "1 hour ago";
+  return `${hours} hours ago`;
 }
 
 function buildStaticMapUrl(agents: AgentLocationPing[], apiKey: string): string {
@@ -42,7 +46,11 @@ export default function LocationsPage() {
     refetchInterval: 30_000,
   });
 
+  const agentsList = useUsers("agent", { enabled: ready && (isAdmin || isManager) });
+  const teamAgents = (agentsList.data ?? []).filter((u) => u.isActive);
+
   const agents = live.data?.agents ?? [];
+  const liveIds = useMemo(() => new Set(agents.map((a) => a.userId)), [agents]);
   const mapUrl = useMemo(() => {
     if (!mapsKey || agents.length === 0) return null;
     return buildStaticMapUrl(agents, mapsKey);
@@ -61,7 +69,8 @@ export default function LocationsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Agent Locations</h1>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Live positions from the mobile app during work hours.
+            Live positions from the mobile app (Mon–Sun, all day). Open an agent for travel path and
+            calls.
           </p>
         </div>
         <Button
@@ -80,10 +89,9 @@ export default function LocationsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Live map</CardTitle>
-            <CardDescription>Pins for agents active in the last 15 minutes</CardDescription>
+            <CardDescription>Pins for agents with a ping in the last 24 hours</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Static Maps API — no interactive JS map dependency */}
             <img
               src={mapUrl}
               alt="Agent locations map"
@@ -99,8 +107,12 @@ export default function LocationsPage() {
 
       {agents.length === 0 && !live.isLoading ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No agents active in the last 15 minutes.
+          <CardContent className="space-y-2 py-10 text-center text-sm text-muted-foreground">
+            <p>No agent pings in the last 24 hours.</p>
+            <p className="text-xs">
+              Agents must install the app, tap Enable for location (Allow all the time) and call log,
+              then keep the app installed so pings upload.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -117,20 +129,73 @@ export default function LocationsPage() {
                   {agent.latitude.toFixed(5)}, {agent.longitude.toFixed(5)}
                   {agent.accuracy != null ? ` · ±${Math.round(agent.accuracy)}m` : ""}
                 </p>
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/locations/history?userId=${encodeURIComponent(agent.userId)}`}>
-                    View History
-                  </Link>
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/locations/history?userId=${encodeURIComponent(agent.userId)}`}>
+                      Travel & calls
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">All agents</CardTitle>
+          <CardDescription>
+            Open travel history and call log for any agent — even if they are not live right now.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {teamAgents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No active agents found.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {teamAgents.map((agent) => (
+                <li
+                  key={agent.id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {agent.name}
+                      {liveIds.has(agent.id) ? (
+                        <span className="ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400">
+                          Live
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{agent.email}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/locations/history?userId=${encodeURIComponent(agent.id)}`}>
+                        <MapPin className="mr-1.5 h-3.5 w-3.5" />
+                        Travel
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <Link
+                        href={`/locations/history?userId=${encodeURIComponent(agent.id)}#calls`}
+                      >
+                        <Phone className="mr-1.5 h-3.5 w-3.5" />
+                        Calls
+                      </Link>
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
       <p className="text-xs text-muted-foreground">
-        Only agents active in the last 15 minutes are shown. Location is only collected Mon–Sat 9 AM
-        – 7 PM IST.
+        Live pins show the latest ping within 24 hours. Location and CRM call logs are collected
+        Mon–Sunday, all day (IST), when the agent grants permissions on the mobile app.
       </p>
     </div>
   );

@@ -67,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (nextState === "active") {
         void registerPushToken();
         void refreshLocalFollowUpReminders();
+        void requestCallLogPermission();
+        void startLocationTracking();
         const token = getToken();
         if (token && isTokenExpired(token)) {
           void refreshAccessToken().catch(() => {
