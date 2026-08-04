@@ -9,6 +9,7 @@ import { useIsAgent } from "@/hooks/use-role";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
 import { buildLeadBrowserParams } from "@/lib/lead-browser";
+import { getLeadStatusDisplay } from "@/lib/lead-status-display";
 import { formatLeadSourceDisplay, isMetaLeadSource } from "@/lib/lead-sources";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
 import {
@@ -28,7 +29,7 @@ import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT, TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { neuCard } from "@/theme/neubrutal";
-import { formatStatusLabel, statusStyle, temperatureStyle } from "@/theme/status";
+import { statusStyle } from "@/theme/status";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect, useMemo, useState } from "react";
@@ -62,9 +63,8 @@ function daysSinceContact(value: string | null | undefined) {
 }
 
 function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
-  const statusKey = lead.leadStatus ?? "new";
-  const status = statusStyle(statusKey);
-  const temp = temperatureStyle(lead.temperature);
+  const display = getLeadStatusDisplay(lead);
+  const status = statusStyle(display.tone);
   const sourceLabel = formatLeadSourceDisplay(lead.leadSource);
   const metaSource = isMetaLeadSource(lead.leadSource);
 
@@ -81,11 +81,7 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
           <Text style={styles.name} numberOfLines={1}>
             {lead.firstName} {lead.lastName}
           </Text>
-          <Badge
-            label={formatStatusLabel(statusKey)}
-            backgroundColor={status.bg}
-            color={status.text}
-          />
+          <Badge label={display.primary} backgroundColor={status.bg} color={status.text} />
         </View>
         <Text style={styles.subline} numberOfLines={1}>
           {lead.phone ?? "No phone"}
@@ -102,9 +98,6 @@ function LeadItem({ lead, onPress }: { lead: LeadRow; onPress: () => void }) {
             <Badge label="No source" backgroundColor={colors.border} color={colors.textMuted} />
           )}
           <Text style={styles.contactLine}>{daysSinceContact(lead.lastContactedAt)}</Text>
-          {temp && lead.temperature ? (
-            <Badge label={lead.temperature} backgroundColor={temp.bg} color={temp.text} />
-          ) : null}
         </View>
       </View>
       <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />

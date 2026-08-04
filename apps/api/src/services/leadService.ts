@@ -491,10 +491,13 @@ export const leadService = {
               and ${leads.createdAt} >= ${sqlTimestamptz(freshCutoff)}
           )::int`,
           pending: sql<number>`count(*) filter (
-            where ${leads.leadStatus} = 'contacted'
-              or (
-                ${leads.leadStatus} = 'new'
-                and ${leads.createdAt} < ${sqlTimestamptz(freshCutoff)}
+            where ${leads.nextFollowupAt} is null
+              and (
+                ${leads.leadStatus} = 'contacted'
+                or (
+                  ${leads.leadStatus} = 'new'
+                  and ${leads.createdAt} < ${sqlTimestamptz(freshCutoff)}
+                )
               )
           )::int`,
           scheduled: sql<number>`count(*) filter (
@@ -1182,6 +1185,14 @@ export const leadService = {
     if (payload.nextFollowupAt !== undefined) {
       update.nextFollowupAt =
         payload.nextFollowupAt == null ? null : new Date(payload.nextFollowupAt);
+      // Agent-scheduled follow-up leaves New → Pending path (contacted), then Callback bucket.
+      if (
+        payload.nextFollowupAt != null &&
+        existing.leadStatus === "new" &&
+        payload.leadStatus === undefined
+      ) {
+        update.leadStatus = "contacted";
+      }
     }
     if (payload.estimatedValue !== undefined) {
       update.estimatedValue =

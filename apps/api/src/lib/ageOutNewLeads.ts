@@ -155,11 +155,16 @@ export function freshNewLeadWhere(now: Date = new Date()) {
   return and(eq(leads.leadStatus, "new"), sql`${leads.createdAt} >= ${sqlTimestamptz(cutoff)}`);
 }
 
-/** Pending includes contacted + any stale new that the job has not yet moved (defense). */
+/** Pending includes contacted + any stale new that the job has not yet moved (defense).
+ * Leads with a scheduled follow-up belong in Callback / Overdue, not Pending.
+ */
 export function pendingLeadWhere(now: Date = new Date()) {
   const cutoff = newLeadFreshnessCutoff(now);
-  return or(
-    eq(leads.leadStatus, "contacted"),
-    and(eq(leads.leadStatus, "new"), sql`${leads.createdAt} < ${sqlTimestamptz(cutoff)}`),
+  return and(
+    or(
+      eq(leads.leadStatus, "contacted"),
+      and(eq(leads.leadStatus, "new"), sql`${leads.createdAt} < ${sqlTimestamptz(cutoff)}`),
+    ),
+    isNull(leads.nextFollowupAt),
   );
 }

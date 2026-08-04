@@ -3,13 +3,17 @@ import { colors } from "@/theme";
 export function statusStyle(status: string) {
   const map: Record<string, { bg: string; text: string }> = {
     new: { bg: "#dbeafe", text: "#1a3550" },
-    contacted: { bg: "#fef08a", text: "#000000" },
+    pending: { bg: "#ffedd5", text: "#9a3412" },
+    callback: { bg: "#ccfbf1", text: "#0f766e" },
+    overdue: { bg: "#fecaca", text: "#991b1b" },
+    contacted: { bg: "#ffedd5", text: "#9a3412" },
     qualified: { bg: "#bfdbfe", text: "#1e40af" },
     negotiation: { bg: "#fde68a", text: "#92400e" },
     won: { bg: "#bbf7d0", text: "#166534" },
     lost: { bg: "#fecaca", text: "#991b1b" },
     not_interested: { bg: "#f1f5f9", text: "#475569" },
     dropped: { bg: "#fef3c7", text: "#92400e" },
+    muted: { bg: "#f1f5f9", text: "#64748b" },
   };
   return map[status] ?? { bg: colors.card, text: colors.textMuted };
 }

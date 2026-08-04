@@ -47,11 +47,13 @@ import { formatDateTime, formatRelativeTime } from "@/lib/dates";
 import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
 import { formatLeadSourceDisplay, isMetaLeadSource } from "@/lib/lead-sources";
+import { getLeadStatusDisplay } from "@/lib/lead-status-display";
 import { buildLeadStatusPatch, isNaLeadStatus } from "@/lib/lead-status-options";
 import { scoreBadgeStyle } from "@/lib/leadScore";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { neuCard } from "@/theme/neubrutal";
+import { statusStyle } from "@/theme/status";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
@@ -325,6 +327,8 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   const summary = lead.leadSummary;
   const scoreStyle = typeof lead.score === "number" ? scoreBadgeStyle(lead.score) : null;
+  const statusDisplay = getLeadStatusDisplay(lead);
+  const statusColors = statusStyle(statusDisplay.tone);
 
   return (
     <>
@@ -339,23 +343,20 @@ export function LeadDetailScreen({ route, navigation }: Props) {
                 <Text style={styles.title}>
                   {lead.firstName} {lead.lastName}
                 </Text>
-                <View style={styles.statusChip}>
-                  <Text style={styles.statusChipText}>{lead.leadStatus}</Text>
+                <View style={[styles.statusChip, { backgroundColor: statusColors.bg }]}>
+                  <Text style={[styles.statusChipText, { color: statusColors.text }]}>
+                    {statusDisplay.primary}
+                  </Text>
                 </View>
                 <Pressable style={styles.changeStatusBtn} onPress={() => setStatusSheetOpen(true)}>
                   <Text style={styles.changeStatusBtnText}>Change status</Text>
                 </Pressable>
               </View>
               <ComplianceChip callConsent={callConsent} />
-              {lead.temperature ? (
-                <View style={styles.tempChip}>
-                  <Text style={styles.tempChipText}>{lead.temperature}</Text>
-                </View>
-              ) : null}
               {scoreStyle ? (
                 <View style={[styles.scoreChip, { backgroundColor: scoreStyle.bg }]}>
                   <Text style={[styles.scoreChipText, { color: scoreStyle.text }]}>
-                    {scoreStyle.label} · {lead.score}
+                    Score · {lead.score}
                   </Text>
                 </View>
               ) : null}
