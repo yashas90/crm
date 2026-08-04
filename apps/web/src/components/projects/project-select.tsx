@@ -9,9 +9,18 @@ type ProjectSelectProps = {
   onChange: (projectId: string) => void;
   className?: string;
   disabled?: boolean;
+  /** Empty-option label. Defaults to "— No project —". */
+  emptyLabel?: string;
 };
 
-export function ProjectSelect({ id, value, onChange, className, disabled }: ProjectSelectProps) {
+export function ProjectSelect({
+  id,
+  value,
+  onChange,
+  className,
+  disabled,
+  emptyLabel = "— No project —",
+}: ProjectSelectProps) {
   const { data: projects, isLoading } = useProjects({ availability: true });
 
   return (
@@ -25,7 +34,7 @@ export function ProjectSelect({ id, value, onChange, className, disabled }: Proj
       disabled={disabled || isLoading}
       onChange={(event) => onChange(event.target.value)}
     >
-      <option value="">{isLoading ? "Loading projects..." : "— No project —"}</option>
+      <option value="">{isLoading ? "Loading projects..." : emptyLabel}</option>
       {projects?.map((project) => (
         <option key={project.id} value={project.id}>
           {project.name}

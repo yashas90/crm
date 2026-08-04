@@ -14,6 +14,7 @@ export type BulkLeadImportRow = {
   notes?: string;
   tags?: string[];
   projectName?: string;
+  projectId?: string;
 };
 
 export type ParseLeadsCsvResult = {

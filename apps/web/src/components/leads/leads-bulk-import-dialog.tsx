@@ -1,6 +1,7 @@
 "use client";
 
 import { AgentMultiSelect } from "@/components/leads/agent-multi-select";
+import { ProjectSelect } from "@/components/projects/project-select";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { useBulkImportLeads } from "@/hooks/use-bulk-leads";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useProjects } from "@/hooks/use-projects";
 import { useSession } from "@/hooks/use-session";
 import { useUsers } from "@/hooks/use-users";
 import { mergeAssignableUsers } from "@/lib/assignable-users";
@@ -57,15 +59,21 @@ export function LeadsBulkImportDialog({
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [assignToUserIds, setAssignToUserIds] = useState<string[]>([]);
   const [bulkLeadSource, setBulkLeadSource] = useState("");
+  const [bulkProjectId, setBulkProjectId] = useState("");
 
   const { hasPermission, canAssignLead } = usePermissions();
   const { session } = useSession();
   const canImport = hasPermission("leads:bulk_upload");
   const bulkImport = useBulkImportLeads();
   const usersQuery = useUsers(undefined, { enabled: open && canAssignLead });
+  const projectsQuery = useProjects({ availability: true });
   const assignableUsers = useMemo(
     () => mergeAssignableUsers(usersQuery.data, session),
     [session, usersQuery.data],
+  );
+  const selectedProjectName = useMemo(
+    () => projectsQuery.data?.find((p) => p.id === bulkProjectId)?.name ?? null,
+    [bulkProjectId, projectsQuery.data],
   );
 
   useEffect(() => {
@@ -80,16 +88,26 @@ export function LeadsBulkImportDialog({
     setParseErrors([]);
     setSkipDuplicates(true);
     setBulkLeadSource("");
+    setBulkProjectId("");
     setAssignToUserIds(session?.id ? [session.id] : []);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   const normalizedBulkSource = bulkLeadSource ? normalizeLeadSourceValue(bulkLeadSource) : "";
 
-  function applyBulkSource(row: BulkLeadImportRow): BulkLeadImportRow {
-    if (row.leadSource?.trim()) return row;
-    if (!normalizedBulkSource) return row;
-    return { ...row, leadSource: normalizedBulkSource };
+  function applyBulkDefaults(row: BulkLeadImportRow): BulkLeadImportRow {
+    let next = row;
+    if (!row.leadSource?.trim() && normalizedBulkSource) {
+      next = { ...next, leadSource: normalizedBulkSource };
+    }
+    if (bulkProjectId) {
+      next = {
+        ...next,
+        projectId: bulkProjectId,
+        projectName: selectedProjectName ?? next.projectName,
+      };
+    }
+    return next;
   }
 
   function handleOpenChange(next: boolean) {
@@ -108,10 +126,17 @@ export function LeadsBulkImportDialog({
   }
 
   async function handleImport() {
-    if (rows.length === 0 || assignToUserIds.length === 0 || !normalizedBulkSource) return;
+    if (
+      rows.length === 0 ||
+      assignToUserIds.length === 0 ||
+      !normalizedBulkSource ||
+      !bulkProjectId
+    ) {
+      return;
+    }
 
     const result = await bulkImport.mutateAsync({
-      leads: rows.map(applyBulkSource),
+      leads: rows.map(applyBulkDefaults),
       skipDuplicates,
       assignToUserIds,
       fileName: fileName ?? undefined,
@@ -176,6 +201,19 @@ export function LeadsBulkImportDialog({
                 </p>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="bulk-project">Project</Label>
+              <ProjectSelect
+                id="bulk-project"
+                value={bulkProjectId}
+                onChange={setBulkProjectId}
+                emptyLabel="Select project for this upload"
+              />
+              <p className="text-xs text-muted-foreground">
+                Applied to all imported rows so leads are linked to this project.
+              </p>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="bulk-lead-source">Lead source</Label>
@@ -267,6 +305,7 @@ export function LeadsBulkImportDialog({
                       <TableHead>Name</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>City</TableHead>
+                      <TableHead>Project</TableHead>
                       <TableHead>Source</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -278,6 +317,7 @@ export function LeadsBulkImportDialog({
                         </TableCell>
                         <TableCell>{row.phone}</TableCell>
                         <TableCell>{row.city ?? "—"}</TableCell>
+                        <TableCell>{selectedProjectName ?? row.projectName ?? "—"}</TableCell>
                         <TableCell>
                           {formatLeadSourceDisplay(row.leadSource ?? normalizedBulkSource)}
                         </TableCell>
@@ -306,6 +346,7 @@ export function LeadsBulkImportDialog({
                 rows.length === 0 ||
                 assignToUserIds.length === 0 ||
                 !normalizedBulkSource ||
+                !bulkProjectId ||
                 bulkImport.isPending
               }
             >
