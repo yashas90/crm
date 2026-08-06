@@ -44,11 +44,11 @@ import {
 } from "@/hooks/useTcf";
 import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDateTime, formatRelativeTime } from "@/lib/dates";
-import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
 import { formatLeadSourceDisplay, isMetaLeadSource } from "@/lib/lead-sources";
 import { getLeadStatusDisplay } from "@/lib/lead-status-display";
 import { buildLeadStatusPatch, isNaLeadStatus } from "@/lib/lead-status-options";
+import { dialLeadPhone } from "@/lib/leadDialPhone";
 import { scoreBadgeStyle } from "@/lib/leadScore";
 import type { LeadsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
@@ -276,10 +276,15 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  async function startDial(phone: string) {
+  async function startDial(which: "primary" | "secondary" = "primary") {
     if (!lead) return;
-    const opened = await dialPhoneNumber(phone);
-    if (opened) {
+    const displayPhone = which === "secondary" ? lead.secondaryPhone : lead.phone;
+    const { opened, phone } = await dialLeadPhone({
+      leadId: lead.id,
+      phone: displayPhone,
+      which,
+    });
+    if (opened && phone) {
       dialerLog.beginCall({
         leadId: lead.id,
         leadName: `${lead.firstName} ${lead.lastName}`,
@@ -288,16 +293,16 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     }
   }
 
-  async function dialWithConsentCheck(phone: string) {
+  async function dialWithConsentCheck(which: "primary" | "secondary" = "primary") {
     if (callConsent === false) {
       Alert.alert("Do not call", "This lead is marked as Do Not Call. Continue anyway?", [
         { text: "Cancel", style: "cancel" },
-        { text: "Continue", style: "destructive", onPress: () => startDial(phone) },
+        { text: "Continue", style: "destructive", onPress: () => void startDial(which) },
       ]);
       return;
     }
 
-    startDial(phone);
+    await startDial(which);
   }
 
   if (isExitingLead || isLoading) {
@@ -362,7 +367,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               ) : null}
 
               <Pressable
-                onPress={() => lead.phone && void dialWithConsentCheck(lead.phone)}
+                onPress={() => lead.phone && void dialWithConsentCheck("primary")}
                 style={styles.infoRow}
               >
                 <Text style={styles.infoLabel}>Phone</Text>
@@ -370,9 +375,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               </Pressable>
               {lead.secondaryPhone ? (
                 <Pressable
-                  onPress={() =>
-                    lead.secondaryPhone && void dialWithConsentCheck(lead.secondaryPhone)
-                  }
+                  onPress={() => void dialWithConsentCheck("secondary")}
                   style={styles.infoRow}
                 >
                   <Text style={styles.infoLabel}>Secondary phone</Text>
@@ -431,13 +434,14 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
           <LeadContactActions
             phone={lead.phone}
+            leadId={lead.id}
             leadName={`${lead.firstName} ${lead.lastName}`}
             onCallPress={async () => {
               if (!lead.phone) {
                 Alert.alert("No phone number", "This lead does not have a phone number.");
                 return;
               }
-              await dialWithConsentCheck(lead.phone);
+              await dialWithConsentCheck("primary");
             }}
             onWhatsAppPress={() => setWhatsappSheetVisible(true)}
           />
@@ -773,6 +777,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         <WhatsAppTemplateSheet
           visible={whatsappSheetVisible}
           phone={lead.phone}
+          leadId={lead.id}
           leadName={`${lead.firstName} ${lead.lastName}`.trim()}
           agentName={sessionUser?.name ?? "PropNinja"}
           projectName={linkedUnit?.projectName ?? lead.projectName}

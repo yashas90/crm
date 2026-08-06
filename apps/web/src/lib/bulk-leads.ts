@@ -114,6 +114,8 @@ export type LeadImportBatchesResponse = {
 export function bulkImportLeads(input: {
   leads: BulkLeadImportRow[];
   skipDuplicates?: boolean;
+  /** keep_assignee = leave existing agent; reassign = move to selected agent(s). */
+  onDuplicate?: "keep_assignee" | "reassign";
   assignToUserId?: string;
   assignToUserIds?: string[];
   fileName?: string;

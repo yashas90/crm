@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
-import { maskPhone } from "../lib/leadMasking.js";
+import { maskLeadContactFields } from "../lib/leadMasking.js";
 import { listPaginationSchema } from "../lib/pagination.js";
 import { canEditLead } from "../lib/permissions.js";
 import { jsonError, jsonOk } from "../lib/response.js";
@@ -23,17 +23,13 @@ import { siteVisitService } from "../services/siteVisitService.js";
 
 export const siteVisitsRoutes = new Hono();
 
-function maskVisitLeadPhones<T extends { lead?: { phone?: string | null } | null }>(
-  user: AuthUser,
-  item: T,
-): T {
-  if (user.role === "admin" || user.role === "agent" || !item.lead?.phone) return item;
+function maskVisitLeadPhones<
+  T extends { lead?: { phone?: string | null; assignedTo?: string | null } | null },
+>(user: AuthUser, item: T): T {
+  if (!item.lead) return item;
   return {
     ...item,
-    lead: {
-      ...item.lead,
-      phone: maskPhone(item.lead.phone),
-    },
+    lead: maskLeadContactFields(user, item.lead),
   };
 }
 

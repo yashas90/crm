@@ -97,12 +97,15 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
 
   const data = parsed.data;
   const leadId = data.lead_id ?? data.leadId;
-  const phoneNumber = data.phone_number ?? data.phoneNumber!;
+  const clientPhone = data.phone_number ?? data.phoneNumber!;
 
   const lead = leadId ? await leadService.getLeadById(leadId) : null;
   if (!lead || !canEditLead(authUser, { assignedTo: lead.assignedTo })) {
     return c.json({ ok: false, error: { code: "NOT_FOUND", message: "Lead not found" } }, 404);
   }
+
+  // Prefer DB number so masked display values from clients are never stored.
+  const phoneNumber = lead.phone ?? clientPhone;
 
   const durationSeconds = data.duration_seconds ?? Math.round((data.duration ?? 0) * 60);
   const mapped = mapCallOutcome(data.outcome);

@@ -113,6 +113,7 @@ const visitSelectFields = {
     lastName: leads.lastName,
     phone: leads.phone,
     email: leads.email,
+    assignedTo: leads.assignedTo,
   },
   project: {
     id: projects.id,
@@ -161,6 +162,7 @@ function mapVisitRow(row: {
     lastName: string;
     phone: string | null;
     email: string | null;
+    assignedTo?: string | null;
   } | null;
   project: { id: string; name: string } | null;
   unit: { id: string; unitNumber: string } | null;

@@ -1,11 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
+import { Linking } from "react-native";
 import { apiPost } from "./apiClient";
+import { hasCallLogPermission, requestCallLogPermission } from "./callLogNative";
 
 export const LOCATION_CONSENT_GIVEN_KEY = "location_consent_given";
-/** Bumped when agent-facing permission copy changes (re-show quiet setup once). */
-export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v3";
+/** Bumped when required-permission gate changes — forces re-check for all agents. */
+export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v4";
 
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 const PING_INTERVAL_MS = 2 * 60 * 1000;
@@ -44,6 +46,49 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   }
 });
 
+export type RequiredWorkPermissions = {
+  locationGranted: boolean;
+  callLogGranted: boolean;
+  /** True when the agent may enter the app. */
+  allGranted: boolean;
+};
+
+/** Check OS permissions required before CRM work (Android: location + call log). */
+export async function checkRequiredWorkPermissions(): Promise<RequiredWorkPermissions> {
+  const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+  const locationGranted = bgStatus === "granted";
+  const callLogGranted = await hasCallLogPermission();
+  return {
+    locationGranted,
+    callLogGranted,
+    allGranted: locationGranted && callLogGranted,
+  };
+}
+
+/** Request foreground then background location. Returns true only if background is granted. */
+export async function requestLocationPermissionsOnce(): Promise<boolean> {
+  const foreground = await Location.requestForegroundPermissionsAsync();
+  if (foreground.status !== "granted") return false;
+  const background = await Location.requestBackgroundPermissionsAsync();
+  return background.status === "granted";
+}
+
+/** Request location + call log. Returns current grant state after prompts. */
+export async function requestRequiredWorkPermissions(): Promise<RequiredWorkPermissions> {
+  const locationGranted = await requestLocationPermissionsOnce();
+  const callLogGranted = await requestCallLogPermission({ allowSkip: false });
+  const allGranted = locationGranted && callLogGranted;
+  await markLocationConsentPrompted(allGranted);
+  if (allGranted) {
+    await startLocationTracking();
+  }
+  return { locationGranted, callLogGranted, allGranted };
+}
+
+export async function openAppPermissionSettings(): Promise<void> {
+  await Linking.openSettings();
+}
+
 export async function hasLocationConsentPromptBeenShown(): Promise<boolean> {
   const prompted = await AsyncStorage.getItem(LOCATION_CONSENT_PROMPTED_KEY);
   return prompted === "true";
@@ -54,20 +99,11 @@ export async function markLocationConsentPrompted(enabled: boolean): Promise<voi
   await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, enabled ? "true" : "false");
 }
 
-/** Request OS location permissions once (called only from the consent Enable action). */
-export async function requestLocationPermissionsOnce(): Promise<boolean> {
-  const foreground = await Location.requestForegroundPermissionsAsync();
-  if (foreground.status !== "granted") return false;
-  const background = await Location.requestBackgroundPermissionsAsync();
-  return background.status === "granted";
-}
-
 export async function startLocationTracking() {
-  const consent = await AsyncStorage.getItem(LOCATION_CONSENT_GIVEN_KEY);
-  if (consent !== "true") return;
-
   const { status } = await Location.getBackgroundPermissionsAsync();
   if (status !== "granted") return;
+
+  await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, "true");
 
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
   if (isRunning) return;

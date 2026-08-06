@@ -23,10 +23,10 @@ import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDuration } from "@/lib/dates";
-import { dialPhoneNumber } from "@/lib/dialPhone";
 import { feedbackCallSaved } from "@/lib/feedback";
 import { buildLeadBrowserParams } from "@/lib/lead-browser";
 import { buildLeadStatusPatch, isNaLeadStatus } from "@/lib/lead-status-options";
+import { dialLeadPhone } from "@/lib/leadDialPhone";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -288,12 +288,12 @@ export function TodayScreen({ route, navigation }: Props) {
       Alert.alert("No phone", "This lead has no phone number.");
       return;
     }
-    const opened = await dialPhoneNumber(lead.phone);
-    if (opened) {
+    const { opened, phone } = await dialLeadPhone({ leadId: lead.id, phone: lead.phone });
+    if (opened && phone) {
       dialerLog.beginCall({
         leadId: lead.id,
         leadName: `${lead.firstName} ${lead.lastName ?? ""}`.trim(),
-        phoneNumber: lead.phone,
+        phoneNumber: phone,
       });
     }
   }
@@ -438,6 +438,7 @@ export function TodayScreen({ route, navigation }: Props) {
             <LeadContactActions
               variant="stack"
               phone={item.phone}
+              leadId={item.id}
               leadName={`${item.firstName} ${item.lastName}`}
               onCallPress={async () => handleCall(item)}
             />

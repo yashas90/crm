@@ -190,9 +190,15 @@ export const leadScopeCountsQuerySchema = leadStageCountsQuerySchema;
 
 export type LeadScopeCountsQuery = z.infer<typeof leadScopeCountsQuerySchema>;
 export type UpcomingFollowupsQuery = z.infer<typeof upcomingFollowupsQuerySchema>;
+/** What to do with assignee when a CSV phone matches an existing lead. */
+export const bulkImportOnDuplicateSchema = z.enum(["keep_assignee", "reassign"]);
+export type BulkImportOnDuplicate = z.infer<typeof bulkImportOnDuplicateSchema>;
+
 export const bulkImportLeadsBodySchema = z.object({
   leads: z.array(z.record(z.string(), z.unknown())).min(1).max(2000),
   skipDuplicates: z.boolean().optional().default(true),
+  /** keep_assignee (default): leave existing agent. reassign: move to selected agent(s). */
+  onDuplicate: bulkImportOnDuplicateSchema.optional().default("keep_assignee"),
   assignToUserId: z.string().uuid().optional(),
   assignToUserIds: z.array(z.string().uuid()).min(1).max(50).optional(),
   fileName: z.string().max(255).optional(),

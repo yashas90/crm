@@ -57,6 +57,7 @@ export function LeadsBulkImportDialog({
   const [rows, setRows] = useState<BulkLeadImportRow[]>([]);
   const [parseErrors, setParseErrors] = useState<{ row: number; message: string }[]>([]);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [onDuplicate, setOnDuplicate] = useState<"keep_assignee" | "reassign">("keep_assignee");
   const [assignToUserIds, setAssignToUserIds] = useState<string[]>([]);
   const [bulkLeadSource, setBulkLeadSource] = useState("");
   const [bulkProjectId, setBulkProjectId] = useState("");
@@ -87,6 +88,7 @@ export function LeadsBulkImportDialog({
     setRows([]);
     setParseErrors([]);
     setSkipDuplicates(true);
+    setOnDuplicate("keep_assignee");
     setBulkLeadSource("");
     setBulkProjectId("");
     setAssignToUserIds(session?.id ? [session.id] : []);
@@ -138,6 +140,7 @@ export function LeadsBulkImportDialog({
     const result = await bulkImport.mutateAsync({
       leads: rows.map(applyBulkDefaults),
       skipDuplicates,
+      onDuplicate,
       assignToUserIds,
       fileName: fileName ?? undefined,
       totalCount: rows.length + parseErrors.length,
@@ -166,8 +169,8 @@ export function LeadsBulkImportDialog({
           <DialogTitle>Import leads from CSV</DialogTitle>
           <DialogDescription>
             Upload a spreadsheet with at least <strong>firstName</strong> and <strong>phone</strong>{" "}
-            columns. Up to 2000 leads per file. Matching phone numbers update the existing lead and
-            assign it to you.
+            columns. Up to 2000 leads per file. Matching phone numbers update the existing lead
+            (re-enquiry). Choose below whether to keep the current agent or reassign.
           </DialogDescription>
         </DialogHeader>
 
@@ -267,17 +270,58 @@ export function LeadsBulkImportDialog({
               </p>
             ) : null}
 
-            <div className="flex items-center gap-2">
-              <input
-                id="skip-duplicates"
-                type="checkbox"
-                checked={skipDuplicates}
-                onChange={(event) => setSkipDuplicates(event.target.checked)}
-                className="h-4 w-4 rounded border-input"
-              />
-              <Label htmlFor="skip-duplicates" className="font-normal">
-                Merge duplicate phone numbers (keep same agent, mark as re-enquiry)
-              </Label>
+            <div className="space-y-3 rounded-xl border border-input p-3">
+              <div className="flex items-center gap-2">
+                <input
+                  id="skip-duplicates"
+                  type="checkbox"
+                  checked={skipDuplicates}
+                  onChange={(event) => setSkipDuplicates(event.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="skip-duplicates" className="font-normal">
+                  Merge duplicate phone numbers (update existing lead, mark as re-enquiry)
+                </Label>
+              </div>
+
+              {skipDuplicates ? (
+                <fieldset className="space-y-2 border-t border-border pt-3">
+                  <legend className="text-sm font-medium text-foreground">
+                    If phone already exists, assignee should
+                  </legend>
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="on-duplicate"
+                      className="mt-1 h-4 w-4 border-input"
+                      checked={onDuplicate === "keep_assignee"}
+                      onChange={() => setOnDuplicate("keep_assignee")}
+                    />
+                    <span>
+                      <span className="font-medium">Stay with the same agent</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Keep the lead under whoever owns it today. Only details and re-enquiry are
+                        updated.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="on-duplicate"
+                      className="mt-1 h-4 w-4 border-input"
+                      checked={onDuplicate === "reassign"}
+                      onChange={() => setOnDuplicate("reassign")}
+                    />
+                    <span>
+                      <span className="font-medium">Reassign to the agent(s) selected above</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Move the lead to the selected assignee (or round-robin if several).
+                      </span>
+                    </span>
+                  </label>
+                </fieldset>
+              ) : null}
             </div>
 
             {parseErrors.length > 0 ? (

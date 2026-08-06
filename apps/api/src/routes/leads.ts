@@ -614,6 +614,7 @@ leadsRoute.post(
       const result = await leadService.bulkCreateLeads({
         rows: body.leads,
         skipDuplicates: body.skipDuplicates,
+        onDuplicate: body.onDuplicate,
         assignedToAgents: requestedAssignees,
         actingUserId: authUser.id,
         batchId: batch.id,
@@ -672,7 +673,7 @@ leadsRoute.post("/", leadsCreateRateLimit, validate("json", createLeadBodySchema
 
     const lead = await leadService.createLead(body, { assignedTo });
     void recalculateLeadScore(lead.id).catch(() => undefined);
-    return c.json({ ok: true, data: lead }, 201);
+    return c.json({ ok: true, data: maskLeadContactFields(authUser, lead) }, 201);
   } catch (err) {
     if (err instanceof LeadDuplicatePhoneError) {
       return c.json({ ok: false, error: { code: err.code, message: err.message } }, 409);
@@ -717,6 +718,35 @@ leadsRoute.get("/:id", async (c) => {
   const { lead, response } = await loadLeadForView(c, id, authUser);
   if (response) return response;
   return c.json({ ok: true, data: maskLeadContactFields(authUser, lead!) });
+});
+
+/**
+ * Reveal full phone for dialing / WhatsApp only. List & detail stay masked for non-admins.
+ * Requires canViewLead (assigned agent, manager, or admin).
+ */
+leadsRoute.get("/:id/dial-phone", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const id = c.req.param("id");
+  const which = c.req.query("which") === "secondary" ? "secondary" : "primary";
+  const { lead, response } = await loadLeadForView(c, id, authUser);
+  if (response) return response;
+
+  const phone = which === "secondary" ? (lead!.secondaryPhone ?? null) : (lead!.phone ?? null);
+  if (!phone) {
+    return c.json(
+      { ok: false, error: { code: "NOT_FOUND", message: "No phone number on this lead" } },
+      404,
+    );
+  }
+
+  return c.json({
+    ok: true,
+    data: {
+      leadId: lead!.id,
+      which,
+      phone,
+    },
+  });
 });
 
 leadsRoute.get("/:id/assignments", async (c) => {

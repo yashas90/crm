@@ -13,6 +13,7 @@ import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
 import { startLeadScoringJob } from "./leadScoringJob.js";
 import { startNaPoolJob } from "./naPoolJob.js";
+import { startPurgeExpiredLeadsJob } from "./purgeExpiredLeadsJob.js";
 import { reclassifyZeroDurationAnsweredCalls } from "./reclassifyZeroDurationCalls.js";
 import { startSiteVisitReminderJob } from "./siteVisitReminderJob.js";
 import { startSlaBreachJob } from "./slaBreachJob.js";
@@ -46,6 +47,7 @@ export async function startBackgroundJobs() {
     // Keep critical notify/classification jobs in-process too so they run even if
     // BullMQ repeatable registration lags on first boot.
     startAgeOutNewLeadsJob();
+    startPurgeExpiredLeadsJob();
     startSlaBreachJob();
     startTaskDueNotificationJob();
     return;
@@ -58,6 +60,7 @@ export async function startBackgroundJobs() {
   startNaPoolJob();
   startSlaBreachJob();
   startAgeOutNewLeadsJob();
+  startPurgeExpiredLeadsJob();
   startTaskDueNotificationJob();
   setInterval(
     () => {

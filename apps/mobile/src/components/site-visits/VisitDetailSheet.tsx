@@ -8,7 +8,7 @@ import {
   visitStatusColor,
   visitStatusLabel,
 } from "@/hooks/use-site-visits";
-import { dialPhoneNumber } from "@/lib/dialPhone";
+import { dialLeadPhone } from "@/lib/leadDialPhone";
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
@@ -97,7 +97,12 @@ export function VisitDetailSheet({ visit, visible, onClose, onCompleted }: Visit
           {visit.lead?.phone ? (
             <Pressable
               style={styles.actionRow}
-              onPress={() => void dialPhoneNumber(visit.lead!.phone!)}
+              onPress={() =>
+                void dialLeadPhone({
+                  leadId: visit.leadId,
+                  phone: visit.lead!.phone,
+                })
+              }
             >
               <Ionicons name="call" size={18} color={colors.primary} />
               <Text style={styles.actionText}>{visit.lead.phone}</Text>

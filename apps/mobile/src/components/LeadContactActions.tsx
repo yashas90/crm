@@ -1,13 +1,15 @@
-import { dialPhoneNumber, openWhatsAppChat } from "@/lib/phoneActions";
+import { dialLeadPhone, openLeadWhatsApp } from "@/lib/leadDialPhone";
 import { colors, radii, spacing } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 type LeadContactActionsProps = {
   phone: string | null | undefined;
+  /** Required when phone may be masked — used to fetch the real number for Call/WhatsApp. */
+  leadId?: string | null;
   leadName?: string;
   /** Called after the native dialer opens — use to start call-return tracking. */
-  onCallStarted?: () => void;
+  onCallStarted?: (dialedPhone: string) => void;
   /** Override default SIM dial (e.g. DNC consent check on lead detail). */
   onCallPress?: () => void | Promise<void>;
   /** Opens template picker instead of direct WhatsApp link. */
@@ -20,6 +22,7 @@ type LeadContactActionsProps = {
 
 export function LeadContactActions({
   phone,
+  leadId,
   leadName,
   onCallStarted,
   onCallPress,
@@ -35,16 +38,16 @@ export function LeadContactActions({
       await onCallPress();
       return;
     }
-    if (!phone) {
+    if (!phone && !leadId) {
       Alert.alert("No phone", "This lead has no phone number.");
       return;
     }
-    const opened = await dialPhoneNumber(phone);
-    if (opened) onCallStarted?.();
+    const { opened, phone: dialed } = await dialLeadPhone({ leadId, phone });
+    if (opened && dialed) onCallStarted?.(dialed);
   }
 
   async function handleWhatsApp() {
-    if (!phone) {
+    if (!phone && !leadId) {
       Alert.alert("No phone", "This lead has no phone number.");
       return;
     }
@@ -52,7 +55,7 @@ export function LeadContactActions({
       await onWhatsAppPress();
       return;
     }
-    await openWhatsAppChat(phone, { leadName });
+    await openLeadWhatsApp({ leadId, phone, leadName });
   }
 
   if (variant === "stack") {

@@ -7,6 +7,11 @@ type LeadContact = {
   assignedTo?: string | null;
 };
 
+/** True when a phone looks like a privacy-masked display value (e.g. 98XXXXX210). */
+export function isMaskedPhoneDisplay(phone: string): boolean {
+  return /x/i.test(phone.trim());
+}
+
 /** Mask Indian-style phone: 9876543210 → 98XXXXX210 */
 export function maskPhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
@@ -27,11 +32,12 @@ export function maskEmail(email: string): string {
   return `${visible}***@${domain}`;
 }
 
-/** Only admins see full contact. Assigned agents see full contact on their own leads (for dialing). */
-export function shouldMaskLeadContact(user: AuthUser, lead: LeadContact): boolean {
-  if (user.role === "admin") return false;
-  if (user.role === "agent" && lead.assignedTo === user.id) return false;
-  return true;
+/**
+ * Display masking: only admins see full contact in list/detail responses.
+ * Agents and managers see masked phones; dialing uses GET /leads/:id/dial-phone.
+ */
+export function shouldMaskLeadContact(user: AuthUser, _lead?: LeadContact): boolean {
+  return user.role !== "admin";
 }
 
 /** True when the viewer may download/export unmasked phone numbers (admin only). */
@@ -53,11 +59,11 @@ export function maskLeadList<T extends LeadContact>(user: AuthUser, leads: T[]):
   return leads.map((lead) => maskLeadContactFields(user, lead));
 }
 
-/** Mask dialed numbers for non-admins (agents keep full numbers on their own call logs). */
+/** Mask dialed numbers for everyone except admins. */
 export function maskCallPhoneFields<
   T extends { phoneNumber?: string | null; lead?: { phone?: string | null } | null },
 >(user: AuthUser, call: T): T {
-  if (user.role === "admin" || user.role === "agent") return call;
+  if (user.role === "admin") return call;
   return {
     ...call,
     phoneNumber: call.phoneNumber ? maskPhone(call.phoneNumber) : call.phoneNumber,

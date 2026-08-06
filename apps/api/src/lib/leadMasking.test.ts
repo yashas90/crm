@@ -26,11 +26,11 @@ describe("leadMasking", () => {
     expect(maskEmail("rahul@gmail.com")).toBe("r***@gmail.com");
   });
 
-  it("masks contact for unassigned lead viewed by agent", () => {
+  it("masks contact for agents including their own leads", () => {
     const lead = {
       phone: "9876543210",
       email: "rahul@gmail.com",
-      assignedTo: "other-agent",
+      assignedTo: agent.id,
     };
     expect(shouldMaskLeadContact(agent, lead)).toBe(true);
     const masked = maskLeadContactFields(agent, lead);
@@ -38,16 +38,7 @@ describe("leadMasking", () => {
     expect(masked.email).toBe("r***@gmail.com");
   });
 
-  it("does not mask for assigned agent", () => {
-    const lead = {
-      phone: "9876543210",
-      email: "rahul@gmail.com",
-      assignedTo: agent.id,
-    };
-    expect(maskLeadContactFields(agent, lead).phone).toBe("9876543210");
-  });
-
-  it("masks for managers (only admins download full numbers)", () => {
+  it("masks for managers", () => {
     const lead = {
       phone: "9876543210",
       email: "rahul@gmail.com",
@@ -64,6 +55,7 @@ describe("leadMasking", () => {
       email: "rahul@gmail.com",
       assignedTo: null,
     };
+    expect(shouldMaskLeadContact(admin, lead)).toBe(false);
     expect(maskLeadContactFields(admin, lead).phone).toBe("9876543210");
   });
 

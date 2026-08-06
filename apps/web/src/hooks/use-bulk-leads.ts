@@ -69,6 +69,7 @@ export function useBulkImportLeads() {
     mutationFn: (input: {
       leads: BulkLeadImportRow[];
       skipDuplicates?: boolean;
+      onDuplicate?: "keep_assignee" | "reassign";
       assignToUserId?: string;
       assignToUserIds?: string[];
       fileName?: string;

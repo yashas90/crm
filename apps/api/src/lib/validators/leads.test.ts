@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listLeadsQuerySchema, updateLeadBodySchema } from "./leads.js";
+import { bulkImportLeadsBodySchema, listLeadsQuerySchema, updateLeadBodySchema } from "./leads.js";
 
 describe("listLeadsQuerySchema", () => {
   const agentId = "550e8400-e29b-41d4-a716-446655440000";
@@ -137,5 +137,41 @@ describe("updateLeadBodySchema", () => {
     if (parsed.success) {
       expect(parsed.data.assignedTo).toBeUndefined();
     }
+  });
+});
+
+describe("bulkImportLeadsBodySchema", () => {
+  const agentId = "550e8400-e29b-41d4-a716-446655440000";
+
+  it("defaults onDuplicate to keep_assignee", () => {
+    const parsed = bulkImportLeadsBodySchema.safeParse({
+      leads: [{ firstName: "A", phone: "+919876543210" }],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.onDuplicate).toBe("keep_assignee");
+      expect(parsed.data.skipDuplicates).toBe(true);
+    }
+  });
+
+  it("accepts reassign onDuplicate with assignees", () => {
+    const parsed = bulkImportLeadsBodySchema.safeParse({
+      leads: [{ firstName: "A", phone: "+919876543210" }],
+      onDuplicate: "reassign",
+      assignToUserIds: [agentId],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.onDuplicate).toBe("reassign");
+      expect(parsed.data.assignToUserIds).toEqual([agentId]);
+    }
+  });
+
+  it("rejects invalid onDuplicate values", () => {
+    const parsed = bulkImportLeadsBodySchema.safeParse({
+      leads: [{ firstName: "A", phone: "+919876543210" }],
+      onDuplicate: "skip",
+    });
+    expect(parsed.success).toBe(false);
   });
 });

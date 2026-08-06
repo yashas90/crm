@@ -2,17 +2,30 @@ import { NativeModules, PermissionsAndroid, Platform } from "react-native";
 
 const { CallLogModule } = NativeModules;
 
+export async function hasCallLogPermission(): Promise<boolean> {
+  // Non-Android or builds without the native module cannot use call log — do not block login.
+  if (Platform.OS !== "android") return true;
+  if (!CallLogModule) return true;
+  return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG);
+}
+
+type RequestOpts = {
+  /** When false, negative button still denies — caller must keep blocking the app. */
+  allowSkip?: boolean;
+};
+
 /** Request READ_CALL_LOG at runtime. Returns true if granted. */
-export async function requestCallLogPermission(): Promise<boolean> {
-  if (Platform.OS !== "android" || !CallLogModule) return false;
+export async function requestCallLogPermission(opts: RequestOpts = {}): Promise<boolean> {
+  if (Platform.OS !== "android") return true;
+  if (!CallLogModule) return true;
   const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG);
   if (already) return true;
   const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_CALL_LOG, {
-    title: "Phone permission",
+    title: "Phone permission required",
     message:
-      "PropNinja uses this to record accurate call duration when you dial a lead from the app.",
+      "PropNinja needs call log access to record accurate call duration when you dial a lead. This is required to use the app.",
     buttonPositive: "Allow",
-    buttonNegative: "Not now",
+    buttonNegative: opts.allowSkip === false ? "Deny" : "Not now",
   });
   return result === PermissionsAndroid.RESULTS.GRANTED;
 }

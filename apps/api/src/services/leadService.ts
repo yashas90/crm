@@ -825,6 +825,8 @@ export const leadService = {
   async bulkCreateLeads(input: {
     rows: Record<string, unknown>[];
     skipDuplicates: boolean;
+    /** keep_assignee (default) or reassign duplicates to assignedToAgents. */
+    onDuplicate?: "keep_assignee" | "reassign";
     assignedToAgents: string[];
     actingUserId: string;
     batchId?: string;
@@ -875,16 +877,25 @@ export const leadService = {
       const assignedTo = input.assignedToAgents[index % input.assignedToAgents.length]!;
 
       if (existing) {
+        const previousAssignee = existing.assignedTo;
         const merged = await this.mergeImportRow({
           leadId: existing.id,
           data: parsed.data,
           storedPhone,
           assignedTo,
+          onDuplicate: input.onDuplicate ?? "keep_assignee",
           actingUserId: input.actingUserId,
           source: "bulk_import",
         });
 
         if (merged) {
+          if (
+            (input.onDuplicate ?? "keep_assignee") === "reassign" &&
+            assignedTo &&
+            assignedTo !== previousAssignee
+          ) {
+            trackAssignment(assignedTo);
+          }
           updated.push({ row: rowNumber, id: merged.id, phone: merged.phone ?? storedPhone });
           batchItems.push({
             rowNumber,
@@ -965,6 +976,8 @@ export const leadService = {
     data: CreateLeadInput;
     storedPhone: string;
     assignedTo?: string;
+    /** Default keep_assignee — only bulk import passes reassign. */
+    onDuplicate?: "keep_assignee" | "reassign";
     actingUserId: string;
     source?: string;
   }) {
@@ -1016,6 +1029,15 @@ export const leadService = {
       update.projectId = resolvedProject.projectId;
     }
 
+    const shouldReassign =
+      input.onDuplicate === "reassign" &&
+      Boolean(input.assignedTo) &&
+      input.assignedTo !== existing.assignedTo;
+
+    if (shouldReassign) {
+      update.assignedTo = input.assignedTo;
+    }
+
     const [merged] = await db
       .update(leads)
       .set(update)
@@ -1030,6 +1052,16 @@ export const leadService = {
 
     if (!merged) {
       return null;
+    }
+
+    if (shouldReassign && input.assignedTo) {
+      await recordLeadAssignment(db, {
+        leadId: input.leadId,
+        fromAgentId: existing.assignedTo,
+        toAgentId: input.assignedTo,
+        assignedBy: input.actingUserId,
+        reason: "bulk_import_reassign",
+      });
     }
 
     const reopenedFromTerminal =

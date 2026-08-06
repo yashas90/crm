@@ -27,8 +27,14 @@ jest.mock("@/hooks/useAutoDialerCallLog");
 jest.mock("@/lib/feedback", () => ({
   feedbackCallSaved: jest.fn(),
 }));
+jest.mock("@/lib/leadDialPhone", () => ({
+  dialLeadPhone: jest.fn().mockResolvedValue({ opened: true, phone: "+919876543210" }),
+  openLeadWhatsApp: jest.fn().mockResolvedValue(true),
+  resolveDialablePhone: jest.fn().mockResolvedValue("+919876543210"),
+}));
 jest.mock("@/lib/dialPhone", () => ({
   dialPhoneNumber: jest.fn().mockResolvedValue(true),
+  dialLeadPhone: jest.fn().mockResolvedValue({ opened: true, phone: "+919876543210" }),
 }));
 jest.mock("@/providers/auth-provider", () => ({
   useAuth: () => ({

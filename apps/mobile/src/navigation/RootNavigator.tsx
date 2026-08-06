@@ -1,47 +1,43 @@
-import {
-  hasLocationConsentPromptBeenShown,
-  markLocationConsentPrompted,
-  startLocationTracking,
-} from "@/lib/locationTracking";
+import { checkRequiredWorkPermissions, startLocationTracking } from "@/lib/locationTracking";
 import { MainTabs } from "@/navigation/MainTabs";
 import { useAuth } from "@/providers/auth-provider";
 import { LocationConsentScreen } from "@/screens/LocationConsentScreen";
 import { LoginScreen } from "@/screens/LoginScreen";
 import { colors } from "@/theme";
-import * as Location from "expo-location";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, AppState, View } from "react-native";
 
 export function RootNavigator() {
   const { status, logout } = useAuth();
-  const [needsConsent, setNeedsConsent] = useState<boolean | null>(null);
+  /** null = checking; true = must show gate; false = may enter app */
+  const [needsPermissions, setNeedsPermissions] = useState<boolean | null>(null);
+
+  const evaluatePermissions = useCallback(async () => {
+    const perms = await checkRequiredWorkPermissions();
+    if (perms.allGranted) {
+      await startLocationTracking();
+      setNeedsPermissions(false);
+      return;
+    }
+    setNeedsPermissions(true);
+  }, []);
 
   useEffect(() => {
     if (status !== "authenticated") {
-      setNeedsConsent(null);
+      setNeedsPermissions(null);
       return;
     }
 
     let cancelled = false;
     void (async () => {
-      const prompted = await hasLocationConsentPromptBeenShown();
+      const perms = await checkRequiredWorkPermissions();
       if (cancelled) return;
-      if (prompted) {
-        setNeedsConsent(false);
-        return;
-      }
-
-      // Reinstall / upgrade where OS permission is already granted — skip UI, never re-ask.
-      const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
-      if (cancelled) return;
-      if (bgStatus === "granted") {
-        await markLocationConsentPrompted(true);
+      if (perms.allGranted) {
         await startLocationTracking();
-        if (!cancelled) setNeedsConsent(false);
+        if (!cancelled) setNeedsPermissions(false);
         return;
       }
-
-      setNeedsConsent(true);
+      setNeedsPermissions(true);
     })();
 
     return () => {
@@ -49,11 +45,19 @@ export function RootNavigator() {
     };
   }, [status]);
 
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void evaluatePermissions();
+    });
+    return () => sub.remove();
+  }, [status, evaluatePermissions]);
+
   if (status !== "authenticated") {
     return <LoginScreen />;
   }
 
-  if (needsConsent === null) {
+  if (needsPermissions === null) {
     return (
       <View
         style={{
@@ -68,8 +72,14 @@ export function RootNavigator() {
     );
   }
 
-  if (needsConsent) {
-    return <LocationConsentScreen onDone={() => setNeedsConsent(false)} />;
+  if (needsPermissions) {
+    return (
+      <LocationConsentScreen
+        onDone={() => {
+          void evaluatePermissions();
+        }}
+      />
+    );
   }
 
   return <MainTabs onLogout={() => void logout()} />;

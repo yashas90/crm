@@ -4,3 +4,4 @@ export {
   openWhatsAppChat,
   toWhatsAppDigits,
 } from "@/lib/phoneActions";
+export { dialLeadPhone, openLeadWhatsApp, resolveDialablePhone } from "@/lib/leadDialPhone";

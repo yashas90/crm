@@ -1,4 +1,5 @@
 import type { MessageTemplate } from "@/hooks/use-message-templates";
+import { resolveDialablePhone } from "@/lib/leadDialPhone";
 import {
   type RecentTemplateEntry,
   buildTemplateVariables,
@@ -28,6 +29,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 type WhatsAppTemplateSheetProps = {
   visible: boolean;
   phone: string;
+  leadId?: string;
   leadName: string;
   agentName: string;
   projectName?: string | null;
@@ -41,6 +43,7 @@ type WhatsAppTemplateSheetProps = {
 export function WhatsAppTemplateSheet({
   visible,
   phone,
+  leadId,
   leadName,
   agentName,
   projectName,
@@ -100,7 +103,15 @@ export function WhatsAppTemplateSheet({
 
     setSending(true);
     try {
-      const opened = await openWhatsAppWithMessage(phone, trimmed);
+      const dialPhone = await resolveDialablePhone({ leadId, phone });
+      if (!dialPhone) {
+        Alert.alert(
+          "Number unavailable",
+          "Could not load this lead’s phone number for WhatsApp. Check your connection and try again.",
+        );
+        return;
+      }
+      const opened = await openWhatsAppWithMessage(dialPhone, trimmed);
       if (!opened) {
         Alert.alert(
           "WhatsApp unavailable",
