@@ -41,11 +41,11 @@ describe("followUpLocalReminders", () => {
         content: expect.objectContaining({
           title: "Follow-up in 5 minutes",
           body: "Test Lead",
-          sound: "notification_chime.wav",
+          sound: "notification_swish.mp3",
         }),
         trigger: expect.objectContaining({
           type: "date",
-          channelId: "followups",
+          channelId: "followups_swish",
         }),
       }),
     );

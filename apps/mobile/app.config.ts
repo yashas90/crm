@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "PropNinja",
   slug: "propninja-crm",
-  version: "1.0.6",
+  version: "1.0.7",
   description:
     "PropNinja CRM for real estate agents — manage leads, follow-ups, and log SIM calls from your phone.",
   orientation: "portrait",
@@ -57,9 +57,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-notifications",
       {
         color: "#204060",
-        defaultChannel: "leads",
+        defaultChannel: "alerts_swish",
         enableBackgroundRemoteNotifications: false,
-        sounds: ["./assets/notification_chime.wav"],
+        sounds: ["./assets/notification_swish.mp3", "./assets/notification_chime.wav"],
       },
     ],
     [

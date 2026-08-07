@@ -2,6 +2,11 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { apiPost } from "./apiClient";
+import {
+  ALERTS_PUSH_CHANNEL_ID,
+  FOLLOWUPS_PUSH_CHANNEL_ID,
+  NOTIFICATION_SOUND_FILE,
+} from "./notificationSound";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -41,21 +46,21 @@ export async function registerPushToken(): Promise<void> {
     await apiPost("/api/auth/push-token", { token }, { skipSessionLogout: true });
 
     if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("leads", {
-        name: "Lead alerts",
+      await Notifications.setNotificationChannelAsync(ALERTS_PUSH_CHANNEL_ID, {
+        name: "CRM alerts",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 120, 250],
         lightColor: "#204060",
-        sound: "default",
+        sound: NOTIFICATION_SOUND_FILE,
         enableVibrate: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
-      await Notifications.setNotificationChannelAsync("followups", {
+      await Notifications.setNotificationChannelAsync(FOLLOWUPS_PUSH_CHANNEL_ID, {
         name: "Follow-up reminders",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 300, 150, 300, 150, 300],
         lightColor: "#204060",
-        sound: "notification_chime.wav",
+        sound: NOTIFICATION_SOUND_FILE,
         enableVibrate: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
@@ -64,7 +69,7 @@ export async function registerPushToken(): Promise<void> {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: "#14b8a6",
-        sound: "default",
+        sound: NOTIFICATION_SOUND_FILE,
       });
     }
   } catch {

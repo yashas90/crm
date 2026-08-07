@@ -21,7 +21,8 @@ export type SendPushResult =
   | { sent: true }
   | { sent: false; reason: "no_token" | "invalid_token" | "ticket_error" | "no_ticket" };
 
-export const LEADS_PUSH_CHANNEL_ID = "leads";
+export const LEADS_PUSH_CHANNEL_ID = "alerts_swish";
+export const PUSH_NOTIFICATION_SOUND = "notification_swish.mp3";
 
 export async function sendPushNotification(
   db: Database,
@@ -52,7 +53,7 @@ export async function sendPushNotification(
     title,
     body,
     data: data ?? {},
-    sound: "default",
+    sound: PUSH_NOTIFICATION_SOUND,
     priority: "high",
     channelId: LEADS_PUSH_CHANNEL_ID,
   };

@@ -1,8 +1,9 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { FOLLOWUPS_PUSH_CHANNEL_ID, NOTIFICATION_SOUND_FILE } from "./notificationSound";
 
 export const FOLLOWUP_REMINDER_LEAD_MINUTES = 5;
-export const FOLLOWUP_CHANNEL_ID = "followups";
+export const FOLLOWUP_CHANNEL_ID = FOLLOWUPS_PUSH_CHANNEL_ID;
 
 function reminderId(leadId: string) {
   return `followup-reminder:${leadId}`;
@@ -15,7 +16,7 @@ export async function ensureFollowUpNotificationChannel() {
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 300, 150, 300, 150, 300],
     lightColor: "#204060",
-    sound: "notification_chime.wav",
+    sound: NOTIFICATION_SOUND_FILE,
     enableVibrate: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   });
@@ -57,7 +58,7 @@ export async function scheduleFollowUpReminder(input: {
     content: {
       title: "Follow-up in 5 minutes",
       body: leadName.trim() || "Lead follow-up",
-      sound: "notification_chime.wav",
+      sound: NOTIFICATION_SOUND_FILE,
       data: {
         type: "followup_reminder",
         leadId,
