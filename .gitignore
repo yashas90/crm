@@ -20,3 +20,4 @@ apps/mobile/store/*.p8
 apps/mobile/store/submit.env
 apps/mobile/credentials.json
 .env*
+.android-sdk/

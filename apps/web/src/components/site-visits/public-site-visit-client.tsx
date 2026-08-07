@@ -1,10 +1,6 @@
 "use client";
 
 import {
-  AddToCalendarDropdown,
-  siteVisitToCalendarEvent,
-} from "@/components/site-visits/add-to-calendar-dropdown";
-import {
   cancelPublicSiteVisit,
   confirmPublicSiteVisit,
   requestCallbackPublicSiteVisit,
@@ -94,7 +90,9 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
     visit.mapsLink ??
     (visit.meetingLocation
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(visit.meetingLocation)}`
-      : null);
+      : visit.projectName
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(visit.projectName)}`
+        : null);
 
   const whatsappUrl = useMemo(() => {
     if (!visit.agentPhone) return null;
@@ -168,6 +166,8 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
     toast.success("Callback requested! Your agent will be in touch soon.");
   }
 
+  const isScheduled = visit.status === "scheduled";
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white px-4 py-10 dark:from-slate-950 dark:to-slate-900">
       <div className="mx-auto w-full max-w-md">
@@ -215,32 +215,54 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
               </div>
 
               <div className="space-y-2 border-t border-border pt-4">
-                {visit.canReschedule && !visit.confirmedByClient ? (
-                  <Button
-                    className="w-full justify-start gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    disabled={busy}
-                    onClick={() => void handleConfirm()}
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Yes, I'll be there!
-                  </Button>
-                ) : null}
-
-                {visit.confirmedByClient ? (
-                  <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    <CheckCircle className="h-4 w-4" />
-                    You've confirmed this visit
+                {isScheduled ? (
+                  !visit.confirmedByClient ? (
+                    <Button
+                      className="w-full justify-start gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      disabled={busy}
+                      onClick={() => void handleConfirm()}
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Yes, I'll be there!
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      <CheckCircle className="h-4 w-4" />
+                      You've confirmed this visit
+                    </div>
+                  )
+                ) : visit.status === "cancelled" ? (
+                  <div className="rounded-lg bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                    This visit has been cancelled. Contact your agent to book a new one.
+                  </div>
+                ) : visit.status === "completed" ? (
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                    This visit is completed. Thank you for visiting!
+                  </div>
+                ) : visit.status === "no_show" ? (
+                  <div className="rounded-lg bg-amber-50 dark:bg-amber-950 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                    This visit was marked as missed. Contact your agent to reschedule.
                   </div>
                 ) : null}
 
-                {mapsUrl ? (
-                  <Button variant="outline" className="w-full justify-start gap-2" asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  disabled={!mapsUrl}
+                  asChild={!!mapsUrl}
+                >
+                  {mapsUrl ? (
                     <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
                       <MapPin className="h-4 w-4" />
                       Open Google Maps
                     </a>
-                  </Button>
-                ) : null}
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Open Google Maps (address not set)
+                    </span>
+                  )}
+                </Button>
 
                 <Button
                   variant="outline"
@@ -260,7 +282,7 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
                   Download .ics file
                 </Button>
 
-                {visit.canReschedule ? (
+                {isScheduled ? (
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2"
@@ -275,7 +297,7 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
                   </Button>
                 ) : null}
 
-                {visit.canCancel ? (
+                {isScheduled ? (
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2 text-destructive hover:text-destructive"
@@ -286,25 +308,45 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
                   </Button>
                 ) : null}
 
-                {visit.agentPhone ? (
-                  <Button variant="outline" className="w-full justify-start gap-2" asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2"
+                  disabled={!visit.agentPhone}
+                  asChild={!!visit.agentPhone}
+                >
+                  {visit.agentPhone ? (
                     <a href={`tel:${visit.agentPhone}`}>
                       <Phone className="h-4 w-4" />
-                      Call agent
+                      Call {visit.agentName}
                     </a>
-                  </Button>
-                ) : null}
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Call agent (contact not set)
+                    </span>
+                  )}
+                </Button>
 
-                {whatsappUrl ? (
-                  <Button className="w-full justify-start gap-2" asChild>
+                <Button
+                  className="w-full justify-start gap-2"
+                  variant={whatsappUrl ? "default" : "outline"}
+                  disabled={!whatsappUrl}
+                  asChild={!!whatsappUrl}
+                >
+                  {whatsappUrl ? (
                     <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
                       <MessageCircle className="h-4 w-4" />
                       Chat on WhatsApp
                     </a>
-                  </Button>
-                ) : null}
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4" />
+                      Chat on WhatsApp (contact not set)
+                    </span>
+                  )}
+                </Button>
 
-                {visit.canReschedule ? (
+                {isScheduled ? (
                   callbackSent ? (
                     <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                       <PhoneCall className="h-4 w-4" />
