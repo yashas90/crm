@@ -5,6 +5,14 @@ global.ErrorUtils = {
   getGlobalHandler: jest.fn(() => () => {}),
 };
 
+jest.mock("expo-constants", () => ({
+  __esModule: true,
+  default: {
+    expoConfig: { version: "1.0.5" },
+    nativeAppVersion: "1.0.5",
+  },
+}));
+
 jest.mock("expo-notifications", () => ({
   getPermissionsAsync: jest.fn(async () => ({ status: "granted", canAskAgain: true })),
   requestPermissionsAsync: jest.fn(async () => ({ status: "granted", canAskAgain: true })),

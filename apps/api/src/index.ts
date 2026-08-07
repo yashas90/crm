@@ -17,6 +17,7 @@ import { startTokenBlocklistRefresh } from "./lib/tokenBlocklist.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { csrfProtectionMiddleware } from "./middleware/csrfProtection.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { mobileAppVersionMiddleware } from "./middleware/mobileAppVersion.js";
 import { authenticatedUserRateLimit, publicIpRateLimitMiddleware } from "./middleware/rateLimit.js";
 import { requestContextMiddleware } from "./middleware/requestContext.js";
 import { responseCacheMiddleware } from "./middleware/responseCache.js";
@@ -84,7 +85,14 @@ app.use(
     origin: corsOrigins,
     credentials: true,
     allowMethods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowHeaders: ["Authorization", "Content-Type", "Accept", "X-Requested-With"],
+    allowHeaders: [
+      "Authorization",
+      "Content-Type",
+      "Accept",
+      "X-Requested-With",
+      "X-PropNinja-App-Version",
+      "X-PropNinja-Client",
+    ],
     maxAge: 86_400,
   }),
 );
@@ -98,6 +106,7 @@ app.route("/api/documents", documentViewRoutes);
 
 app.use("/api/*", ipBlocklistMiddleware);
 app.use("/api/*", csrfProtectionMiddleware);
+app.use("/api/*", mobileAppVersionMiddleware);
 
 app.use("/api/*", authMiddleware);
 app.use("/api/*", healIpBlockForAuthenticatedUser);

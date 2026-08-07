@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+import { getMobileClientHeaders } from "@/lib/appVersion";
 import { clearAuth, getRefreshToken, getToken, updateTokens } from "@/lib/auth";
 
 export type ApiSuccess<T> = { ok: true; data: T };
@@ -20,12 +21,18 @@ export class ApiRequestError extends Error {
 }
 
 type UnauthorizedHandler = () => void;
+type AppUpdateRequiredHandler = () => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
+let appUpdateRequiredHandler: AppUpdateRequiredHandler | null = null;
 let sessionLogoutSuppressed = false;
 let refreshPromise: Promise<boolean> | null = null;
 
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
   unauthorizedHandler = handler;
+}
+
+export function setAppUpdateRequiredHandler(handler: AppUpdateRequiredHandler | null) {
+  appUpdateRequiredHandler = handler;
 }
 
 /** Suppress automatic logout on 401 (bootstrap / best-effort requests). */
@@ -138,7 +145,11 @@ export async function refreshAccessToken(): Promise<boolean> {
       try {
         response = await fetch(`${getApiUrl()}/api/auth/refresh`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            ...getMobileClientHeaders(),
+          },
           body: JSON.stringify({ refreshToken }),
           signal: controller.signal,
         });
@@ -173,6 +184,7 @@ async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptio
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    ...getMobileClientHeaders(),
     ...(requestInit.headers as Record<string, string> | undefined),
   };
   if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
@@ -223,6 +235,10 @@ async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptio
       "details" in error ? error.details : undefined,
       response.status,
     );
+
+    if (apiError.code === "APP_UPDATE_REQUIRED" || response.status === 426) {
+      appUpdateRequiredHandler?.();
+    }
 
     // Session logout is handled in apiFetch after a failed token refresh — not here on every 401.
 

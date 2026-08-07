@@ -104,6 +104,22 @@ const envSchema = z
     /** Optional — Expo push notification access token. */
     EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
     CORS_ORIGINS: z.string().optional(),
+    /**
+     * Minimum PropNinja mobile app semver (e.g. 1.0.5). When set, older native
+     * clients are rejected with APP_UPDATE_REQUIRED. Leave unset to allow all versions.
+     */
+    MIN_MOBILE_APP_VERSION: z.preprocess(
+      (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+      z
+        .string()
+        .regex(/^\d+\.\d+\.\d+/, "MIN_MOBILE_APP_VERSION must be semver like 1.0.5")
+        .optional(),
+    ),
+    /** Optional download / update URL shown to outdated mobile clients. */
+    MOBILE_UPDATE_URL: z.preprocess(
+      (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+      z.string().url().optional(),
+    ),
   })
   .superRefine((data, ctx) => {
     if (!data.META_WEBHOOK_ENABLED) return;

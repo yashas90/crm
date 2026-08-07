@@ -159,6 +159,14 @@ pnpm eas:build:android           # AAB for Play Store
 pnpm eas:build:ios               # IPA for App Store
 ```
 
+### Force-update (block old APKs)
+
+1. Bump `version` in `apps/mobile/app.config.ts` (e.g. `1.0.5` → `1.0.6`).
+2. Build and distribute the new APK/IPA.
+3. On the API (Railway), set `MIN_MOBILE_APP_VERSION` to that same version (e.g. `1.0.6`).
+4. Optional: set `MOBILE_UPDATE_URL` to a download / Play Store link.
+5. Redeploy the API. Older installs get `APP_UPDATE_REQUIRED` and a blocking “Update required” screen.
+
 ---
 
 ## Troubleshooting
