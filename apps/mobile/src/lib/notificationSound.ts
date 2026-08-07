@@ -2,6 +2,13 @@ import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { Platform, Vibration } from "react-native";
 
+/** Bundled alert sound for leads, callbacks, and all in-app notifications. */
+export const NOTIFICATION_SOUND_FILE = "notification_swish.mp3";
+
+/** Android channel IDs (bumped so devices pick up the new custom sound). */
+export const ALERTS_PUSH_CHANNEL_ID = "alerts_swish";
+export const FOLLOWUPS_PUSH_CHANNEL_ID = "followups_swish";
+
 /** @deprecated Prefer playing sound for every notification type. */
 export const LEAD_ALERT_NOTIFICATION_TYPES = new Set([
   "lead_assigned",
@@ -13,12 +20,14 @@ export const LEAD_ALERT_NOTIFICATION_TYPES = new Set([
   "followup_due",
   "site_visit_scheduled",
   "site_visit_reminder",
+  "callback_requested",
+  "site_visit_confirmed_by_client",
 ]);
 
 let cachedSound: Audio.Sound | null = null;
 let lastPlayedAt = 0;
 
-/** Plays the in-app chime for any notification (foreground push or polled inbox). */
+/** Plays the in-app swish for any notification (foreground push or polled inbox). */
 export async function playNotificationSound() {
   const now = Date.now();
   if (now - lastPlayedAt < 1500) return;
@@ -36,8 +45,8 @@ export async function playNotificationSound() {
   try {
     if (!cachedSound) {
       const { sound } = await Audio.Sound.createAsync(
-        require("../../assets/notification_chime.wav"),
-        { volume: 0.85, shouldPlay: false },
+        require("../../assets/notification_swish.mp3"),
+        { volume: 0.9, shouldPlay: false },
       );
       cachedSound = sound;
     }

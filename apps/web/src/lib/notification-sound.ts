@@ -1,6 +1,7 @@
 let lastPlayedAt = 0;
+let audioEl: HTMLAudioElement | null = null;
 
-/** Short two-tone chime for in-app lead alerts (no asset file required). */
+/** Plays the PropNinja swish for any in-app notification (leads, callbacks, etc.). */
 export function playNotificationSound() {
   if (typeof window === "undefined") return;
 
@@ -8,6 +9,23 @@ export function playNotificationSound() {
   if (now - lastPlayedAt < 1500) return;
   lastPlayedAt = now;
 
+  try {
+    if (!audioEl) {
+      audioEl = new Audio("/sounds/notification_swish.mp3");
+      audioEl.preload = "auto";
+      audioEl.volume = 0.9;
+    }
+    audioEl.currentTime = 0;
+    void audioEl.play().catch(() => {
+      playOscillatorFallback();
+    });
+  } catch {
+    playOscillatorFallback();
+  }
+}
+
+/** Fallback if the MP3 cannot autoplay or load. */
+function playOscillatorFallback() {
   try {
     const AudioCtx =
       window.AudioContext ??
@@ -29,9 +47,9 @@ export function playNotificationSound() {
       osc.stop(start + duration);
     };
 
-    const now = ctx.currentTime;
-    playTone(880, now, 0.12);
-    playTone(1174, now + 0.14, 0.16);
+    const t = ctx.currentTime;
+    playTone(880, t, 0.12);
+    playTone(1174, t + 0.14, 0.16);
 
     window.setTimeout(() => {
       void ctx.close();
@@ -41,8 +59,17 @@ export function playNotificationSound() {
   }
 }
 
+/** Types that also trigger a browser Notification toast on the web dashboard. */
 export const LEAD_ALERT_NOTIFICATION_TYPES = new Set([
   "lead_assigned",
   "leads_bulk_assigned",
   "new_ad_lead",
+  "callback_requested",
+  "site_visit_confirmed_by_client",
+  "sla_breach",
+  "followup_due",
+  "task_assigned",
+  "task_due",
+  "site_visit_scheduled",
+  "site_visit_reminder",
 ]);
