@@ -24,7 +24,8 @@ import {
 const RECENT_NOTE_DAYS = 3;
 
 function activeLeadStatusFilter() {
-  return sql`${leads.leadStatus} not in ('lost', 'won')`;
+  // Exclude terminal + NA pool — scoring must not refresh those rows (blocks 48h purge).
+  return sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
 }
 
 async function countConsecutiveNoAnswers(leadId: string): Promise<number> {
@@ -223,7 +224,7 @@ export async function persistLeadScore(leadId: string, score: number, now = new 
     .set({
       score,
       scoreUpdatedAt: now,
-      updatedAt: now,
+      // Do not bump updatedAt — score jobs must not reset retention clocks.
       ...(enabled ? { temperature: scoreTier(score) } : {}),
     })
     .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId)));
@@ -503,7 +504,7 @@ export async function recalculateAllActiveLeadScores(now = new Date()) {
           .set({
             score,
             scoreUpdatedAt: now,
-            updatedAt: now,
+            // Do not bump updatedAt — score jobs must not reset retention clocks.
             ...(enabled ? { temperature: scoreTier(score) } : {}),
           })
           .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, lead.id)));
