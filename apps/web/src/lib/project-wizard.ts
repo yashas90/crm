@@ -7,7 +7,8 @@ export const PROJECT_WIZARD_STEPS = [
   { id: "blocks", label: "Blocks Info" },
   { id: "inventory", label: "Inventory" },
   { id: "amenities", label: "Amenities" },
-  { id: "gallery", label: "Gallery" },
+  { id: "gallery", label: "Photos & Gallery" },
+  { id: "documents", label: "Brochures & Documents" },
 ] as const;
 
 export type ProjectWizardStepId = (typeof PROJECT_WIZARD_STEPS)[number]["id"];
@@ -19,6 +20,7 @@ export const PROJECT_WIZARD_STEP_ORDER: ProjectWizardStepId[] = [
   "inventory",
   "amenities",
   "gallery",
+  "documents",
 ];
 
 export function activeWizardStepOrder(): ProjectWizardStepId[] {

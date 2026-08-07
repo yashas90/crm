@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { ProjectAmenitiesStep } from "@/components/projects/project-amenities-step";
 import { ProjectBasicDetailsForm } from "@/components/projects/project-basic-details-form";
 import { ProjectBlocksInfoStep } from "@/components/projects/project-blocks-info-step";
+import { ProjectDocumentsStep } from "@/components/projects/project-documents-step";
 import { ProjectGalleryStep } from "@/components/projects/project-gallery-step";
 import { ProjectInventoryStep } from "@/components/projects/project-inventory-step";
 import { ProjectUnitsInfoStep } from "@/components/projects/project-units-info-step";
@@ -133,6 +134,8 @@ export function ProjectWizard({
         );
       case "gallery":
         return <ProjectGalleryStep project={project} readOnly={readOnly} onSaved={goToNextStep} />;
+      case "documents":
+        return <ProjectDocumentsStep projectId={project.id} readOnly={readOnly} />;
       default:
         return null;
     }

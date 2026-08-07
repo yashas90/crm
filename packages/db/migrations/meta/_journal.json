@@ -379,6 +379,13 @@
       "when": 1780632546741,
       "tag": "0053_agent_locations",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1780632546742,
+      "tag": "0054_document_is_public",
+      "breakpoints": true
     }
   ]
 }

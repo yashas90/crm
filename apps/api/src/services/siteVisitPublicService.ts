@@ -1,6 +1,11 @@
-import { leadActivities } from "@propninja/db";
+import { documents, leadActivities } from "@propninja/db";
 import { getIstDateKey } from "@propninja/types/ist";
-import type { PublicSiteVisitView } from "@propninja/types/site-visit-public";
+import type {
+  PublicSiteVisitBrochure,
+  PublicSiteVisitGalleryImage,
+  PublicSiteVisitView,
+} from "@propninja/types/site-visit-public";
+import { and, eq } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { isValidSiteVisitPublicToken } from "../lib/siteVisitPublicToken.js";
@@ -11,7 +16,56 @@ import { siteVisitService } from "./siteVisitService.js";
 
 type VisitRow = NonNullable<Awaited<ReturnType<typeof siteVisitService.getByPublicToken>>>;
 
-function toPublicView(visit: VisitRow): PublicSiteVisitView {
+function galleryImagesFromProject(project: VisitRow["project"]): PublicSiteVisitGalleryImage[] {
+  const items = project?.gallery?.items ?? [];
+  return items
+    .slice(0, 6)
+    .map((item) => ({
+      id: item.id,
+      url: item.url ?? "",
+      name: item.name,
+    }))
+    .filter((img) => Boolean(img.url));
+}
+
+function brochureTypeFromCategory(category: string | null): PublicSiteVisitBrochure["type"] {
+  if (category === "floor_plan") return "floor_plan";
+  if (category === "brochure") return "brochure";
+  return "other";
+}
+
+async function fetchPublicBrochures(projectId: string): Promise<PublicSiteVisitBrochure[]> {
+  const docs = await db
+    .select({
+      id: documents.id,
+      name: documents.name,
+      fileUrl: documents.fileUrl,
+      category: documents.category,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.projectId, projectId),
+        eq(documents.isPublic, true),
+        eq(documents.orgId, SINGLE_TENANT_ORG_ID),
+      ),
+    )
+    .limit(10);
+
+  return docs
+    .map((doc) => ({
+      id: doc.id,
+      url: doc.fileUrl ?? "",
+      name: doc.name,
+      type: brochureTypeFromCategory(doc.category),
+    }))
+    .filter((doc) => Boolean(doc.url));
+}
+
+function toPublicView(
+  visit: VisitRow,
+  brochures: PublicSiteVisitBrochure[] = [],
+): PublicSiteVisitView {
   const isScheduled = visit.status === "scheduled";
   return {
     reference: visit.publicToken,
@@ -31,7 +85,14 @@ function toPublicView(visit: VisitRow): PublicSiteVisitView {
     canReschedule: isScheduled,
     canCancel: isScheduled,
     confirmedByClient: visit.confirmedByClient ?? false,
+    galleryImages: galleryImagesFromProject(visit.project),
+    brochures,
   };
+}
+
+async function buildPublicView(visit: VisitRow): Promise<PublicSiteVisitView> {
+  const brochures = visit.projectId ? await fetchPublicBrochures(visit.projectId) : [];
+  return toPublicView(visit, brochures);
 }
 
 async function recordCustomerPortalActivity(
@@ -87,7 +148,7 @@ export const siteVisitPublicService = {
   async getByToken(token: string): Promise<PublicSiteVisitView | null> {
     if (!isValidSiteVisitPublicToken(token)) return null;
     const visit = await siteVisitService.getByPublicToken(token);
-    return visit ? toPublicView(visit) : null;
+    return visit ? buildPublicView(visit) : null;
   },
 
   async reschedule(token: string, input: { visitDate: string; visitTime: string }) {
@@ -132,7 +193,7 @@ export const siteVisitPublicService = {
         () => undefined,
       );
 
-      return toPublicView(visit);
+      return buildPublicView(visit);
     } catch (error) {
       if (error instanceof SiteVisitOverlapError) {
         throw new CustomerPortalActionError(
@@ -177,7 +238,7 @@ export const siteVisitPublicService = {
       () => undefined,
     );
 
-    return toPublicView(visit);
+    return buildPublicView(visit);
   },
 
   async confirm(token: string) {
@@ -209,7 +270,7 @@ export const siteVisitPublicService = {
       property: visit.propertyLabel ?? visit.propertyAddress ?? "Property",
     });
 
-    return toPublicView(visit);
+    return buildPublicView(visit);
   },
 
   async requestCallback(token: string) {

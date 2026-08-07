@@ -118,6 +118,7 @@ const visitSelectFields = {
   project: {
     id: projects.id,
     name: projects.name,
+    gallery: projects.gallery,
   },
   unit: {
     id: projectUnits.id,
@@ -164,7 +165,20 @@ function mapVisitRow(row: {
     email: string | null;
     assignedTo?: string | null;
   } | null;
-  project: { id: string; name: string } | null;
+  project: {
+    id: string;
+    name: string;
+    gallery: {
+      items: Array<{
+        id: string;
+        name: string;
+        url?: string;
+        fileKey?: string;
+        mimeType?: string;
+        placeholder?: boolean;
+      }>;
+    } | null;
+  } | null;
   unit: { id: string; unitNumber: string } | null;
   agent: { id: string; name: string; phone: string | null } | null;
 }) {

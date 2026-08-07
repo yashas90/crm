@@ -214,6 +214,51 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
                 ) : null}
               </div>
 
+              {visit.galleryImages?.length > 0 ? (
+                <div className="space-y-2 border-t border-border pt-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Project photos
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {visit.galleryImages.map((img) => (
+                      <a key={img.id} href={img.url} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.url}
+                          alt={img.name}
+                          className="h-24 w-full rounded-lg object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {visit.brochures?.length > 0 ? (
+                <div className="space-y-2 border-t border-border pt-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Project documents
+                  </p>
+                  {visit.brochures.map((doc) => (
+                    <Button
+                      key={doc.id}
+                      variant="outline"
+                      className="w-full justify-start gap-2"
+                      asChild
+                    >
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                        <Download className="h-4 w-4" />
+                        {doc.type === "floor_plan"
+                          ? "Floor Plan"
+                          : doc.type === "brochure"
+                            ? "Brochure"
+                            : doc.name}
+                      </a>
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+
               <div className="space-y-2 border-t border-border pt-4">
                 {isScheduled ? (
                   !visit.confirmedByClient ? (
@@ -226,10 +271,25 @@ export function PublicSiteVisitClient({ token, initial }: PublicSiteVisitClientP
                       Yes, I'll be there!
                     </Button>
                   ) : (
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                      <CheckCircle className="h-4 w-4" />
-                      You've confirmed this visit
-                    </div>
+                    <>
+                      <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                        <CheckCircle className="h-4 w-4" />
+                        You've confirmed this visit
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400"
+                        onClick={() => {
+                          const project = visit.projectName ?? "a great property";
+                          const contact = visit.agentPhone ? ` at ${visit.agentPhone}` : "";
+                          const msg = `I recently visited ${project} and it's amazing! Contact ${visit.agentName}${contact} to schedule your visit.`;
+                          window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+                        }}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Know someone looking? Share this project
+                      </Button>
+                    </>
                   )
                 ) : visit.status === "cancelled" ? (
                   <div className="rounded-lg bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-300">

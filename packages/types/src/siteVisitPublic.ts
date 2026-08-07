@@ -1,6 +1,19 @@
 import { formatVisitTimeIst } from "./ist.js";
 import type { SiteVisitMessageContext } from "./siteVisitMessages.js";
 
+export type PublicSiteVisitGalleryImage = {
+  id: string;
+  url: string;
+  name: string;
+};
+
+export type PublicSiteVisitBrochure = {
+  id: string;
+  url: string;
+  name: string;
+  type: "brochure" | "floor_plan" | "other";
+};
+
 export type PublicSiteVisitView = {
   reference: string;
   status: "scheduled" | "completed" | "cancelled" | "no_show";
@@ -19,6 +32,8 @@ export type PublicSiteVisitView = {
   canReschedule: boolean;
   canCancel: boolean;
   confirmedByClient: boolean;
+  galleryImages: PublicSiteVisitGalleryImage[];
+  brochures: PublicSiteVisitBrochure[];
 };
 
 /** Customer-facing page URL on the web app. */

@@ -31,6 +31,10 @@ export function UploadDocumentDialog({ open, onOpenChange, projectId }: UploadDo
   const [description, setDescription] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? "");
   const [isGlobal, setIsGlobal] = useState(false);
+  const [isPublic, setIsPublic] = useState(Boolean(projectId));
+  const [category, setCategory] = useState<"brochure" | "floor_plan" | "price_list" | "other">(
+    "brochure",
+  );
   const [dragOver, setDragOver] = useState(false);
 
   function reset() {
@@ -39,6 +43,8 @@ export function UploadDocumentDialog({ open, onOpenChange, projectId }: UploadDo
     setDescription("");
     setSelectedProjectId(projectId ?? "");
     setIsGlobal(false);
+    setIsPublic(Boolean(projectId));
+    setCategory("brochure");
   }
 
   async function handleSubmit() {
@@ -50,6 +56,8 @@ export function UploadDocumentDialog({ open, onOpenChange, projectId }: UploadDo
     if (description.trim()) formData.append("description", description.trim());
     if (selectedProjectId) formData.append("projectId", selectedProjectId);
     formData.append("isGlobal", String(isGlobal));
+    formData.append("isPublic", String(isPublic));
+    formData.append("category", category);
 
     await upload.mutateAsync(formData);
     reset();
@@ -136,6 +144,30 @@ export function UploadDocumentDialog({ open, onOpenChange, projectId }: UploadDo
               type="checkbox"
               checked={isGlobal}
               onChange={(e) => setIsGlobal(e.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+          </label>
+          <div>
+            <Label>Category</Label>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={category}
+              onChange={(e) =>
+                setCategory(e.target.value as "brochure" | "floor_plan" | "price_list" | "other")
+              }
+            >
+              <option value="brochure">Brochure</option>
+              <option value="floor_plan">Floor Plan</option>
+              <option value="price_list">Price List</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span>Visible on customer page</span>
+            <input
+              type="checkbox"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
               className="h-4 w-4 rounded border-border"
             />
           </label>
