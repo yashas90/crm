@@ -2,8 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { Linking } from "react-native";
+import { getApiBaseUrl } from "./apiBaseUrl";
 import { apiPost } from "./apiClient";
+import { getMobileClientHeaders } from "./appVersion";
+import { ensureAuthCacheLoaded, getRefreshToken, getToken, updateTokens } from "./auth";
 import { hasCallLogPermission, requestCallLogPermission } from "./callLogNative";
+import { isTokenExpired } from "./jwt";
 
 export const LOCATION_CONSENT_GIVEN_KEY = "location_consent_given";
 /** Bumped when required-permission gate changes — forces re-check for all agents. */
@@ -11,6 +15,15 @@ export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v4";
 
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 const PING_INTERVAL_MS = 2 * 60 * 1000;
+const LOCATION_PING_QUEUE_KEY = "propninja_pending_location_pings";
+const MAX_QUEUED_PINGS = 200;
+
+type LocationPingBody = {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  capturedAt: string;
+};
 
 /**
  * Location is collected every day, all day (IST). Kept as a named helper so call sites
@@ -25,6 +38,94 @@ export function isWorkHours(now: Date = new Date()): boolean {
   return isLocationCollectionAllowed(now);
 }
 
+async function readPingQueue(): Promise<LocationPingBody[]> {
+  const raw = await AsyncStorage.getItem(LOCATION_PING_QUEUE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as LocationPingBody[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writePingQueue(queue: LocationPingBody[]): Promise<void> {
+  await AsyncStorage.setItem(LOCATION_PING_QUEUE_KEY, JSON.stringify(queue));
+}
+
+async function enqueueLocationPing(body: LocationPingBody): Promise<void> {
+  const queue = await readPingQueue();
+  queue.push(body);
+  while (queue.length > MAX_QUEUED_PINGS) {
+    queue.shift();
+  }
+  await writePingQueue(queue);
+}
+
+/** Ensure JWT is available in background JS contexts (cache may be empty). */
+async function prepareAuthForBackgroundPing(): Promise<boolean> {
+  await ensureAuthCacheLoaded();
+  const token = getToken();
+  if (token && !isTokenExpired(token)) return true;
+
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return Boolean(token);
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...getMobileClientHeaders(),
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!response.ok) return false;
+    const json = (await response.json()) as {
+      ok: boolean;
+      data?: { token: string; refreshToken: string };
+    };
+    if (!json.ok || !json.data?.token) return false;
+    await updateTokens(json.data.token, json.data.refreshToken);
+    return true;
+  } catch {
+    return Boolean(getToken());
+  }
+}
+
+async function postLocationPing(body: LocationPingBody): Promise<void> {
+  const ready = await prepareAuthForBackgroundPing();
+  if (!ready && !getToken()) {
+    throw new Error("NO_AUTH");
+  }
+  await apiPost("/api/locations/ping", body, { skipSessionLogout: true });
+}
+
+/** Flush queued location pings (network restore / app foreground). */
+export async function flushLocationPingQueue(): Promise<number> {
+  const queue = await readPingQueue();
+  if (queue.length === 0) return 0;
+
+  let synced = 0;
+  const remaining: LocationPingBody[] = [];
+
+  for (let i = 0; i < queue.length; i += 1) {
+    const item = queue[i];
+    if (!item) continue;
+    try {
+      await postLocationPing(item);
+      synced += 1;
+    } catch {
+      remaining.push(...queue.slice(i));
+      break;
+    }
+  }
+
+  await writePingQueue(remaining);
+  return synced;
+}
+
 TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   if (error) return;
   const payload = data as { locations?: Location.LocationObject[] } | undefined;
@@ -34,15 +135,19 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   const loc = payload.locations[0];
   if (!loc) return;
 
+  const body: LocationPingBody = {
+    latitude: loc.coords.latitude,
+    longitude: loc.coords.longitude,
+    accuracy: loc.coords.accuracy ?? null,
+    capturedAt: new Date(loc.timestamp).toISOString(),
+  };
+
   try {
-    await apiPost("/api/locations/ping", {
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-      accuracy: loc.coords.accuracy ?? null,
-      capturedAt: new Date(loc.timestamp).toISOString(),
-    });
+    await postLocationPing(body);
+    // After a successful live ping, try draining any backlog.
+    await flushLocationPingQueue();
   } catch {
-    // Best effort — drop ping on error, do not retry
+    await enqueueLocationPing(body);
   }
 });
 
@@ -104,22 +209,29 @@ export async function startLocationTracking() {
   if (status !== "granted") return;
 
   await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, "true");
+  await ensureAuthCacheLoaded();
 
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
-  if (isRunning) return;
+  if (isRunning) {
+    void flushLocationPingQueue();
+    return;
+  }
 
   await Location.startLocationUpdatesAsync(TASK_NAME, {
     accuracy: Location.Accuracy.Balanced,
     timeInterval: PING_INTERVAL_MS,
-    distanceInterval: 50,
-    showsBackgroundLocationIndicator: false,
+    distanceInterval: 25,
+    deferredUpdatesInterval: PING_INTERVAL_MS,
+    showsBackgroundLocationIndicator: true,
     foregroundService: {
       notificationTitle: "PropNinja",
-      notificationBody: "PropNinja is running",
+      notificationBody: "Sharing live location with your office",
       notificationColor: "#204060",
     },
     pausesUpdatesAutomatically: false,
   });
+
+  void flushLocationPingQueue();
 }
 
 export async function stopLocationTracking() {

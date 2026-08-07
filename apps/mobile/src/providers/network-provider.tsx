@@ -1,6 +1,7 @@
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { QueryErrorBanner } from "@/components/ui/QueryErrorBanner";
 import { useStaleQueryBanner } from "@/hooks/useStaleQueryBanner";
+import { flushLocationPingQueue } from "@/lib/locationTracking";
 import { setNetworkOnline } from "@/lib/networkState";
 import { flushOfflineQueue } from "@/lib/offlineQueue";
 import { queryClient } from "@/lib/queryClient";
@@ -44,11 +45,14 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
         wasOffline.current = false;
         void queryClient.resumePausedMutations();
         void queryClient.invalidateQueries({ refetchType: "active" });
-        void flushOfflineQueue().then((synced) => {
-          if (synced > 0) {
-            showToast(`Synced ${synced} pending update${synced === 1 ? "" : "s"}`);
-          }
-        });
+        void Promise.all([flushOfflineQueue(), flushLocationPingQueue()]).then(
+          ([callSynced, locationSynced]) => {
+            const synced = callSynced + locationSynced;
+            if (synced > 0) {
+              showToast(`Synced ${synced} pending update${synced === 1 ? "" : "s"}`);
+            }
+          },
+        );
       }
     });
 
