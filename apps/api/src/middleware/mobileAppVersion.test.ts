@@ -73,20 +73,41 @@ describe("mobileAppVersionMiddleware", () => {
     expect(res.status).toBe(426);
   });
 
-  it("allows current mobile clients", async () => {
-    env.MIN_MOBILE_APP_VERSION = "1.0.5";
+  it("blocks clients below the current 1.0.7 floor", async () => {
+    env.MIN_MOBILE_APP_VERSION = "1.0.7";
     const app = buildApp();
     const res = await app.request("/api/leads", {
       headers: {
         "X-PropNinja-Client": "mobile",
-        "X-PropNinja-App-Version": "1.0.5",
+        "X-PropNinja-App-Version": "1.0.6",
+      },
+    });
+    expect(res.status).toBe(426);
+  });
+
+  it("allows current mobile clients", async () => {
+    env.MIN_MOBILE_APP_VERSION = "1.0.7";
+    const app = buildApp();
+    const res = await app.request("/api/leads", {
+      headers: {
+        "X-PropNinja-Client": "mobile",
+        "X-PropNinja-App-Version": "1.0.7",
       },
     });
     expect(res.status).toBe(200);
   });
 
+  it("allows empty string to disable enforcement", async () => {
+    env.MIN_MOBILE_APP_VERSION = "";
+    const app = buildApp();
+    const res = await app.request("/api/leads", {
+      headers: { "User-Agent": "okhttp/4.9.2" },
+    });
+    expect(res.status).toBe(200);
+  });
+
   it("skips integration webhooks", async () => {
-    env.MIN_MOBILE_APP_VERSION = "1.0.5";
+    env.MIN_MOBILE_APP_VERSION = "1.0.7";
     const app = buildApp();
     const res = await app.request("/api/integrations/meta/webhook", {
       method: "POST",

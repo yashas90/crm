@@ -105,15 +105,22 @@ const envSchema = z
     EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
     CORS_ORIGINS: z.string().optional(),
     /**
-     * Minimum PropNinja mobile app semver (e.g. 1.0.5). When set, older native
-     * clients are rejected with APP_UPDATE_REQUIRED. Leave unset to allow all versions.
+     * Minimum PropNinja mobile app semver. Clients below this are rejected with
+     * APP_UPDATE_REQUIRED. Defaults to the current supported release (1.0.7).
+     * Set to empty string to disable enforcement (local/dev escape hatch).
      */
     MIN_MOBILE_APP_VERSION: z.preprocess(
-      (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+      (value) => {
+        if (typeof value !== "string") return value;
+        return value.trim();
+      },
       z
-        .string()
-        .regex(/^\d+\.\d+\.\d+/, "MIN_MOBILE_APP_VERSION must be semver like 1.0.5")
-        .optional(),
+        .union([
+          z.literal(""),
+          z.string().regex(/^\d+\.\d+\.\d+/, "MIN_MOBILE_APP_VERSION must be semver like 1.0.7"),
+        ])
+        // Vitest defaults off so API tests are not blocked by missing version headers.
+        .default(process.env.VITEST === "true" ? "" : "1.0.7"),
     ),
     /** Optional download / update URL shown to outdated mobile clients. */
     MOBILE_UPDATE_URL: z.preprocess(

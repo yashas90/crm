@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { getApiVersion } from "../lib/apiVersion.js";
 import { db } from "../lib/db.js";
 import { env } from "../lib/env.js";
+import { parseSemver } from "../lib/mobileAppVersion.js";
 
 const DB_CHECK_TIMEOUT_MS = 3_000;
 
@@ -34,8 +35,9 @@ async function checkSiteVisitsSchema(): Promise<string | null> {
 }
 
 function mobileVersionFields() {
+  const min = env.MIN_MOBILE_APP_VERSION?.trim() || "";
   return {
-    minMobileAppVersion: env.MIN_MOBILE_APP_VERSION?.trim() || null,
+    minMobileAppVersion: min && parseSemver(min) ? min : null,
     mobileUpdateUrl: env.MOBILE_UPDATE_URL?.trim() || null,
   };
 }
