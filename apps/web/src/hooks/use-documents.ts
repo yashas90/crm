@@ -1,10 +1,11 @@
 "use client";
 
-import { apiDelete, apiGet, apiPost, apiUpload } from "@/lib/apiClient";
+import { apiDelete, apiGet, apiPatch, apiPost, apiUpload } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type DocumentFileType = "pdf" | "image" | "other";
+export type DocumentCategory = "brochure" | "floor_plan" | "price_list" | "other";
 export type SharedVia = "whatsapp" | "email" | "link";
 
 export type Document = {
@@ -19,6 +20,8 @@ export type Document = {
   projectId: string | null;
   uploadedBy: string;
   isGlobal: boolean;
+  isPublic: boolean;
+  category: DocumentCategory | null;
   createdAt: string;
   updatedAt: string;
   project: { id: string; name: string } | null;
@@ -97,6 +100,27 @@ export function useUploadDocument() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast.success("Document uploaded");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useUpdateDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      isPublic?: boolean;
+      category?: DocumentCategory | null;
+      name?: string;
+      description?: string | null;
+    }) => apiPatch<Document>(`/api/documents/${id}`, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Document updated");
     },
     onError: (err: Error) => toast.error(err.message),
   });

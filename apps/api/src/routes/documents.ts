@@ -37,6 +37,13 @@ const shareDocumentSchema = z.object({
   sharedVia: z.enum(["whatsapp", "email", "link"]),
 });
 
+const updateDocumentSchema = z.object({
+  isPublic: z.boolean().optional(),
+  category: z.enum(["brochure", "floor_plan", "price_list", "other"]).nullable().optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+});
+
 function canManageDocuments(user: AuthUser) {
   return (
     isAdmin(user) || user.role === "manager" || hasPermission(user, "projects:update_documents")
@@ -78,12 +85,23 @@ documentsRoutes.post(
       const description = fields.description?.trim() || null;
       const projectId = fields.projectId && fields.projectId.length > 0 ? fields.projectId : null;
       const isGlobal = fields.isGlobal === "true";
+      const isPublic = fields.isPublic === "true";
+      const rawCategory = fields.category?.trim() || "";
+      const category =
+        rawCategory === "brochure" ||
+        rawCategory === "floor_plan" ||
+        rawCategory === "price_list" ||
+        rawCategory === "other"
+          ? rawCategory
+          : null;
 
       const doc = await documentService.upload({
         name,
         description,
         projectId,
         isGlobal,
+        isPublic,
+        category,
         uploadedBy: authUser.id,
         filename: file.filename,
         buffer: file.buffer,
@@ -98,6 +116,8 @@ documentsRoutes.post(
         metadata: {
           projectId,
           isGlobal,
+          isPublic,
+          category,
           filename: file.filename,
           originalName: file.filename,
           fileType: doc.fileType,
@@ -184,6 +204,29 @@ documentsRoutes.post("/:id/share", validate("json", shareDocumentSchema), async 
   const viewUrl = `${apiBase}/api/documents/${documentId}/view?token=${share.shareToken}`;
 
   return jsonOk(c, { ...share, viewUrl }, undefined, 201);
+});
+
+documentsRoutes.patch("/:id", validate("json", updateDocumentSchema), async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+
+  if (!canManageDocuments(authUser)) {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const id = c.req.param("id");
+  const payload = c.req.valid("json");
+  const existing = await documentService.getById(id);
+  if (!existing) {
+    return jsonError(c, "NOT_FOUND", "Document not found", 404);
+  }
+  assertDocumentOrgAccess(authUser, existing);
+
+  const updated = await documentService.update(id, payload);
+  if (!updated) {
+    return jsonError(c, "NOT_FOUND", "Document not found", 404);
+  }
+
+  return jsonOk(c, updated);
 });
 
 documentsRoutes.delete("/:id", async (c) => {

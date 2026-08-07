@@ -26,6 +26,8 @@ import { SECURITY_ALERT_TYPES, createSecurityAlert } from "./securityAlertServic
 
 export type SharedVia = "whatsapp" | "email" | "link";
 
+export type DocumentCategory = "brochure" | "floor_plan" | "price_list" | "other";
+
 export interface ListDocumentsParams {
   projectId?: string;
   isGlobal?: boolean;
@@ -40,9 +42,18 @@ export interface UploadDocumentInput {
   description?: string | null;
   projectId?: string | null;
   isGlobal?: boolean;
+  isPublic?: boolean;
+  category?: DocumentCategory | null;
   uploadedBy: string;
   filename: string;
   buffer: Buffer;
+}
+
+export interface UpdateDocumentInput {
+  isPublic?: boolean;
+  category?: DocumentCategory | null;
+  name?: string;
+  description?: string | null;
 }
 
 export interface ShareDocumentInput {
@@ -66,6 +77,8 @@ const documentSelect = {
   projectId: documents.projectId,
   uploadedBy: documents.uploadedBy,
   isGlobal: documents.isGlobal,
+  isPublic: documents.isPublic,
+  category: documents.category,
   createdAt: documents.createdAt,
   updatedAt: documents.updatedAt,
   project: {
@@ -92,6 +105,8 @@ type DocumentRow = {
   projectId: string | null;
   uploadedBy: string;
   isGlobal: boolean;
+  isPublic: boolean;
+  category: string | null;
   createdAt: Date;
   updatedAt: Date;
   project: { id: string; name: string } | null;
@@ -103,6 +118,7 @@ function mapDocument(row: DocumentRow) {
     ...row,
     fileType: row.fileType as DocumentFileType,
     fileSizeMb: Number(row.fileSizeMb),
+    category: (row.category as DocumentCategory | null) ?? null,
   };
 }
 
@@ -274,12 +290,37 @@ export const documentService = {
         projectId: input.projectId ?? null,
         uploadedBy: input.uploadedBy,
         isGlobal: input.isGlobal ?? false,
+        isPublic: input.isPublic ?? false,
+        category: input.category ?? null,
       })
       .returning();
 
     const doc = await this.getById(created.id);
     if (!doc) throw new Error("Failed to load uploaded document");
     return toPublicDocument(doc);
+  },
+
+  async update(id: string, input: UpdateDocumentInput) {
+    const existing = await this.getById(id);
+    if (!existing) return null;
+
+    const [updated] = await db
+      .update(documents)
+      .set({
+        ...(input.isPublic !== undefined ? { isPublic: input.isPublic } : {}),
+        ...(input.category !== undefined ? { category: input.category } : {}),
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.description !== undefined
+          ? { description: input.description?.trim() || null }
+          : {}),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(documents.id, id), eq(documents.orgId, SINGLE_TENANT_ORG_ID)))
+      .returning({ id: documents.id });
+
+    if (!updated) return null;
+    const doc = await this.getById(updated.id);
+    return doc ? toPublicDocument(doc) : null;
   },
 
   async delete(id: string) {

@@ -189,7 +189,14 @@ export const projects = pgTable(
     }>(),
     amenities: text("amenities").array(),
     gallery: jsonb("gallery").$type<{
-      items: Array<{ id: string; name: string; placeholder?: boolean }>;
+      items: Array<{
+        id: string;
+        name: string;
+        url?: string;
+        fileKey?: string;
+        mimeType?: string;
+        placeholder?: boolean;
+      }>;
     }>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -984,16 +991,23 @@ export const documents = pgTable(
       .references(() => users.id),
     originalName: text("original_name"),
     isGlobal: boolean("is_global").notNull().default(false),
+    isPublic: boolean("is_public").notNull().default(false),
+    category: text("category"),
     downloadCount: integer("download_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     check("documents_file_type_check", sql`${table.fileType} in ('pdf', 'image', 'other')`),
+    check(
+      "documents_category_check",
+      sql`${table.category} is null or ${table.category} in ('brochure', 'floor_plan', 'price_list', 'other')`,
+    ),
     index("documents_org_id_idx").on(table.orgId),
     index("documents_project_id_idx").on(table.projectId),
     index("documents_uploaded_by_idx").on(table.uploadedBy),
     index("documents_is_global_idx").on(table.isGlobal),
+    index("documents_is_public_idx").on(table.isPublic),
   ],
 );
 

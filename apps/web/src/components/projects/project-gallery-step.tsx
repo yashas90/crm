@@ -57,7 +57,10 @@ export function ProjectGalleryStep({
       <section className="rounded-xl border border-slate-200/80 bg-card p-6 shadow-sm dark:border-white/10">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">Project gallery</h2>
+            <h2 className="text-base font-semibold">Photos & Gallery</h2>
+            <p className="text-sm text-muted-foreground">
+              Photos uploaded here will appear on the customer site visit confirmation page.
+            </p>
             <p className="text-sm text-muted-foreground">
               Upload JPEG, PNG, or WebP images (max 10MB each).
             </p>
