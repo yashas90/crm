@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { getApiVersion } from "../lib/apiVersion.js";
 import { db } from "../lib/db.js";
+import { env } from "../lib/env.js";
 
 const DB_CHECK_TIMEOUT_MS = 3_000;
 
@@ -32,9 +33,17 @@ async function checkSiteVisitsSchema(): Promise<string | null> {
   return `site_visits missing columns: ${missing.join(", ")} — run db:migrate on the API`;
 }
 
+function mobileVersionFields() {
+  return {
+    minMobileAppVersion: env.MIN_MOBILE_APP_VERSION?.trim() || null,
+    mobileUpdateUrl: env.MOBILE_UPDATE_URL?.trim() || null,
+  };
+}
+
 healthRoutes.get("/", async (c) => {
   const timestamp = new Date().toISOString();
   const version = getApiVersion();
+  const mobile = mobileVersionFields();
 
   try {
     await checkDatabase();
@@ -47,9 +56,17 @@ healthRoutes.get("/", async (c) => {
         service: "propninja-api",
         db: "ok",
         schema: schemaIssue,
+        ...mobile,
       });
     }
-    return c.json({ status: "ok", version, timestamp, service: "propninja-api", db: "ok" });
+    return c.json({
+      status: "ok",
+      version,
+      timestamp,
+      service: "propninja-api",
+      db: "ok",
+      ...mobile,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Database unavailable";
     // Return 200 so Railway liveness passes while Postgres is still connecting.
@@ -60,6 +77,7 @@ healthRoutes.get("/", async (c) => {
       service: "propninja-api",
       db: "error",
       message,
+      ...mobile,
     });
   }
 });
