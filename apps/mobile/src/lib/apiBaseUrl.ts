@@ -21,26 +21,40 @@ function configuredApiUrl(): string | undefined {
 }
 
 /**
+ * True only for known emulator/simulator hosts. Sideloaded APKs on real phones
+ * must never hit 10.0.2.2 / localhost (those hang until timeout).
+ */
+function isLocalDevHost(): boolean {
+  // Expo Go / Metro session — not a standalone installable APK.
+  const ownership = Constants.appOwnership;
+  if (ownership === "expo") return true;
+
+  // Prefer executionEnvironment when available (standalone | storeClient | bare).
+  const execution = (Constants as { executionEnvironment?: string }).executionEnvironment;
+  if (execution === "storeClient") return true;
+  if (execution === "standalone" || execution === "bare") return false;
+
+  // Fallback: real device vs emulator.
+  return Constants.isDevice === false;
+}
+
+/**
  * Dev base URL when no EXPO_PUBLIC_API_URL is set:
- * - iOS Simulator → host machine localhost
- * - Android Emulator → 10.0.2.2 (maps to host localhost)
- * - Physical device → production API (localhost is unreachable on the phone)
+ * - Expo Go / emulator → localhost bridge
+ * - Physical sideloaded APK → production API
  */
 function resolveDevApiBaseUrl(): string {
   const explicit = configuredApiUrl();
   if (explicit) return explicit;
 
-  if (Platform.OS === "android") {
-    const isEmulator = Constants.isDevice === false;
-    if (isEmulator) {
-      return `http://10.0.2.2:${DEV_API_PORT}`;
-    }
-    // Physical Android debug APK: never use localhost — it hangs until timeout.
+  // Standalone / bare installs (including debug APKs shared with agents) always
+  // talk to production unless EXPO_PUBLIC_API_URL was baked in at bundle time.
+  if (!isLocalDevHost()) {
     return PRODUCTION_API_URL;
   }
 
-  if (Platform.OS === "ios" && Constants.isDevice) {
-    return PRODUCTION_API_URL;
+  if (Platform.OS === "android") {
+    return `http://10.0.2.2:${DEV_API_PORT}`;
   }
 
   return `http://localhost:${DEV_API_PORT}`;
@@ -52,10 +66,13 @@ function resolveReleaseApiBaseUrl(): string {
 
 /**
  * Resolved API origin for the current build.
- * - __DEV__: platform-aware localhost / emulator host, or EXPO_PUBLIC_API_URL when set
- * - Release: EXPO_PUBLIC_API_URL (or expo.extra.apiUrl from app.config at build time)
+ * - Prefer EXPO_PUBLIC_API_URL / expo.extra.apiUrl when present (baked into APKs)
+ * - Never use emulator localhost for sideloaded physical-device APKs
  */
 export function getApiBaseUrl(): string {
+  const explicit = configuredApiUrl();
+  if (explicit) return explicit;
+
   if (__DEV__) {
     return resolveDevApiBaseUrl();
   }
