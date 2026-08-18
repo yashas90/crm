@@ -9,6 +9,7 @@ import { ProjectChip, StatusChip, TemperatureChip } from "@/components/leads/lea
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
 import { LeadEditForm } from "@/components/leads/lead-edit-form";
 import { LeadEmailPanel } from "@/components/leads/lead-email-panel";
+import { LeadEngagementSummary } from "@/components/leads/lead-engagement-summary";
 import { LeadFollowUpPanel } from "@/components/leads/lead-follow-up-panel";
 import { LeadLinkedUnitPanel } from "@/components/leads/lead-linked-unit-panel";
 import { LeadOwnershipHistory } from "@/components/leads/lead-ownership-history";
@@ -222,6 +223,13 @@ export default function LeadDetailPage() {
                   )}
                 </span>
               </p>
+              <LeadEngagementSummary
+                leadId={leadId}
+                ownerName={lead.assignedUser?.name ?? null}
+                createdAt={lead.createdAt}
+                followUpCount={lead.followUpCount}
+                activities={lead.activities ?? []}
+              />
             </div>
           </div>
 
