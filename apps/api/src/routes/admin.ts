@@ -268,7 +268,7 @@ adminRoutes.post("/portal-webhooks/:id/test", async (c) => {
   return jsonOk(c, { preview, mockPayload: payload });
 });
 
-/** One-click backfill: assign Rahul Vermani to Shamanth, follow-ups, and 16 Aug site visit. */
+/** One-click backfill: Shamanth assignment, 5 follow-ups, 15 calls, 16 Aug site visit. */
 adminRoutes.post("/leads/:id/apply-shamanth-history", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
 
