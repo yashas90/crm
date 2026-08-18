@@ -20,3 +20,9 @@ export type Database = ReturnType<typeof createDb>;
 
 export * from "./schema/index.js";
 export * from "./schema/types.js";
+export {
+  BackfillRahulVermaniError,
+  backfillRahulVermani,
+  isRahulVermaniLead,
+  type BackfillRahulVermaniResult,
+} from "./backfillRahulVermani.js";

@@ -84,6 +84,7 @@ export function useSiteVisits(params: SiteVisitsListParams = {}, options?: { ena
       ),
     enabled: options?.enabled ?? true,
     staleTime: 30_000,
+    meta: { errorContext: "site visits", suppressErrorToast: true },
   });
 }
 

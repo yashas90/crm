@@ -1,4 +1,4 @@
-import { users } from "@propninja/db";
+import { BackfillRahulVermaniError, backfillRahulVermani, users } from "@propninja/db";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
@@ -266,4 +266,28 @@ adminRoutes.post("/portal-webhooks/:id/test", async (c) => {
   });
 
   return jsonOk(c, { preview, mockPayload: payload });
+});
+
+/** One-click backfill: assign Rahul Vermani to Shamanth, follow-ups, and 16 Aug site visit. */
+adminRoutes.post("/leads/:id/apply-shamanth-history", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+
+  if (!isAdmin(authUser)) {
+    return jsonError(c, "FORBIDDEN", "Admin access required", 403);
+  }
+
+  const leadId = c.req.param("id");
+  const db = c.get("db");
+
+  try {
+    const result = await backfillRahulVermani(db, { leadId });
+    clearAllResponseCaches();
+    return jsonOk(c, result);
+  } catch (error) {
+    if (error instanceof BackfillRahulVermaniError) {
+      const status = error.message === "Lead not found" ? 404 : 400;
+      return jsonError(c, status === 404 ? "NOT_FOUND" : "VALIDATION_ERROR", error.message, status);
+    }
+    throw error;
+  }
 });

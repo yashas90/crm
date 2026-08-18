@@ -49,6 +49,7 @@ export function useLeadScore(leadId: string, options?: { enabled?: boolean }) {
     queryFn: () => apiGet<LeadScoreBreakdown>(`/api/leads/${leadId}/score`),
     enabled: Boolean(leadId) && options?.enabled !== false,
     staleTime: 30_000,
+    meta: { errorContext: "lead score", suppressErrorToast: true },
   });
 }
 
