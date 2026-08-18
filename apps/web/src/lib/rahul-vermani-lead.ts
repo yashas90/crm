@@ -7,8 +7,6 @@ export function isRahulVermaniLead(lead: {
 }): boolean {
   const digits = (lead.phone ?? "").replace(/\D/g, "");
   if (digits.endsWith(LEAD_PHONE_DIGITS)) return true;
-  return (
-    lead.firstName.toLowerCase().includes("rahul") &&
-    lead.lastName.toLowerCase().includes("vermani")
-  );
+  const fullName = `${lead.firstName ?? ""} ${lead.lastName ?? ""}`.toLowerCase();
+  return fullName.includes("rahul") && fullName.includes("vermani");
 }

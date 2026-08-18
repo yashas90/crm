@@ -12,6 +12,25 @@ describe("isRahulVermaniLead", () => {
     ).toBe(true);
   });
 
+  it("matches by name when phone is missing (last name present)", () => {
+    expect(
+      isRahulVermaniLead({
+        firstName: "Rahul",
+        lastName: "Vermani",
+        phone: null,
+      }),
+    ).toBe(true);
+  });
+
+  it("matches by name when last name is missing", () => {
+    expect(
+      isRahulVermaniLead({
+        firstName: "Rahul Vermani",
+        lastName: "",
+        phone: null,
+      }),
+    ).toBe(true);
+  });
   it("does not match other leads", () => {
     expect(
       isRahulVermaniLead({
