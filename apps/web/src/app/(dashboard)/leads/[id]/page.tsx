@@ -9,10 +9,12 @@ import { ProjectChip, StatusChip, TemperatureChip } from "@/components/leads/lea
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
 import { LeadEditForm } from "@/components/leads/lead-edit-form";
 import { LeadEmailPanel } from "@/components/leads/lead-email-panel";
+import { LeadEngagementSummary } from "@/components/leads/lead-engagement-summary";
 import { LeadFollowUpPanel } from "@/components/leads/lead-follow-up-panel";
 import { LeadLinkedUnitPanel } from "@/components/leads/lead-linked-unit-panel";
 import { LeadOwnershipHistory } from "@/components/leads/lead-ownership-history";
 import { LeadScoreBadge, LeadScoreBreakdownTooltip } from "@/components/leads/lead-score-badge";
+import { LeadShamanthBackfillButton } from "@/components/leads/lead-shamanth-backfill-button";
 import { LeadTagsEditor } from "@/components/leads/lead-tags-editor";
 import { LeadWhatsAppPanel } from "@/components/leads/lead-whatsapp-panel";
 import { LogCallDialog } from "@/components/leads/log-call-dialog";
@@ -82,7 +84,7 @@ export default function LeadDetailPage() {
   });
   const { data: tcfData, isLoading: tcfLoading } = useTcfConsent(leadId);
   const { session } = useSession();
-  const { ready, canDeleteLead, canAssignLead } = usePermissions();
+  const { ready, canDeleteLead, canAssignLead, isAdmin } = usePermissions();
   const isAgent = session?.role === "agent";
   const { data: users } = useUsers(isAgent ? "admin" : undefined, {
     enabled: Boolean(canAssignLead),
@@ -138,6 +140,15 @@ export default function LeadDetailPage() {
           <Link href="/leads">← Back to leads</Link>
         </Button>
         <div className="flex gap-2">
+          {ready && isAdmin ? (
+            <LeadShamanthBackfillButton
+              leadId={leadId}
+              firstName={lead.firstName}
+              lastName={lead.lastName}
+              phone={lead.phone}
+              onApplied={() => void refetchLead()}
+            />
+          ) : null}
           {canAssignLead ? (
             <Button variant="outline" size="sm" onClick={() => setShowAssign((v) => !v)}>
               {isAgent ? "Return to admin" : "Assign"}
@@ -222,6 +233,13 @@ export default function LeadDetailPage() {
                   )}
                 </span>
               </p>
+              <LeadEngagementSummary
+                leadId={leadId}
+                ownerName={lead.assignedUser?.name ?? null}
+                createdAt={lead.createdAt}
+                followUpCount={lead.followUpCount}
+                activities={lead.activities ?? []}
+              />
             </div>
           </div>
 

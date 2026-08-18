@@ -44,4 +44,11 @@ describe("admin cache routes", () => {
     expect(json.ok).toBe(true);
     expect(json.data.cleared).toBeGreaterThanOrEqual(0);
   });
+
+  it("POST /leads/:id/apply-shamanth-history requires admin", async () => {
+    const res = await appFor(managerUser).request("/leads/lead-1/apply-shamanth-history", {
+      method: "POST",
+    });
+    expect(res.status).toBe(403);
+  });
 });
