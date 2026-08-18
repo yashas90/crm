@@ -212,6 +212,10 @@ export default function PrivacyPage() {
             Back to sign in
           </Link>
           <span className="mx-2">·</span>
+          <Link href="/download" className="underline underline-offset-4 hover:text-foreground">
+            Mobile app
+          </Link>
+          <span className="mx-2">·</span>
           <Link href="/status" className="underline underline-offset-4 hover:text-foreground">
             System status
           </Link>

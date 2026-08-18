@@ -169,8 +169,9 @@ After each new APK:
 1. Bump `version` in `apps/mobile/app.config.ts`.
 2. Build and distribute the APK.
 3. Raise `MIN_MOBILE_APP_VERSION` on Railway to match (or bump the code default).
-4. Optional: set `MOBILE_UPDATE_URL` to a download / Play Store link.
-5. Redeploy the API.
+4. Set `MOBILE_UPDATE_URL` to `https://www.ninjamarketing.in/download` (public install page).
+5. Set `NEXT_PUBLIC_MOBILE_APK_URL` on Vercel to the hosted APK download link.
+6. Redeploy the API and web app.
 
 ---
 
