@@ -51,7 +51,9 @@ export function LeadEngagementSummary({
         <p className="text-foreground/90">
           Followed up by <span className="font-semibold">{ownerName}</span> since{" "}
           {formatMediumDate(followUpStart)}
-          {followUpCount > 0 ? ` · ${followUpCount} completed follow-up${followUpCount === 1 ? "" : "s"}` : ""}
+          {followUpCount > 0
+            ? ` · ${followUpCount} completed follow-up${followUpCount === 1 ? "" : "s"}`
+            : ""}
         </p>
       ) : null}
       {visit ? (
