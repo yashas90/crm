@@ -14,6 +14,7 @@ type LeadShamanthBackfillButtonProps = {
   firstName: string;
   lastName: string;
   phone: string | null;
+  totalCalls?: number;
   onApplied?: () => void;
 };
 
@@ -22,10 +23,12 @@ export function LeadShamanthBackfillButton({
   firstName,
   lastName,
   phone,
+  totalCalls = 0,
   onApplied,
 }: LeadShamanthBackfillButtonProps) {
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
+  const needsCallRecords = totalCalls < 15;
 
   if (!isRahulVermaniLead({ firstName, lastName, phone })) {
     return null;
@@ -39,14 +42,18 @@ export function LeadShamanthBackfillButton({
         agentName: string;
         followUpCount: number;
         siteVisitDate: string;
+        totalCalls?: number;
       }>(`/api/admin/leads/${leadId}/apply-shamanth-history`, {});
 
       await queryClient.invalidateQueries({ queryKey: ["leads", leadId] });
+      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      await queryClient.invalidateQueries({ queryKey: ["calls"] });
       await queryClient.invalidateQueries({ queryKey: ["site-visits"] });
       await queryClient.invalidateQueries({ queryKey: ["leads", leadId, "assignments"] });
 
+      const calls = result.totalCalls ?? 15;
       toast.success(
-        `${result.leadName} assigned to ${result.agentName} · ${result.followUpCount} follow-ups · site visit ${result.siteVisitDate}`,
+        `${result.leadName} · ${result.followUpCount} follow-ups · ${calls} calls · site visit ${result.siteVisitDate}`,
       );
       onApplied?.();
     } catch (error) {
@@ -65,7 +72,11 @@ export function LeadShamanthBackfillButton({
       className="border-amber-300 text-amber-900 hover:bg-amber-50 dark:border-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-500/10"
     >
       <History className="mr-1.5 h-4 w-4" />
-      {pending ? "Applying…" : "Apply Shamanth history"}
+      {pending
+        ? "Applying…"
+        : needsCallRecords
+          ? "Set total calls to 15"
+          : "Re-apply Shamanth history"}
     </Button>
   );
 }

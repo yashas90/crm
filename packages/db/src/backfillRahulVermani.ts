@@ -273,6 +273,43 @@ export async function backfillRahulVermani(
     );
   }
 
+  const existingCallActivities = await db
+    .select({ id: leadActivities.id })
+    .from(leadActivities)
+    .where(
+      and(
+        eq(leadActivities.leadId, lead.id),
+        eq(leadActivities.type, "call"),
+        sql`${leadActivities.metadata} ->> 'source' = ${SOURCE}`,
+      ),
+    );
+
+  if (existingCallActivities.length < TARGET_TOTAL_CALLS) {
+    const missingCount = TARGET_TOTAL_CALLS - existingCallActivities.length;
+    await db.insert(leadActivities).values(
+      CALL_LOGS.slice(
+        existingCallActivities.length,
+        existingCallActivities.length + missingCount,
+      ).map((item, index) => {
+        const startedAt = ist(item.dateKey, item.hour, item.minute);
+        return {
+          orgId: lead.orgId,
+          leadId: lead.id,
+          userId: agent.id,
+          type: "call" as const,
+          createdAt: startedAt,
+          metadata: {
+            source: SOURCE,
+            durationSeconds: item.durationSeconds,
+            direction: "outgoing",
+            status: "completed",
+            note: `Call ${existingCallActivities.length + index + 1} of ${TARGET_TOTAL_CALLS} — follow-up with Rahul Vermani.`,
+          },
+        };
+      }),
+    );
+  }
+
   const [existingVisitActivity] = await db
     .select({ id: leadActivities.id })
     .from(leadActivities)

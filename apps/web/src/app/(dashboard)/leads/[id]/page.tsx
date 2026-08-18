@@ -146,7 +146,11 @@ export default function LeadDetailPage() {
               firstName={lead.firstName}
               lastName={lead.lastName}
               phone={lead.phone}
-              onApplied={() => void refetchLead()}
+              totalCalls={totalCalls}
+              onApplied={() => {
+                void refetchLead();
+                void refetchCalls();
+              }}
             />
           ) : null}
           {canAssignLead ? (
