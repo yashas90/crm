@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import type { Database } from "./index.js";
 import {
+  callRecords,
   leadActivities,
   leadAssignments,
   leads,
@@ -16,6 +17,8 @@ const PROJECT_NAME = "Bhartiya Garden Enclave";
 const VISIT_DATE = "2026-08-16";
 const VISIT_TIME = "11:00";
 const SOURCE = "shamanth_month_followup_backfill";
+const CALL_BACKFILL_MARKER = `${SOURCE}_call`;
+const TARGET_TOTAL_CALLS = 15;
 
 /** IST wall-clock → Date (UTC). */
 function ist(dateKey: string, hour: number, minute: number): Date {
@@ -62,6 +65,25 @@ const FOLLOW_UPS: Array<{ dateKey: string; hour: number; minute: number; note: s
   },
 ];
 
+const CALL_LOGS: Array<{ dateKey: string; hour: number; minute: number; durationSeconds: number }> =
+  [
+    { dateKey: "2026-07-18", hour: 10, minute: 45, durationSeconds: 162 },
+    { dateKey: "2026-07-19", hour: 11, minute: 20, durationSeconds: 185 },
+    { dateKey: "2026-07-21", hour: 17, minute: 10, durationSeconds: 143 },
+    { dateKey: "2026-07-23", hour: 12, minute: 5, durationSeconds: 210 },
+    { dateKey: "2026-07-25", hour: 11, minute: 15, durationSeconds: 174 },
+    { dateKey: "2026-07-29", hour: 16, minute: 30, durationSeconds: 126 },
+    { dateKey: "2026-08-01", hour: 11, minute: 40, durationSeconds: 201 },
+    { dateKey: "2026-08-03", hour: 10, minute: 55, durationSeconds: 133 },
+    { dateKey: "2026-08-06", hour: 15, minute: 25, durationSeconds: 188 },
+    { dateKey: "2026-08-08", hour: 10, minute: 35, durationSeconds: 176 },
+    { dateKey: "2026-08-10", hour: 18, minute: 15, durationSeconds: 121 },
+    { dateKey: "2026-08-12", hour: 11, minute: 50, durationSeconds: 164 },
+    { dateKey: "2026-08-14", hour: 16, minute: 5, durationSeconds: 179 },
+    { dateKey: "2026-08-15", hour: 15, minute: 40, durationSeconds: 207 },
+    { dateKey: "2026-08-16", hour: 9, minute: 55, durationSeconds: 154 },
+  ];
+
 export class BackfillRahulVermaniError extends Error {
   constructor(message: string) {
     super(message);
@@ -78,6 +100,7 @@ export type BackfillRahulVermaniResult = {
   siteVisitDate: string;
   siteVisitTime: string;
   projectName: string;
+  totalCalls: number;
 };
 
 function publicToken(): string {
@@ -210,6 +233,46 @@ export async function backfillRahulVermani(
     );
   }
 
+  const existingBackfillCalls = await db
+    .select({ id: callRecords.id })
+    .from(callRecords)
+    .where(
+      and(
+        eq(callRecords.leadId, lead.id),
+        eq(callRecords.source, "web-manual"),
+        ilike(callRecords.notes, `${CALL_BACKFILL_MARKER}%`),
+      ),
+    );
+
+  if (existingBackfillCalls.length < TARGET_TOTAL_CALLS) {
+    const missingCount = TARGET_TOTAL_CALLS - existingBackfillCalls.length;
+    await db.insert(callRecords).values(
+      CALL_LOGS.slice(
+        existingBackfillCalls.length,
+        existingBackfillCalls.length + missingCount,
+      ).map((item, index) => {
+        const startedAt = ist(item.dateKey, item.hour, item.minute);
+        const endedAt = new Date(startedAt.getTime() + item.durationSeconds * 1000);
+        return {
+          orgId: lead.orgId,
+          userId: agent.id,
+          leadId: lead.id,
+          phoneNumber: lead.phone ?? `+91${LEAD_PHONE_DIGITS}`,
+          direction: "outgoing" as const,
+          status: "completed" as const,
+          source: "web-manual" as const,
+          startedAt,
+          endedAt,
+          durationSeconds: item.durationSeconds,
+          disposition: "connected",
+          outcome: "follow_up",
+          notes: `${CALL_BACKFILL_MARKER}_${existingBackfillCalls.length + index + 1}`,
+          createdAt: startedAt,
+        };
+      }),
+    );
+  }
+
   const [existingVisitActivity] = await db
     .select({ id: leadActivities.id })
     .from(leadActivities)
@@ -330,6 +393,7 @@ export async function backfillRahulVermani(
     siteVisitDate: VISIT_DATE,
     siteVisitTime: VISIT_TIME,
     projectName: project?.name ?? PROJECT_NAME,
+    totalCalls: TARGET_TOTAL_CALLS,
   };
 }
 
