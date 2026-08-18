@@ -14,7 +14,8 @@ export function startPurgeExpiredLeadsJob() {
 
   logger.info("Starting expired lead purge scheduler", {
     intervalMs: INTERVAL_MS,
-    retentionHours: 48,
+    naRetentionDays: 7,
+    softDeletedRetentionHours: 48,
   });
 
   void syncPurgeExpiredLeads().catch((err) => {

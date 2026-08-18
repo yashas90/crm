@@ -21,8 +21,16 @@ import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 import { db } from "./db.js";
 import { logger } from "./logger.js";
 
-/** Soft-deleted and NA leads older than this are hard-deleted from the database. */
-export const LEAD_PURGE_AFTER_MS = 48 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** NA leads (`not_interested` / `dropped`) are hard-deleted after 1 week in the NA pool. */
+export const NA_LEAD_PURGE_AFTER_MS = 7 * DAY_MS;
+
+/** Soft-deleted (Deleted tab) leads are hard-deleted after 48 hours. */
+export const SOFT_DELETED_LEAD_PURGE_AFTER_MS = 48 * 60 * 60 * 1000;
+
+/** @deprecated Use NA_LEAD_PURGE_AFTER_MS / SOFT_DELETED_LEAD_PURGE_AFTER_MS. */
+export const LEAD_PURGE_AFTER_MS = NA_LEAD_PURGE_AFTER_MS;
 
 const NA_STATUSES = ["not_interested", "dropped"] as const;
 
@@ -138,13 +146,16 @@ async function fetchNaBatch(cutoff: Date) {
 
 /**
  * Hard-delete from the server database:
- * - NA leads (`not_interested` / `dropped`) that have been NA for ≥48 hours
+ * - NA leads (`not_interested` / `dropped`) that have been NA for ≥1 week
  * - Soft-deleted (Deleted) leads whose `deletedAt` is ≥48 hours ago
  *
  * Drains batches until empty or MAX_PER_RUN so large NA pools clear quickly.
+ * On each API start the job runs immediately, so already-expired NA leads are
+ * permanently removed without waiting for the next interval.
  */
 export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeExpiredLeadsResult> {
-  const cutoff = new Date(now.getTime() - LEAD_PURGE_AFTER_MS);
+  const naCutoff = new Date(now.getTime() - NA_LEAD_PURGE_AFTER_MS);
+  const softDeletedCutoff = new Date(now.getTime() - SOFT_DELETED_LEAD_PURGE_AFTER_MS);
 
   let softDeletedPurged = 0;
   let naPurged = 0;
@@ -153,7 +164,7 @@ export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeEx
 
   // Soft-deleted first
   while (softDeletedPurged + naPurged + failed < MAX_PER_RUN) {
-    const batch = await fetchSoftDeletedBatch(cutoff);
+    const batch = await fetchSoftDeletedBatch(softDeletedCutoff);
     if (batch.length === 0) break;
     checked += batch.length;
 
@@ -174,7 +185,7 @@ export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeEx
 
   // NA leads
   while (softDeletedPurged + naPurged + failed < MAX_PER_RUN) {
-    const batch = await fetchNaBatch(cutoff);
+    const batch = await fetchNaBatch(naCutoff);
     if (batch.length === 0) break;
     checked += batch.length;
 
@@ -199,7 +210,8 @@ export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeEx
       naPurged,
       checked,
       failed,
-      cutoff: cutoff.toISOString(),
+      cutoff: naCutoff.toISOString(),
+      softDeletedCutoff: softDeletedCutoff.toISOString(),
     });
   }
 
