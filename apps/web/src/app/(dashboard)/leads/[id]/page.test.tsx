@@ -64,7 +64,7 @@ vi.mock("@/hooks/use-lead-scoring", () => ({
 }));
 
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ ready: true, canDeleteLead: true }),
+  usePermissions: () => ({ ready: true, canDeleteLead: true, isAdmin: true, canAssignLead: true }),
 }));
 
 vi.mock("@/hooks/use-users", () => ({
@@ -131,6 +131,14 @@ vi.mock("@/components/leads/lead-whatsapp-panel", () => ({
 
 vi.mock("@/components/leads/lead-ownership-history", () => ({
   LeadOwnershipHistory: () => null,
+}));
+
+vi.mock("@/components/leads/lead-engagement-summary", () => ({
+  LeadEngagementSummary: () => <p>Followed up by Demo Agent since 18 Jul 2026</p>,
+}));
+
+vi.mock("@/components/leads/lead-shamanth-backfill-button", () => ({
+  LeadShamanthBackfillButton: () => null,
 }));
 
 vi.mock("@/components/leads/send-sms-dialog", () => ({

@@ -8,6 +8,7 @@
     "test": "turbo test",
     "db:migrate": "pnpm --filter @propninja/db db:migrate",
     "db:seed": "pnpm --filter @propninja/db db:seed",
+    "db:backfill:rahul-vermani": "pnpm --filter @propninja/db exec tsx ../../scripts/backfill-rahul-vermani-shamanth.ts",
     "reset:admin": "pnpm --filter @propninja/db exec tsx ../../scripts/reset-admin.ts",
     "db:wipe": "pnpm --filter @propninja/db exec tsx ../../scripts/wipe-production-db.ts",
     "format": "biome format --write .",

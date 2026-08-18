@@ -87,6 +87,19 @@ function activityMeta(activity: LeadActivity) {
     };
   }
 
+  if (activity.type === "follow_up") {
+    const note = typeof meta?.note === "string" ? meta.note : undefined;
+    const next =
+      typeof meta?.nextFollowupAt === "string"
+        ? `Next: ${new Date(meta.nextFollowupAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}`
+        : undefined;
+    return {
+      icon: CalendarDays,
+      title: "Follow-up completed",
+      body: [note, next].filter(Boolean).join(" · ") || undefined,
+    };
+  }
+
   return {
     icon: Clock,
     title: activity.type.replace(/_/g, " "),
@@ -122,6 +135,7 @@ export function LeadActivityTimeline({ activities }: LeadActivityTimelineProps) 
                 activity.type === "call" && "border-emerald-500/30 text-emerald-600",
                 activity.type === "note" && "border-indigo-500/30 text-indigo-600",
                 activity.type === "status_change" && "border-amber-500/30 text-amber-600",
+                activity.type === "follow_up" && "border-violet-500/30 text-violet-600",
                 activity.type === "site_visit" && "border-sky-500/30 text-sky-600",
               )}
             >

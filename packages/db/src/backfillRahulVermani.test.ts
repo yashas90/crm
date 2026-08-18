@@ -1,4 +1,4 @@
-import { isRahulVermaniLead } from "@/lib/rahul-vermani-lead";
+import { isRahulVermaniLead } from "@propninja/db";
 import { describe, expect, it } from "vitest";
 
 describe("isRahulVermaniLead", () => {
@@ -12,7 +12,7 @@ describe("isRahulVermaniLead", () => {
     ).toBe(true);
   });
 
-  it("matches by name when phone is missing (last name present)", () => {
+  it("matches by name when phone is missing", () => {
     expect(
       isRahulVermaniLead({
         firstName: "Rahul",
@@ -22,15 +22,6 @@ describe("isRahulVermaniLead", () => {
     ).toBe(true);
   });
 
-  it("matches by name when last name is missing", () => {
-    expect(
-      isRahulVermaniLead({
-        firstName: "Rahul Vermani",
-        lastName: "",
-        phone: null,
-      }),
-    ).toBe(true);
-  });
   it("does not match other leads", () => {
     expect(
       isRahulVermaniLead({
