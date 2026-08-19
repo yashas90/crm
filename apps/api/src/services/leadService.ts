@@ -171,6 +171,16 @@ export interface AssignLeadInput {
   leadId: string;
   userId: string;
   actingUserId: string;
+  /**
+   * When false, skip recording assignment history (lead assignment row + assignment
+   * timeline entry) but still update `assignedTo`.
+   */
+  assignWithHistory?: boolean;
+  /**
+   * When true, and the lead is currently in NA status (not_interested/dropped),
+   * move it back to active status ("new").
+   */
+  applyNewStatus?: boolean;
 }
 
 export class LeadDuplicatePhoneError extends Error {
@@ -1323,7 +1333,7 @@ export const leadService = {
     }
 
     if (updated) {
-      void recalculateLeadScore(leadId).catch(() => undefined);
+      void Promise.resolve(recalculateLeadScore(leadId)).catch(() => undefined);
     }
 
     return updated ?? null;
@@ -1375,6 +1385,8 @@ export const leadService = {
 
   async assignLead(input: AssignLeadInput) {
     const { leadId, userId, actingUserId } = input;
+    const assignWithHistory = input.assignWithHistory ?? true;
+    const applyNewStatus = input.applyNewStatus ?? false;
 
     const [existing] = await db
       .select()
@@ -1401,15 +1413,24 @@ export const leadService = {
     }
 
     const [updated] = await db.transaction(async (tx) => {
+      const nextLeadStatus: typeof existing.leadStatus | null =
+        applyNewStatus && NA_STATUSES.includes(existing.leadStatus) ? "new" : null;
+
       const [row] = await tx
         .update(leads)
-        .set({ assignedTo: userId, updatedAt: new Date() })
+        .set({
+          assignedTo: userId,
+          ...(nextLeadStatus
+            ? { leadStatus: nextLeadStatus, naSinceAt: null, nextFollowupAt: null }
+            : {}),
+          updatedAt: new Date(),
+        })
         .where(
           and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
         )
         .returning();
 
-      if (row) {
+      if (row && assignWithHistory) {
         await recordLeadAssignment(tx, {
           leadId,
           fromAgentId: existing.assignedTo,
@@ -1425,21 +1446,46 @@ export const leadService = {
       return null;
     }
 
-    await db.insert(leadActivities).values({
-      orgId: SINGLE_TENANT_ORG_ID,
-      leadId,
-      userId: actingUserId,
-      type: "status_change",
-      metadata: {
-        kind: "assignment",
-        assignedTo: userId,
-      },
-    });
+    if (assignWithHistory) {
+      await db.insert(leadActivities).values({
+        orgId: SINGLE_TENANT_ORG_ID,
+        leadId,
+        userId: actingUserId,
+        type: "status_change",
+        metadata: {
+          kind: "assignment",
+          assignedTo: userId,
+        },
+      });
+    }
+
+    // If we moved NA → "new", record a normal status change activity (regardless of assignment-history flag).
+    if (
+      applyNewStatus &&
+      NA_STATUSES.includes(existing.leadStatus) &&
+      existing.leadStatus !== "new"
+    ) {
+      await db.insert(leadActivities).values({
+        orgId: SINGLE_TENANT_ORG_ID,
+        leadId,
+        userId: actingUserId,
+        type: "status_change",
+        metadata: { from: existing.leadStatus, to: "new" },
+      });
+    }
 
     return updated;
   },
 
-  async bulkAssignLeads(input: { leadIds: string[]; userIds: string[]; actingUserId: string }) {
+  async bulkAssignLeads(input: {
+    leadIds: string[];
+    userIds: string[];
+    actingUserId: string;
+    assignWithHistory?: boolean;
+    applyNewStatus?: boolean;
+  }) {
+    const assignWithHistory = input.assignWithHistory ?? true;
+    const applyNewStatus = input.applyNewStatus ?? false;
     const succeeded: string[] = [];
     const failed: { id: string; message: string }[] = [];
     const assignmentCounts: Record<string, number> = {};
@@ -1453,6 +1499,8 @@ export const leadService = {
           leadId,
           userId,
           actingUserId: input.actingUserId,
+          assignWithHistory,
+          applyNewStatus,
         });
 
         if (!updated) {

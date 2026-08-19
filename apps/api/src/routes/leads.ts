@@ -990,6 +990,8 @@ leadsRoute.post("/bulk-assign", validate("json", bulkAssignLeadsBodySchema), asy
     leadIds: permittedLeadIds,
     userIds: body.userIds,
     actingUserId: authUser.id,
+    assignWithHistory: body.assignWithHistory,
+    applyNewStatus: body.applyNewStatus,
   });
 
   await notifyBulkLeadsAssigned(c.get("db"), {
@@ -1037,6 +1039,8 @@ leadsRoute.post("/:id/assign", async (c) => {
   }
 
   const assigneeId = parsed.data.user_id;
+  const assignWithHistory = parsed.data.assignWithHistory;
+  const applyNewStatus = parsed.data.applyNewStatus;
   const assigneeGate = await assertAgentAssigneeAllowed(authUser, assigneeId);
   if (!assigneeGate.ok) {
     return c.json({ ok: false, error: { code: "FORBIDDEN", message: assigneeGate.message } }, 403);
@@ -1046,6 +1050,8 @@ leadsRoute.post("/:id/assign", async (c) => {
     leadId: id,
     userId: assigneeId,
     actingUserId: authUser.id,
+    assignWithHistory,
+    applyNewStatus,
   });
 
   if (!updated) {

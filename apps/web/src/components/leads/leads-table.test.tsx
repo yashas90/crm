@@ -15,6 +15,8 @@ vi.mock("@/hooks/use-session", () => ({
   }),
 }));
 
+const freshCreatedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
 const mockLeads: LeadRow[] = [
   {
     id: "lead-1",
@@ -27,7 +29,7 @@ const mockLeads: LeadRow[] = [
     temperature: "hot",
     leadSource: "website",
     lastContactedAt: null,
-    createdAt: "2025-01-01T00:00:00.000Z",
+    createdAt: freshCreatedAt,
     assignedUser: { id: "u1", name: "Demo Agent", email: "demo@propninja.local" },
   },
   {
