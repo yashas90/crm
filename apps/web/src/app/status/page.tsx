@@ -164,6 +164,10 @@ export default async function StatusPage() {
           <Link href="/login" className="underline underline-offset-4 hover:text-foreground">
             Sign in to dashboard
           </Link>
+          <span className="mx-2">·</span>
+          <Link href="/download" className="underline underline-offset-4 hover:text-foreground">
+            Mobile app
+          </Link>
         </p>
       </div>
     </main>
