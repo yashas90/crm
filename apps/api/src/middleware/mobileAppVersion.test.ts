@@ -73,25 +73,25 @@ describe("mobileAppVersionMiddleware", () => {
     expect(res.status).toBe(426);
   });
 
-  it("blocks clients below the current 1.0.7 floor", async () => {
-    env.MIN_MOBILE_APP_VERSION = "1.0.7";
+  it("blocks clients below the current 1.0.8 floor", async () => {
+    env.MIN_MOBILE_APP_VERSION = "1.0.8";
     const app = buildApp();
     const res = await app.request("/api/leads", {
       headers: {
         "X-PropNinja-Client": "mobile",
-        "X-PropNinja-App-Version": "1.0.6",
+        "X-PropNinja-App-Version": "1.0.7",
       },
     });
     expect(res.status).toBe(426);
   });
 
   it("allows current mobile clients", async () => {
-    env.MIN_MOBILE_APP_VERSION = "1.0.7";
+    env.MIN_MOBILE_APP_VERSION = "1.0.8";
     const app = buildApp();
     const res = await app.request("/api/leads", {
       headers: {
         "X-PropNinja-Client": "mobile",
-        "X-PropNinja-App-Version": "1.0.7",
+        "X-PropNinja-App-Version": "1.0.8",
       },
     });
     expect(res.status).toBe(200);
@@ -107,7 +107,7 @@ describe("mobileAppVersionMiddleware", () => {
   });
 
   it("skips integration webhooks", async () => {
-    env.MIN_MOBILE_APP_VERSION = "1.0.7";
+    env.MIN_MOBILE_APP_VERSION = "1.0.8";
     const app = buildApp();
     const res = await app.request("/api/integrations/meta/webhook", {
       method: "POST",

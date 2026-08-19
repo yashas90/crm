@@ -69,8 +69,8 @@ export default function LocationsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Agent Locations</h1>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Live positions from the mobile app (Mon–Sun, all day). Open an agent for travel path and
-            calls.
+            Live positions only come from agents who installed the PropNinja mobile app and granted
+            &quot;Allow all the time&quot; location. Agents without the app cannot appear here.
           </p>
         </div>
         <Button
@@ -156,7 +156,9 @@ export default function LocationsPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">All agents</CardTitle>
           <CardDescription>
-            Open travel history and call log for any agent — even if they are not live right now.
+            Green &quot;Live&quot; means a GPS ping in the last 24 hours from the app. Agents
+            without Live have not opened the app with location on (or never installed it). Travel
+            history and call logs are still available when they do use the app.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -176,7 +178,11 @@ export default function LocationsPage() {
                         <span className="ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400">
                           Live
                         </span>
-                      ) : null}
+                      ) : (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          Not tracked
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">{agent.email}</p>
                   </div>
@@ -204,8 +210,10 @@ export default function LocationsPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Live pins show the latest ping within 24 hours. Location and CRM call logs are collected
-        Mon–Sunday, all day (IST), when the agent grants permissions on the mobile app.
+        Live pins show the latest ping within 24 hours. GPS cannot be collected without the mobile
+        app — phone location permission alone in Android Settings is not enough if PropNinja is not
+        installed and running. After install, agents must choose Allow all the time, keep the app
+        installed (do not force-stop), and stay signed in so pings upload Mon–Sunday all day.
       </p>
     </div>
   );

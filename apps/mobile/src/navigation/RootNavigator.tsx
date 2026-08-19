@@ -1,4 +1,8 @@
-import { checkRequiredWorkPermissions, startLocationTracking } from "@/lib/locationTracking";
+import {
+  checkRequiredWorkPermissions,
+  flushLocationPingQueue,
+  startLocationTracking,
+} from "@/lib/locationTracking";
 import { MainTabs } from "@/navigation/MainTabs";
 import { useAuth } from "@/providers/auth-provider";
 import { LocationConsentScreen } from "@/screens/LocationConsentScreen";
@@ -16,6 +20,7 @@ export function RootNavigator() {
     const perms = await checkRequiredWorkPermissions();
     if (perms.allGranted) {
       await startLocationTracking();
+      void flushLocationPingQueue();
       setNeedsPermissions(false);
       return;
     }

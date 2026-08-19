@@ -74,7 +74,8 @@ export function LocationConsentScreen({ onDone }: Props) {
         <Text style={styles.title}>Permissions required</Text>
         <Text style={styles.body}>
           PropNinja needs location (Allow all the time) and call log access before you can use the
-          app. These are required for site visits and accurate call duration.
+          app. Location stays on in the background so your office can see live positions. Do not
+          force-stop the app.
         </Text>
         {attempted && missing.length > 0 ? (
           <View style={styles.missingBox}>

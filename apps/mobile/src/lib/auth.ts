@@ -75,6 +75,18 @@ export function getRefreshToken() {
   return cachedRefreshToken;
 }
 
+/**
+ * Background tasks (location pings) may run before React loadAuth fills the
+ * in-memory cache. Reload tokens from SecureStore when cache is empty.
+ */
+export async function ensureAuthCacheLoaded(): Promise<void> {
+  if (cachedToken || cachedRefreshToken) return;
+  cachedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+  cachedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  const rawUser = await SecureStore.getItemAsync(USER_KEY);
+  cachedUser = rawUser ? (JSON.parse(rawUser) as SessionUser) : null;
+}
+
 export function getUser(): SessionUser | null {
   return cachedUser;
 }

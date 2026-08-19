@@ -22,7 +22,7 @@ function isExemptPath(pathname: string): boolean {
 }
 
 /**
- * When MIN_MOBILE_APP_VERSION is set (default 1.0.7 in production), block outdated
+ * When MIN_MOBILE_APP_VERSION is set (default 1.0.8 in production), block outdated
  * PropNinja mobile clients. Web browsers and integration webhooks are not affected.
  * Set MIN_MOBILE_APP_VERSION="" to disable.
  */
