@@ -35,15 +35,16 @@ export const LEAD_PURGE_AFTER_MS = NA_LEAD_PURGE_AFTER_MS;
 const NA_STATUSES = ["not_interested", "dropped"] as const;
 
 const BATCH_SIZE = 200;
-/** Safety cap per job tick so one run cannot block the event loop forever. */
-const MAX_PER_RUN = 5000;
+/** Max NA leads removed per scheduler tick (large pools drain over one or two runs). */
+const MAX_NA_PURGE_PER_RUN = 50_000;
+/** Max soft-deleted leads removed per scheduler tick. */
+const MAX_SOFT_DELETED_PURGE_PER_RUN = 5_000;
 
 /**
- * When the lead last became NA (status_change → not_interested/dropped).
- * Falls back to createdAt when no status activity exists (legacy rows).
- * Must NOT use updatedAt — scoring / unassign jobs refresh that continuously.
+ * Legacy fallback when `na_since_at` is null (pre-migration rows).
+ * Must NOT use updatedAt — NA pool release refreshes that without changing NA age.
  */
-function naStatusSinceSql() {
+function legacyNaStatusSinceSql() {
   return sql`COALESCE(
     (
       SELECT MAX(${leadActivities.createdAt})
@@ -54,6 +55,11 @@ function naStatusSinceSql() {
     ),
     ${leads.createdAt}
   )`;
+}
+
+/** When the lead entered NA — prefers persisted na_since_at. */
+function naEnteredAtSql() {
+  return sql`COALESCE(${leads.naSinceAt}, ${legacyNaStatusSinceSql()})`;
 }
 
 /**
@@ -138,7 +144,7 @@ async function fetchNaBatch(cutoff: Date) {
         eq(leads.orgId, SINGLE_TENANT_ORG_ID),
         isNull(leads.deletedAt),
         inArray(leads.leadStatus, [...NA_STATUSES]),
-        sql`${naStatusSinceSql()} <= ${cutoff}`,
+        sql`${naEnteredAtSql()} <= ${cutoff}`,
       ),
     )
     .limit(BATCH_SIZE);
@@ -149,9 +155,8 @@ async function fetchNaBatch(cutoff: Date) {
  * - NA leads (`not_interested` / `dropped`) that have been NA for ≥1 week
  * - Soft-deleted (Deleted) leads whose `deletedAt` is ≥48 hours ago
  *
- * Drains batches until empty or MAX_PER_RUN so large NA pools clear quickly.
- * On each API start the job runs immediately, so already-expired NA leads are
- * permanently removed without waiting for the next interval.
+ * Drains batches until empty or per-run caps. On API startup the job runs
+ * immediately so NA leads already past 1 week are removed without waiting.
  */
 export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeExpiredLeadsResult> {
   const naCutoff = new Date(now.getTime() - NA_LEAD_PURGE_AFTER_MS);
@@ -162,8 +167,7 @@ export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeEx
   let checked = 0;
   let failed = 0;
 
-  // Soft-deleted first
-  while (softDeletedPurged + naPurged + failed < MAX_PER_RUN) {
+  while (softDeletedPurged + failed < MAX_SOFT_DELETED_PURGE_PER_RUN) {
     const batch = await fetchSoftDeletedBatch(softDeletedCutoff);
     if (batch.length === 0) break;
     checked += batch.length;
@@ -183,8 +187,7 @@ export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeEx
     if (batch.length < BATCH_SIZE) break;
   }
 
-  // NA leads
-  while (softDeletedPurged + naPurged + failed < MAX_PER_RUN) {
+  while (naPurged + failed < MAX_NA_PURGE_PER_RUN) {
     const batch = await fetchNaBatch(naCutoff);
     if (batch.length === 0) break;
     checked += batch.length;
@@ -210,7 +213,7 @@ export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeEx
       naPurged,
       checked,
       failed,
-      cutoff: naCutoff.toISOString(),
+      naCutoff: naCutoff.toISOString(),
       softDeletedCutoff: softDeletedCutoff.toISOString(),
     });
   }

@@ -9,6 +9,7 @@ import { clearAllLoginRateLimits } from "../lib/loginBruteForce.js";
 import { listPaginationSchema } from "../lib/pagination.js";
 import { isAdmin } from "../lib/permissions.js";
 import { PORTAL_MOCK_PAYLOADS } from "../lib/portalWebhookDefaults.js";
+import { purgeExpiredLeads } from "../lib/purgeExpiredLeads.js";
 import { clearAllRateLimits } from "../lib/rateLimitStore.js";
 import { jsonError, jsonOk } from "../lib/response.js";
 import { clearAllResponseCaches } from "../lib/responseCache.js";
@@ -266,6 +267,19 @@ adminRoutes.post("/portal-webhooks/:id/test", async (c) => {
   });
 
   return jsonOk(c, { preview, mockPayload: payload });
+});
+
+/** Hard-delete NA leads past 1 week and soft-deleted leads past 48h (admin manual run). */
+adminRoutes.post("/leads/purge-expired", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+
+  if (!isAdmin(authUser)) {
+    return jsonError(c, "FORBIDDEN", "Admin access required", 403);
+  }
+
+  const result = await purgeExpiredLeads();
+  clearAllResponseCaches();
+  return jsonOk(c, result);
 });
 
 /** One-click backfill: Shamanth assignment, 5 follow-ups, 15 calls, 16 Aug site visit. */

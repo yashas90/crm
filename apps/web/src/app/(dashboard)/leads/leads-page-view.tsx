@@ -387,8 +387,9 @@ export function LeadsPageView() {
 
       {scope === "naleads" ? (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
-          Not interested and dropped leads stay here for 1 week, then are permanently deleted. Leads
-          already past 1 week are removed automatically.
+          Not interested and dropped leads stay here for 1 week, then are permanently deleted from
+          the database. Anything already older than 1 week is removed when the API deploys or runs
+          the daily purge job.
         </p>
       ) : null}
 
