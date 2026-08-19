@@ -71,10 +71,14 @@ describe("LoginScreen", () => {
     fireEvent.press(signInActions[signInActions.length - 1]!);
 
     await waitFor(() => {
-      expect(mockApiPost).toHaveBeenCalledWith("/api/auth/login", {
-        email: "agent@demo.test",
-        password: "secret",
-      });
+      expect(mockApiPost).toHaveBeenCalledWith(
+        "/api/auth/login",
+        {
+          email: "agent@demo.test",
+          password: "secret",
+        },
+        { skipTransientRetry: true },
+      );
     });
 
     await waitFor(() => {

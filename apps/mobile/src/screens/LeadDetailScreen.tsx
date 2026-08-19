@@ -32,7 +32,7 @@ import {
   visitStatusColor,
   visitStatusLabel,
 } from "@/hooks/use-site-visits";
-import { useLeadTasks } from "@/hooks/use-tasks";
+// Tasks are rendered via <TasksSection /> which fetches them itself.
 import { useAssignableUsers } from "@/hooks/use-users";
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
@@ -94,7 +94,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   } = useLeadBrowser(route, navigation);
   const [isExitingLead, setIsExitingLead] = useState(false);
   const { data: lead, isLoading, isError, refetch } = useLead(leadId, { enabled: !isExitingLead });
-  const { data: tcfData, refetch: refetchTcf } = useTcfForLead(leadId);
+  const { data: tcfData } = useTcfForLead(leadId);
   const upsertTcf = useUpsertTcfConsent(leadId);
   const { data: callsData, refetch: refetchCalls } = useCalls(
     {
@@ -109,7 +109,6 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const updateLead = useUpdateLead();
   const updateFollowUp = useUpdateLeadFollowUp(leadId);
   const { data: visitsData, refetch: refetchVisits } = useLeadSiteVisits(leadId);
-  const { refetch: refetchTasks } = useLeadTasks(leadId);
   const addNote = useAddLeadNote(leadId);
   const [statusSheetOpen, setStatusSheetOpen] = useState(false);
   const [statusSheetAfterCall, setStatusSheetAfterCall] = useState(false);
