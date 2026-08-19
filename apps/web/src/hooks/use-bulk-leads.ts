@@ -33,8 +33,17 @@ export function useBulkLeadActions() {
   });
 
   const assign = useMutation({
-    mutationFn: ({ leadIds, userIds }: { leadIds: string[]; userIds: string[] }) =>
-      bulkAssignLeads(leadIds, userIds),
+    mutationFn: ({
+      leadIds,
+      userIds,
+      assignWithHistory,
+      applyNewStatus,
+    }: {
+      leadIds: string[];
+      userIds: string[];
+      assignWithHistory?: boolean;
+      applyNewStatus?: boolean;
+    }) => bulkAssignLeads(leadIds, userIds, { assignWithHistory, applyNewStatus }),
     onSuccess: async (result, variables) => {
       await invalidateLeads();
       const agentCount = variables.userIds.length;

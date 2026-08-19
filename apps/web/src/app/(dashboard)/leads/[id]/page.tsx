@@ -94,6 +94,8 @@ export default function LeadDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
   const [assignUserId, setAssignUserId] = useState("");
+  const [assignWithHistory, setAssignWithHistory] = useState(true);
+  const [applyNewStatus, setApplyNewStatus] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showLogCall, setShowLogCall] = useState(false);
@@ -154,7 +156,21 @@ export default function LeadDetailPage() {
             />
           ) : null}
           {canAssignLead ? (
-            <Button variant="outline" size="sm" onClick={() => setShowAssign((v) => !v)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowAssign((v) => {
+                  const next = !v;
+                  if (next) {
+                    setAssignWithHistory(true);
+                    setApplyNewStatus(false);
+                    setAssignUserId("");
+                  }
+                  return next;
+                });
+              }}
+            >
               {isAgent ? "Return to admin" : "Assign"}
             </Button>
           ) : null}
@@ -339,11 +355,76 @@ export default function LeadDetailPage() {
                 </option>
               ))}
             </select>
+
+            {!isAgent ? (
+              <fieldset className="space-y-2 rounded-xl border border-input p-3">
+                <legend className="text-sm font-medium text-foreground/90">
+                  Assignment preferences
+                </legend>
+
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4 border-input"
+                    checked={assignWithHistory && !applyNewStatus}
+                    onChange={() => {
+                      setAssignWithHistory(true);
+                      setApplyNewStatus(false);
+                    }}
+                  />
+                  <span className="font-medium">With history</span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4 border-input"
+                    checked={!assignWithHistory && !applyNewStatus}
+                    onChange={() => {
+                      setAssignWithHistory(false);
+                      setApplyNewStatus(false);
+                    }}
+                  />
+                  <span className="font-medium">Without history</span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4 border-input"
+                    checked={!assignWithHistory && applyNewStatus}
+                    onChange={() => {
+                      setAssignWithHistory(false);
+                      setApplyNewStatus(true);
+                    }}
+                  />
+                  <span className="font-medium">Without history and new status</span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4 border-input"
+                    checked={assignWithHistory && applyNewStatus}
+                    onChange={() => {
+                      setAssignWithHistory(true);
+                      setApplyNewStatus(true);
+                    }}
+                  />
+                  <span className="font-medium">With history and new status</span>
+                </label>
+              </fieldset>
+            ) : null}
+
             <Button
               size="sm"
               disabled={!assignUserId}
               onClick={() => {
-                void apiPost(`/api/leads/${lead.id}/assign`, { user_id: assignUserId }).then(
+                void apiPost(`/api/leads/${lead.id}/assign`, {
+                  user_id: assignUserId,
+                  assignWithHistory,
+                  applyNewStatus,
+                }).then(
                   () => {
                     toast.success(isAgent ? "Lead returned to admin" : "Lead assigned");
                     setShowAssign(false);

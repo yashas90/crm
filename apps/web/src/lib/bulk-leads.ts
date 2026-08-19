@@ -47,9 +47,19 @@ export function bulkUpdateLeadStatus(leadIds: string[], leadStatus: LeadStatus) 
   );
 }
 
-export async function bulkAssignLeads(leadIds: string[], userIds: string[]) {
+export async function bulkAssignLeads(
+  leadIds: string[],
+  userIds: string[],
+  options?: { assignWithHistory?: boolean; applyNewStatus?: boolean },
+) {
+  const { assignWithHistory, applyNewStatus } = options ?? {};
   try {
-    return await apiPost<BulkLeadResult>("/api/leads/bulk-assign", { leadIds, userIds });
+    return await apiPost<BulkLeadResult>("/api/leads/bulk-assign", {
+      leadIds,
+      userIds,
+      assignWithHistory,
+      applyNewStatus,
+    });
   } catch (error) {
     // Older API builds may not have /bulk-assign — fall back to round-robin single assigns.
     const isMissingRoute =
@@ -63,6 +73,8 @@ export async function bulkAssignLeads(leadIds: string[], userIds: string[]) {
       (leadId, index) =>
         apiPost(`/api/leads/${leadId}/assign`, {
           user_id: userIds[index % userIds.length],
+          assignWithHistory,
+          applyNewStatus,
         }).then(() => undefined),
       "Assign failed",
     );

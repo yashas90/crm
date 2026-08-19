@@ -154,11 +154,25 @@ export const updateLeadBodySchema = z.preprocess(
 
 export const assignLeadBodySchema = z.object({
   user_id: z.string().uuid(),
+  /**
+   * When false, skip recording assignment history (lead assignment rows +
+   * assignment timeline entry). Default is true.
+   */
+  assignWithHistory: z.boolean().optional().default(true),
+  /**
+   * When true, and the lead is currently in NA status (not_interested/dropped),
+   * move it back to an active status ("new").
+   */
+  applyNewStatus: z.boolean().optional().default(false),
 });
 
 export const bulkAssignLeadsBodySchema = z.object({
   leadIds: z.array(z.string().uuid()).min(1).max(500),
   userIds: z.array(z.string().uuid()).min(1).max(50),
+  /** Skip recording assignment history (lead assignment rows + assignment timeline entry). */
+  assignWithHistory: z.boolean().optional().default(true),
+  /** If true, move NA leads (not_interested/dropped) back to active status ("new"). */
+  applyNewStatus: z.boolean().optional().default(false),
 });
 
 export const addNoteBodySchema = z.object({

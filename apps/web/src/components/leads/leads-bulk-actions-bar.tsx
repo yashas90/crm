@@ -59,6 +59,8 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [status, setStatus] = useState<LeadStatus>("contacted");
     const [assignUserIds, setAssignUserIds] = useState<string[]>([]);
+    const [assignWithHistory, setAssignWithHistory] = useState(true);
+    const [applyNewStatus, setApplyNewStatus] = useState(false);
 
     const selectedCount = selectedIds.length;
     const hasSelection = selectedCount > 0;
@@ -69,6 +71,8 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
       if (pendingAction === "status") setStatusOpen(true);
       if (pendingAction === "assign") {
         setAssignUserIds(isAgent ? [] : session?.id ? [session.id] : []);
+        setAssignWithHistory(true);
+        setApplyNewStatus(false);
         setAssignOpen(true);
       }
       if (pendingAction === "delete") setDeleteOpen(true);
@@ -93,6 +97,8 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
       const result = await bulk.assign.mutateAsync({
         leadIds: selectedIds,
         userIds: assignUserIds,
+        assignWithHistory,
+        applyNewStatus,
       });
       setAssignOpen(false);
       setAssignUserIds([]);
@@ -249,6 +255,75 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
               onChange={setAssignUserIds}
               hint={isAgent ? undefined : roundRobinDistributionLabel(assignUserIds, selectedCount)}
             />
+
+            {isAgent ? null : (
+              <fieldset className="space-y-2 rounded-xl border border-input p-3">
+                <legend className="text-sm font-medium text-foreground/90">
+                  Assignment preferences
+                </legend>
+
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4 border-input"
+                    checked={assignWithHistory && !applyNewStatus}
+                    onChange={() => {
+                      setAssignWithHistory(true);
+                      setApplyNewStatus(false);
+                    }}
+                  />
+                  <span>
+                    <span className="font-medium">With history</span>
+                  </span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4 border-input"
+                    checked={!assignWithHistory && !applyNewStatus}
+                    onChange={() => {
+                      setAssignWithHistory(false);
+                      setApplyNewStatus(false);
+                    }}
+                  />
+                  <span>
+                    <span className="font-medium">Without history</span>
+                  </span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4 border-input"
+                    checked={!assignWithHistory && applyNewStatus}
+                    onChange={() => {
+                      setAssignWithHistory(false);
+                      setApplyNewStatus(true);
+                    }}
+                  />
+                  <span>
+                    <span className="font-medium">Without history and new status</span>
+                  </span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    className="mt-1 h-4 w-4 border-input"
+                    checked={assignWithHistory && applyNewStatus}
+                    onChange={() => {
+                      setAssignWithHistory(true);
+                      setApplyNewStatus(true);
+                    }}
+                  />
+                  <span>
+                    <span className="font-medium">With history and new status</span>
+                  </span>
+                </label>
+              </fieldset>
+            )}
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setAssignOpen(false)}>
                 Cancel
