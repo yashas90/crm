@@ -795,6 +795,10 @@ export const leadService = {
       throw new LeadDuplicatePhoneError();
     }
 
+    const resolvedStatus = leadStatus ?? "new";
+    const now = new Date();
+    const isNaStatus = (NA_STATUSES as string[]).includes(resolvedStatus);
+
     const [created] = await db
       .insert(leads)
       .values({
@@ -808,7 +812,7 @@ export const leadService = {
         city: city ?? null,
         state: state ?? null,
         leadSource: canonicalizeLeadSource(leadSource) ?? null,
-        leadStatus: leadStatus ?? "new",
+        leadStatus: resolvedStatus,
         temperature: temperature ?? null,
         notes: notes ?? null,
         tags: tags ?? null,
@@ -816,6 +820,7 @@ export const leadService = {
         estimatedValue: estimatedValue != null ? String(estimatedValue) : null,
         projectName: resolvedProject.projectName,
         projectId: resolvedProject.projectId,
+        naSinceAt: isNaStatus ? now : null,
       })
       .returning();
 
@@ -1211,6 +1216,13 @@ export const leadService = {
       update.leadSource = canonicalizeLeadSource(payload.leadSource) ?? null;
     }
     if (payload.leadStatus !== undefined) update.leadStatus = payload.leadStatus;
+    if (payload.leadStatus !== undefined && payload.leadStatus !== existing.leadStatus) {
+      if ((NA_STATUSES as string[]).includes(payload.leadStatus)) {
+        update.naSinceAt = new Date();
+      } else if ((NA_STATUSES as string[]).includes(existing.leadStatus)) {
+        update.naSinceAt = null;
+      }
+    }
     if (payload.temperature !== undefined) update.temperature = payload.temperature;
     if (payload.notes !== undefined) update.notes = payload.notes;
     if (payload.tags !== undefined) update.tags = payload.tags;
