@@ -218,10 +218,16 @@ export function LeadDetailScreen({ route, navigation }: Props) {
     }
   }
 
-  useRefreshOnFocus(() => {
-    if (isExitingLead) return Promise.resolve();
-    return Promise.all([refetch(), refetchCalls(), refetchTcf(), refetchTasks()]);
-  });
+  // Lead detail is a heavy screen; refetching TCF + tasks alongside lead/calls on every focus
+  // can stack multiple network requests and cause UI hitching.
+  // Keep focus-refresh lightweight; staleTime + background query options handle the rest.
+  useRefreshOnFocus(
+    () => {
+      if (isExitingLead) return Promise.resolve();
+      return Promise.all([refetch(), refetchCalls()]);
+    },
+    { minIntervalMs: 30_000 },
+  );
 
   useEffect(() => {
     if (isExitingLead || isLoading || lead) return;
