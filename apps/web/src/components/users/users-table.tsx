@@ -20,7 +20,7 @@ import {
   getUserRoleLabel,
 } from "@/lib/user-display";
 import { cn } from "@propninja/ui/lib/utils";
-import { Eye, Pencil, Power, Users } from "lucide-react";
+import { Eye, Pencil, Power, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ReactNode, memo, useCallback, useMemo, useState } from "react";
 
@@ -30,6 +30,7 @@ type UsersTableProps = {
   users: UserRow[];
   isLoading?: boolean;
   canUpdate?: boolean;
+  canDelete?: boolean;
   currentUserId?: string;
   page: number;
   pageSize: number;
@@ -39,6 +40,7 @@ type UsersTableProps = {
   onSelectionChange?: (ids: string[]) => void;
   onAddUser?: () => void;
   onEditUser?: (user: UserRow) => void;
+  onDeleteUser?: (user: UserRow) => void;
 };
 
 type ActionIconButtonProps = {
@@ -91,6 +93,7 @@ type UsersTableRowProps = {
   user: UserRow;
   index: number;
   canUpdate: boolean;
+  canDelete: boolean;
   isSelf: boolean;
   isSelected: boolean;
   isToggling: boolean;
@@ -98,12 +101,14 @@ type UsersTableRowProps = {
   onEdit: (userId: string) => void;
   onView: (userId: string) => void;
   onToggleActive: (user: UserRow) => void;
+  onDelete: (user: UserRow) => void;
 };
 
 const UsersTableRow = memo(function UsersTableRow({
   user,
   index,
   canUpdate,
+  canDelete,
   isSelf,
   isSelected,
   isToggling,
@@ -111,10 +116,12 @@ const UsersTableRow = memo(function UsersTableRow({
   onEdit,
   onView,
   onToggleActive,
+  onDelete,
 }: UsersTableRowProps) {
   const fullName = formatUserFullName(user);
   const email = formatUserEmail(user);
   const roleLabel = user.roleLabel?.trim() || getUserRoleLabel(user);
+  const cannotDelete = !canDelete || isSelf || Boolean(user.isLastAdmin && user.isActive);
 
   return (
     <TableRow
@@ -173,6 +180,19 @@ const UsersTableRow = memo(function UsersTableRow({
             onClick={() => onToggleActive(user)}
           />
           <ActionIconButton
+            icon={<Trash2 className="h-3.5 w-3.5" />}
+            label={
+              isSelf
+                ? "Cannot delete your own account"
+                : user.isLastAdmin && user.isActive
+                  ? `Cannot delete ${fullName} — last admin`
+                  : `Delete ${fullName}`
+            }
+            className="bg-slate-800"
+            disabled={cannotDelete}
+            onClick={() => onDelete(user)}
+          />
+          <ActionIconButton
             icon={<Eye className="h-3.5 w-3.5" />}
             label={`View ${fullName}`}
             className="bg-blue-500"
@@ -188,6 +208,7 @@ export const UsersTable = memo(function UsersTable({
   users,
   isLoading = false,
   canUpdate = false,
+  canDelete = false,
   currentUserId,
   page,
   pageSize,
@@ -197,6 +218,7 @@ export const UsersTable = memo(function UsersTable({
   onSelectionChange,
   onAddUser,
   onEditUser,
+  onDeleteUser,
 }: UsersTableProps) {
   const router = useRouter();
   const updateUser = useUpdateUser();
@@ -261,6 +283,13 @@ export const UsersTable = memo(function UsersTable({
     [updateUser],
   );
 
+  const handleDelete = useCallback(
+    (user: UserRow) => {
+      onDeleteUser?.(user);
+    },
+    [onDeleteUser],
+  );
+
   if (showEmpty) {
     return (
       <EmptyState
@@ -305,6 +334,7 @@ export const UsersTable = memo(function UsersTable({
                     user={user}
                     index={index}
                     canUpdate={canUpdate}
+                    canDelete={canDelete && Boolean(onDeleteUser)}
                     isSelf={user.id === currentUserId}
                     isSelected={selectedSet.has(user.id)}
                     isToggling={togglingId === user.id}
@@ -312,6 +342,7 @@ export const UsersTable = memo(function UsersTable({
                     onEdit={handleEdit}
                     onView={handleView}
                     onToggleActive={handleToggleActive}
+                    onDelete={handleDelete}
                   />
                 ))
               )}
