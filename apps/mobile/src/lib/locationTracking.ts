@@ -14,8 +14,10 @@ export const LOCATION_CONSENT_GIVEN_KEY = "location_consent_given";
 export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v4";
 
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
-const PING_INTERVAL_MS = 2 * 60 * 1000;
+/** Office wants a position at least every 30 minutes even when the agent is idle. */
+export const PING_INTERVAL_MS = 30 * 60 * 1000;
 const LOCATION_PING_QUEUE_KEY = "propninja_pending_location_pings";
+const LAST_PING_AT_KEY = "propninja_last_location_ping_at";
 const MAX_QUEUED_PINGS = 200;
 
 type LocationPingBody = {
@@ -62,6 +64,10 @@ async function enqueueLocationPing(body: LocationPingBody): Promise<void> {
   await writePingQueue(queue);
 }
 
+async function markLastPingAt(iso: string): Promise<void> {
+  await AsyncStorage.setItem(LAST_PING_AT_KEY, iso);
+}
+
 /** Ensure JWT is available in background JS contexts (cache may be empty). */
 async function prepareAuthForBackgroundPing(): Promise<boolean> {
   await ensureAuthCacheLoaded();
@@ -100,6 +106,7 @@ async function postLocationPing(body: LocationPingBody): Promise<void> {
     throw new Error("NO_AUTH");
   }
   await apiPost("/api/locations/ping", body, { skipSessionLogout: true });
+  await markLastPingAt(body.capturedAt);
 }
 
 /** Flush queued location pings (network restore / app foreground). */
@@ -126,15 +133,7 @@ export async function flushLocationPingQueue(): Promise<number> {
   return synced;
 }
 
-TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
-  if (error) return;
-  const payload = data as { locations?: Location.LocationObject[] } | undefined;
-  if (!payload?.locations?.length) return;
-  if (!isLocationCollectionAllowed()) return;
-
-  const loc = payload.locations[0];
-  if (!loc) return;
-
+async function sendLocationObject(loc: Location.LocationObject): Promise<void> {
   const body: LocationPingBody = {
     latitude: loc.coords.latitude,
     longitude: loc.coords.longitude,
@@ -144,11 +143,21 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
 
   try {
     await postLocationPing(body);
-    // After a successful live ping, try draining any backlog.
     await flushLocationPingQueue();
   } catch {
     await enqueueLocationPing(body);
   }
+}
+
+TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
+  if (error) return;
+  const payload = data as { locations?: Location.LocationObject[] } | undefined;
+  if (!payload?.locations?.length) return;
+  if (!isLocationCollectionAllowed()) return;
+
+  const loc = payload.locations[0];
+  if (!loc) return;
+  await sendLocationObject(loc);
 });
 
 export type RequiredWorkPermissions = {
@@ -204,6 +213,36 @@ export async function markLocationConsentPrompted(enabled: boolean): Promise<voi
   await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, enabled ? "true" : "false");
 }
 
+function locationUpdateOptions(): Location.LocationTaskOptions {
+  return {
+    accuracy: Location.Accuracy.Balanced,
+    // Android: time-based cadence. distanceInterval 0 = still send when stationary.
+    timeInterval: PING_INTERVAL_MS,
+    distanceInterval: 0,
+    deferredUpdatesInterval: PING_INTERVAL_MS,
+    deferredUpdatesDistance: 0,
+    showsBackgroundLocationIndicator: true,
+    foregroundService: {
+      notificationTitle: "PropNinja",
+      notificationBody: "Sharing location with your office every 30 minutes",
+      notificationColor: "#204060",
+    },
+    pausesUpdatesAutomatically: false,
+  };
+}
+
+/** One immediate fix so “Last seen” updates when the agent opens the app. */
+async function pingCurrentPositionOnce(): Promise<void> {
+  try {
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    await sendLocationObject(loc);
+  } catch {
+    // Best-effort — background updates still continue.
+  }
+}
+
 export async function startLocationTracking() {
   const { status } = await Location.getBackgroundPermissionsAsync();
   if (status !== "granted") return;
@@ -212,26 +251,15 @@ export async function startLocationTracking() {
   await ensureAuthCacheLoaded();
 
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
+  // Always stop+restart so OEM-killed services and interval config changes take effect.
   if (isRunning) {
-    void flushLocationPingQueue();
-    return;
+    await Location.stopLocationUpdatesAsync(TASK_NAME).catch(() => undefined);
   }
 
-  await Location.startLocationUpdatesAsync(TASK_NAME, {
-    accuracy: Location.Accuracy.Balanced,
-    timeInterval: PING_INTERVAL_MS,
-    distanceInterval: 25,
-    deferredUpdatesInterval: PING_INTERVAL_MS,
-    showsBackgroundLocationIndicator: true,
-    foregroundService: {
-      notificationTitle: "PropNinja",
-      notificationBody: "Sharing live location with your office",
-      notificationColor: "#204060",
-    },
-    pausesUpdatesAutomatically: false,
-  });
+  await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
 
   void flushLocationPingQueue();
+  void pingCurrentPositionOnce();
 }
 
 export async function stopLocationTracking() {
