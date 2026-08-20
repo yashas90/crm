@@ -69,9 +69,10 @@ export default function LocationsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Agent Locations</h1>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Live positions come from agents who installed the PropNinja mobile app and granted
-            &quot;Allow all the time&quot; location. The app pings about every 30 minutes even when
-            closed (as long as it is not force-stopped). Agents without the app cannot appear here.
+            Live positions come from agents who installed the PropNinja mobile app. The CRM stays
+            locked until they grant &quot;Allow all the time&quot; location (not &quot;While using
+            the app&quot;). The app pings about every 30 minutes even when closed (as long as it is
+            not force-stopped).
           </p>
         </div>
         <Button
