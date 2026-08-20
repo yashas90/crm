@@ -39,6 +39,12 @@ try {
 if (badging) {
   must(badging.includes("name='com.propninja.crm'"), "package is com.propninja.crm");
   must(/versionName='1\.\d+\.\d+'/.test(badging), "has semver versionName");
+  const versionCodeMatch = badging.match(/versionCode='(\d+)'/);
+  const versionCode = versionCodeMatch ? Number(versionCodeMatch[1]) : 0;
+  must(
+    versionCode > 1,
+    `versionCode ${versionCode} must be > 1 (else installs fail over older APKs)`,
+  );
   must(badging.includes("ACCESS_BACKGROUND_LOCATION"), "declares background location");
   must(badging.includes("FOREGROUND_SERVICE_LOCATION"), "declares FGS location");
 }
