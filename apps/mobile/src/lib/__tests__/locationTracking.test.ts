@@ -1,24 +1,50 @@
 jest.mock("expo-task-manager", () => ({
   defineTask: jest.fn(),
 }));
+
 jest.mock("expo-location", () => ({
   Accuracy: { Balanced: 3 },
-  getBackgroundPermissionsAsync: jest.fn(),
-  hasStartedLocationUpdatesAsync: jest.fn(),
-  startLocationUpdatesAsync: jest.fn(),
-  stopLocationUpdatesAsync: jest.fn(),
+  getBackgroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
+  hasStartedLocationUpdatesAsync: jest.fn(() => Promise.resolve(false)),
+  startLocationUpdatesAsync: jest.fn(() => Promise.resolve()),
+  stopLocationUpdatesAsync: jest.fn(() => Promise.resolve()),
+  getCurrentPositionAsync: jest.fn(() =>
+    Promise.resolve({
+      coords: { latitude: 13.05, longitude: 77.62, accuracy: 18 },
+      timestamp: Date.now(),
+    }),
+  ),
   requestForegroundPermissionsAsync: jest.fn(),
   requestBackgroundPermissionsAsync: jest.fn(),
 }));
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: jest.fn(),
-  setItem: jest.fn(),
+  setItem: jest.fn(() => Promise.resolve()),
 }));
 jest.mock("@/lib/apiClient", () => ({
-  apiPost: jest.fn(),
+  apiPost: jest.fn(() => Promise.resolve({ ok: true })),
+}));
+jest.mock("@/lib/auth", () => ({
+  ensureAuthCacheLoaded: jest.fn(() => Promise.resolve()),
+  getRefreshToken: jest.fn(() => null),
+  getToken: jest.fn(() => "token"),
+  updateTokens: jest.fn(),
+}));
+jest.mock("@/lib/jwt", () => ({
+  isTokenExpired: jest.fn(() => false),
+}));
+jest.mock("@/lib/callLogNative", () => ({
+  hasCallLogPermission: jest.fn(() => Promise.resolve(true)),
+  requestCallLogPermission: jest.fn(() => Promise.resolve(true)),
 }));
 
-import { isLocationCollectionAllowed, isWorkHours } from "@/lib/locationTracking";
+import {
+  PING_INTERVAL_MS,
+  isLocationCollectionAllowed,
+  isWorkHours,
+  startLocationTracking,
+} from "@/lib/locationTracking";
+import * as Location from "expo-location";
 
 describe("isLocationCollectionAllowed", () => {
   it("allows weekday mid-day IST", () => {
@@ -41,5 +67,42 @@ describe("isLocationCollectionAllowed", () => {
 describe("isWorkHours (compat)", () => {
   it("always returns true after all-day policy", () => {
     expect(isWorkHours(new Date("2026-07-26T06:30:00.000Z"))).toBe(true);
+  });
+});
+
+describe("startLocationTracking", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(false);
+    (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
+  });
+
+  it("starts background updates every 30 minutes even when stationary", async () => {
+    expect(PING_INTERVAL_MS).toBe(30 * 60 * 1000);
+
+    await startLocationTracking();
+
+    expect(Location.startLocationUpdatesAsync).toHaveBeenCalledWith(
+      "PROPNINJA_LOCATION_TASK",
+      expect.objectContaining({
+        timeInterval: PING_INTERVAL_MS,
+        distanceInterval: 0,
+        deferredUpdatesInterval: PING_INTERVAL_MS,
+        deferredUpdatesDistance: 0,
+        pausesUpdatesAutomatically: false,
+        foregroundService: expect.objectContaining({
+          notificationTitle: "PropNinja",
+        }),
+      }),
+    );
+  });
+
+  it("restarts tracking when a previous session was still marked running", async () => {
+    (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(true);
+
+    await startLocationTracking();
+
+    expect(Location.stopLocationUpdatesAsync).toHaveBeenCalled();
+    expect(Location.startLocationUpdatesAsync).toHaveBeenCalled();
   });
 });

@@ -74,8 +74,9 @@ export function LocationConsentScreen({ onDone }: Props) {
         <Text style={styles.title}>Permissions required</Text>
         <Text style={styles.body}>
           PropNinja needs location (Allow all the time) and call log access before you can use the
-          app. Location stays on in the background so your office can see live positions. Do not
-          force-stop the app.
+          app. Location keeps updating every 30 minutes even when you are not using the app, so your
+          office can see live positions. Keep the PropNinja notification on and do not force-stop
+          the app.
         </Text>
         {attempted && missing.length > 0 ? (
           <View style={styles.missingBox}>

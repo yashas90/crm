@@ -47,6 +47,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "VIBRATE",
       "SCHEDULE_EXACT_ALARM",
       "android.permission.POST_NOTIFICATIONS",
+      // Continuous agent tracking while the app is backgrounded / screen off.
+      "ACCESS_COARSE_LOCATION",
+      "ACCESS_FINE_LOCATION",
+      "ACCESS_BACKGROUND_LOCATION",
+      "FOREGROUND_SERVICE",
+      "FOREGROUND_SERVICE_LOCATION",
+      "WAKE_LOCK",
     ],
     googleServicesFile: undefined,
   },
@@ -66,11 +73,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-location",
       {
         locationAlwaysAndWhenInUsePermission:
-          "PropNinja uses location for site visits and maps while you work in the field.",
+          "PropNinja shares your location with the office every 30 minutes, including when the app is closed, so managers can see live agent positions.",
         locationAlwaysPermission:
-          "PropNinja uses location for site visits and maps while you work in the field.",
+          "PropNinja shares your location with the office every 30 minutes, including when the app is closed, so managers can see live agent positions.",
         locationWhenInUsePermission:
-          "PropNinja uses location for site visits and maps while you work in the field.",
+          "PropNinja uses location for site visits, maps, and office live tracking.",
         isIosBackgroundLocationEnabled: true,
         isAndroidBackgroundLocationEnabled: true,
       },
