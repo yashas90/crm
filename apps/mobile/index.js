@@ -1,10 +1,11 @@
 import NetInfo from "@react-native-community/netinfo";
 import { registerRootComponent } from "expo";
-// Define background location task before the app tree mounts.
+// Background location task must register before JS is suspended — keep this eager.
 import "@/lib/locationTracking";
 import App from "./App";
 
-// Use our own API for reachability checks — default Google URL is blocked/slow on Indian carriers
+// Reachability against our API (Google probe is blocked/slow on many Indian carriers).
+// Configure before any NetInfo listeners; keep work minimal at module load.
 NetInfo.configure({
   reachabilityUrl: "https://crm-production-e81d.up.railway.app/health",
   reachabilityTest: (response) => Promise.resolve(response.status >= 200 && response.status < 500),

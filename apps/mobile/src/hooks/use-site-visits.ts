@@ -80,13 +80,13 @@ export function useSiteVisits(params: SiteVisitsListParams = {}, enabled = true)
   });
 }
 
-export function useTodaySiteVisits(agentId?: string) {
+export function useTodaySiteVisits(agentId?: string, options?: { enabled?: boolean }) {
   const ready = useAuthReady();
   const qs = agentId ? `?agentId=${agentId}` : "";
   return useQuery({
     queryKey: ["site-visits", "today", agentId ?? "all"],
     queryFn: () => apiGet<{ items: SiteVisit[]; total: number }>(`/api/site-visits/today${qs}`),
-    enabled: ready,
+    enabled: (options?.enabled ?? true) && ready,
     staleTime: 30_000,
     meta: { suppressErrorToast: true },
   });

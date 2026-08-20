@@ -1,8 +1,10 @@
+import { useDeferredStartupReady } from "@/hooks/use-deferred-startup";
 import { useNotificationSound } from "@/hooks/use-notification-sound";
 import { usePushNotificationSync } from "@/hooks/use-push-notification-sync";
 import { setAppUpdateRequiredHandler } from "@/lib/apiClient";
 import { type AppUpdateRequirement, checkAppUpdateRequired } from "@/lib/appUpdateGate";
 import { getMobileAppVersion } from "@/lib/appVersion";
+import { deferUntilIdle } from "@/lib/deferUntilIdle";
 import { queryClient } from "@/lib/queryClient";
 import { setupQueryFocusManager } from "@/lib/setupQueryFocusManager";
 import { setupQueryOnlineManager } from "@/lib/setupQueryOnlineManager";
@@ -18,13 +20,31 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, AppState, View } from "react-native";
 
 function NotificationEffects() {
+  const ready = useDeferredStartupReady(800);
+  if (!ready) return null;
+  return <NotificationEffectsInner />;
+}
+
+function NotificationEffectsInner() {
   usePushNotificationSync();
   useNotificationSound();
   return null;
 }
 
-function AuthGate({ children }: { children: ReactNode }) {
+function AuthGate({
+  children,
+  onCriticalReady,
+}: {
+  children: ReactNode;
+  onCriticalReady?: () => void;
+}) {
   const { status } = useAuth();
+
+  useEffect(() => {
+    if (status !== "loading") {
+      onCriticalReady?.();
+    }
+  }, [status, onCriticalReady]);
 
   if (status === "loading") {
     return (
@@ -44,8 +64,17 @@ function AuthGate({ children }: { children: ReactNode }) {
   return children;
 }
 
+/**
+ * Does not block first paint on /health — update check runs after UI is up.
+ * If an update is required, swaps to ForceUpdateScreen.
+ */
 function AppUpdateGate({ children }: { children: ReactNode }) {
-  const [requirement, setRequirement] = useState<AppUpdateRequirement | null>(null);
+  const [requirement, setRequirement] = useState<AppUpdateRequirement | null>({
+    required: false,
+    minVersion: null,
+    updateUrl: null,
+    currentVersion: getMobileAppVersion(),
+  });
 
   const evaluate = useCallback(async () => {
     const next = await checkAppUpdateRequired();
@@ -53,7 +82,9 @@ function AppUpdateGate({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void evaluate();
+    return deferUntilIdle(() => {
+      void evaluate();
+    }, 400);
   }, [evaluate]);
 
   useEffect(() => {
@@ -76,29 +107,13 @@ function AppUpdateGate({ children }: { children: ReactNode }) {
     return () => setAppUpdateRequiredHandler(null);
   }, [evaluate]);
 
-  if (requirement === null) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (requirement.required) {
+  if (requirement?.required) {
     return (
       <ForceUpdateScreen
         currentVersion={requirement.currentVersion}
         minVersion={requirement.minVersion}
         updateUrl={requirement.updateUrl}
         onRetry={() => {
-          setRequirement(null);
           void evaluate();
         }}
       />
@@ -110,14 +125,25 @@ function AppUpdateGate({ children }: { children: ReactNode }) {
 
 function AppEffects() {
   useEffect(() => {
-    setupQueryOnlineManager();
+    return deferUntilIdle(() => {
+      setupQueryOnlineManager();
+    }, 300);
+  }, []);
+
+  useEffect(() => {
     return setupQueryFocusManager();
   }, []);
 
   return null;
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({
+  children,
+  onCriticalReady,
+}: {
+  children: ReactNode;
+  onCriticalReady?: () => void;
+}) {
   return (
     <AuthProvider>
       <ThemeProvider>
@@ -127,7 +153,7 @@ export function Providers({ children }: { children: ReactNode }) {
               <AppEffects />
               <NotificationEffects />
               <AppUpdateGate>
-                <AuthGate>{children}</AuthGate>
+                <AuthGate onCriticalReady={onCriticalReady}>{children}</AuthGate>
               </AppUpdateGate>
             </QueryClientProvider>
           </NetworkProvider>

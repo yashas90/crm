@@ -3,13 +3,18 @@ import {
   flushLocationPingQueue,
   startLocationTracking,
 } from "@/lib/locationTracking";
-import { MainTabs } from "@/navigation/MainTabs";
+import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
 import { useAuth } from "@/providers/auth-provider";
-import { LocationConsentScreen } from "@/screens/LocationConsentScreen";
-import { LoginScreen } from "@/screens/LoginScreen";
 import { colors } from "@/theme";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, AppState, View } from "react-native";
+
+const MainTabs = lazyNamed(() => import("@/navigation/MainTabs"), "MainTabs");
+const LoginScreen = lazyNamed(() => import("@/screens/LoginScreen"), "LoginScreen");
+const LocationConsentScreen = lazyNamed(
+  () => import("@/screens/LocationConsentScreen"),
+  "LocationConsentScreen",
+);
 
 export function RootNavigator() {
   const { status, logout } = useAuth();
@@ -19,9 +24,9 @@ export function RootNavigator() {
   const evaluatePermissions = useCallback(async () => {
     const perms = await checkRequiredWorkPermissions();
     if (perms.allGranted) {
-      await startLocationTracking();
-      void flushLocationPingQueue();
       setNeedsPermissions(false);
+      // Location start is non-blocking — do not delay MainTabs.
+      void startLocationTracking().then(() => flushLocationPingQueue());
       return;
     }
     setNeedsPermissions(true);
@@ -38,8 +43,8 @@ export function RootNavigator() {
       const perms = await checkRequiredWorkPermissions();
       if (cancelled) return;
       if (perms.allGranted) {
-        await startLocationTracking();
-        if (!cancelled) setNeedsPermissions(false);
+        setNeedsPermissions(false);
+        void startLocationTracking().then(() => flushLocationPingQueue());
         return;
       }
       setNeedsPermissions(true);
@@ -59,7 +64,11 @@ export function RootNavigator() {
   }, [status, evaluatePermissions]);
 
   if (status !== "authenticated") {
-    return <LoginScreen />;
+    return (
+      <ScreenSuspense>
+        <LoginScreen />
+      </ScreenSuspense>
+    );
   }
 
   if (needsPermissions === null) {
@@ -79,13 +88,19 @@ export function RootNavigator() {
 
   if (needsPermissions) {
     return (
-      <LocationConsentScreen
-        onDone={() => {
-          void evaluatePermissions();
-        }}
-      />
+      <ScreenSuspense>
+        <LocationConsentScreen
+          onDone={() => {
+            void evaluatePermissions();
+          }}
+        />
+      </ScreenSuspense>
     );
   }
 
-  return <MainTabs onLogout={() => void logout()} />;
+  return (
+    <ScreenSuspense>
+      <MainTabs onLogout={() => void logout()} />
+    </ScreenSuspense>
+  );
 }

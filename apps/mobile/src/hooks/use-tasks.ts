@@ -128,12 +128,12 @@ export function useLeadTasks(leadId: string) {
 }
 
 /** Canonical open-tasks query shared by Tasks tab, Profile badge, and navigation badge. */
-export function useMyOpenTasks() {
+export function useMyOpenTasks(options?: { enabled?: boolean }) {
   const ready = useAuthReady();
   return useQuery({
     queryKey: MY_OPEN_TASKS_KEY,
     queryFn: fetchMyOpenTasks,
-    enabled: ready,
+    enabled: (options?.enabled ?? true) && ready,
     staleTime: TASK_STALE_MS,
     meta: { suppressErrorToast: true },
   });
@@ -157,8 +157,8 @@ export function useTeamTasksDueToday() {
   });
 }
 
-export function useOpenTaskCount() {
-  const { data } = useMyOpenTasks();
+export function useOpenTaskCount(options?: { enabled?: boolean }) {
+  const { data } = useMyOpenTasks(options);
   const total = data?.total ?? 0;
   return total > 0 ? total : undefined;
 }

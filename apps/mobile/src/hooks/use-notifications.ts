@@ -110,13 +110,14 @@ function useAuthReady() {
   return status === "authenticated";
 }
 
-export function useNotifications() {
+export function useNotifications(options?: { enabled?: boolean }) {
   const ready = useAuthReady();
+  const enabled = (options?.enabled ?? true) && ready;
 
   return useQuery({
     queryKey: NOTIFICATIONS_QUERY_KEY,
     queryFn: () => apiGet<NotificationsData>("/api/notifications"),
-    enabled: ready,
+    enabled,
     staleTime: 60_000,
     ...live,
     retry: false,
@@ -124,8 +125,8 @@ export function useNotifications() {
   });
 }
 
-export function useUnreadNotificationCount() {
-  const query = useNotifications();
+export function useUnreadNotificationCount(options?: { enabled?: boolean }) {
+  const query = useNotifications(options);
   return query.data?.unreadCount ?? 0;
 }
 
