@@ -1,11 +1,14 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
+import { invalidateQueriesAfterCallLog } from "@/lib/invalidateQueriesAfterCallLog";
 import { lightweightLiveQueryOptions } from "@/lib/liveQuery";
 
 const live = lightweightLiveQueryOptions();
 import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+export { invalidateQueriesAfterCallLog } from "@/lib/invalidateQueriesAfterCallLog";
 
 export type CallRecord = {
   id: string;
@@ -111,33 +114,19 @@ export function useTodayCallSummary() {
   });
 }
 
+/**
+ * Cache refresh after a successful call log.
+ * Must invalidate with default (active) refetch so mounted lists update;
+ * callers must not await this from the mutation critical path.
+ */
 export function useLogCall() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload: LogCallInput) => apiPost("/api/calls/log", payload),
     onSuccess: (_data, variables) => {
-      const userId = getCurrentUserId();
-      // Fire-and-forget: awaiting broad invalidations kept CallLogModal on "Saving…"
-      // and blocked the lead-update sheet until every leads/calls/tasks refetch finished.
-      void queryClient.invalidateQueries({ queryKey: ["calls"] });
-      void queryClient.invalidateQueries({ queryKey: ["reports"] });
-      if (variables.lead_id) {
-        void queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] });
-      }
-      // Soft-mark list caches stale without forcing every mounted list to refetch now.
-      void queryClient.invalidateQueries({
-        queryKey: ["leads"],
-        refetchType: "none",
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["tasks"],
-        refetchType: "none",
-      });
-      if (userId) {
-        void queryClient.invalidateQueries({ queryKey: ["calls", "today", userId] });
-        void queryClient.invalidateQueries({ queryKey: ["calls", "summary", "today", userId] });
-      }
+      // Fire-and-forget — do not await. Awaiting blocked the post-call status sheet.
+      invalidateQueriesAfterCallLog(queryClient, variables, getCurrentUserId());
     },
   });
 }
