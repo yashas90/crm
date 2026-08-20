@@ -36,6 +36,7 @@ type ProfileScreenProps = {
   onOpenBookings?: () => void;
   onOpenDocuments?: () => void;
   onOpenCallLogs?: (dateFilter?: string) => void;
+  onOpenTrackingStatus?: () => void;
   onOpenSla?: () => void;
   onOpenSiteVisits?: () => void;
 };
@@ -47,6 +48,7 @@ export function ProfileScreen({
   onOpenBookings,
   onOpenDocuments,
   onOpenCallLogs,
+  onOpenTrackingStatus,
   onOpenSla,
   onOpenSiteVisits,
 }: ProfileScreenProps) {
@@ -159,6 +161,14 @@ export function ProfileScreen({
             label="Call logs"
             variant="secondary"
             onPress={onOpenCallLogs}
+            style={styles.linkBtn}
+          />
+        ) : null}
+        {onOpenTrackingStatus ? (
+          <Button
+            label="Tracking status"
+            variant="secondary"
+            onPress={onOpenTrackingStatus}
             style={styles.linkBtn}
           />
         ) : null}

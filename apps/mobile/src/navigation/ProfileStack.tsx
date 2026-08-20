@@ -12,6 +12,10 @@ const DocumentsLibraryScreen = lazyNamed(
   "DocumentsLibraryScreen",
 );
 const CallLogsScreen = lazyNamed(() => import("@/screens/CallLogsScreen"), "CallLogsScreen");
+const TrackingStatusScreen = lazyNamed(
+  () => import("@/screens/TrackingStatusScreen"),
+  "TrackingStatusScreen",
+);
 const UserManagementScreen = lazyNamed(
   () => import("@/screens/UserManagementScreen"),
   "UserManagementScreen",
@@ -56,6 +60,7 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
               onOpenBookings={() => navigation.navigate("BookingsScreen")}
               onOpenDocuments={() => navigation.navigate("DocumentsLibraryScreen")}
               onOpenCallLogs={() => navigation.navigate("CallLogsScreen")}
+              onOpenTrackingStatus={() => navigation.navigate("TrackingStatusScreen")}
               onOpenSla={() => navigation.navigate("SlaScreen")}
               onOpenSiteVisits={() => navigation.getParent()?.navigate("VisitsTab")}
             />
@@ -70,6 +75,11 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
           name="CallLogsScreen"
           component={CallLogsScreen}
           options={{ title: "Call Logs", ...detailScreenOptions }}
+        />
+        <Stack.Screen
+          name="TrackingStatusScreen"
+          component={TrackingStatusScreen}
+          options={{ title: "Tracking status", ...detailScreenOptions }}
         />
         <Stack.Screen
           name="UserManagementScreen"

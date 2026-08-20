@@ -2,18 +2,27 @@ export type AgentLocationPing = {
   userId: string;
   name: string;
   email: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   accuracy: number | null;
-  capturedAt: string;
+  capturedAt: string | null;
+  lastSeenAt?: string | null;
+  lastHeartbeatAt?: string | null;
+  lastLocationAt?: string | null;
   batteryLevel?: number | null;
   networkStatus?: string | null;
-  trackingStatus?: "active" | "inactive" | "outside_hours" | "permission_denied" | "stale";
+  trackingStatus?: string;
+  healthStatus?: string | null;
+  deviceStatus?: string | null;
   locationPermissionStatus?: string | null;
   callLogPermissionStatus?: string | null;
   devicePlatform?: string | null;
   appVersion?: string | null;
   minutesSinceLastPing?: number | null;
+  isLastKnown?: boolean;
+  locationLabel?: "CURRENT_LOCATION" | "LAST_KNOWN_LOCATION";
+  trackingPolicyEnabled?: boolean;
+  withinHours?: boolean;
 };
 
 export type LocationHistoryItem = {

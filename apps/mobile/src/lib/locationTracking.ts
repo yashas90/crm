@@ -1,9 +1,10 @@
 import { isWithinTrackingHours } from "@propninja/types/tracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
+import Constants from "expo-constants";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
-import { Linking, Platform } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 import { getApiBaseUrl } from "./apiBaseUrl";
 import { apiPost } from "./apiClient";
 import { getMobileAppVersion, getMobileClientHeaders } from "./appVersion";
@@ -19,10 +20,15 @@ export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v6";
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 /** Office wants a position at least every 30 minutes during working hours. */
 export const PING_INTERVAL_MS = 30 * 60 * 1000;
+/** Lightweight device heartbeat (not a location substitute). */
+export const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
 const LOCATION_PING_QUEUE_KEY = "propninja_pending_location_pings";
 const LAST_PING_AT_KEY = "propninja_last_location_ping_at";
 const DEVICE_ID_KEY = "propninja_tracking_device_id";
+const INSTALLATION_ID_KEY = "propninja_tracking_installation_id";
 const MAX_QUEUED_PINGS = 200;
+
+let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 
 type LocationPingBody = {
   eventId: string;
@@ -45,6 +51,27 @@ async function getOrCreateDeviceId(): Promise<string> {
   const next = `dev_${Platform.OS}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   await AsyncStorage.setItem(DEVICE_ID_KEY, next);
   return next;
+}
+
+async function getOrCreateInstallationId(): Promise<string> {
+  const existing = await AsyncStorage.getItem(INSTALLATION_ID_KEY);
+  if (existing) return existing;
+  const next = `inst_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+  await AsyncStorage.setItem(INSTALLATION_ID_KEY, next);
+  return next;
+}
+
+function deviceHardwareInfo(): {
+  manufacturer: string | null;
+  model: string | null;
+  osVersion: string | null;
+} {
+  const platform = Constants.platform;
+  return {
+    manufacturer: Platform.OS === "android" ? "Android" : Platform.OS === "ios" ? "Apple" : null,
+    model: Constants.deviceName ?? platform?.ios?.model ?? null,
+    osVersion: String(Platform.Version ?? ""),
+  };
 }
 
 async function currentNetworkStatus(): Promise<"online" | "offline" | "unknown"> {
@@ -236,23 +263,65 @@ export async function requestLocationPermissionsOnce(): Promise<boolean> {
 
 export async function registerTrackingDevice(): Promise<void> {
   const deviceId = await getOrCreateDeviceId();
+  const installationId = await getOrCreateInstallationId();
   const perms = await checkRequiredWorkPermissions();
+  const hw = deviceHardwareInfo();
   try {
     await apiPost(
       "/api/locations/device",
       {
         deviceId,
+        installationId,
         platform: Platform.OS === "ios" ? "ios" : "android",
         appVersion: getMobileAppVersion(),
+        manufacturer: hw.manufacturer,
+        model: hw.model,
+        osVersion: hw.osVersion,
         locationPermissionStatus: perms.locationGranted ? "granted" : "denied",
         callLogPermissionStatus: getOsCallLogPermissionStatus(perms.callLogGranted),
         trackingEnabled: perms.allGranted && isLocationCollectionAllowed(),
         networkStatus: await currentNetworkStatus(),
+        heartbeat: true,
       },
       { skipSessionLogout: true },
     );
   } catch {
     // Best-effort heartbeat.
+  }
+}
+
+export async function sendDeviceHeartbeat(): Promise<void> {
+  const deviceId = await getOrCreateDeviceId();
+  try {
+    await apiPost(
+      "/api/locations/device/heartbeat",
+      {
+        deviceId,
+        platform: Platform.OS === "ios" ? "ios" : "android",
+        appVersion: getMobileAppVersion(),
+        networkStatus: await currentNetworkStatus(),
+      },
+      { skipSessionLogout: true },
+    );
+  } catch {
+    // Best-effort
+  }
+}
+
+function startHeartbeatLoop() {
+  if (heartbeatTimer) return;
+  void sendDeviceHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    if (AppState.currentState === "active") {
+      void sendDeviceHeartbeat();
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeatLoop() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = undefined;
   }
 }
 
@@ -316,6 +385,7 @@ export async function startLocationTracking() {
   await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, "true");
   await ensureAuthCacheLoaded();
   void registerTrackingDevice();
+  startHeartbeatLoop();
 
   if (!isLocationCollectionAllowed()) {
     // Outside hours: stop any running updates so we do not collect overnight.
@@ -337,6 +407,7 @@ export async function startLocationTracking() {
 }
 
 export async function stopLocationTracking() {
+  stopHeartbeatLoop();
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
   if (isRunning) await Location.stopLocationUpdatesAsync(TASK_NAME);
 }

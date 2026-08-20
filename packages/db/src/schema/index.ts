@@ -62,6 +62,7 @@ export const users = pgTable(
     isFirstLogin: boolean("is_first_login").notNull().default(true),
     sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
     reportEmailEnabled: boolean("report_email_enabled").notNull().default(true),
+    trackingPolicyEnabled: boolean("tracking_policy_enabled").notNull().default(true),
     expoPushToken: text("expo_push_token"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -519,19 +520,114 @@ export const agentDevices = pgTable(
     deviceId: text("device_id").notNull(),
     platform: text("platform").notNull(),
     appVersion: text("app_version"),
+    installationId: text("installation_id"),
+    manufacturer: text("manufacturer"),
+    model: text("model"),
+    osVersion: text("os_version"),
     locationPermissionStatus: text("location_permission_status"),
     callLogPermissionStatus: text("call_log_permission_status"),
     trackingEnabled: boolean("tracking_enabled").notNull().default(true),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+    lastLocationAt: timestamp("last_location_at", { withTimezone: true }),
+    lastCallLogSyncAt: timestamp("last_call_log_sync_at", { withTimezone: true }),
+    lastKnownLatitude: doublePrecision("last_known_latitude"),
+    lastKnownLongitude: doublePrecision("last_known_longitude"),
+    lastKnownAccuracy: doublePrecision("last_known_accuracy"),
+    lastKnownCapturedAt: timestamp("last_known_captured_at", { withTimezone: true }),
+    deviceStatus: text("device_status").notNull().default("UNKNOWN"),
+    healthStatus: text("health_status").notNull().default("UNKNOWN"),
+    isCurrent: boolean("is_current").notNull().default(true),
+    replacedAt: timestamp("replaced_at", { withTimezone: true }),
     batteryLevel: integer("battery_level"),
     networkStatus: text("network_status"),
+    mdmEnrolled: boolean("mdm_enrolled"),
+    mdmCompliant: boolean("mdm_compliant"),
+    mdmAppInstalled: boolean("mdm_app_installed"),
+    mdmLastCheckInAt: timestamp("mdm_last_check_in_at", { withTimezone: true }),
+    mdmManagedStatus: text("mdm_managed_status"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("idx_agent_devices_user_device").on(table.userId, table.deviceId),
     index("idx_agent_devices_user_seen").on(table.userId, table.lastSeenAt),
+    index("idx_agent_devices_health").on(table.healthStatus, table.lastSeenAt),
+    index("idx_agent_devices_user_current").on(table.userId, table.isCurrent),
   ],
+);
+
+/** Org-level tracking schedule / thresholds (overrides env defaults when present). */
+export const trackingSettings = pgTable(
+  "tracking_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(true),
+    timezone: text("timezone").notNull().default("Asia/Kolkata"),
+    startTime: text("start_time").notNull().default("09:30"),
+    endTime: text("end_time").notNull().default("20:30"),
+    intervalMinutes: integer("interval_minutes").notNull().default(30),
+    retentionDays: integer("retention_days").notNull().default(14),
+    missingAlertMinutes: integer("missing_alert_minutes").notNull().default(75),
+    heartbeatThresholdMinutes: integer("heartbeat_threshold_minutes").notNull().default(60),
+    possibleUninstallMinutes: integer("possible_uninstall_minutes").notNull().default(180),
+    activeDays: integer("active_days").array().notNull().default([0, 1, 2, 3, 4, 5, 6]),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("idx_tracking_settings_org").on(table.orgId)],
+);
+
+/** Admin-facing tracking health alerts (deduped while open). */
+export const trackingAlerts = pgTable(
+  "tracking_alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deviceId: text("device_id"),
+    alertType: text("alert_type").notNull(),
+    severity: text("severity").notNull().default("WARNING"),
+    title: text("title").notNull(),
+    message: text("message").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    isResolved: boolean("is_resolved").notNull().default(false),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: uuid("resolved_by").references(() => users.id, { onDelete: "set null" }),
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_tracking_alerts_org_created").on(table.orgId, table.createdAt),
+    index("idx_tracking_alerts_agent_open").on(table.agentId, table.isResolved, table.createdAt),
+    index("idx_tracking_alerts_type_open").on(table.alertType, table.isResolved),
+  ],
+);
+
+/** Retention cleanup job audit (counts only — no deleted row payloads). */
+export const trackingCleanupRuns = pgTable(
+  "tracking_cleanup_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jobId: text("job_id").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    locationRecordsDeleted: integer("location_records_deleted").notNull().default(0),
+    callLogRecordsDeleted: integer("call_log_records_deleted").notNull().default(0),
+    temporaryRecordsDeleted: integer("temporary_records_deleted").notNull().default(0),
+    status: text("status").notNull().default("running"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_tracking_cleanup_runs_started").on(table.startedAt)],
 );
 
 /**

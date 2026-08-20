@@ -107,6 +107,22 @@ export default function SettingsPage() {
       {ready && isAdmin ? (
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Agent Tracking</CardTitle>
+            <CardDescription>
+              Working hours, retention, missing-location and heartbeat alert thresholds.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/tracking">Manage tracking settings</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {ready && isAdmin ? (
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Security</CardTitle>
             <CardDescription>
               Failed logins, export monitoring, and active sessions.

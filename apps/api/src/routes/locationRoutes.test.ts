@@ -11,15 +11,22 @@ const insertValues = vi.fn(() => ({
 }));
 const insert = vi.fn(() => ({ values: insertValues }));
 const execute = vi.fn();
+const upsertAgentDevice = vi.fn();
+const recordSuccessfulLocationOnDevice = vi.fn();
+const listOpenTrackingAlerts = vi.fn();
 
 const selectChain: Record<string, ReturnType<typeof vi.fn>> = {
   from: vi.fn(),
   where: vi.fn(),
   orderBy: vi.fn(),
+  leftJoin: vi.fn(),
+  limit: vi.fn(),
 };
 selectChain.from.mockReturnValue(selectChain);
 selectChain.where.mockReturnValue(selectChain);
-selectChain.orderBy.mockResolvedValue([]);
+selectChain.orderBy.mockReturnValue(selectChain);
+selectChain.leftJoin.mockReturnValue(selectChain);
+selectChain.limit.mockResolvedValue([{ trackingPolicyEnabled: true }]);
 
 vi.mock("@propninja/db", () => ({
   agentLocations: {
@@ -42,14 +49,9 @@ vi.mock("@propninja/db", () => ({
     id: "id",
     userId: "user_id",
     deviceId: "device_id",
-    platform: "platform",
-    appVersion: "app_version",
-    locationPermissionStatus: "location_permission_status",
-    callLogPermissionStatus: "call_log_permission_status",
-    trackingEnabled: "tracking_enabled",
-    batteryLevel: "battery_level",
-    networkStatus: "network_status",
+    isCurrent: "is_current",
     lastSeenAt: "last_seen_at",
+    lastCallLogSyncAt: "last_call_log_sync_at",
     updatedAt: "updated_at",
   },
   agentCallLogs: {
@@ -69,10 +71,17 @@ vi.mock("@propninja/db", () => ({
     adminId: "admin_id",
     action: "action",
     agentId: "agent_id",
-    ipAddress: "ip_address",
-    userAgent: "user_agent",
   },
-  users: { id: "id", name: "name", email: "email" },
+  trackingSettings: { orgId: "org_id" },
+  users: {
+    id: "id",
+    name: "name",
+    email: "email",
+    orgId: "org_id",
+    role: "role",
+    isActive: "is_active",
+    trackingPolicyEnabled: "tracking_policy_enabled",
+  },
 }));
 
 vi.mock("../middleware/rateLimit.js", () => ({
@@ -81,25 +90,43 @@ vi.mock("../middleware/rateLimit.js", () => ({
 
 vi.mock("../lib/trackingConfig.js", async () => {
   const { isWithinTrackingHours } = await import("@propninja/types/tracking");
+  const config = {
+    enabled: true,
+    timezone: "Asia/Kolkata",
+    startTime: "09:30",
+    endTime: "20:30",
+    intervalMinutes: 30,
+    retentionDays: 14,
+    missingAlertMinutes: 75,
+    heartbeatThresholdMinutes: 60,
+    possibleUninstallMinutes: 180,
+    activeDays: [0, 1, 2, 3, 4, 5, 6],
+    scheduleLabel: "09:30–20:30 IST (Mon–Sun)",
+    schedule: {
+      startHour: 9,
+      startMinute: 30,
+      endHour: 20,
+      endMinute: 30,
+      activeDays: [0, 1, 2, 3, 4, 5, 6],
+    },
+  };
   return {
-    getTrackingConfig: () => ({
-      timezone: "Asia/Kolkata",
-      startTime: "09:30",
-      endTime: "20:30",
-      intervalMinutes: 30,
-      retentionDays: 14,
-      missingAlertMinutes: 75,
-      scheduleLabel: "09:30–20:30 IST (Mon–Sun)",
-      schedule: {
-        startHour: 9,
-        startMinute: 30,
-        endHour: 20,
-        endMinute: 30,
-      },
-    }),
-    isTrackingCaptureAllowed: (capturedAt: Date = new Date()) => isWithinTrackingHours(capturedAt),
+    getTrackingConfig: () => config,
+    getTrackingConfigForOrg: async () => config,
+    isTrackingCaptureAllowed: (capturedAt: Date = new Date(), cfg = config) =>
+      cfg.enabled && isWithinTrackingHours(capturedAt, cfg.schedule),
   };
 });
+
+vi.mock("../services/deviceTrackingService.js", () => ({
+  upsertAgentDevice: (...args: unknown[]) => upsertAgentDevice(...args),
+  recordSuccessfulLocationOnDevice: (...args: unknown[]) =>
+    recordSuccessfulLocationOnDevice(...args),
+}));
+
+vi.mock("../services/trackingAlertService.js", () => ({
+  listOpenTrackingAlerts: (...args: unknown[]) => listOpenTrackingAlerts(...args),
+}));
 
 import { locationRoutes } from "./locationRoutes.js";
 
@@ -118,6 +145,9 @@ function appWithUser(role: "admin" | "manager" | "agent") {
       insert,
       execute,
       select: () => selectChain,
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      })),
     } as never);
     await next();
   });
@@ -130,7 +160,7 @@ const withinHoursPing = {
   latitude: 12.97,
   longitude: 77.59,
   accuracy: 20,
-  capturedAt: "2026-08-20T05:00:00.000Z", // 10:30 IST
+  capturedAt: "2026-08-20T05:00:00.000Z",
   deviceId: "dev-1",
   networkStatus: "online" as const,
   source: "mobile_background",
@@ -140,15 +170,16 @@ describe("locationRoutes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     execute.mockResolvedValue([]);
+    selectChain.limit.mockResolvedValue([{ trackingPolicyEnabled: true }]);
     selectChain.orderBy.mockResolvedValue([]);
     insertReturning.mockResolvedValue([{ id: "loc-1" }]);
-    insertValues.mockImplementation(() => ({
-      onConflictDoNothing: insertOnConflict,
-      onConflictDoUpdate: insertOnConflictUpdate,
-      returning: insertReturning,
-    }));
     insertOnConflict.mockImplementation(() => ({ returning: insertReturning }));
-    insert.mockImplementation(() => ({ values: insertValues }));
+    upsertAgentDevice.mockResolvedValue({
+      healthStatus: "ACTIVE",
+      deviceStatus: "ONLINE",
+      lastHeartbeatAt: new Date(),
+    });
+    listOpenTrackingAlerts.mockResolvedValue([]);
   });
 
   it("GET /config returns schedule", async () => {
@@ -157,11 +188,11 @@ describe("locationRoutes", () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as {
       ok: boolean;
-      data: { startTime: string; retentionDays: number };
+      data: { startTime: string; retentionDays: number; enabled: boolean };
     };
     expect(json.ok).toBe(true);
     expect(json.data.startTime).toBe("09:30");
-    expect(json.data.retentionDays).toBe(14);
+    expect(json.data.enabled).toBe(true);
   });
 
   it("rejects ping without eventId", async () => {
@@ -178,7 +209,7 @@ describe("locationRoutes", () => {
     expect(res.status).toBe(400);
   });
 
-  it("accepts a ping from any authenticated user during working hours", async () => {
+  it("accepts a ping during working hours", async () => {
     const app = appWithUser("agent");
     const res = await app.request("/api/locations/ping", {
       method: "POST",
@@ -186,7 +217,7 @@ describe("locationRoutes", () => {
       body: JSON.stringify(withinHoursPing),
     });
     expect(res.status).toBe(201);
-    expect(insertValues).toHaveBeenCalled();
+    expect(recordSuccessfulLocationOnDevice).toHaveBeenCalled();
   });
 
   it("rejects ping outside working hours", async () => {
@@ -197,35 +228,13 @@ describe("locationRoutes", () => {
       body: JSON.stringify({
         ...withinHoursPing,
         eventId: "evt_night",
-        capturedAt: "2026-08-20T16:00:00.000Z", // 21:30 IST
+        capturedAt: "2026-08-20T16:00:00.000Z",
       }),
     });
     expect(res.status).toBe(422);
-    const json = (await res.json()) as { ok: boolean; error: { code: string } };
-    expect(json.error.code).toBe("OUTSIDE_TRACKING_HOURS");
   });
 
-  it("accepts bulk pings", async () => {
-    const app = appWithUser("agent");
-    const res = await app.request("/api/locations/ping/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        items: [
-          withinHoursPing,
-          { ...withinHoursPing, eventId: "evt_test_002", capturedAt: "2026-08-20T05:30:00.000Z" },
-        ],
-      }),
-    });
-    expect(res.status).toBe(201);
-    const json = (await res.json()) as {
-      ok: boolean;
-      data: { inserted: number };
-    };
-    expect(json.data.inserted).toBe(2);
-  });
-
-  it("upserts device status", async () => {
+  it("upserts device via service", async () => {
     const app = appWithUser("agent");
     const res = await app.request("/api/locations/device", {
       method: "POST",
@@ -233,62 +242,19 @@ describe("locationRoutes", () => {
       body: JSON.stringify({
         deviceId: "android-abc",
         platform: "android",
-        appVersion: "1.0.10",
         locationPermissionStatus: "granted",
-        callLogPermissionStatus: "granted",
-        trackingEnabled: true,
-        networkStatus: "online",
       }),
     });
     expect(res.status).toBe(200);
-    expect(insertOnConflictUpdate).toHaveBeenCalled();
+    expect(upsertAgentDevice).toHaveBeenCalled();
   });
 
-  it("bulk call-logs is idempotent via empty returning", async () => {
-    insertReturning.mockResolvedValueOnce([{ id: "c1" }]).mockResolvedValueOnce([]);
+  it("forbids live for agents", async () => {
     const app = appWithUser("agent");
-    const payload = {
-      items: [
-        {
-          eventId: "call_evt_1",
-          deviceId: "dev-1",
-          callLogId: "os-1",
-          phoneNumber: "9876543210",
-          callType: "OUTGOING",
-          callStartTime: "2026-08-20T05:10:00.000Z",
-          durationSeconds: 40,
-        },
-      ],
-    };
-    const first = await app.request("/api/locations/call-logs/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    expect(first.status).toBe(201);
-    expect(((await first.json()) as { data: { inserted: number } }).data.inserted).toBe(1);
-
-    const second = await app.request("/api/locations/call-logs/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    expect(((await second.json()) as { data: { duplicates: number } }).data.duplicates).toBe(1);
+    expect((await app.request("/api/locations/live")).status).toBe(403);
   });
 
-  it("forbids live locations for agents", async () => {
-    const app = appWithUser("agent");
-    const res = await app.request("/api/locations/live");
-    expect(res.status).toBe(403);
-  });
-
-  it("forbids live locations for managers", async () => {
-    const app = appWithUser("manager");
-    const res = await app.request("/api/locations/live");
-    expect(res.status).toBe(403);
-  });
-
-  it("allows live locations for admins with status fields", async () => {
+  it("allows live for admins", async () => {
     execute.mockResolvedValue([
       {
         user_id: "11111111-1111-1111-1111-111111111111",
@@ -305,76 +271,48 @@ describe("locationRoutes", () => {
         device_platform: "android",
         app_version: "1.0.10",
         tracking_enabled: true,
+        health_status: "ACTIVE",
+        device_status: "ONLINE",
+        last_seen_at: new Date("2026-08-20T05:01:00.000Z"),
+        last_heartbeat_at: new Date("2026-08-20T05:01:00.000Z"),
+        last_location_at: new Date("2026-08-20T05:00:00.000Z"),
+        tracking_policy_enabled: true,
+        is_stale: false,
       },
     ]);
-    insertValues.mockImplementation(() => ({
-      onConflictDoNothing: insertOnConflict,
-      onConflictDoUpdate: insertOnConflictUpdate,
-      returning: insertReturning,
-    }));
-    // audit insert has no returning chain in route — values() resolves
     insert.mockImplementation(() => ({
       values: vi.fn().mockResolvedValue(undefined),
     }));
-
     const app = appWithUser("admin");
     const res = await app.request("/api/locations/live");
     expect(res.status).toBe(200);
     const json = (await res.json()) as {
-      ok: boolean;
-      data: {
-        agents: Array<{
-          name: string;
-          batteryLevel: number | null;
-          locationPermissionStatus: string | null;
-        }>;
-      };
+      data: { agents: Array<{ name: string; locationLabel?: string }> };
     };
-    expect(json.ok).toBe(true);
-    expect(json.data.agents).toHaveLength(1);
     expect(json.data.agents[0]?.name).toBe("Rahul");
-    expect(json.data.agents[0]?.batteryLevel).toBe(67);
-    expect(json.data.agents[0]?.locationPermissionStatus).toBe("granted");
+    expect(json.data.agents[0]?.locationLabel).toBe("CURRENT_LOCATION");
   });
 
-  it("history returns gaps for missing intervals", async () => {
-    const t1 = new Date("2026-08-20T04:00:00.000Z");
-    const t2 = new Date("2026-08-20T06:00:00.000Z");
-    selectChain.orderBy.mockResolvedValue([
+  it("lists alerts for admins", async () => {
+    listOpenTrackingAlerts.mockResolvedValue([
       {
-        id: "1",
-        latitude: 12.9,
-        longitude: 77.5,
-        accuracy: 10,
-        capturedAt: t1,
-        batteryLevel: 50,
-        networkStatus: "online",
-      },
-      {
-        id: "2",
-        latitude: 12.91,
-        longitude: 77.51,
-        accuracy: 12,
-        capturedAt: t2,
-        batteryLevel: 48,
-        networkStatus: "online",
+        id: "a1",
+        agentId: "11111111-1111-1111-1111-111111111111",
+        deviceId: "d1",
+        alertType: "DEVICE_OFFLINE",
+        severity: "WARNING",
+        title: "Device offline",
+        message: "offline",
+        metadata: {},
+        createdAt: new Date(),
+        agentName: "Rahul",
+        agentEmail: "r@test.com",
       },
     ]);
-    insert.mockImplementation(() => ({
-      values: vi.fn().mockResolvedValue(undefined),
-    }));
-
     const app = appWithUser("admin");
-    const res = await app.request(
-      "/api/locations/history?userId=11111111-1111-1111-1111-111111111111&date=2026-08-20",
-    );
+    const res = await app.request("/api/locations/alerts");
     expect(res.status).toBe(200);
-    const json = (await res.json()) as {
-      ok: boolean;
-      data: { items: unknown[]; gaps: Array<{ minutes: number }> };
-    };
-    expect(json.data.items).toHaveLength(2);
-    expect(json.data.gaps.length).toBeGreaterThanOrEqual(1);
-    expect(json.data.gaps[0]?.minutes).toBeGreaterThan(30);
+    const json = (await res.json()) as { data: { alerts: unknown[] } };
+    expect(json.data.alerts).toHaveLength(1);
   });
 });

@@ -20,6 +20,7 @@ export const NOTIFICATION_TYPES = {
   SITE_VISIT_CONFIRMED_BY_CLIENT: "site_visit_confirmed_by_client",
   CALLBACK_REQUESTED: "callback_requested",
   SLA_BREACH: "sla_breach",
+  TRACKING_ALERT: "tracking_alert",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -89,6 +90,13 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
               ? `${leadName} inactive for ${days}+ days`
               : `${leadName} breached inactivity SLA`,
       };
+    }
+    case NOTIFICATION_TYPES.TRACKING_ALERT: {
+      const agentName = typeof payload.agentName === "string" ? payload.agentName : "Agent";
+      const title = typeof payload.title === "string" ? payload.title : "Tracking alert";
+      const message =
+        typeof payload.message === "string" ? payload.message : `${agentName} tracking issue`;
+      return { title: `Tracking: ${title}`, body: `${agentName} — ${message}` };
     }
     case NOTIFICATION_TYPES.CALL_FOLLOWUP_SET:
       return {
