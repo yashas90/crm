@@ -61,7 +61,7 @@ export function useCalls(
         `/api/calls?${search.toString()}`,
       ),
     enabled: ready && Boolean(params.lead_id || params.user_id || params.date_from),
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
     meta: { suppressErrorToast: options?.suppressErrorToast ?? false },
   });
 }
@@ -85,7 +85,7 @@ export function useTodayCalls() {
         `/api/calls?${params.toString()}`,
       ),
     enabled: ready,
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
     ...live,
     meta: { suppressErrorToast: true },
   });
@@ -105,7 +105,7 @@ export function useTodayCallSummary() {
     queryKey: ["calls", "summary", "today", userId],
     queryFn: () => apiGet<CallSummary>(`/api/calls/summary?${params.toString()}`),
     enabled: ready,
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
     ...live,
     meta: { suppressErrorToast: true },
   });
@@ -118,7 +118,13 @@ export function useLogCall() {
     mutationFn: (payload: LogCallInput) => apiPost("/api/calls/log", payload),
     onSuccess: async (_data, variables) => {
       const userId = getCurrentUserId();
-      const tasks: Promise<unknown>[] = [queryClient.invalidateQueries({ queryKey: ["calls"] })];
+      const tasks: Promise<unknown>[] = [
+        queryClient.invalidateQueries({ queryKey: ["calls"] }),
+        // Call count must refresh even when the agent skips lead status update.
+        queryClient.invalidateQueries({ queryKey: ["reports"] }),
+        queryClient.invalidateQueries({ queryKey: ["leads"] }),
+        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      ];
       if (userId) {
         tasks.push(queryClient.invalidateQueries({ queryKey: ["calls", "today", userId] }));
         tasks.push(
@@ -127,7 +133,6 @@ export function useLogCall() {
       }
       if (variables.lead_id) {
         tasks.push(queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] }));
-        tasks.push(queryClient.invalidateQueries({ queryKey: ["tasks"] }));
       }
       await Promise.all(tasks);
     },

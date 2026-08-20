@@ -35,6 +35,12 @@ function elapsedSeconds(info: CallReturnInfo): number {
   return Math.max(1, fromClock || fromMinutes || 60);
 }
 
+function defaultOutcomeFromDuration(seconds: number): CallOutcome {
+  return seconds > 0 ? "answered" : "no_answer";
+}
+
+export { defaultOutcomeFromDuration };
+
 export function resolveTalkSeconds(params: {
   pending: Pick<PostCallPrompt, "durationSeconds" | "durationIsTalkOnly">;
   outcome: CallOutcome;
@@ -59,8 +65,9 @@ export function resolveTalkSeconds(params: {
 
 /**
  * Tracks native dialer sessions. When the agent returns from the dialer a post-call
- * prompt is shown so they can confirm outcome, ring time, and talk duration before
- * the call is logged to the API.
+ * prompt is shown so they can confirm outcome, ring time, and talk duration.
+ * Dismissing without confirm still logs the call (default outcome) so counts stay accurate
+ * even when the agent skips the lead status update.
  *
  * Talk time = connected (phone timer 00:00) → hangup. Dial/ring time is excluded.
  */
@@ -73,6 +80,8 @@ export function useAutoDialerCallLog({
   const [postCallPrompt, setPostCallPrompt] = useState<PostCallPrompt | null>(null);
   const postCallPromptRef = useRef<PostCallPrompt | null>(null);
   const loggingRef = useRef(false);
+  /** Prevents dismiss-after-confirm from logging the same dial twice. */
+  const callCountedRef = useRef(false);
 
   postCallPromptRef.current = postCallPrompt;
 
@@ -84,7 +93,7 @@ export function useAutoDialerCallLog({
       ringSeconds?: number,
       talkOverride?: number,
     ) => {
-      if (loggingRef.current) return;
+      if (loggingRef.current || callCountedRef.current) return;
       loggingRef.current = true;
       try {
         const talkSeconds = resolveTalkSeconds({
@@ -108,6 +117,7 @@ export function useAutoDialerCallLog({
           ring_seconds: ringSeconds,
           source: "mobile-auto",
         });
+        callCountedRef.current = true;
         onLogged?.(outcome);
       } catch (error) {
         onLogError?.(error);
@@ -153,6 +163,8 @@ export function useAutoDialerCallLog({
   const beginCall = useCallback(
     (context: CallSessionContext) => {
       sessionRef.current = context;
+      callCountedRef.current = false;
+      postCallPromptRef.current = null;
       setPostCallPrompt(null);
       trackCall(context);
     },
@@ -160,15 +172,25 @@ export function useAutoDialerCallLog({
   );
 
   const dismissPostCall = useCallback(() => {
+    const pending = postCallPromptRef.current;
+    postCallPromptRef.current = null;
     setPostCallPrompt(null);
     clearCallSession();
-  }, [clearCallSession]);
+    // Closing without confirming still counts the call (default outcome from duration).
+    // Lead status update remains optional — call_records drive counts either way.
+    if (pending && !callCountedRef.current) {
+      void submitCallLog(pending, defaultOutcomeFromDuration(pending.durationSeconds)).catch(
+        () => undefined,
+      );
+    }
+  }, [clearCallSession, submitCallLog]);
 
   const confirmLog = useCallback(
     async (outcome: CallOutcome, notes?: string, ringSeconds?: number, talkSeconds?: number) => {
       const pending = postCallPromptRef.current;
       if (!pending) return;
       await submitCallLog(pending, outcome, notes, ringSeconds, talkSeconds);
+      postCallPromptRef.current = null;
       setPostCallPrompt(null);
       clearCallSession();
     },

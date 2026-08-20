@@ -4,6 +4,8 @@ import {
   buildCacheKey,
   clearAllResponseCaches,
   clearAnalyticsCacheForUser,
+  clearCacheByRoutePrefix,
+  clearCachesAfterCallMutation,
   clearOrgCache,
   clearProjectsCache,
   getCachedResponse,
@@ -54,6 +56,47 @@ describe("responseCache", () => {
     expect(getCachedResponse(buildCacheKey("/api/analytics/overview", userB, ""))).toEqual({
       b: 1,
     });
+  });
+
+  it("clears nested report and lead routes by prefix", () => {
+    const statsKey = buildCacheKey("/api/reports/agent-stats", "user-1", "");
+    const overviewKey = buildCacheKey("/api/reports/overview", "user-1", "");
+    const leadsKey = buildCacheKey("/api/leads", "user-1", "page=1");
+    const leadDetailKey = buildCacheKey("/api/leads/lead-1", "user-1", "");
+    setCachedResponse(statsKey, { calls: 1 }, 600);
+    setCachedResponse(overviewKey, { ok: true }, 300);
+    setCachedResponse(leadsKey, { items: [] }, 15);
+    setCachedResponse(leadDetailKey, { id: "lead-1" }, 15);
+
+    expect(clearCacheByRoutePrefix("/api/reports")).toBe(2);
+    expect(getCachedResponse(statsKey)).toBeUndefined();
+    expect(getCachedResponse(overviewKey)).toBeUndefined();
+    expect(getCachedResponse(leadsKey)).toBeDefined();
+
+    expect(clearCacheByRoutePrefix("/api/leads")).toBe(2);
+    expect(getCachedResponse(leadsKey)).toBeUndefined();
+    expect(getCachedResponse(leadDetailKey)).toBeUndefined();
+  });
+
+  it("clearCachesAfterCallMutation busts reports, leads, and analytics", () => {
+    const userId = "00000000-0000-0000-0000-000000000003";
+    const otherUser = "00000000-0000-0000-0000-000000000002";
+    setCachedResponse(buildCacheKey("/api/reports/agent-stats", userId, ""), { c: 1 }, 600);
+    setCachedResponse(buildCacheKey("/api/leads", userId, ""), { items: [] }, 15);
+    setCachedResponse(buildCacheKey("/api/analytics/overview", userId, ""), { a: 1 }, 300);
+    setCachedResponse(buildCacheKey("/api/analytics/overview", otherUser, ""), { b: 1 }, 300);
+    setCachedResponse(buildCacheKey("/api/projects", userId, ""), { p: 1 }, 600);
+
+    expect(clearCachesAfterCallMutation(userId)).toBe(3);
+    expect(
+      getCachedResponse(buildCacheKey("/api/reports/agent-stats", userId, "")),
+    ).toBeUndefined();
+    expect(getCachedResponse(buildCacheKey("/api/leads", userId, ""))).toBeUndefined();
+    expect(getCachedResponse(buildCacheKey("/api/analytics/overview", userId, ""))).toBeUndefined();
+    expect(getCachedResponse(buildCacheKey("/api/analytics/overview", otherUser, ""))).toEqual({
+      b: 1,
+    });
+    expect(getCachedResponse(buildCacheKey("/api/projects", userId, ""))).toEqual({ p: 1 });
   });
 
   it("clears org and projects caches by route prefix", () => {
