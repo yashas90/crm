@@ -80,8 +80,31 @@ function LocationHistoryContent() {
   const history = useQuery({
     queryKey: ["locations", "history", userId, date],
     queryFn: () =>
-      apiGet<{ items: LocationHistoryItem[]; total: number }>(
+      apiGet<{
+        items: LocationHistoryItem[];
+        total: number;
+        gaps?: Array<{ from: string; to: string; minutes: number }>;
+      }>(
         `/api/locations/history?userId=${encodeURIComponent(userId)}&date=${encodeURIComponent(date)}`,
+      ),
+    enabled: ready && isAdmin && Boolean(userId),
+  });
+
+  const osCallLogs = useQuery({
+    queryKey: ["locations", "call-logs", userId, date],
+    queryFn: () =>
+      apiGet<{
+        items: Array<{
+          id: string;
+          callType: string;
+          phoneNumber: string | null;
+          callStartTime: string;
+          callEndTime: string | null;
+          durationSeconds: number | null;
+        }>;
+        total: number;
+      }>(
+        `/api/locations/call-logs?userId=${encodeURIComponent(userId)}&date=${encodeURIComponent(date)}`,
       ),
     enabled: ready && isAdmin && Boolean(userId),
   });
@@ -115,10 +138,12 @@ function LocationHistoryContent() {
   }
 
   const items = history.data?.items ?? [];
+  const gaps = history.data?.gaps ?? [];
   const total = history.data?.total ?? items.length;
   const agentName = userQuery.data?.name ?? "Agent";
   const pathMapUrl = mapsKey ? buildPathMapUrl(items, mapsKey) : null;
   const callItems = calls.data?.items ?? [];
+  const osCallItems = osCallLogs.data?.items ?? [];
 
   return (
     <div className="space-y-6">
@@ -168,6 +193,27 @@ function LocationHistoryContent() {
               alt={`${agentName} travel path`}
               className="h-auto w-full max-w-3xl rounded-lg border border-border"
             />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {gaps.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Missing location intervals</CardTitle>
+            <CardDescription>
+              Gaps longer than ~1.75× the 30-minute schedule (possible offline, permission, or OS
+              delay)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {gaps.map((gap) => (
+                <li key={`${gap.from}-${gap.to}`} className="text-muted-foreground">
+                  {formatIstTime(gap.from)} → {formatIstTime(gap.to)} · {gap.minutes} minutes
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       ) : null}
@@ -229,11 +275,64 @@ function LocationHistoryContent() {
         </CardContent>
       </Card>
 
+      <Card id="os-calls">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Phone className="h-4 w-4" />
+            Device call metadata
+          </CardTitle>
+          <CardDescription>
+            OS call-log sync (Android when permitted). Phone numbers are masked. iOS shows
+            UNAVAILABLE — use CRM dialer logs below.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {osCallLogs.isLoading ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : osCallLogs.isError ? (
+            <p className="py-6 text-center text-sm text-destructive">
+              Could not load device calls.
+            </p>
+          ) : osCallItems.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No device call-log metadata for this day.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="px-2 py-2 font-medium">Time (IST)</th>
+                    <th className="px-2 py-2 font-medium">Type</th>
+                    <th className="px-2 py-2 font-medium">Phone</th>
+                    <th className="px-2 py-2 font-medium">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {osCallItems.map((call) => (
+                    <tr key={call.id} className="border-b border-border/60">
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        {formatIstTime(call.callStartTime)}
+                      </td>
+                      <td className="px-2 py-2">{call.callType}</td>
+                      <td className="px-2 py-2 font-mono text-xs">{call.phoneNumber ?? "—"}</td>
+                      <td className="px-2 py-2">
+                        {call.durationSeconds == null ? "—" : `${call.durationSeconds}s`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card id="calls">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Phone className="h-4 w-4" />
-            Calls this day
+            CRM dialer calls
           </CardTitle>
           <CardDescription>Who this agent called or logged on {date} (IST)</CardDescription>
         </CardHeader>

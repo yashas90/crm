@@ -479,7 +479,7 @@ export const agentTargets = pgTable(
   ],
 );
 
-/** Background location pings from the mobile app (Mon–Sun, all day). */
+/** Background location pings from the mobile app (09:30–20:30 IST Mon–Sun). */
 export const agentLocations = pgTable(
   "agent_locations",
   {
@@ -487,16 +487,95 @@ export const agentLocations = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    eventId: text("event_id"),
+    deviceId: text("device_id"),
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
     accuracy: doublePrecision("accuracy"),
+    batteryLevel: integer("battery_level"),
+    networkStatus: text("network_status"),
+    source: text("source").default("mobile_background"),
+    speed: doublePrecision("speed"),
+    heading: doublePrecision("heading"),
+    altitude: doublePrecision("altitude"),
     capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index("idx_agent_locations_user_captured").on(table.userId, table.capturedAt),
     index("idx_agent_locations_captured").on(table.capturedAt),
+    uniqueIndex("idx_agent_locations_user_event").on(table.userId, table.eventId),
   ],
+);
+
+/** Registered field devices for tracking permission / heartbeat status. */
+export const agentDevices = pgTable(
+  "agent_devices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deviceId: text("device_id").notNull(),
+    platform: text("platform").notNull(),
+    appVersion: text("app_version"),
+    locationPermissionStatus: text("location_permission_status"),
+    callLogPermissionStatus: text("call_log_permission_status"),
+    trackingEnabled: boolean("tracking_enabled").notNull().default(true),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    batteryLevel: integer("battery_level"),
+    networkStatus: text("network_status"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_agent_devices_user_device").on(table.userId, table.deviceId),
+    index("idx_agent_devices_user_seen").on(table.userId, table.lastSeenAt),
+  ],
+);
+
+/**
+ * OS call-log metadata sync (Android when permitted).
+ * Separate from CRM `call_records` (lead-linked dialer logs).
+ */
+export const agentCallLogs = pgTable(
+  "agent_call_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: text("event_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    deviceId: text("device_id").notNull(),
+    callLogId: text("call_log_id"),
+    phoneNumber: text("phone_number"),
+    callType: text("call_type").notNull(),
+    callStartTime: timestamp("call_start_time", { withTimezone: true }).notNull(),
+    callEndTime: timestamp("call_end_time", { withTimezone: true }),
+    durationSeconds: integer("duration_seconds"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_agent_call_logs_user_event").on(table.userId, table.eventId),
+    index("idx_agent_call_logs_user_start").on(table.userId, table.callStartTime),
+    index("idx_agent_call_logs_start").on(table.callStartTime),
+  ],
+);
+
+export const trackingAuditLogs = pgTable(
+  "tracking_audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    adminId: uuid("admin_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    action: text("action").notNull(),
+    agentId: uuid("agent_id").references(() => users.id, { onDelete: "set null" }),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("idx_tracking_audit_admin_created").on(table.adminId, table.createdAt)],
 );
 
 export const leadAssignmentRules = pgTable(
