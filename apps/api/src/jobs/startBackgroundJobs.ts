@@ -14,6 +14,7 @@ import { startFollowupReminderJob } from "./followUpReminderJob.js";
 import { startLeadScoringJob } from "./leadScoringJob.js";
 import { startNaPoolJob } from "./naPoolJob.js";
 import { startPurgeExpiredLeadsJob } from "./purgeExpiredLeadsJob.js";
+import { startPurgeExpiredTrackingJob } from "./purgeExpiredTrackingJob.js";
 import { reclassifyZeroDurationAnsweredCalls } from "./reclassifyZeroDurationCalls.js";
 import { startSiteVisitReminderJob } from "./siteVisitReminderJob.js";
 import { startSlaBreachJob } from "./slaBreachJob.js";
@@ -48,6 +49,7 @@ export async function startBackgroundJobs() {
     // BullMQ repeatable registration lags on first boot.
     startAgeOutNewLeadsJob();
     startPurgeExpiredLeadsJob();
+    startPurgeExpiredTrackingJob();
     startSlaBreachJob();
     startTaskDueNotificationJob();
     return;
@@ -61,6 +63,7 @@ export async function startBackgroundJobs() {
   startSlaBreachJob();
   startAgeOutNewLeadsJob();
   startPurgeExpiredLeadsJob();
+  startPurgeExpiredTrackingJob();
   startTaskDueNotificationJob();
   setInterval(
     () => {

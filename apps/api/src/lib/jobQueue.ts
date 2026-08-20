@@ -5,6 +5,7 @@ import { syncFollowupReminders } from "../jobs/followUpReminderJob.js";
 import { syncLeadScores } from "../jobs/leadScoringJob.js";
 import { syncNaPoolUnassignments } from "../jobs/naPoolJob.js";
 import { syncPurgeExpiredLeads } from "../jobs/purgeExpiredLeadsJob.js";
+import { syncPurgeExpiredTracking } from "../jobs/purgeExpiredTrackingJob.js";
 import { syncSiteVisitReminders } from "../jobs/siteVisitReminderJob.js";
 import { syncSlaBreachFlags } from "../jobs/slaBreachJob.js";
 import { syncTaskDueNotifications } from "../jobs/taskDueNotificationJob.js";
@@ -35,6 +36,7 @@ export const JOB_NAMES = {
   NA_POOL_RELEASE: "na-pool-release",
   AGE_OUT_NEW_LEADS: "age-out-new-leads",
   PURGE_EXPIRED_LEADS: "purge-expired-leads",
+  PURGE_EXPIRED_TRACKING: "purge-expired-tracking",
   SLA_BREACH_SYNC: "sla-breach-sync",
   TASK_DUE_NOTIFICATIONS: "task-due-notifications",
   META_LEAD_INGEST: "meta-lead-ingest",
@@ -74,6 +76,8 @@ async function runJob(name: string, data?: Record<string, unknown>) {
       return syncAgeOutNewLeads();
     case JOB_NAMES.PURGE_EXPIRED_LEADS:
       return syncPurgeExpiredLeads();
+    case JOB_NAMES.PURGE_EXPIRED_TRACKING:
+      return syncPurgeExpiredTracking();
     case JOB_NAMES.SLA_BREACH_SYNC:
       return syncSlaBreachFlags();
     case JOB_NAMES.TASK_DUE_NOTIFICATIONS:
@@ -188,6 +192,12 @@ export async function startDurableJobQueue(): Promise<boolean> {
       JOB_NAMES.PURGE_EXPIRED_LEADS,
       {},
       { repeat: { every: 15 * 60 * 1000 }, jobId: JOB_NAMES.PURGE_EXPIRED_LEADS },
+    );
+    await queue.add(
+      JOB_NAMES.PURGE_EXPIRED_TRACKING,
+      {},
+      // ~daily; 02:00 IST ≈ 20:30 UTC prior day — interval is sufficient and idempotent.
+      { repeat: { every: 24 * 60 * 60 * 1000 }, jobId: JOB_NAMES.PURGE_EXPIRED_TRACKING },
     );
     await queue.add(
       JOB_NAMES.SLA_BREACH_SYNC,

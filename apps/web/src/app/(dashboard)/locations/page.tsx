@@ -41,7 +41,16 @@ export default function LocationsPage() {
 
   const live = useQuery({
     queryKey: ["locations", "live"],
-    queryFn: () => apiGet<{ agents: AgentLocationPing[] }>("/api/locations/live"),
+    queryFn: () =>
+      apiGet<{
+        agents: AgentLocationPing[];
+        config?: {
+          scheduleLabel: string;
+          retentionDays: number;
+          withinHours: boolean;
+          missingAlertMinutes: number;
+        };
+      }>("/api/locations/live"),
     enabled: ready && isAdmin,
     refetchInterval: 30_000,
   });
@@ -69,10 +78,15 @@ export default function LocationsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Agent Locations</h1>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Live positions come from agents who installed the PropNinja mobile app. The CRM stays
-            locked until they grant &quot;Allow all the time&quot; location (not &quot;While using
-            the app&quot;). The app pings about every 30 minutes even when closed (as long as it is
-            not force-stopped).
+            Live positions come from agents who installed the PropNinja mobile app. Tracking runs
+            9:30 AM–8:30 PM IST (Mon–Sun), about every 30 minutes, only with &quot;Allow all the
+            time&quot; location. Records are kept 14 days. The CRM stays locked until agents grant
+            required permissions.
+            {live.data?.config?.withinHours === false ? (
+              <span className="mt-1 block text-amber-600 dark:text-amber-400">
+                Outside working hours — new pings are paused until the next window.
+              </span>
+            ) : null}
           </p>
         </div>
         <Button
@@ -127,6 +141,15 @@ export default function LocationsPage() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <p className="text-muted-foreground">Last seen {minutesAgo(agent.capturedAt)}</p>
+                {agent.trackingStatus ? (
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Status: {agent.trackingStatus.replaceAll("_", " ")}
+                    {agent.locationPermissionStatus
+                      ? ` · Location ${agent.locationPermissionStatus}`
+                      : ""}
+                    {agent.batteryLevel != null ? ` · Battery ${agent.batteryLevel}%` : ""}
+                  </p>
+                ) : null}
                 <p className="font-mono text-xs">
                   {agent.latitude.toFixed(5)}, {agent.longitude.toFixed(5)}
                   {agent.accuracy != null ? ` · ±${Math.round(agent.accuracy)}m` : ""}
@@ -212,10 +235,11 @@ export default function LocationsPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Live pins show the latest ping within 24 hours. GPS cannot be collected without the mobile
-        app — phone location permission alone in Android Settings is not enough if PropNinja is not
-        installed and running. After install, agents must choose Allow all the time, keep the app
-        installed (do not force-stop), and stay signed in so pings upload Mon–Sunday all day.
+        Live pins show the latest ping within 24 hours during the tracking window (9:30 AM–8:30 PM
+        IST, Mon–Sun). GPS cannot be collected without the mobile app — phone location permission
+        alone in Android Settings is not enough if PropNinja is not installed. After install, agents
+        must choose Allow all the time, keep the app installed (do not force-stop), and stay signed
+        in so pings upload about every 30 minutes during working hours.
       </p>
     </div>
   );

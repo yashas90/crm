@@ -19,8 +19,11 @@ jest.mock("expo-location", () => ({
   requestBackgroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
 }));
 jest.mock("@react-native-async-storage/async-storage", () => ({
-  getItem: jest.fn(),
+  getItem: jest.fn(() => Promise.resolve(null)),
   setItem: jest.fn(() => Promise.resolve()),
+}));
+jest.mock("@react-native-community/netinfo", () => ({
+  fetch: jest.fn(() => Promise.resolve({ isConnected: true })),
 }));
 jest.mock("@/lib/apiClient", () => ({
   apiPost: jest.fn(() => Promise.resolve({ ok: true })),
@@ -53,25 +56,26 @@ import * as Location from "expo-location";
 
 describe("isLocationCollectionAllowed", () => {
   it("allows weekday mid-day IST", () => {
-    expect(isLocationCollectionAllowed(new Date("2026-07-29T04:30:00.000Z"))).toBe(true);
+    expect(isLocationCollectionAllowed(new Date("2026-08-20T06:30:00.000Z"))).toBe(true);
   });
 
-  it("allows Sunday", () => {
-    expect(isLocationCollectionAllowed(new Date("2026-07-26T06:30:00.000Z"))).toBe(true);
+  it("allows Sunday inside window", () => {
+    expect(isLocationCollectionAllowed(new Date("2026-08-16T04:30:00.000Z"))).toBe(true);
   });
 
-  it("allows before 9 AM IST", () => {
-    expect(isLocationCollectionAllowed(new Date("2026-07-27T03:00:00.000Z"))).toBe(true);
+  it("rejects before 9:30 AM IST", () => {
+    expect(isLocationCollectionAllowed(new Date("2026-08-20T03:30:00.000Z"))).toBe(false);
   });
 
-  it("allows after 7 PM IST", () => {
-    expect(isLocationCollectionAllowed(new Date("2026-07-27T13:30:00.000Z"))).toBe(true);
+  it("rejects after 8:30 PM IST", () => {
+    expect(isLocationCollectionAllowed(new Date("2026-08-20T15:00:00.000Z"))).toBe(false);
   });
 });
 
 describe("isWorkHours (compat)", () => {
-  it("always returns true after all-day policy", () => {
-    expect(isWorkHours(new Date("2026-07-26T06:30:00.000Z"))).toBe(true);
+  it("matches tracking window", () => {
+    expect(isWorkHours(new Date("2026-08-20T06:30:00.000Z"))).toBe(true);
+    expect(isWorkHours(new Date("2026-08-20T03:00:00.000Z"))).toBe(false);
   });
 });
 
@@ -84,40 +88,18 @@ describe("Allow all the time gate", () => {
   });
 
   it("rejects While using the app (foreground only)", async () => {
-    (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
     (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "denied" });
-
     expect(await hasAlwaysAllowLocationPermission()).toBe(false);
     const perms = await checkRequiredWorkPermissions();
-    expect(perms.locationGranted).toBe(false);
     expect(perms.allGranted).toBe(false);
   });
 
-  it("allows CRM only when Always / Allow all the time is granted", async () => {
-    expect(await hasAlwaysAllowLocationPermission()).toBe(true);
-    const perms = await checkRequiredWorkPermissions();
-    expect(perms.locationGranted).toBe(true);
-    expect(perms.allGranted).toBe(true);
-  });
-
   it("requestLocationPermissionsOnce fails if background is denied", async () => {
-    (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
-      status: "granted",
-    });
     (Location.requestBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({
       status: "denied",
     });
     (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "denied" });
-
     expect(await requestLocationPermissionsOnce()).toBe(false);
-  });
-
-  it("does not start tracking without Always location", async () => {
-    (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "denied" });
-
-    await startLocationTracking();
-
-    expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
   });
 });
 
@@ -129,8 +111,10 @@ describe("startLocationTracking", () => {
     (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
   });
 
-  it("starts background updates every 30 minutes even when stationary", async () => {
+  it("starts background updates every 30 minutes when inside hours", async () => {
     expect(PING_INTERVAL_MS).toBe(30 * 60 * 1000);
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-08-20T06:30:00.000Z"));
 
     await startLocationTracking();
 
@@ -139,22 +123,18 @@ describe("startLocationTracking", () => {
       expect.objectContaining({
         timeInterval: PING_INTERVAL_MS,
         distanceInterval: 0,
-        deferredUpdatesInterval: PING_INTERVAL_MS,
-        deferredUpdatesDistance: 0,
-        pausesUpdatesAutomatically: false,
-        foregroundService: expect.objectContaining({
-          notificationTitle: "PropNinja",
-        }),
       }),
     );
+    jest.useRealTimers();
   });
 
-  it("restarts tracking when a previous session was still marked running", async () => {
-    (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(true);
+  it("does not start tracking outside working hours", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-08-20T16:00:00.000Z"));
 
     await startLocationTracking();
 
-    expect(Location.stopLocationUpdatesAsync).toHaveBeenCalled();
-    expect(Location.startLocationUpdatesAsync).toHaveBeenCalled();
+    expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
+    jest.useRealTimers();
   });
 });

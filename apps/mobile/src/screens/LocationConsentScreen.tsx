@@ -73,10 +73,12 @@ export function LocationConsentScreen({ onDone }: Props) {
         </View>
         <Text style={styles.title}>Permissions required</Text>
         <Text style={styles.body}>
-          You cannot use PropNinja until Location is set to Allow all the time (not “While using the
-          app”). That is required so your office gets a location update every 30 minutes even when
-          the app is closed. On Android, call log access is also required. Keep the PropNinja
-          notification on and do not force-stop the app.
+          PropNinja collects location only during company working hours: 9:30 AM–8:30 PM IST, every
+          day, about every 30 minutes — including when the app is closed. You must choose Allow all
+          the time (not “While using the app”). Call log access (Android) is used to sync permitted
+          call metadata for CRM activity — never call audio. Location and call-log tracking data are
+          kept for 14 days, then deleted automatically. Only authorized admins can view this data.
+          Keep the PropNinja notification on and do not force-stop the app.
         </Text>
         {attempted && missing.length > 0 ? (
           <View style={styles.missingBox}>

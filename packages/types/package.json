@@ -40,6 +40,10 @@
       "types": "./src/ist.ts",
       "default": "./src/ist.ts"
     },
+    "./tracking": {
+      "types": "./src/tracking.ts",
+      "default": "./src/tracking.ts"
+    },
     "./site-visit-messages": {
       "types": "./src/siteVisitMessages.ts",
       "default": "./src/siteVisitMessages.ts"
