@@ -4,6 +4,7 @@ import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-
 import { EmptyState } from "@/components/common/empty-state";
 import { QuickFilterTabs } from "@/components/common/quick-filter-tabs";
 import { UserCreateDialog } from "@/components/users/user-create-dialog";
+import { UserDeleteDialog } from "@/components/users/user-delete-dialog";
 import { UserEditDialog } from "@/components/users/user-edit-dialog";
 import { UsersBulkActionsBar } from "@/components/users/users-bulk-actions-bar";
 import { UsersListToolbar } from "@/components/users/users-list-toolbar";
@@ -35,7 +36,7 @@ const STATUS_TABS: { id: UserStatusFilter; label: string }[] = [
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function UsersPage() {
-  const { session, ready, isAdmin, canUpdateUser, canViewUsers } = usePermissions();
+  const { session, ready, isAdmin, canUpdateUser, canDeleteUser, canViewUsers } = usePermissions();
   const listEnabled = ready && canViewUsers;
 
   const [status, setStatus] = useState<UserStatusFilter>("all");
@@ -47,6 +48,7 @@ export default function UsersPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserRow | null>(null);
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchDraft.trim()), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
@@ -189,6 +191,7 @@ export default function UsersPage() {
           users={users}
           isLoading={tableLoading}
           canUpdate={canUpdateUser}
+          canDelete={canDeleteUser}
           currentUserId={session?.id}
           page={page}
           pageSize={pageSize}
@@ -198,6 +201,7 @@ export default function UsersPage() {
           onSelectionChange={setSelectedIds}
           onAddUser={isAdmin ? () => setCreateOpen(true) : undefined}
           onEditUser={canUpdateUser ? (user) => setEditingUser(user) : undefined}
+          onDeleteUser={canDeleteUser ? (user) => setDeletingUser(user) : undefined}
         />
       )}
 
@@ -209,6 +213,13 @@ export default function UsersPage() {
           if (!open) setEditingUser(null);
         }}
         currentUserId={session?.id}
+      />
+      <UserDeleteDialog
+        user={deletingUser}
+        open={Boolean(deletingUser)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingUser(null);
+        }}
       />
     </div>
   );

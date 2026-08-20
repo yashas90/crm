@@ -1,10 +1,10 @@
-import { userRoles, users } from "@propninja/db";
-import { and, asc, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
+import { leads, userRoles, users } from "@propninja/db";
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { toCsv } from "../lib/csv.js";
 import type { Database } from "../lib/db.js";
 import { deriveUsernameFromEmail } from "../lib/deriveUsername.js";
-import { conflict, forbidden, notFound } from "../lib/errors.js";
+import { badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
 import {
   assertCanRemoveAdminPrivileges,
   countActiveAdmins,
@@ -16,6 +16,7 @@ import { validatePasswordPolicy } from "../lib/passwordPolicy.js";
 import { defaultRoleLabel } from "../lib/role-mapping.js";
 import type {
   CreateUserInput,
+  DeleteUserInput,
   ListUsersQuery,
   ResetUserPasswordInput,
   UpdateUserInput,
@@ -23,9 +24,9 @@ import type {
   UserScopeCountsQuery,
 } from "../lib/validators/users.js";
 import type { AuthUser } from "../middleware/auth.js";
+import { leadService } from "../services/leadService.js";
 import { setUserPassword } from "../services/passwordHistoryService.js";
 import { revokeAllUserSessions } from "../services/tokenRevocationService.js";
-
 type UserRow = typeof users.$inferSelect;
 
 function toPublicUser(row: UserRow, activeAdminCount?: number) {
@@ -436,6 +437,116 @@ export function createUserService(db: Database) {
       await revokeAllUserSessions(id);
 
       return this.getById(id);
+    },
+
+    /**
+     * Soft-delete: reassign open leads to selected agents (round-robin), then deactivate.
+     * Hard delete is unsafe because leads/tasks/audit FKs reference users without cascade.
+     */
+    async deleteWithLeadReassignment(id: string, payload: DeleteUserInput, actingUserId: string) {
+      const [existing] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.id, id), eq(users.orgId, SINGLE_TENANT_ORG_ID)))
+        .limit(1);
+
+      if (!existing) {
+        throw notFound("User not found");
+      }
+
+      if (actingUserId === id) {
+        throw forbidden("You cannot delete your own account");
+      }
+
+      await assertCanRemoveAdminPrivileges(db, existing, { isActive: false });
+
+      const assignedLeads = await db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(
+          and(
+            eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+            eq(leads.assignedTo, id),
+            isNull(leads.deletedAt),
+          ),
+        );
+
+      const leadIds = assignedLeads.map((row) => row.id);
+      const reassignToUserIds = payload.reassignToUserIds.filter((userId) => userId !== id);
+
+      if (leadIds.length > 0 && reassignToUserIds.length === 0) {
+        throw badRequest(
+          `This user has ${leadIds.length} assigned lead${leadIds.length === 1 ? "" : "s"}. Select at least one agent to receive them.`,
+          { leadCount: leadIds.length },
+          "LEADS_REQUIRE_REASSIGNMENT",
+        );
+      }
+
+      let assignmentCounts: Record<string, number> = {};
+
+      if (leadIds.length > 0) {
+        const activeAssignees = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(
+            and(
+              eq(users.orgId, SINGLE_TENANT_ORG_ID),
+              eq(users.isActive, true),
+              inArray(users.id, reassignToUserIds),
+            ),
+          );
+
+        if (activeAssignees.length !== reassignToUserIds.length) {
+          throw badRequest(
+            "One or more selected agents are missing or inactive",
+            undefined,
+            "INVALID_REASSIGN_TARGETS",
+          );
+        }
+
+        const result = await leadService.bulkAssignLeads({
+          leadIds,
+          userIds: reassignToUserIds,
+          actingUserId,
+          assignWithHistory: true,
+          applyNewStatus: false,
+        });
+
+        if (result.failed.length > 0) {
+          throw conflict(
+            `Could not reassign ${result.failed.length} lead${result.failed.length === 1 ? "" : "s"}. User was not deleted.`,
+            "LEAD_REASSIGN_FAILED",
+          );
+        }
+
+        assignmentCounts = result.assignmentCounts;
+      }
+
+      // Drop hierarchy pointers so deleted users are not left as GM / reporting managers.
+      await db
+        .update(users)
+        .set({ reportingToId: null })
+        .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), eq(users.reportingToId, id)));
+      await db
+        .update(users)
+        .set({ generalManagerId: null })
+        .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), eq(users.generalManagerId, id)));
+
+      if (existing.isActive) {
+        await db
+          .update(users)
+          .set({ isActive: false })
+          .where(and(eq(users.id, id), eq(users.orgId, SINGLE_TENANT_ORG_ID)));
+        await revokeAllUserSessions(id);
+      }
+
+      const user = await this.getById(id);
+
+      return {
+        user,
+        reassignedLeadCount: leadIds.length,
+        assignmentCounts,
+      };
     },
   };
 }

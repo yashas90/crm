@@ -1,6 +1,6 @@
 "use client";
 
-import { apiDownload, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { apiDelete, apiDownload, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import { SILENT_QUERY_ERROR_META } from "@/lib/query-meta";
 import { toast } from "@/lib/toast";
@@ -252,5 +252,44 @@ export function useResetUserPassword() {
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to reset password"));
     },
+  });
+}
+
+export type DeleteUserResult = {
+  user: UserRow;
+  reassignedLeadCount: number;
+  assignmentCounts: Record<string, number>;
+};
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      userId,
+      reassignToUserIds,
+    }: {
+      userId: string;
+      reassignToUserIds: string[];
+      userName?: string;
+    }) =>
+      apiDelete<DeleteUserResult>(`/api/users/${userId}`, {
+        reassignToUserIds,
+      }),
+    onSuccess: async (result, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      const name = variables.userName ?? result.user.name;
+      if (result.reassignedLeadCount > 0) {
+        toast.success(
+          `Deleted ${name} and reassigned ${result.reassignedLeadCount} lead${
+            result.reassignedLeadCount === 1 ? "" : "s"
+          }`,
+        );
+      } else {
+        toast.success(`Deleted ${name}`);
+      }
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "Failed to delete user")),
   });
 }

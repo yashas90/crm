@@ -135,3 +135,14 @@ export const changePasswordSchema = z
   .strip();
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+/** Soft-delete a user: reassign their open leads, then deactivate. */
+export const deleteUserSchema = z
+  .object({
+    reassignToUserIds: z.array(z.string().uuid()).default([]),
+  })
+  .transform((value) => ({
+    reassignToUserIds: [...new Set(value.reassignToUserIds)],
+  }));
+
+export type DeleteUserInput = z.infer<typeof deleteUserSchema>;

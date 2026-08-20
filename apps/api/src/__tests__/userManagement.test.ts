@@ -276,4 +276,107 @@ describe("User management (direct admin creation)", () => {
     expect(row?.passwordHash).toBeTruthy();
     expect(await verifyPassword(newPassword, row!.passwordHash!)).toBe(true);
   });
+
+  it("DELETE /api/users/:id — reassigns leads then deactivates", async ({ skip }) => {
+    if (!hasDb) skip();
+
+    const stamp = Date.now();
+    const sourceEmail = `delete.source.${stamp}@example.com`;
+    const targetEmail = `delete.target.${stamp}@example.com`;
+
+    const createSource = await app.request("/api/users", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Delete Source Agent",
+        email: sourceEmail,
+        password: VALID_PASSWORD,
+        role: "agent",
+      }),
+    });
+    expect(createSource.status).toBe(201);
+    const source = (await createSource.json()) as { data: { id: string } };
+
+    const createTarget = await app.request("/api/users", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Delete Target Agent",
+        email: targetEmail,
+        password: VALID_PASSWORD,
+        role: "agent",
+      }),
+    });
+    expect(createTarget.status).toBe(201);
+    const target = (await createTarget.json()) as { data: { id: string } };
+
+    const createLead = await app.request("/api/leads", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        firstName: "Delete",
+        lastName: `Lead${stamp}`,
+        phone: `9${String(stamp).slice(-9)}`,
+        assignedTo: source.data.id,
+      }),
+    });
+    expect(createLead.status).toBe(201);
+    const lead = (await createLead.json()) as { data: { id: string } };
+
+    const deleteWithoutReassign = await app.request(`/api/users/${source.data.id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reassignToUserIds: [] }),
+    });
+    expect(deleteWithoutReassign.status).toBe(400);
+
+    const deleteRes = await app.request(`/api/users/${source.data.id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reassignToUserIds: [target.data.id] }),
+    });
+    expect(deleteRes.status).toBe(200);
+    const deleted = (await deleteRes.json()) as {
+      data: { user: { isActive: boolean }; reassignedLeadCount: number };
+    };
+    expect(deleted.data.user.isActive).toBe(false);
+    expect(deleted.data.reassignedLeadCount).toBe(1);
+
+    const leadRes = await app.request(`/api/leads/${lead.data.id}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(leadRes.status).toBe(200);
+    const leadJson = (await leadRes.json()) as { data: { assignedTo: string | null } };
+    expect(leadJson.data.assignedTo).toBe(target.data.id);
+  });
+
+  it("DELETE /api/users/:id — agent forbidden", async ({ skip }) => {
+    if (!hasDb) skip();
+    if (!agentToken) skip();
+
+    const res = await app.request("/api/users/00000000-0000-4000-8000-000000000001", {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${agentToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reassignToUserIds: [] }),
+    });
+    expect(res.status).toBe(403);
+  });
 });

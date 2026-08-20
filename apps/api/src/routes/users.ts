@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
 import {
+  canDeleteUsers,
   canListUsers,
   canListUsersForQuery,
   canViewUsers,
@@ -14,6 +15,7 @@ import { validate } from "../lib/validate.js";
 import { uuidParamSchema } from "../lib/validators/common.js";
 import {
   createUserSchema,
+  deleteUserSchema,
   listUsersQuerySchema,
   resetUserPasswordSchema,
   updateUserSchema,
@@ -161,16 +163,45 @@ usersRoutes.get("/:id", validate("param", uuidParamSchema), async (c) => {
   return jsonOk(c, user);
 });
 
-usersRoutes.delete("/:id", validate("param", uuidParamSchema), async (c) => {
-  const denied = requireAdmin(c);
-  if (denied) return denied;
+usersRoutes.delete("/:id", writeRateLimit, validate("param", uuidParamSchema), async (c) => {
+  const authUser = c.get("authUser");
+  if (!canDeleteUsers(authUser) && !isAdmin(authUser)) {
+    return jsonError(c, "FORBIDDEN", "You cannot delete users", 403);
+  }
 
-  return jsonError(
-    c,
-    "METHOD_NOT_ALLOWED",
-    "User deletion is not supported. Deactivate users via PATCH instead.",
-    405,
-  );
+  let rawBody: unknown = {};
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    rawBody = {};
+  }
+
+  const parsed = deleteUserSchema.safeParse(rawBody ?? {});
+  if (!parsed.success) {
+    return jsonError(c, "VALIDATION_ERROR", "Invalid request", 400, parsed.error.flatten());
+  }
+
+  const { id } = c.req.valid("param");
+  const body = parsed.data;
+  const db = c.get("db");
+  const service = createUserService(db);
+  const result = await service.deleteWithLeadReassignment(id, body, authUser.id);
+
+  await logAudit(db, {
+    userId: authUser.id,
+    action: AUDIT_ACTIONS.USER_DELETED,
+    entityType: "user",
+    entityId: id,
+    metadata: {
+      email: result.user.email,
+      role: result.user.role,
+      reassignedLeadCount: result.reassignedLeadCount,
+      reassignToUserIds: body.reassignToUserIds,
+      assignmentCounts: result.assignmentCounts,
+    },
+  });
+
+  return jsonOk(c, result);
 });
 
 usersRoutes.patch(
