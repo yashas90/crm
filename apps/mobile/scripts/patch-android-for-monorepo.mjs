@@ -68,6 +68,33 @@ if (!contents.includes("PropNinja monorepo")) {
 
 fs.writeFileSync(buildGradle, contents);
 
+// Keep Android versionCode/versionName in sync with app.config.ts.
+// Expo prebuild defaults versionCode to 1 — installing over an older APK then fails with
+// "App not installed" on many phones because versionCode did not increase.
+const appConfigPath = path.join(root, "app.config.ts");
+const appConfigSrc = fs.readFileSync(appConfigPath, "utf8");
+const versionNameMatch = appConfigSrc.match(/^\s*version:\s*"(\d+\.\d+\.\d+)"/m);
+const versionCodeMatch = appConfigSrc.match(/^\s*versionCode:\s*(\d+)/m);
+if (versionNameMatch && versionCodeMatch) {
+  const versionName = versionNameMatch[1];
+  const versionCode = versionCodeMatch[1];
+  let gradle = fs.readFileSync(buildGradle, "utf8");
+  gradle = gradle.replace(/versionCode\s+\d+/, `versionCode ${versionCode}`);
+  gradle = gradle.replace(/versionName\s+"[^"]+"/, `versionName "${versionName}"`);
+  // v1+v2 signing: some OEM installers reject v2-only APKs.
+  if (!gradle.includes("enableV1Signing")) {
+    gradle = gradle.replace(
+      /signingConfigs \{\s*\n\s*debug \{/,
+      `signingConfigs {
+        debug {
+            enableV1Signing true
+            enableV2Signing true`,
+    );
+  }
+  fs.writeFileSync(buildGradle, gradle);
+  console.log(`Synced Android versionName=${versionName} versionCode=${versionCode}`);
+}
+
 const gradleProps = path.join(root, "android", "gradle.properties");
 let props = fs.readFileSync(gradleProps, "utf8");
 
