@@ -239,7 +239,8 @@ export function TodayScreen({ route, navigation }: Props) {
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
     onLogged: async () => {
-      await Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
+      // useLogCall already invalidates calls/reports; avoid triple-refetching the
+      // Today queue while the status sheet opens (main post-call lag driver).
       void feedbackCallSaved();
     },
     onLogError: (err) => {

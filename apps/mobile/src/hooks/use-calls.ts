@@ -116,25 +116,28 @@ export function useLogCall() {
 
   return useMutation({
     mutationFn: (payload: LogCallInput) => apiPost("/api/calls/log", payload),
-    onSuccess: async (_data, variables) => {
+    onSuccess: (_data, variables) => {
       const userId = getCurrentUserId();
-      const tasks: Promise<unknown>[] = [
-        queryClient.invalidateQueries({ queryKey: ["calls"] }),
-        // Call count must refresh even when the agent skips lead status update.
-        queryClient.invalidateQueries({ queryKey: ["reports"] }),
-        queryClient.invalidateQueries({ queryKey: ["leads"] }),
-        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
-      ];
-      if (userId) {
-        tasks.push(queryClient.invalidateQueries({ queryKey: ["calls", "today", userId] }));
-        tasks.push(
-          queryClient.invalidateQueries({ queryKey: ["calls", "summary", "today", userId] }),
-        );
-      }
+      // Fire-and-forget: awaiting broad invalidations kept CallLogModal on "Saving…"
+      // and blocked the lead-update sheet until every leads/calls/tasks refetch finished.
+      void queryClient.invalidateQueries({ queryKey: ["calls"] });
+      void queryClient.invalidateQueries({ queryKey: ["reports"] });
       if (variables.lead_id) {
-        tasks.push(queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] }));
+        void queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] });
       }
-      await Promise.all(tasks);
+      // Soft-mark list caches stale without forcing every mounted list to refetch now.
+      void queryClient.invalidateQueries({
+        queryKey: ["leads"],
+        refetchType: "none",
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["tasks"],
+        refetchType: "none",
+      });
+      if (userId) {
+        void queryClient.invalidateQueries({ queryKey: ["calls", "today", userId] });
+        void queryClient.invalidateQueries({ queryKey: ["calls", "summary", "today", userId] });
+      }
     },
   });
 }

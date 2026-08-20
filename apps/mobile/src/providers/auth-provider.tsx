@@ -44,6 +44,16 @@ function runAuthenticatedSideEffects() {
   void refreshLocalFollowUpReminders();
 }
 
+/** Light work on AppState→active — avoid re-running permission/GPS/call-log sync every dialer return. */
+function runForegroundResumeEffects() {
+  const token = getToken();
+  if (token && isTokenExpired(token)) {
+    void refreshAccessToken().catch(() => {
+      // Offline — keep session until refresh succeeds or server rejects it.
+    });
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -73,14 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const sub = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
+        // Do NOT call runAuthenticatedSideEffects here — RootNavigator already
+        // re-evaluates permissions + startLocationTracking on active. Full side
+        // effects on every dialer return stacked GPS + OS call-log sync under the
+        // post-call lead-update UI.
         deferUntilIdle(() => {
-          runAuthenticatedSideEffects();
-          const token = getToken();
-          if (token && isTokenExpired(token)) {
-            void refreshAccessToken().catch(() => {
-              // Offline — keep session until refresh succeeds or server rejects it.
-            });
-          }
+          runForegroundResumeEffects();
         }, 300);
       }
     });

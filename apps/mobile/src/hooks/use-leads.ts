@@ -13,7 +13,8 @@ import {
 } from "@tanstack/react-query";
 
 const LEAD_STALE_MS = 30_000;
-const LEAD_DETAIL_STALE_MS = 0;
+/** Lead detail must not be always-stale — dialer return marks RQ focused and would refetch mid post-call UI. */
+const LEAD_DETAIL_STALE_MS = 30_000;
 
 const LEADS_PAGE_SIZE = "50";
 
@@ -297,6 +298,8 @@ export function useLead(leadId: string, options?: { enabled?: boolean }) {
     queryFn: () => apiGet<LeadDetail>(`/api/leads/${leadId}`),
     enabled,
     staleTime: LEAD_DETAIL_STALE_MS,
+    // Dialer return sets RQ focused — do not refetch detail under the post-call modal.
+    refetchOnWindowFocus: false,
     meta: { suppressErrorToast: true },
   });
 }

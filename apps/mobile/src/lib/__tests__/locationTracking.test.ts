@@ -41,6 +41,10 @@ jest.mock("@/lib/callLogNative", () => ({
   hasCallLogPermission: jest.fn(() => Promise.resolve(true)),
   requestCallLogPermission: jest.fn(() => Promise.resolve(true)),
 }));
+jest.mock("@/lib/callLogSync", () => ({
+  getOsCallLogPermissionStatus: jest.fn(() => Promise.resolve("granted")),
+  syncOsCallLogMetadata: jest.fn(() => Promise.resolve()),
+}));
 
 import { hasCallLogPermission } from "@/lib/callLogNative";
 import {
@@ -50,6 +54,7 @@ import {
   isLocationCollectionAllowed,
   isWorkHours,
   requestLocationPermissionsOnce,
+  resetForegroundSyncDebounceForTests,
   startLocationTracking,
 } from "@/lib/locationTracking";
 import * as Location from "expo-location";
@@ -125,6 +130,18 @@ describe("startLocationTracking", () => {
         distanceInterval: 0,
       }),
     );
+    jest.useRealTimers();
+  });
+
+  it("does not stop/restart an already-running location task", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-08-20T06:30:00.000Z"));
+    (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(true);
+
+    await startLocationTracking();
+
+    expect(Location.stopLocationUpdatesAsync).not.toHaveBeenCalled();
+    expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
     jest.useRealTimers();
   });
 

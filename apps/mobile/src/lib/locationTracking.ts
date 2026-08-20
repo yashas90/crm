@@ -310,6 +310,19 @@ async function pingCurrentPositionOnce(): Promise<void> {
   }
 }
 
+/** Skip duplicate GPS + OS call-log sync when AppState "active" fires twice (auth + navigator). */
+const FOREGROUND_SYNC_DEBOUNCE_MS = 60_000;
+let lastForegroundSyncAt = 0;
+
+async function maybeForegroundSync(): Promise<void> {
+  const now = Date.now();
+  if (now - lastForegroundSyncAt < FOREGROUND_SYNC_DEBOUNCE_MS) return;
+  lastForegroundSyncAt = now;
+  void flushLocationPingQueue();
+  void pingCurrentPositionOnce();
+  void syncOsCallLogMetadata().catch(() => undefined);
+}
+
 export async function startLocationTracking() {
   if (!(await hasAlwaysAllowLocationPermission())) return;
 
@@ -326,14 +339,18 @@ export async function startLocationTracking() {
   }
 
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
-  if (isRunning) {
-    await Location.stopLocationUpdatesAsync(TASK_NAME).catch(() => undefined);
+  // Do not stop/restart an already-running task — dialer return + dual AppState listeners
+  // used to tear down native location and re-sync call logs on every call end (JS hitch).
+  if (!isRunning) {
+    await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
   }
 
-  await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
-  void flushLocationPingQueue();
-  void pingCurrentPositionOnce();
-  void syncOsCallLogMetadata().catch(() => undefined);
+  await maybeForegroundSync();
+}
+
+/** Test helper */
+export function resetForegroundSyncDebounceForTests(): void {
+  lastForegroundSyncAt = 0;
 }
 
 export async function stopLocationTracking() {
