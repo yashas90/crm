@@ -11,7 +11,7 @@ import { isTokenExpired } from "./jwt";
 
 export const LOCATION_CONSENT_GIVEN_KEY = "location_consent_given";
 /** Bumped when required-permission gate changes — forces re-check for all agents. */
-export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v4";
+export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v5";
 
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 /** Office wants a position at least every 30 minutes even when the agent is idle. */
@@ -161,16 +161,26 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
 });
 
 export type RequiredWorkPermissions = {
+  /** True only for OS “Allow all the time” / Always — “While using the app” is not enough. */
   locationGranted: boolean;
   callLogGranted: boolean;
   /** True when the agent may enter the app. */
   allGranted: boolean;
 };
 
-/** Check OS permissions required before CRM work (Android: location + call log). */
+/**
+ * “Allow all the time” / Always must be granted. Foreground-only (“While using the app”)
+ * does not unlock the CRM — background location is required for live office tracking.
+ */
+export async function hasAlwaysAllowLocationPermission(): Promise<boolean> {
+  const foreground = await Location.getForegroundPermissionsAsync();
+  const background = await Location.getBackgroundPermissionsAsync();
+  return foreground.status === "granted" && background.status === "granted";
+}
+
+/** Check OS permissions required before CRM work (Android: always-location + call log). */
 export async function checkRequiredWorkPermissions(): Promise<RequiredWorkPermissions> {
-  const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
-  const locationGranted = bgStatus === "granted";
+  const locationGranted = await hasAlwaysAllowLocationPermission();
   const callLogGranted = await hasCallLogPermission();
   return {
     locationGranted,
@@ -179,12 +189,17 @@ export async function checkRequiredWorkPermissions(): Promise<RequiredWorkPermis
   };
 }
 
-/** Request foreground then background location. Returns true only if background is granted. */
+/**
+ * Request foreground then background location.
+ * Returns true only when both are granted (Allow all the time / Always).
+ */
 export async function requestLocationPermissionsOnce(): Promise<boolean> {
   const foreground = await Location.requestForegroundPermissionsAsync();
   if (foreground.status !== "granted") return false;
   const background = await Location.requestBackgroundPermissionsAsync();
-  return background.status === "granted";
+  if (background.status !== "granted") return false;
+  // Re-read both — some OEMs report provisional grant until settings confirm Always.
+  return hasAlwaysAllowLocationPermission();
 }
 
 /** Request location + call log. Returns current grant state after prompts. */
@@ -244,8 +259,8 @@ async function pingCurrentPositionOnce(): Promise<void> {
 }
 
 export async function startLocationTracking() {
-  const { status } = await Location.getBackgroundPermissionsAsync();
-  if (status !== "granted") return;
+  // Never run tracking (or enter via side effects) without Always / Allow all the time.
+  if (!(await hasAlwaysAllowLocationPermission())) return;
 
   await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, "true");
   await ensureAuthCacheLoaded();

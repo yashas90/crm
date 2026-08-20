@@ -16,8 +16,8 @@ type Props = {
 };
 
 /**
- * Hard gate: agents cannot enter the CRM until background location (and on Android,
- * call log) are granted. No skip — required for field work tracking.
+ * Hard gate: agents cannot enter the CRM until background location (Allow all the time /
+ * Always) and on Android call log are granted. “While using the app” is blocked. No skip.
  */
 export function LocationConsentScreen({ onDone }: Props) {
   const [loading, setLoading] = useState(false);
@@ -73,26 +73,28 @@ export function LocationConsentScreen({ onDone }: Props) {
         </View>
         <Text style={styles.title}>Permissions required</Text>
         <Text style={styles.body}>
-          PropNinja needs location (Allow all the time) and call log access before you can use the
-          app. Location keeps updating every 30 minutes even when you are not using the app, so your
-          office can see live positions. Keep the PropNinja notification on and do not force-stop
-          the app.
+          You cannot use PropNinja until Location is set to Allow all the time (not “While using the
+          app”). That is required so your office gets a location update every 30 minutes even when
+          the app is closed. On Android, call log access is also required. Keep the PropNinja
+          notification on and do not force-stop the app.
         </Text>
         {attempted && missing.length > 0 ? (
           <View style={styles.missingBox}>
-            <Text style={styles.missingTitle}>Still needed:</Text>
+            <Text style={styles.missingTitle}>App locked — still needed:</Text>
             {missing.map((item) => (
               <Text key={item} style={styles.missingItem}>
                 • {item}
               </Text>
             ))}
             <Text style={styles.missingHint}>
-              If Android stopped asking, open Settings → Permissions and enable them, then return
-              here.
+              “While using the app” is not enough. Open Settings → Apps → PropNinja → Permissions →
+              Location → Allow all the time, then return here.
             </Text>
           </View>
         ) : null}
-        <Text style={styles.hint}>Android will show the system prompts next.</Text>
+        <Text style={styles.hint}>
+          Choose Allow all the time on the system prompt. Any other option keeps the app locked.
+        </Text>
         <Button
           label={attempted ? "Try again" : "Allow & continue"}
           onPress={() => void handleContinue()}

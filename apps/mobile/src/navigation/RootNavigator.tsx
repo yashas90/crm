@@ -13,7 +13,8 @@ import { ActivityIndicator, AppState, View } from "react-native";
 
 export function RootNavigator() {
   const { status, logout } = useAuth();
-  /** null = checking; true = must show gate; false = may enter app */
+  /** null = checking; true = must show gate; false = may enter app.
+   * CRM is locked unless OS location is Allow all the time / Always. */
   const [needsPermissions, setNeedsPermissions] = useState<boolean | null>(null);
 
   const evaluatePermissions = useCallback(async () => {
