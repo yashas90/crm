@@ -313,15 +313,71 @@ export function useAddLeadNote(leadId: string) {
   });
 }
 
+type InfiniteLeadsData = {
+  pages: Array<{ items: LeadRow[]; page: number; pageSize: number; total: number }>;
+  pageParams: unknown[];
+};
+
+function patchLeadInInfiniteCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  leadId: string,
+  patch: Record<string, unknown>,
+) {
+  queryClient.setQueriesData<InfiniteLeadsData>({ queryKey: ["leads", "infinite"] }, (old) => {
+    if (!old?.pages) return old;
+    let changed = false;
+    const pages = old.pages.map((page) => {
+      if (!Array.isArray(page?.items)) return page;
+      let pageChanged = false;
+      const items = page.items.map((lead) => {
+        if (lead.id !== leadId) return lead;
+        pageChanged = true;
+        changed = true;
+        return { ...lead, ...patch } as LeadRow;
+      });
+      return pageChanged ? { ...page, items } : page;
+    });
+    return changed ? { ...old, pages } : old;
+  });
+}
+
 export function useUpdateLead() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ leadId, payload }: { leadId: string; payload: Record<string, unknown> }) =>
       apiPatch(`/api/leads/${leadId}`, payload),
+    onMutate: async ({ leadId, payload }) => {
+      await queryClient.cancelQueries({ queryKey: ["leads"] });
+      const previousInfinite = queryClient.getQueriesData<InfiniteLeadsData>({
+        queryKey: ["leads", "infinite"],
+      });
+      const previousDetail = queryClient.getQueryData<LeadDetail>(["leads", leadId]);
+
+      patchLeadInInfiniteCaches(queryClient, leadId, payload);
+      if (previousDetail) {
+        queryClient.setQueryData<LeadDetail>(["leads", leadId], {
+          ...previousDetail,
+          ...payload,
+        } as LeadDetail);
+      }
+
+      return { previousInfinite, previousDetail, leadId };
+    },
+    onError: (_err, _variables, context) => {
+      if (!context) return;
+      for (const [key, data] of context.previousInfinite) {
+        queryClient.setQueryData(key, data);
+      }
+      if (context.previousDetail) {
+        queryClient.setQueryData(["leads", context.leadId], context.previousDetail);
+      }
+    },
     onSuccess: (_data, variables) => {
       if ("nextFollowupAt" in variables.payload) {
-        const cached = queryClient.getQueryData<LeadRow>(["leads", variables.leadId]);
+        const cached =
+          queryClient.getQueryData<LeadRow>(["leads", variables.leadId]) ??
+          queryClient.getQueryData<LeadDetail>(["leads", variables.leadId]);
         const leadName = cached
           ? `${cached.firstName} ${cached.lastName}`.trim()
           : "Lead follow-up";
@@ -351,7 +407,7 @@ export function useUpdateLead() {
         return;
       }
 
-      // Fire-and-forget so mutation isPending clears after PATCH, not after list refetches.
+      // Background reconcile — UI already updated optimistically.
       void queryClient.invalidateQueries({ queryKey: ["leads"], refetchType: "active" });
     },
   });
@@ -363,8 +419,34 @@ export function useUpdateLeadFollowUp(leadId: string) {
   return useMutation({
     mutationFn: (payload: { nextFollowupAt: string; markComplete?: boolean }) =>
       apiPatch(`/api/leads/${leadId}/follow-up`, payload),
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ["leads"] });
+      const previousInfinite = queryClient.getQueriesData<InfiniteLeadsData>({
+        queryKey: ["leads", "infinite"],
+      });
+      const previousDetail = queryClient.getQueryData<LeadDetail>(["leads", leadId]);
+      patchLeadInInfiniteCaches(queryClient, leadId, { nextFollowupAt: payload.nextFollowupAt });
+      if (previousDetail) {
+        queryClient.setQueryData<LeadDetail>(["leads", leadId], {
+          ...previousDetail,
+          nextFollowupAt: payload.nextFollowupAt,
+        });
+      }
+      return { previousInfinite, previousDetail };
+    },
+    onError: (_err, _vars, context) => {
+      if (!context) return;
+      for (const [key, data] of context.previousInfinite) {
+        queryClient.setQueryData(key, data);
+      }
+      if (context.previousDetail) {
+        queryClient.setQueryData(["leads", leadId], context.previousDetail);
+      }
+    },
     onSuccess: (_data, variables) => {
-      const cached = queryClient.getQueryData<LeadRow>(["leads", leadId]);
+      const cached =
+        queryClient.getQueryData<LeadRow>(["leads", leadId]) ??
+        queryClient.getQueryData<LeadDetail>(["leads", leadId]);
       const leadName = cached ? `${cached.firstName} ${cached.lastName}`.trim() : "Lead follow-up";
       void scheduleFollowUpReminder({
         leadId,

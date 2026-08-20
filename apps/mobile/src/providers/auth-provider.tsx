@@ -9,6 +9,7 @@ import {
   setAuth as persistAuth,
 } from "@/lib/auth";
 import { requestCallLogPermission } from "@/lib/callLogNative";
+import { deferUntilIdle } from "@/lib/deferUntilIdle";
 import { isTokenExpired } from "@/lib/jwt";
 import { startLocationTracking, stopLocationTracking } from "@/lib/locationTracking";
 import { registerPushToken } from "@/lib/pushNotifications";
@@ -36,6 +37,13 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function runAuthenticatedSideEffects() {
+  void registerPushToken();
+  void requestCallLogPermission();
+  void startLocationTracking();
+  void refreshLocalFollowUpReminders();
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -52,12 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setBootstrapped(true));
   }, []);
 
+  // Push / call-log / location / follow-ups after first paint — not on the critical path.
   useEffect(() => {
     if (status !== "authenticated") return;
-    void registerPushToken();
-    void requestCallLogPermission();
-    void startLocationTracking();
-    void refreshLocalFollowUpReminders();
+    return deferUntilIdle(() => {
+      runAuthenticatedSideEffects();
+    }, 700);
   }, [status]);
 
   useEffect(() => {
@@ -65,16 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const sub = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
-        void registerPushToken();
-        void refreshLocalFollowUpReminders();
-        void requestCallLogPermission();
-        void startLocationTracking();
-        const token = getToken();
-        if (token && isTokenExpired(token)) {
-          void refreshAccessToken().catch(() => {
-            // Offline — keep session until refresh succeeds or server rejects it.
-          });
-        }
+        deferUntilIdle(() => {
+          runAuthenticatedSideEffects();
+          const token = getToken();
+          if (token && isTokenExpired(token)) {
+            void refreshAccessToken().catch(() => {
+              // Offline — keep session until refresh succeeds or server rejects it.
+            });
+          }
+        }, 300);
       }
     });
 
@@ -86,9 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await persistAuth(token, sessionUser, refreshToken);
       setUser(sessionUser);
       setStatus("authenticated");
-      await queryClient.invalidateQueries({ refetchType: "active" });
-      void registerPushToken();
-      void refreshLocalFollowUpReminders();
+      // Invalidate after paint so login UI can transition first.
+      deferUntilIdle(() => {
+        void queryClient.invalidateQueries({ refetchType: "active" });
+        runAuthenticatedSideEffects();
+      }, 400);
     },
     [],
   );

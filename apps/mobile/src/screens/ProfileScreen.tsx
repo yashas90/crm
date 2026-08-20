@@ -1,4 +1,3 @@
-import { ProfilePerformanceSection } from "@/components/profile/ProfilePerformanceSection";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useCurrentUser } from "@/hooks/use-auth";
@@ -7,6 +6,7 @@ import { useLeadScopeCounts } from "@/hooks/use-leads";
 import { useIsAdmin, useIsAgent } from "@/hooks/use-role";
 import { useMyTasks } from "@/hooks/use-tasks";
 import { getApiUrl } from "@/lib/apiClient";
+import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { screenStyles } from "@/theme/screen";
@@ -23,6 +23,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const ProfilePerformanceSection = lazyNamed(
+  () => import("@/components/profile/ProfilePerformanceSection"),
+  "ProfilePerformanceSection",
+);
 
 type ProfileScreenProps = {
   onLogout: () => void;
@@ -113,7 +118,9 @@ export function ProfileScreen({
         </View>
       </View>
 
-      <ProfilePerformanceSection onOpenCallLogs={(dateFilter) => onOpenCallLogs?.(dateFilter)} />
+      <ScreenSuspense>
+        <ProfilePerformanceSection onOpenCallLogs={(dateFilter) => onOpenCallLogs?.(dateFilter)} />
+      </ScreenSuspense>
 
       <Text style={screenStyles.sectionTitle}>Workspace</Text>
       <Card>
