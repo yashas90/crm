@@ -16,7 +16,7 @@
     "check": "biome check --write .",
     "check:ci": "cross-env NEXT_PUBLIC_API_URL=https://api.ci.propninja.test turbo lint test build",
     "railway:build": "node scripts/assert-api-deploy-identity.mjs && pnpm --filter @propninja/db build && pnpm --filter @propninja/api build",
-    "railway:start": "node scripts/assert-api-deploy-identity.mjs && pnpm db:migrate && pnpm --filter @propninja/api start",
+    "railway:start": "pnpm db:migrate && pnpm --filter @propninja/api start",
     "load-test:calls": "node scripts/load-test-calls.mjs",
     "mobile:eas:init": "pnpm --filter @propninja/mobile eas:init",
     "mobile:eas:android": "pnpm --filter @propninja/mobile eas:build:android",
