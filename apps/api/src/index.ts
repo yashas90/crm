@@ -9,6 +9,7 @@ import { startFollowupNotificationJob } from "./jobs/followupNotificationJob.js"
 import { startGoogleAdsLeadSync } from "./jobs/googleAdsLeadJob.js";
 import { startReportEmailJob } from "./jobs/reportEmailJob.js";
 import { startBackgroundJobs } from "./jobs/startBackgroundJobs.js";
+import { getApiVersion, getDeployIdentity, getDeployMarker } from "./lib/apiVersion.js";
 import { resolveCorsOrigins } from "./lib/cors.js";
 import { env } from "./lib/env.js";
 import { logger } from "./lib/logger.js";
@@ -160,8 +161,14 @@ function tuneHttpKeepAlive(server: Server) {
 
 // Skip binding a port when Vitest imports this module for integration tests.
 if (process.env.VITEST !== "true") {
-  const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-    logger.info(`PropNinja API listening on http://localhost:${info.port}`);
+  logger.info("API boot identity", {
+    version: getApiVersion(),
+    deployMarker: getDeployMarker(),
+    baked: getDeployIdentity(),
+    port: env.PORT,
+  });
+  const server = serve({ fetch: app.fetch, port: env.PORT, hostname: "0.0.0.0" }, (info) => {
+    logger.info(`PropNinja API listening on http://0.0.0.0:${info.port}`);
     startTokenBlocklistRefresh();
     startGoogleAdsLeadSync();
     startFollowupNotificationJob();

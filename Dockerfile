@@ -1,8 +1,12 @@
-# Railway API image — Dockerfile avoids flaky Nixpacks Metal snapshots
-# ("Failed to read app source directory").
+# Railway API image — use repo Dockerfile (not Nixpacks).
 FROM node:22-bookworm-slim
 
 WORKDIR /app
+
+# openssl/ca-certificates: required for Postgres SSL (Nixpacks used to provide these).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
@@ -45,9 +49,7 @@ RUN node -e "const fs=require('fs'); const pkg=require('./apps/api/package.json'
 RUN pnpm railway:build
 
 ENV NODE_ENV=production
-ENV PORT=3001
-EXPOSE 3001
-
-ENV API_VERSION=0.0.9
+# Do NOT set PORT here — Railway injects PORT (often 8080) for healthchecks.
+ENV API_VERSION=0.0.10
 
 CMD ["pnpm", "railway:start"]
