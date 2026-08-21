@@ -18,8 +18,11 @@ function minutesAgo(iso: string): string {
   if (mins === 1) return "1 minute ago";
   if (mins < 60) return `${mins} minutes ago`;
   const hours = Math.floor(mins / 60);
-  if (hours === 1) return "1 hour ago";
-  return `${hours} hours ago`;
+  const rem = mins % 60;
+  if (hours === 1 && rem === 0) return "1 hour ago";
+  if (hours === 1) return `1 hour ${rem}m ago`;
+  if (rem === 0) return `${hours} hours ago`;
+  return `${hours}h ${rem}m ago`;
 }
 
 function buildStaticMapUrl(agents: AgentLocationPing[], apiKey: string): string {
@@ -78,10 +81,12 @@ export default function LocationsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Agent Locations</h1>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Live positions come from agents who installed the PropNinja mobile app. Tracking runs
-            9:30 AM–8:30 PM IST (Mon–Sun), about every 30 minutes, only with &quot;Allow all the
-            time&quot; location. Records are kept 14 days. The CRM stays locked until agents grant
-            required permissions.
+            Live positions are pushed from agents&apos; phones (PropNinja app) — Refresh only
+            reloads what the API already received. Tracking runs 9:30 AM–8:30 PM IST (Mon–Sun),
+            about every 30 minutes, only with &quot;Allow all the time&quot; location. Agents show{" "}
+            <span className="font-medium text-foreground">STALE</span> after{" "}
+            {live.data?.config?.missingAlertMinutes ?? 45} minutes without a GPS ping. Records are
+            kept 14 days. The CRM stays locked until agents grant required permissions.
             {live.data?.config?.withinHours === false ? (
               <span className="mt-1 block text-amber-600 dark:text-amber-400">
                 Outside working hours — new pings are paused until the next window.

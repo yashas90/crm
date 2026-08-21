@@ -88,7 +88,7 @@ vi.mock("../lib/trackingConfig.js", async () => {
       endTime: "20:30",
       intervalMinutes: 30,
       retentionDays: 14,
-      missingAlertMinutes: 75,
+      missingAlertMinutes: 45,
       scheduleLabel: "09:30–20:30 IST (Mon–Sun)",
       schedule: {
         startHour: 9,
