@@ -1,0 +1,17 @@
+.git
+.github
+.cursor
+.husky
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/.expo
+**/android
+**/ios
+eas-log*
+*.log
+.env
+.env.*
+!.env.example
