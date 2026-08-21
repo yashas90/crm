@@ -138,7 +138,7 @@ const envSchema = z
       .default("20:30"),
     TRACKING_INTERVAL_MINUTES: z.coerce.number().int().positive().default(30),
     TRACKING_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
-    TRACKING_MISSING_ALERT_MINUTES: z.coerce.number().int().positive().default(75),
+    TRACKING_MISSING_ALERT_MINUTES: z.coerce.number().int().positive().default(45),
   })
   .superRefine((data, ctx) => {
     if (!data.META_WEBHOOK_ENABLED) return;

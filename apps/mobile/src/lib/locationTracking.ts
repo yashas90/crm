@@ -19,6 +19,10 @@ export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v6";
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 /** Office wants a position at least every 30 minutes during working hours. */
 export const PING_INTERVAL_MS = 30 * 60 * 1000;
+/** Force a catch-up GPS ping when the last successful upload is this old. */
+export const LOCATION_CATCHUP_AFTER_MS = 25 * 60 * 1000;
+/** Restart the native FGS task if no ping landed within interval + grace (OS often stalls). */
+export const LOCATION_OVERDUE_RESTART_MS = 35 * 60 * 1000;
 const LOCATION_PING_QUEUE_KEY = "propninja_pending_location_pings";
 const LAST_PING_AT_KEY = "propninja_last_location_ping_at";
 const DEVICE_ID_KEY = "propninja_tracking_device_id";
@@ -97,6 +101,14 @@ async function markLastPingAt(iso: string): Promise<void> {
   await AsyncStorage.setItem(LAST_PING_AT_KEY, iso);
 }
 
+async function readLastPingAgeMs(): Promise<number | null> {
+  const raw = await AsyncStorage.getItem(LAST_PING_AT_KEY);
+  if (!raw) return null;
+  const at = Date.parse(raw);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, Date.now() - at);
+}
+
 async function prepareAuthForBackgroundPing(): Promise<boolean> {
   await ensureAuthCacheLoaded();
   const token = getToken();
@@ -170,7 +182,10 @@ export async function flushLocationPingQueue(): Promise<number> {
   return synced;
 }
 
-async function sendLocationObject(loc: Location.LocationObject): Promise<void> {
+async function sendLocationObject(
+  loc: Location.LocationObject,
+  source = "mobile_background",
+): Promise<void> {
   if (!isLocationCollectionAllowed(new Date(loc.timestamp))) return;
 
   const body: LocationPingBody = {
@@ -181,7 +196,7 @@ async function sendLocationObject(loc: Location.LocationObject): Promise<void> {
     capturedAt: new Date(loc.timestamp).toISOString(),
     deviceId: await getOrCreateDeviceId(),
     networkStatus: await currentNetworkStatus(),
-    source: "mobile_background",
+    source,
   };
 
   try {
@@ -285,8 +300,10 @@ function locationUpdateOptions(): Location.LocationTaskOptions {
   return {
     accuracy: Location.Accuracy.Balanced,
     timeInterval: PING_INTERVAL_MS,
+    // Time-based even when stationary — distance>0 was skipping office dwells.
     distanceInterval: 0,
-    deferredUpdatesInterval: PING_INTERVAL_MS,
+    // Do not ask the OS to further batch deliveries past our 30m cadence.
+    deferredUpdatesInterval: 0,
     deferredUpdatesDistance: 0,
     showsBackgroundLocationIndicator: true,
     foregroundService: {
@@ -298,13 +315,13 @@ function locationUpdateOptions(): Location.LocationTaskOptions {
   };
 }
 
-async function pingCurrentPositionOnce(): Promise<void> {
+async function pingCurrentPositionOnce(source = "mobile_catchup"): Promise<void> {
   if (!isLocationCollectionAllowed()) return;
   try {
     const loc = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Balanced,
     });
-    await sendLocationObject(loc);
+    await sendLocationObject(loc, source);
   } catch {
     // Best-effort
   }
@@ -338,13 +355,25 @@ export async function startLocationTracking() {
     return;
   }
 
+  const lastAgeMs = await readLastPingAgeMs();
+  const ageMs = lastAgeMs ?? Number.POSITIVE_INFINITY;
+  const overdueForRestart = ageMs >= LOCATION_OVERDUE_RESTART_MS;
+  const needsCatchUp = ageMs >= LOCATION_CATCHUP_AFTER_MS;
+
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
-  // Do not stop/restart an already-running task — dialer return + dual AppState listeners
-  // used to tear down native location and re-sync call logs on every call end (JS hitch).
-  if (!isRunning) {
+  // Skip stop/restart when healthy (avoids dialer-return hitch). If the last ping is overdue,
+  // the OS likely stopped delivering — restart the foreground-service task.
+  if (isRunning && overdueForRestart) {
+    await Location.stopLocationUpdatesAsync(TASK_NAME).catch(() => undefined);
+    await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
+  } else if (!isRunning) {
     await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
   }
 
+  if (needsCatchUp) {
+    // Bypass the 60s debounce so a stale agent gets an immediate office ping.
+    lastForegroundSyncAt = 0;
+  }
   await maybeForegroundSync();
 }
 
