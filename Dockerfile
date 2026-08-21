@@ -40,7 +40,6 @@ RUN node -e "const fs=require('fs'); const pkg=require('./apps/api/package.json'
   if (!m) { console.error('API_DEPLOY_MARKER missing'); process.exit(1); } \
   const identity={ version: pkg.version, deployMarker: m[1], builtAt: new Date().toISOString() }; \
   fs.writeFileSync('/app/deploy-identity.json', JSON.stringify(identity)); \
-  fs.writeFileSync('/app/api-version.env', 'API_VERSION=' + pkg.version + '\\n'); \
   console.log('Baked deploy identity', identity);"
 
 RUN pnpm railway:build
@@ -49,7 +48,6 @@ ENV NODE_ENV=production
 ENV PORT=3001
 EXPOSE 3001
 
-# Prefer baked identity; API_VERSION is also exported for processes that read env only.
-ENV API_VERSION=0.0.7
+ENV API_VERSION=0.0.8
 
 CMD ["pnpm", "railway:start"]
