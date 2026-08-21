@@ -73,6 +73,26 @@ Full integration setup: [docs/integrations.md](docs/integrations.md)
 
 - **Git push to `main`** if the Railway service is connected to GitHub (auto-deploy).
 - Or from repo root: `railway service crm && railway up`
+- Or Railway dashboard → service → **Deployments** → **Deploy** / **Redeploy**.
+
+**Verify the new build is live** (do not trust a green deploy alone):
+
+```bash
+curl -s https://crm-production-e81d.up.railway.app/health
+```
+
+You must see something like:
+
+- `"version": "0.0.5"` (or higher — not `0.0.0`)
+- `"deployMarker": "bulk-import-new-status-2026-08-21"` (or the current marker in code)
+- `"gitSha": "..."` when Railway sets `RAILWAY_GIT_COMMIT_SHA`
+
+If `/health` still shows `"version":"0.0.0"` and **no** `deployMarker` / `gitSha`, the public URL is still running an **old** image. Common causes:
+
+1. **Redeployed an old deployment** instead of deploying latest `main` — use **Deploy** from GitHub `main`, not “Redeploy” on an ancient build.
+2. **Wrong service** — confirm the service behind `crm-production-e81d.up.railway.app`.
+3. **Wrong branch / repo** — Settings → Source should be `yashas90/crm` branch `main`, root = repo root (where `railway.toml` lives).
+4. **Wait for the new deployment to become Active** — an in-progress build still serves the previous instance.
 
 ### Seed production (once)
 
