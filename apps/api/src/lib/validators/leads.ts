@@ -213,6 +213,13 @@ export const bulkImportLeadsBodySchema = z.object({
   skipDuplicates: z.boolean().optional().default(true),
   /** keep_assignee (default): leave existing agent. reassign: move to selected agent(s). */
   onDuplicate: bulkImportOnDuplicateSchema.optional().default("keep_assignee"),
+  /** When reassigning a duplicate, record assignment history (default true). */
+  assignWithHistory: z.boolean().optional().default(true),
+  /**
+   * When merging a duplicate in dropped/not_interested, set status to new (default false).
+   * Mirrors bulk-assign `applyNewStatus`.
+   */
+  applyNewStatus: z.boolean().optional().default(false),
   assignToUserId: z.string().uuid().optional(),
   assignToUserIds: z.array(z.string().uuid()).min(1).max(50).optional(),
   fileName: z.string().max(255).optional(),

@@ -615,6 +615,8 @@ leadsRoute.post(
         rows: body.leads,
         skipDuplicates: body.skipDuplicates,
         onDuplicate: body.onDuplicate,
+        assignWithHistory: body.assignWithHistory,
+        applyNewStatus: body.applyNewStatus,
         assignedToAgents: requestedAssignees,
         actingUserId: authUser.id,
         batchId: batch.id,

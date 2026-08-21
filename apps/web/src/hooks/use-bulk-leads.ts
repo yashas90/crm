@@ -79,6 +79,8 @@ export function useBulkImportLeads() {
       leads: BulkLeadImportRow[];
       skipDuplicates?: boolean;
       onDuplicate?: "keep_assignee" | "reassign";
+      assignWithHistory?: boolean;
+      applyNewStatus?: boolean;
       assignToUserId?: string;
       assignToUserIds?: string[];
       fileName?: string;

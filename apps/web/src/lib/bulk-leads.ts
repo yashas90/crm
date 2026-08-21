@@ -128,6 +128,8 @@ export function bulkImportLeads(input: {
   skipDuplicates?: boolean;
   /** keep_assignee = leave existing agent; reassign = move to selected agent(s). */
   onDuplicate?: "keep_assignee" | "reassign";
+  assignWithHistory?: boolean;
+  applyNewStatus?: boolean;
   assignToUserId?: string;
   assignToUserIds?: string[];
   fileName?: string;
