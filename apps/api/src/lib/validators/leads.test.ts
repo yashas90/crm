@@ -151,6 +151,8 @@ describe("bulkImportLeadsBodySchema", () => {
     if (parsed.success) {
       expect(parsed.data.onDuplicate).toBe("keep_assignee");
       expect(parsed.data.skipDuplicates).toBe(true);
+      expect(parsed.data.assignWithHistory).toBe(true);
+      expect(parsed.data.applyNewStatus).toBe(false);
     }
   });
 
@@ -164,6 +166,21 @@ describe("bulkImportLeadsBodySchema", () => {
     if (parsed.success) {
       expect(parsed.data.onDuplicate).toBe("reassign");
       expect(parsed.data.assignToUserIds).toEqual([agentId]);
+    }
+  });
+
+  it("accepts assignWithHistory and applyNewStatus flags", () => {
+    const parsed = bulkImportLeadsBodySchema.safeParse({
+      leads: [{ firstName: "A", phone: "+919876543210" }],
+      onDuplicate: "reassign",
+      assignToUserIds: [agentId],
+      assignWithHistory: false,
+      applyNewStatus: true,
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.assignWithHistory).toBe(false);
+      expect(parsed.data.applyNewStatus).toBe(true);
     }
   });
 

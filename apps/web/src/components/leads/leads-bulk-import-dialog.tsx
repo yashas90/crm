@@ -57,7 +57,9 @@ export function LeadsBulkImportDialog({
   const [rows, setRows] = useState<BulkLeadImportRow[]>([]);
   const [parseErrors, setParseErrors] = useState<{ row: number; message: string }[]>([]);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
-  const [onDuplicate, setOnDuplicate] = useState<"keep_assignee" | "reassign">("keep_assignee");
+  const [onDuplicate, setOnDuplicate] = useState<"keep_assignee" | "reassign">("reassign");
+  const [assignWithHistory, setAssignWithHistory] = useState(true);
+  const [applyNewStatus, setApplyNewStatus] = useState(true);
   const [assignToUserIds, setAssignToUserIds] = useState<string[]>([]);
   const [bulkLeadSource, setBulkLeadSource] = useState("");
   const [bulkProjectId, setBulkProjectId] = useState("");
@@ -88,7 +90,9 @@ export function LeadsBulkImportDialog({
     setRows([]);
     setParseErrors([]);
     setSkipDuplicates(true);
-    setOnDuplicate("keep_assignee");
+    setOnDuplicate("reassign");
+    setAssignWithHistory(true);
+    setApplyNewStatus(true);
     setBulkLeadSource("");
     setBulkProjectId("");
     setAssignToUserIds(session?.id ? [session.id] : []);
@@ -141,6 +145,8 @@ export function LeadsBulkImportDialog({
       leads: rows.map(applyBulkDefaults),
       skipDuplicates,
       onDuplicate,
+      assignWithHistory,
+      applyNewStatus,
       assignToUserIds,
       fileName: fileName ?? undefined,
       totalCount: rows.length + parseErrors.length,
@@ -170,7 +176,8 @@ export function LeadsBulkImportDialog({
           <DialogDescription>
             Upload a spreadsheet with at least <strong>firstName</strong> and <strong>phone</strong>{" "}
             columns. Up to 2000 leads per file. Matching phone numbers update the existing lead
-            (re-enquiry). Choose below whether to keep the current agent or reassign.
+            (re-enquiry). Choose assignee, history, and whether dropped / not-interested leads
+            should become <strong>New</strong>.
           </DialogDescription>
         </DialogHeader>
 
@@ -301,7 +308,7 @@ export function LeadsBulkImportDialog({
                       <span className="font-medium">Stay with the same agent</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         Keep the lead under whoever owns it today. Only details and re-enquiry are
-                        updated.
+                        updated (status options below still apply).
                       </span>
                     </span>
                   </label>
@@ -317,6 +324,94 @@ export function LeadsBulkImportDialog({
                       <span className="font-medium">Reassign to the agent(s) selected above</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         Move the lead to the selected assignee (or round-robin if several).
+                      </span>
+                    </span>
+                  </label>
+                </fieldset>
+              ) : null}
+
+              {skipDuplicates ? (
+                <fieldset className="space-y-2 border-t border-border pt-3">
+                  <legend className="text-sm font-medium text-foreground">
+                    Existing-lead preferences
+                  </legend>
+                  <p className="text-xs text-muted-foreground">
+                    Applies when the phone already exists — including dropped, not interested, or
+                    any other status.
+                  </p>
+
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="import-history-status"
+                      className="mt-1 h-4 w-4 border-input"
+                      checked={assignWithHistory && !applyNewStatus}
+                      onChange={() => {
+                        setAssignWithHistory(true);
+                        setApplyNewStatus(false);
+                      }}
+                    />
+                    <span>
+                      <span className="font-medium">With history</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Keep current status; record assignment history when reassigning.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="import-history-status"
+                      className="mt-1 h-4 w-4 border-input"
+                      checked={!assignWithHistory && !applyNewStatus}
+                      onChange={() => {
+                        setAssignWithHistory(false);
+                        setApplyNewStatus(false);
+                      }}
+                    />
+                    <span>
+                      <span className="font-medium">Without history</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Keep current status; do not write assignment history.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="import-history-status"
+                      className="mt-1 h-4 w-4 border-input"
+                      checked={!assignWithHistory && applyNewStatus}
+                      onChange={() => {
+                        setAssignWithHistory(false);
+                        setApplyNewStatus(true);
+                      }}
+                    />
+                    <span>
+                      <span className="font-medium">Without history and new status</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Set dropped / not interested to New; skip assignment history.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex cursor-pointer items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="import-history-status"
+                      className="mt-1 h-4 w-4 border-input"
+                      checked={assignWithHistory && applyNewStatus}
+                      onChange={() => {
+                        setAssignWithHistory(true);
+                        setApplyNewStatus(true);
+                      }}
+                    />
+                    <span>
+                      <span className="font-medium">With history and new status</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        Set dropped / not interested to New and record assignment history.
                       </span>
                     </span>
                   </label>
