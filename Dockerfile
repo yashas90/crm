@@ -48,6 +48,6 @@ ENV NODE_ENV=production
 ENV PORT=3001
 EXPOSE 3001
 
-ENV API_VERSION=0.0.8
+ENV API_VERSION=0.0.9
 
 CMD ["pnpm", "railway:start"]

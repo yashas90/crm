@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Bump when shipping API behavior that must be verified on Railway /health. */
-export const API_DEPLOY_MARKER = "nixpacks-guard-2026-08-21";
+export const API_DEPLOY_MARKER = "dockerfile-watchpaths-2026-08-21";
 
 type DeployIdentity = {
   version: string;

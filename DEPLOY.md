@@ -83,8 +83,8 @@ curl -s https://crm-production-e81d.up.railway.app/health
 
 You must see something like:
 
-- `"version": "0.0.8"` (or higher — not `0.0.0`)
-- `"deployMarker": "nixpacks-guard-2026-08-21"` (or the current marker in code)
+- `"version": "0.0.9"` (or higher — not `0.0.0`)
+- `"deployMarker": "dockerfile-watchpaths-2026-08-21"` (or the current marker in code)
 - `"gitSha": "..."` when Railway sets `RAILWAY_GIT_COMMIT_SHA`
 
 If `/health` still shows `"version":"0.0.0"` and **no** `deployMarker` / `gitSha`, the public URL is still running an **old** image. Common causes:
@@ -93,6 +93,18 @@ If `/health` still shows `"version":"0.0.0"` and **no** `deployMarker` / `gitSha
 2. **Wrong service** — confirm the service behind `crm-production-e81d.up.railway.app`.
 3. **Wrong branch / repo** — Settings → Source should be `yashas90/crm` branch `main`, **Root Directory = empty** (repo root where `Dockerfile` / `railway.toml` live). Do **not** set Root Directory to `apps/api` or `apps/web`.
 4. **Wait for the new deployment to become Active** — an in-progress / failed build still serves the previous instance.
+
+### Builder stuck on Nixpacks in Settings
+
+The Build UI is **read-only** when config-as-code is enabled (`ⓘ The value is set in /railway.toml`). You cannot flip Builder in the dropdown.
+
+If that UI still shows **Nixpacks** + build command `pnpm install --prod=false && pnpm railway:build`, the **Active** deployment is still an old commit (current `main` sets `builder = "DOCKERFILE"` and has **no** custom buildCommand).
+
+1. **Settings → Build → Watch Paths** — delete the `/apps/**`-only patterns (they skip deploys when only `Dockerfile` / `railway.toml` change). Or wait for a deploy that applies the `watchPatterns` in `railway.toml`.
+2. **Settings → Source** — branch `main`, Root Directory empty.
+3. **Settings → Config-as-code** — config file path empty or `/railway.toml` (repo root).
+4. **Deployments → Deploy** → deploy the **latest commit on `main`** (do not Redeploy an old row).
+5. After that deploy is Active, Build settings must show **Dockerfile** (from `railway.toml`), and Build Logs must start with `FROM node:22-bookworm-slim`.
 
 ### Build fails: `Failed to read app source directory`
 
@@ -106,14 +118,14 @@ This is a Railway builder/source issue (often wrong Root Directory or a bad Nixp
 3. **Settings → Build → Builder must be Dockerfile**
    - If Build Logs show `using build driver nixpacks-v1…` and `FROM ghcr.io/railwayapp/nixpacks:…`, the dashboard is **overriding** `railway.toml` and ignoring the repo `Dockerfile`.
    - Set Builder to **Dockerfile**, Dockerfile path `Dockerfile`, then Deploy latest `main`.
-   - Success looks like: `FROM node:22-bookworm-slim` and `Baked deploy identity { version: '0.0.8', ... }`.
+   - Success looks like: `FROM node:22-bookworm-slim` and `Baked deploy identity { version: '0.0.9', ... }`.
    - A green Nixpacks deploy that still serves `/health` without `deployMarker` is a **stale snapshot**, not an upgrade.
 4. **Settings → Variables** → add `NO_CACHE=1` temporarily → **Deploy** latest commit (not Redeploy on an old/failed row).
 5. If Nixpacks is still selected or the same ~6MB snapshot hash keeps coming back: rename the service or create a new service from the same repo/Postgres and move the public domain.
 
-If Deploy logs show `@propninja/api@0.0.0 start`, that container is **not** current `main` (which is `0.0.8+`). Do not treat it as a successful upgrade — check Deployments → **Active** commit SHA and remove any stuck old deployment still bound to the public domain.
+If Deploy logs show `@propninja/api@0.0.0 start`, that container is **not** current `main` (which is `0.0.9+`). Do not treat it as a successful upgrade — check Deployments → **Active** commit SHA and remove any stuck old deployment still bound to the public domain.
 
-In Build logs you must see `Baked deploy identity { version: '0.0.8', deployMarker: 'nixpacks-guard-2026-08-21', ... }`. If that line is missing, the Dockerfile bake step did not run.
+In Build logs you must see `Baked deploy identity { version: '0.0.9', deployMarker: 'dockerfile-watchpaths-2026-08-21', ... }`. If that line is missing, the Dockerfile bake step did not run.
 
 ### Seed production (once)
 
