@@ -75,6 +75,9 @@ app.use("*", sentryRequestMiddleware);
 app.use("*", publicIpRateLimitMiddleware);
 app.use("*", securityHeadersMiddleware);
 
+// Health before CORS so Railway probes (Host: healthcheck.railway.app) always reach it.
+app.route("/health", healthRoutes);
+
 const corsOrigins = resolveCorsOrigins();
 if (env.NODE_ENV === "production") {
   logger.info("CORS origins configured", { origins: corsOrigins });
@@ -98,7 +101,6 @@ app.use(
   }),
 );
 
-app.route("/health", healthRoutes);
 app.route("/api/public/site-visits", publicSiteVisitsRoutes);
 app.route("/api/integrations/meta", metaIntegrationsRoute);
 app.route("/api/integrations/portal", portalIntegrationsRoute);
@@ -167,8 +169,8 @@ if (process.env.VITEST !== "true") {
     baked: getDeployIdentity(),
     port: env.PORT,
   });
-  const server = serve({ fetch: app.fetch, port: env.PORT, hostname: "0.0.0.0" }, (info) => {
-    logger.info(`PropNinja API listening on http://0.0.0.0:${info.port}`);
+  const server = serve({ fetch: app.fetch, port: env.PORT, hostname: "::" }, (info) => {
+    logger.info(`PropNinja API listening on http://[::]:${info.port}`);
     startTokenBlocklistRefresh();
     startGoogleAdsLeadSync();
     startFollowupNotificationJob();
