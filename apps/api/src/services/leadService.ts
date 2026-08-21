@@ -1461,7 +1461,7 @@ export const leadService = {
 
     const [updated] = await db.transaction(async (tx) => {
       const nextLeadStatus: typeof existing.leadStatus | null =
-        applyNewStatus && NA_STATUSES.includes(existing.leadStatus) ? "new" : null;
+        applyNewStatus && (NA_STATUSES as string[]).includes(existing.leadStatus) ? "new" : null;
 
       const [row] = await tx
         .update(leads)
@@ -1509,7 +1509,7 @@ export const leadService = {
     // If we moved NA → "new", record a normal status change activity (regardless of assignment-history flag).
     if (
       applyNewStatus &&
-      NA_STATUSES.includes(existing.leadStatus) &&
+      (NA_STATUSES as string[]).includes(existing.leadStatus) &&
       existing.leadStatus !== "new"
     ) {
       await db.insert(leadActivities).values({

@@ -83,7 +83,7 @@ curl -s https://crm-production-e81d.up.railway.app/health
 
 You must see something like:
 
-- `"version": "0.0.5"` (or higher — not `0.0.0`)
+- `"version": "0.0.6"` (or higher — not `0.0.0`)
 - `"deployMarker": "bulk-import-new-status-2026-08-21"` (or the current marker in code)
 - `"gitSha": "..."` when Railway sets `RAILWAY_GIT_COMMIT_SHA`
 
