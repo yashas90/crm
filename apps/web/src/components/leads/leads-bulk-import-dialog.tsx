@@ -142,7 +142,15 @@ export function LeadsBulkImportDialog({
     }
 
     const result = await bulkImport.mutateAsync({
-      leads: rows.map(applyBulkDefaults),
+      leads: rows.map((row) => {
+        const next = applyBulkDefaults(row);
+        // Prefer the dialog "new status" preference over a status column in the CSV.
+        if (applyNewStatus && next.leadStatus) {
+          const { leadStatus: _ignored, ...rest } = next;
+          return rest;
+        }
+        return next;
+      }),
       skipDuplicates,
       onDuplicate,
       assignWithHistory,
@@ -337,7 +345,8 @@ export function LeadsBulkImportDialog({
                   </legend>
                   <p className="text-xs text-muted-foreground">
                     Applies when the phone already exists — including dropped, not interested, or
-                    any other status.
+                    any other status. Pick a “… and new status” option to move dropped / not
+                    interested leads to <strong>New</strong> for the assigned agent.
                   </p>
 
                   <label className="flex cursor-pointer items-start gap-2 text-sm">
