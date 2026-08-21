@@ -31,10 +31,25 @@ COPY packages/config ./packages/config
 COPY scripts ./scripts
 COPY biome.json turbo.json railway.toml ./
 
+# Fail the image build if we somehow got a placeholder API version (old snapshot).
+# Also bake deploy-identity.json so /health cannot lie about what shipped.
+RUN node -e "const fs=require('fs'); const pkg=require('./apps/api/package.json'); \
+  if (!pkg.version || pkg.version === '0.0.0') { console.error('Refusing API version', pkg.version); process.exit(1); } \
+  const src=fs.readFileSync('./apps/api/src/lib/apiVersion.ts','utf8'); \
+  const m=src.match(/API_DEPLOY_MARKER\\s*=\\s*\\\"([^\\\"]+)\\\"/); \
+  if (!m) { console.error('API_DEPLOY_MARKER missing'); process.exit(1); } \
+  const identity={ version: pkg.version, deployMarker: m[1], builtAt: new Date().toISOString() }; \
+  fs.writeFileSync('/app/deploy-identity.json', JSON.stringify(identity)); \
+  fs.writeFileSync('/app/api-version.env', 'API_VERSION=' + pkg.version + '\\n'); \
+  console.log('Baked deploy identity', identity);"
+
 RUN pnpm railway:build
 
 ENV NODE_ENV=production
 ENV PORT=3001
 EXPOSE 3001
+
+# Prefer baked identity; API_VERSION is also exported for processes that read env only.
+ENV API_VERSION=0.0.7
 
 CMD ["pnpm", "railway:start"]
