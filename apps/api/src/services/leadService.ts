@@ -43,6 +43,7 @@ import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
+import { resolveBulkImportLeadStatus } from "../lib/resolveBulkImportLeadStatus.js";
 import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 import { recordLeadAssignment } from "./leadAssignmentService.js";
@@ -1050,12 +1051,14 @@ export const leadService = {
     const shouldApplyNewStatus =
       applyNewStatus && (NA_STATUSES as string[]).includes(existing.leadStatus);
 
-    if (input.data.leadStatus !== undefined) {
-      update.leadStatus = input.data.leadStatus;
-    } else if (shouldApplyNewStatus) {
+    // "New status" preference wins over a CSV status column for dropped / not_interested.
+    // Otherwise re-imports keep writing NA back from the file and ignore the radio.
+    if (shouldApplyNewStatus) {
       update.leadStatus = "new";
       update.naSinceAt = null;
       update.nextFollowupAt = null;
+    } else if (input.data.leadStatus !== undefined) {
+      update.leadStatus = input.data.leadStatus;
     } else if (existing.leadStatus === "lost" || existing.leadStatus === "won") {
       update.leadStatus = "new";
     }
