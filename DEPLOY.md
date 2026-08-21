@@ -73,6 +73,38 @@ Full integration setup: [docs/integrations.md](docs/integrations.md)
 
 - **Git push to `main`** if the Railway service is connected to GitHub (auto-deploy).
 - Or from repo root: `railway service crm && railway up`
+- Or Railway dashboard → service → **Deployments** → **Deploy** / **Redeploy**.
+
+**Verify the new build is live** (do not trust a green deploy alone):
+
+```bash
+curl -s https://crm-production-e81d.up.railway.app/health
+```
+
+You must see something like:
+
+- `"version": "0.0.5"` (or higher — not `0.0.0`)
+- `"deployMarker": "bulk-import-new-status-2026-08-21"` (or the current marker in code)
+- `"gitSha": "..."` when Railway sets `RAILWAY_GIT_COMMIT_SHA`
+
+If `/health` still shows `"version":"0.0.0"` and **no** `deployMarker` / `gitSha`, the public URL is still running an **old** image. Common causes:
+
+1. **Redeployed an old deployment** instead of deploying latest `main` — use **Deploy** from GitHub `main`, not “Redeploy” on an ancient build.
+2. **Wrong service** — confirm the service behind `crm-production-e81d.up.railway.app`.
+3. **Wrong branch / repo** — Settings → Source should be `yashas90/crm` branch `main`, **Root Directory = empty** (repo root where `Dockerfile` / `railway.toml` live). Do **not** set Root Directory to `apps/api` or `apps/web`.
+4. **Wait for the new deployment to become Active** — an in-progress / failed build still serves the previous instance.
+
+### Build fails: `Failed to read app source directory`
+
+This is a Railway builder/source issue (often wrong Root Directory or a bad Nixpacks snapshot). Fix in order:
+
+1. **crm** service → **Settings → Source**
+   - Repo: `yashas90/crm`
+   - Branch: `main`
+   - **Root Directory: leave blank** (not `apps/web`, not `apps/api`)
+2. **Settings → Variables** → add `NO_CACHE=1` temporarily → **Deploy** latest commit (not Redeploy on the failed row).
+3. After this repo’s Dockerfile lands on `main`, Railway should build with **Dockerfile** (see `railway.toml`). Confirm Build Logs say Docker/`Dockerfile`, not only `nixpacks-v1…`.
+4. If it still fails on the same Metal builder: rename the service (forces a fresh deploy target) or create a new service from the same repo/Postgres and point the public domain at it.
 
 ### Seed production (once)
 

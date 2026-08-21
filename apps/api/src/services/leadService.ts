@@ -1051,16 +1051,17 @@ export const leadService = {
     const shouldApplyNewStatus =
       applyNewStatus && (NA_STATUSES as string[]).includes(existing.leadStatus);
 
-    // "New status" preference wins over a CSV status column for dropped / not_interested.
-    // Otherwise re-imports keep writing NA back from the file and ignore the radio.
-    if (shouldApplyNewStatus) {
-      update.leadStatus = "new";
+    const statusUpdate = resolveBulkImportLeadStatus({
+      existingStatus: existing.leadStatus,
+      csvStatus: input.data.leadStatus,
+      applyNewStatus,
+    });
+    if (statusUpdate.leadStatus !== undefined) {
+      update.leadStatus = statusUpdate.leadStatus;
+    }
+    if (statusUpdate.clearNaFields) {
       update.naSinceAt = null;
       update.nextFollowupAt = null;
-    } else if (input.data.leadStatus !== undefined) {
-      update.leadStatus = input.data.leadStatus;
-    } else if (existing.leadStatus === "lost" || existing.leadStatus === "won") {
-      update.leadStatus = "new";
     }
 
     if (input.data.projectId !== undefined || input.data.projectName !== undefined) {
