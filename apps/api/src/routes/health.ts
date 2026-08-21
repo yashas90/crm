@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
-import { API_DEPLOY_MARKER, getApiVersion } from "../lib/apiVersion.js";
+import { API_DEPLOY_MARKER, getApiVersion, getDeployMarker } from "../lib/apiVersion.js";
 import { db } from "../lib/db.js";
 import { env } from "../lib/env.js";
 import { parseSemver } from "../lib/mobileAppVersion.js";
@@ -50,7 +50,7 @@ function deployFields() {
     null;
   return {
     gitSha: gitSha ? gitSha.slice(0, 12) : null,
-    deployMarker: API_DEPLOY_MARKER,
+    deployMarker: getDeployMarker() || API_DEPLOY_MARKER,
   };
 }
 

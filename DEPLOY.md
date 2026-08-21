@@ -83,8 +83,8 @@ curl -s https://crm-production-e81d.up.railway.app/health
 
 You must see something like:
 
-- `"version": "0.0.6"` (or higher — not `0.0.0`)
-- `"deployMarker": "bulk-import-new-status-2026-08-21"` (or the current marker in code)
+- `"version": "0.0.7"` (or higher — not `0.0.0`)
+- `"deployMarker": "docker-identity-2026-08-21"` (or the current marker in code)
 - `"gitSha": "..."` when Railway sets `RAILWAY_GIT_COMMIT_SHA`
 
 If `/health` still shows `"version":"0.0.0"` and **no** `deployMarker` / `gitSha`, the public URL is still running an **old** image. Common causes:
@@ -105,6 +105,10 @@ This is a Railway builder/source issue (often wrong Root Directory or a bad Nixp
 2. **Settings → Variables** → add `NO_CACHE=1` temporarily → **Deploy** latest commit (not Redeploy on the failed row).
 3. After this repo’s Dockerfile lands on `main`, Railway should build with **Dockerfile** (see `railway.toml`). Confirm Build Logs say Docker/`Dockerfile`, not only `nixpacks-v1…`.
 4. If it still fails on the same Metal builder: rename the service (forces a fresh deploy target) or create a new service from the same repo/Postgres and point the public domain at it.
+
+If Deploy logs show `@propninja/api@0.0.0 start`, that container is **not** current `main` (which is `0.0.7+`). Do not treat it as a successful upgrade — check Deployments → **Active** commit SHA and remove any stuck old deployment still bound to the public domain.
+
+In Build logs you must see `Baked deploy identity { version: '0.0.7', deployMarker: 'docker-identity-2026-08-21', ... }`. If that line is missing, the Dockerfile bake step did not run.
 
 ### Seed production (once)
 
