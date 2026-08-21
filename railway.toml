@@ -1,6 +1,26 @@
+# Config-as-code for the Railway "crm" API service.
+# Dashboard Build settings are locked to this file ("value is set in /railway.toml").
+#
+# If the UI still shows Builder = Nixpacks, the Active deployment is an OLD commit.
+# Deploy latest GitHub main, and clear UI Watch Paths that only match /apps/**
+
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
+# Replace restrictive /apps-only dashboard watch paths so root Dockerfile/toml deploy.
+watchPatterns = [
+  "/Dockerfile",
+  "/.dockerignore",
+  "/railway.toml",
+  "/package.json",
+  "/pnpm-lock.yaml",
+  "/pnpm-workspace.yaml",
+  "/scripts/**",
+  "/packages/db/**",
+  "/packages/types/**",
+  "/packages/config/**",
+  "/apps/api/**",
+]
 
 [deploy]
 startCommand = "pnpm railway:start"
