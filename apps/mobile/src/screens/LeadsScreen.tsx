@@ -9,7 +9,7 @@ import { type LeadRow, type LeadsQuery, useInfiniteLeads } from "@/hooks/use-lea
 import { useIsAgent } from "@/hooks/use-role";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
-import { FLAT_LIST_PERF, LEAD_ROW_HEIGHT } from "@/lib/flatList";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { buildLeadBrowserParams } from "@/lib/lead-browser";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
 import {
@@ -35,6 +35,7 @@ import {
   ActivityIndicator,
   FlatList,
   type ListRenderItem,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -47,10 +48,6 @@ type Props = NativeStackScreenProps<LeadsStackParamList, "LeadsScreen">;
 
 function leadKeyExtractor(item: LeadRow) {
   return item.id;
-}
-
-function getLeadItemLayout(_: ArrayLike<LeadRow> | null | undefined, index: number) {
-  return { length: LEAD_ROW_HEIGHT, offset: LEAD_ROW_HEIGHT * index, index };
 }
 
 export function LeadsScreen({ navigation }: Props) {
@@ -95,6 +92,7 @@ export function LeadsScreen({ navigation }: Props) {
   const {
     data,
     isLoading,
+    isPending,
     isError,
     refetch,
     isRefetching,
@@ -120,6 +118,7 @@ export function LeadsScreen({ navigation }: Props) {
   }, [data?.pages, isAgent]);
 
   const total = data?.pages[0]?.total ?? visibleLeads.length;
+  const showInitialLoading = (isPending || isLoading) && !data;
 
   const onPressLead = useCallback(
     (leadId: string) => {
@@ -147,39 +146,44 @@ export function LeadsScreen({ navigation }: Props) {
     navigation.navigate("LeadCreateScreen");
   }, [navigation]);
 
+  const emptyTitle = stage === "new" ? "No fresh New leads" : "No leads found";
+  const emptyMessage =
+    stage === "new"
+      ? "New only shows leads from the last 24 hours. Try Pending for your assigned book."
+      : "Try a different filter or create a new lead.";
+
   const listHeaderExtra = useMemo(
     () => (
-      <>
-        <View style={styles.chipsRow}>
-          {MOBILE_LEAD_STAGES.map((item) => (
-            <Pressable
-              key={item.id}
-              style={[styles.chip, stage === item.id && styles.chipActive]}
-              onPress={() => setStage(item.id)}
-            >
-              <Text style={[styles.chipText, stage === item.id && styles.chipTextActive]}>
-                {item.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </>
+      <View style={styles.chipsRow}>
+        {MOBILE_LEAD_STAGES.map((item) => (
+          <Pressable
+            key={item.id}
+            style={[styles.chip, stage === item.id && styles.chipActive]}
+            onPress={() => setStage(item.id)}
+          >
+            <Text style={[styles.chipText, stage === item.id && styles.chipTextActive]}>
+              {item.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
     ),
     [stage],
   );
 
-  if (isLoading && !data) {
-    return <ListSkeleton rows={5} />;
-  }
-
-  const showFatalError = isError && !data && !isLoading && !isRefetching;
-  if (showFatalError) {
+  // Keep chrome visible on errors — only block the list when we have no data at all.
+  if (isError && !data && !showInitialLoading) {
     return (
-      <ErrorState
-        title="Could not load leads"
-        message={queryErrorMessage(error)}
-        onRetry={() => void refetch()}
-      />
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Leads</Text>
+        </View>
+        <ErrorState
+          title="Could not load leads"
+          message={queryErrorMessage(error)}
+          onRetry={() => void refetch()}
+        />
+      </View>
     );
   }
 
@@ -191,11 +195,13 @@ export function LeadsScreen({ navigation }: Props) {
         <View>
           <Text style={styles.headerTitle}>Leads</Text>
           <Text style={styles.headerSub}>
-            {isAgent
-              ? `${total} assigned to you`
-              : leadFilters.scope === "my"
+            {showInitialLoading
+              ? "Loading…"
+              : isAgent
                 ? `${total} assigned to you`
-                : `${total} total`}
+                : leadFilters.scope === "my"
+                  ? `${total} assigned to you`
+                  : `${total} total`}
           </Text>
         </View>
       </View>
@@ -221,38 +227,51 @@ export function LeadsScreen({ navigation }: Props) {
         />
       ) : null}
 
-      <FlatList
-        style={styles.list}
-        contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
-        data={visibleLeads}
-        keyExtractor={leadKeyExtractor}
-        getItemLayout={getLeadItemLayout}
-        renderItem={renderItem}
-        onEndReached={onEndReached}
-        onEndReachedThreshold={0.4}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-          />
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="people-outline"
-            title="No leads found"
-            message="Try a different filter or create a new lead."
-            actionLabel="Create lead"
-            onAction={onCreateLead}
-          />
-        }
-        ListFooterComponent={
-          isFetchingNextPage ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
-          ) : null
-        }
-        {...FLAT_LIST_PERF}
-      />
+      {showInitialLoading ? (
+        <View style={styles.loadingWrap}>
+          <ListSkeleton rows={5} />
+        </View>
+      ) : (
+        <FlatList
+          style={styles.list}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: listBottomPadding },
+            visibleLeads.length === 0 ? styles.emptyContent : null,
+          ]}
+          data={visibleLeads}
+          keyExtractor={leadKeyExtractor}
+          renderItem={renderItem}
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.4}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching && !isFetchingNextPage}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="people-outline"
+              title={emptyTitle}
+              message={emptyMessage}
+              actionLabel={stage === "new" ? "Show Pending" : "Create lead"}
+              onAction={stage === "new" ? () => setStage("pending") : onCreateLead}
+            />
+          }
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
+            ) : null
+          }
+          {...FLAT_LIST_PERF}
+          // Extra Android guard — never clip empty state / rows.
+          removeClippedSubviews={
+            Platform.OS === "android" ? false : FLAT_LIST_PERF.removeClippedSubviews
+          }
+        />
+      )}
 
       <Pressable
         style={[styles.fab, { bottom: fabBottom }]}
@@ -302,6 +321,8 @@ const styles = StyleSheet.create({
   chipTextActive: { color: "#fff" },
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.md, paddingTop: 0 },
+  emptyContent: { flexGrow: 1 },
+  loadingWrap: { flex: 1 },
   fab: {
     position: "absolute",
     right: spacing.md,

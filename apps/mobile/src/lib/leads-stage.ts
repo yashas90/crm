@@ -2,15 +2,16 @@
 export type MobileLeadsStage = "overdue" | "pending" | "new" | "follow_up" | "hot";
 
 export const MOBILE_LEAD_STAGES: { id: MobileLeadsStage; label: string }[] = [
-  { id: "overdue", label: "Overdue" },
   { id: "pending", label: "Pending" },
   { id: "new", label: "New" },
+  { id: "overdue", label: "Overdue" },
   { id: "follow_up", label: "Follow up" },
   { id: "hot", label: "Hot" },
 ];
 
+/** Default to Pending — New is only ≤24h fresh leads and is empty for most agents. */
 export function defaultMobileLeadsStage(): MobileLeadsStage {
-  return "new";
+  return "pending";
 }
 
 /** Map a segment chip to GET /api/leads query params. */
