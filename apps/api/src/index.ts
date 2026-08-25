@@ -9,6 +9,7 @@ import { startFollowupNotificationJob } from "./jobs/followupNotificationJob.js"
 import { startGoogleAdsLeadSync } from "./jobs/googleAdsLeadJob.js";
 import { startReportEmailJob } from "./jobs/reportEmailJob.js";
 import { startBackgroundJobs } from "./jobs/startBackgroundJobs.js";
+import { getApiVersion, getDeployIdentity, getDeployMarker } from "./lib/apiVersion.js";
 import { resolveCorsOrigins } from "./lib/cors.js";
 import { env } from "./lib/env.js";
 import { logger } from "./lib/logger.js";
@@ -74,6 +75,9 @@ app.use("*", sentryRequestMiddleware);
 app.use("*", publicIpRateLimitMiddleware);
 app.use("*", securityHeadersMiddleware);
 
+// Health before CORS so Railway probes (Host: healthcheck.railway.app) always reach it.
+app.route("/health", healthRoutes);
+
 const corsOrigins = resolveCorsOrigins();
 if (env.NODE_ENV === "production") {
   logger.info("CORS origins configured", { origins: corsOrigins });
@@ -97,7 +101,6 @@ app.use(
   }),
 );
 
-app.route("/health", healthRoutes);
 app.route("/api/public/site-visits", publicSiteVisitsRoutes);
 app.route("/api/integrations/meta", metaIntegrationsRoute);
 app.route("/api/integrations/portal", portalIntegrationsRoute);
@@ -160,8 +163,14 @@ function tuneHttpKeepAlive(server: Server) {
 
 // Skip binding a port when Vitest imports this module for integration tests.
 if (process.env.VITEST !== "true") {
-  const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-    logger.info(`PropNinja API listening on http://localhost:${info.port}`);
+  logger.info("API boot identity", {
+    version: getApiVersion(),
+    deployMarker: getDeployMarker(),
+    baked: getDeployIdentity(),
+    port: env.PORT,
+  });
+  const server = serve({ fetch: app.fetch, port: env.PORT, hostname: "::" }, (info) => {
+    logger.info(`PropNinja API listening on http://[::]:${info.port}`);
     startTokenBlocklistRefresh();
     startGoogleAdsLeadSync();
     startFollowupNotificationJob();

@@ -10,7 +10,7 @@ TRACKING_START_TIME=09:30
 TRACKING_END_TIME=20:30
 TRACKING_INTERVAL_MINUTES=30
 TRACKING_RETENTION_DAYS=14
-TRACKING_MISSING_ALERT_MINUTES=75
+TRACKING_MISSING_ALERT_MINUTES=45
 ```
 
 ## API endpoints
@@ -45,6 +45,8 @@ Migration: `packages/db/migrations/0056_agent_tracking_module.sql`
 ## Mobile
 
 - Background location via Expo TaskManager + Android foreground service notification
+- Target cadence every 30 minutes; catch-up GPS ping if last upload is ≥25 minutes old
+- Restarts the native location task if no ping lands within 35 minutes (OS stall recovery)
 - Collects only 09:30–20:30 IST Mon–Sun
 - Offline queue with unique `eventId`
 - Android: `READ_CALL_LOG` + `CallLogModule.getRecentCalls` (14-day initial / cursor sync)

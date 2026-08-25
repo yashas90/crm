@@ -3,7 +3,7 @@
 import { useSession } from "@/hooks/use-session";
 import { useUsers } from "@/hooks/use-users";
 import { apiGet } from "@/lib/apiClient";
-import type { AgentLocationPing } from "@propninja/types";
+import type { AgentLocationPing, AgentTrackingDevice } from "@propninja/types";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { useQuery } from "@tanstack/react-query";
@@ -18,13 +18,31 @@ function minutesAgo(iso: string): string {
   if (mins === 1) return "1 minute ago";
   if (mins < 60) return `${mins} minutes ago`;
   const hours = Math.floor(mins / 60);
-  if (hours === 1) return "1 hour ago";
-  return `${hours} hours ago`;
+  const rem = mins % 60;
+  if (hours === 1 && rem === 0) return "1 hour ago";
+  if (hours === 1) return `1 hour ${rem}m ago`;
+  if (rem === 0) return `${hours} hours ago`;
+  return `${hours}h ${rem}m ago`;
 }
 
 function buildStaticMapUrl(agents: AgentLocationPing[], apiKey: string): string {
   const markers = agents.map((a) => `markers=color:red%7C${a.latitude},${a.longitude}`).join("&");
   return `https://maps.googleapis.com/maps/api/staticmap?size=600x400&${markers}&key=${apiKey}`;
+}
+
+function agentTrackLabel(
+  agentId: string,
+  liveIds: Set<string>,
+  devicesByUser: Map<string, AgentTrackingDevice>,
+): { text: string; tone: "live" | "device" | "none" } {
+  if (liveIds.has(agentId)) return { text: "Live", tone: "live" };
+  const device = devicesByUser.get(agentId);
+  if (!device) return { text: "Not tracked", tone: "none" };
+  const version = device.appVersion ? ` · app ${device.appVersion}` : "";
+  if (device.locationPermissionStatus && device.locationPermissionStatus !== "granted") {
+    return { text: `App seen · location denied${version}`, tone: "device" };
+  }
+  return { text: `App seen ${minutesAgo(device.lastSeenAt)}${version}`, tone: "device" };
 }
 
 export default function LocationsPage() {
@@ -44,6 +62,7 @@ export default function LocationsPage() {
     queryFn: () =>
       apiGet<{
         agents: AgentLocationPing[];
+        devices?: AgentTrackingDevice[];
         config?: {
           scheduleLabel: string;
           retentionDays: number;
@@ -59,7 +78,15 @@ export default function LocationsPage() {
   const teamAgents = (agentsList.data ?? []).filter((u) => u.isActive);
 
   const agents = live.data?.agents ?? [];
+  const devices = live.data?.devices ?? [];
   const liveIds = useMemo(() => new Set(agents.map((a) => a.userId)), [agents]);
+  const devicesByUser = useMemo(() => {
+    const map = new Map<string, AgentTrackingDevice>();
+    for (const device of devices) {
+      map.set(device.userId, device);
+    }
+    return map;
+  }, [devices]);
   const mapUrl = useMemo(() => {
     if (!mapsKey || agents.length === 0) return null;
     return buildStaticMapUrl(agents, mapsKey);
@@ -78,10 +105,12 @@ export default function LocationsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Agent Locations</h1>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Live positions come from agents who installed the PropNinja mobile app. Tracking runs
-            9:30 AM–8:30 PM IST (Mon–Sun), about every 30 minutes, only with &quot;Allow all the
-            time&quot; location. Records are kept 14 days. The CRM stays locked until agents grant
-            required permissions.
+            Live positions are pushed from agents&apos; phones (PropNinja app) — Refresh only
+            reloads what the API already received. Tracking runs 9:30 AM–8:30 PM IST (Mon–Sun),
+            about every 30 minutes, only with &quot;Allow all the time&quot; location. Agents show{" "}
+            <span className="font-medium text-foreground">STALE</span> after{" "}
+            {live.data?.config?.missingAlertMinutes ?? 45} minutes without a GPS ping. Records are
+            kept 14 days. The CRM stays locked until agents grant required permissions.
             {live.data?.config?.withinHours === false ? (
               <span className="mt-1 block text-amber-600 dark:text-amber-400">
                 Outside working hours — new pings are paused until the next window.
@@ -124,11 +153,21 @@ export default function LocationsPage() {
       {agents.length === 0 && !live.isLoading ? (
         <Card>
           <CardContent className="space-y-2 py-10 text-center text-sm text-muted-foreground">
-            <p>No agent pings in the last 24 hours.</p>
-            <p className="text-xs">
-              Agents must install the app, tap Enable for location (Allow all the time) and call
-              log, then keep the app installed so pings upload.
-            </p>
+            <p>No agent GPS pings in the last 24 hours.</p>
+            {devices.length > 0 ? (
+              <p className="text-xs">
+                {devices.length} agent device{devices.length === 1 ? "" : "s"} contacted the API
+                recently — GPS uploads may still be blocked (outdated APK, location permission, or
+                outside tracking hours). See the roster below for app version and last device
+                heartbeat.
+              </p>
+            ) : (
+              <p className="text-xs">
+                No devices have registered either. Agents must install PropNinja 1.0.15+, choose
+                Allow all the time for location, and stay signed in so pings upload every 30 minutes
+                during 9:30 AM–8:30 PM IST.
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -181,9 +220,9 @@ export default function LocationsPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">All agents</CardTitle>
           <CardDescription>
-            Green &quot;Live&quot; means a GPS ping in the last 24 hours from the app. Agents
-            without Live have not opened the app with location on (or never installed it). Travel
-            history and call logs are still available when they do use the app.
+            Green &quot;Live&quot; means a GPS ping in the last 24 hours. &quot;App seen&quot; means
+            the phone registered with the API (permissions / version) even if GPS has not arrived
+            yet. Travel history and call logs are still available when they use the app.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -191,44 +230,49 @@ export default function LocationsPage() {
             <p className="text-sm text-muted-foreground">No active agents found.</p>
           ) : (
             <ul className="divide-y divide-border">
-              {teamAgents.map((agent) => (
-                <li
-                  key={agent.id}
-                  className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {agent.name}
-                      {liveIds.has(agent.id) ? (
-                        <span className="ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400">
-                          Live
+              {teamAgents.map((agent) => {
+                const label = agentTrackLabel(agent.id, liveIds, devicesByUser);
+                return (
+                  <li
+                    key={agent.id}
+                    className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {agent.name}
+                        <span
+                          className={
+                            label.tone === "live"
+                              ? "ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400"
+                              : label.tone === "device"
+                                ? "ml-2 text-xs font-normal text-amber-600 dark:text-amber-400"
+                                : "ml-2 text-xs font-normal text-muted-foreground"
+                          }
+                        >
+                          {label.text}
                         </span>
-                      ) : (
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
-                          Not tracked
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{agent.email}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/locations/history?userId=${encodeURIComponent(agent.id)}`}>
-                        <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                        Travel
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link
-                        href={`/locations/history?userId=${encodeURIComponent(agent.id)}#calls`}
-                      >
-                        <Phone className="mr-1.5 h-3.5 w-3.5" />
-                        Calls
-                      </Link>
-                    </Button>
-                  </div>
-                </li>
-              ))}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{agent.email}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/locations/history?userId=${encodeURIComponent(agent.id)}`}>
+                          <MapPin className="mr-1.5 h-3.5 w-3.5" />
+                          Travel
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" size="sm">
+                        <Link
+                          href={`/locations/history?userId=${encodeURIComponent(agent.id)}#calls`}
+                        >
+                          <Phone className="mr-1.5 h-3.5 w-3.5" />
+                          Calls
+                        </Link>
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>

@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "PropNinja",
   slug: "propninja-crm",
-  version: "1.0.13",
+  version: "1.0.15",
   description:
     "PropNinja CRM for real estate agents — manage leads, follow-ups, and log SIM calls from your phone.",
   orientation: "portrait",
@@ -38,7 +38,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: BUNDLE_ID,
     /** Must increase on every sideload APK or Android reports "App not installed". */
-    versionCode: 13,
+    versionCode: 15,
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#8CAFBF",

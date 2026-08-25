@@ -4,10 +4,9 @@ import NetInfo from "@react-native-community/netinfo";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { Linking, Platform } from "react-native";
-import { getApiBaseUrl } from "./apiBaseUrl";
-import { apiPost } from "./apiClient";
-import { getMobileAppVersion, getMobileClientHeaders } from "./appVersion";
-import { ensureAuthCacheLoaded, getRefreshToken, getToken, updateTokens } from "./auth";
+import { ApiRequestError, apiPost, refreshAccessToken } from "./apiClient";
+import { getMobileAppVersion } from "./appVersion";
+import { ensureAuthCacheLoaded, getToken } from "./auth";
 import { hasCallLogPermission, requestCallLogPermission } from "./callLogNative";
 import { getOsCallLogPermissionStatus, syncOsCallLogMetadata } from "./callLogSync";
 import { isTokenExpired } from "./jwt";
@@ -19,6 +18,10 @@ export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v6";
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 /** Office wants a position at least every 30 minutes during working hours. */
 export const PING_INTERVAL_MS = 30 * 60 * 1000;
+/** Force a catch-up GPS ping when the last successful upload is this old. */
+export const LOCATION_CATCHUP_AFTER_MS = 25 * 60 * 1000;
+/** Restart the native FGS task if no ping landed within interval + grace (OS often stalls). */
+export const LOCATION_OVERDUE_RESTART_MS = 35 * 60 * 1000;
 const LOCATION_PING_QUEUE_KEY = "propninja_pending_location_pings";
 const LAST_PING_AT_KEY = "propninja_last_location_ping_at";
 const DEVICE_ID_KEY = "propninja_tracking_device_id";
@@ -97,45 +100,42 @@ async function markLastPingAt(iso: string): Promise<void> {
   await AsyncStorage.setItem(LAST_PING_AT_KEY, iso);
 }
 
+async function readLastPingAgeMs(): Promise<number | null> {
+  const raw = await AsyncStorage.getItem(LAST_PING_AT_KEY);
+  if (!raw) return null;
+  const at = Date.parse(raw);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, Date.now() - at);
+}
+
 async function prepareAuthForBackgroundPing(): Promise<boolean> {
   await ensureAuthCacheLoaded();
   const token = getToken();
   if (token && !isTokenExpired(token)) return true;
 
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return Boolean(token);
-
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...getMobileClientHeaders(),
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!response.ok) return false;
-    const json = (await response.json()) as {
-      ok: boolean;
-      data?: { token: string; refreshToken: string };
-    };
-    if (!json.ok || !json.data?.token) return false;
-    await updateTokens(json.data.token, json.data.refreshToken);
-    return true;
+    return await refreshAccessToken();
   } catch {
-    return Boolean(getToken());
+    return false;
   }
 }
 
 async function postLocationPing(body: LocationPingBody): Promise<void> {
   const ready = await prepareAuthForBackgroundPing();
-  if (!ready && !getToken()) {
+  if (!ready) {
     throw new Error("NO_AUTH");
   }
   await apiPost("/api/locations/ping", body, { skipSessionLogout: true });
   await markLastPingAt(body.capturedAt);
 }
+
+type BulkPingResult = {
+  inserted: number;
+  duplicates: number;
+  outsideHours: number;
+  acceptedEventIds?: string[];
+  rejectedOutsideHoursEventIds?: string[];
+};
 
 /** Flush queued location pings (network restore / app foreground). Prefer bulk when possible. */
 export async function flushLocationPingQueue(): Promise<number> {
@@ -143,8 +143,34 @@ export async function flushLocationPingQueue(): Promise<number> {
   if (queue.length === 0) return 0;
 
   try {
-    await prepareAuthForBackgroundPing();
-    await apiPost("/api/locations/ping/bulk", { items: queue }, { skipSessionLogout: true });
+    const ready = await prepareAuthForBackgroundPing();
+    if (!ready) throw new Error("NO_AUTH");
+
+    const result = await apiPost<BulkPingResult>(
+      "/api/locations/ping/bulk",
+      { items: queue },
+      { skipSessionLogout: true },
+    );
+
+    // Only dequeue pings the server actually accepted (inserted or duplicate).
+    // Drop outside-hours samples — they are intentionally not stored and must not
+    // clog the offline queue forever.
+    if (Array.isArray(result.acceptedEventIds)) {
+      const accepted = new Set(result.acceptedEventIds);
+      const rejectedOutside = new Set(result.rejectedOutsideHoursEventIds ?? []);
+      const remaining = queue.filter(
+        (item) => !accepted.has(item.eventId) && !rejectedOutside.has(item.eventId),
+      );
+      await writePingQueue(remaining);
+      const lastAccepted = [...queue].reverse().find((item) => accepted.has(item.eventId));
+      if (lastAccepted) await markLastPingAt(lastAccepted.capturedAt);
+      return accepted.size;
+    }
+
+    // Legacy API without acceptedEventIds — never clear the queue if any item was outside hours.
+    if ((result.outsideHours ?? 0) > 0) {
+      throw new Error("BULK_PARTIAL_OUTSIDE_HOURS");
+    }
     await writePingQueue([]);
     const last = queue[queue.length - 1];
     if (last) await markLastPingAt(last.capturedAt);
@@ -161,7 +187,12 @@ export async function flushLocationPingQueue(): Promise<number> {
     try {
       await postLocationPing(item);
       synced += 1;
-    } catch {
+    } catch (err) {
+      const outsideHours = err instanceof ApiRequestError && err.code === "OUTSIDE_TRACKING_HOURS";
+      if (outsideHours) {
+        // Discard — do not keep forever.
+        continue;
+      }
       remaining.push(...queue.slice(i));
       break;
     }
@@ -170,7 +201,10 @@ export async function flushLocationPingQueue(): Promise<number> {
   return synced;
 }
 
-async function sendLocationObject(loc: Location.LocationObject): Promise<void> {
+async function sendLocationObject(
+  loc: Location.LocationObject,
+  source = "mobile_background",
+): Promise<void> {
   if (!isLocationCollectionAllowed(new Date(loc.timestamp))) return;
 
   const body: LocationPingBody = {
@@ -181,7 +215,7 @@ async function sendLocationObject(loc: Location.LocationObject): Promise<void> {
     capturedAt: new Date(loc.timestamp).toISOString(),
     deviceId: await getOrCreateDeviceId(),
     networkStatus: await currentNetworkStatus(),
-    source: "mobile_background",
+    source,
   };
 
   try {
@@ -246,7 +280,8 @@ export async function registerTrackingDevice(): Promise<void> {
         appVersion: getMobileAppVersion(),
         locationPermissionStatus: perms.locationGranted ? "granted" : "denied",
         callLogPermissionStatus: getOsCallLogPermissionStatus(perms.callLogGranted),
-        trackingEnabled: perms.allGranted && isLocationCollectionAllowed(),
+        // Location tracking runs whenever Always location is granted — call-log is separate.
+        trackingEnabled: perms.locationGranted,
         networkStatus: await currentNetworkStatus(),
       },
       { skipSessionLogout: true },
@@ -261,7 +296,8 @@ export async function requestRequiredWorkPermissions(): Promise<RequiredWorkPerm
   const callLogGranted = await requestCallLogPermission({ allowSkip: false });
   const allGranted = locationGranted && callLogGranted;
   await markLocationConsentPrompted(allGranted);
-  if (allGranted) {
+  // Start GPS as soon as Always location is granted — do not wait on call-log.
+  if (locationGranted) {
     await startLocationTracking();
   }
   return { locationGranted, callLogGranted, allGranted };
@@ -285,8 +321,10 @@ function locationUpdateOptions(): Location.LocationTaskOptions {
   return {
     accuracy: Location.Accuracy.Balanced,
     timeInterval: PING_INTERVAL_MS,
+    // Time-based even when stationary — distance>0 was skipping office dwells.
     distanceInterval: 0,
-    deferredUpdatesInterval: PING_INTERVAL_MS,
+    // Do not ask the OS to further batch deliveries past our 30m cadence.
+    deferredUpdatesInterval: 0,
     deferredUpdatesDistance: 0,
     showsBackgroundLocationIndicator: true,
     foregroundService: {
@@ -298,13 +336,13 @@ function locationUpdateOptions(): Location.LocationTaskOptions {
   };
 }
 
-async function pingCurrentPositionOnce(): Promise<void> {
+async function pingCurrentPositionOnce(source = "mobile_catchup"): Promise<void> {
   if (!isLocationCollectionAllowed()) return;
   try {
     const loc = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Balanced,
     });
-    await sendLocationObject(loc);
+    await sendLocationObject(loc, source);
   } catch {
     // Best-effort
   }
@@ -330,22 +368,28 @@ export async function startLocationTracking() {
   await ensureAuthCacheLoaded();
   void registerTrackingDevice();
 
-  if (!isLocationCollectionAllowed()) {
-    // Outside hours: stop any running updates so we do not collect overnight.
-    const running = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
-    if (running) await Location.stopLocationUpdatesAsync(TASK_NAME).catch(() => undefined);
-    void flushLocationPingQueue();
-    return;
-  }
+  // Keep the foreground-service task running around the clock so Android does not
+  // silently drop deliveries overnight. Uploads still skip outside 09:30–20:30 IST.
+  const lastAgeMs = await readLastPingAgeMs();
+  const ageMs = lastAgeMs ?? Number.POSITIVE_INFINITY;
+  const overdueForRestart = ageMs >= LOCATION_OVERDUE_RESTART_MS;
+  const needsCatchUp = isLocationCollectionAllowed() && ageMs >= LOCATION_CATCHUP_AFTER_MS;
 
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
-  // Do not stop/restart an already-running task — dialer return + dual AppState listeners
-  // used to tear down native location and re-sync call logs on every call end (JS hitch).
-  if (!isRunning) {
+  if (isRunning && overdueForRestart) {
+    await Location.stopLocationUpdatesAsync(TASK_NAME).catch(() => undefined);
+    await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
+  } else if (!isRunning) {
     await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
   }
 
-  await maybeForegroundSync();
+  void flushLocationPingQueue();
+  if (needsCatchUp) {
+    lastForegroundSyncAt = 0;
+    await maybeForegroundSync();
+  } else if (isLocationCollectionAllowed()) {
+    await maybeForegroundSync();
+  }
 }
 
 /** Test helper */
