@@ -214,8 +214,9 @@ function buildLeadsParams(query: LeadsQuery, page: number | string) {
 }
 
 function useAuthReady() {
-  const { status } = useAuth();
-  return status === "authenticated" && Boolean(getCurrentUserId());
+  const { status, user } = useAuth();
+  // Prefer React auth user — module cache can lag behind session restore.
+  return status === "authenticated" && Boolean(user?.id || getCurrentUserId());
 }
 
 export function useLeads(query: LeadsQuery = {}, options?: { enabled?: boolean }) {

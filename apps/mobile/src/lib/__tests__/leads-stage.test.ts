@@ -1,15 +1,15 @@
 import { MOBILE_LEAD_STAGES, defaultMobileLeadsStage, stageToLeadQuery } from "../leads-stage";
 
 describe("leads-stage", () => {
-  it("defaults to new", () => {
-    expect(defaultMobileLeadsStage()).toBe("new");
+  it("defaults to pending", () => {
+    expect(defaultMobileLeadsStage()).toBe("pending");
   });
 
-  it("exposes overdue, pending, new, follow_up, hot", () => {
+  it("exposes pending, new, overdue, follow_up, hot", () => {
     expect(MOBILE_LEAD_STAGES.map((s) => s.id)).toEqual([
-      "overdue",
       "pending",
       "new",
+      "overdue",
       "follow_up",
       "hot",
     ]);
