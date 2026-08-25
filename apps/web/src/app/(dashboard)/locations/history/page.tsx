@@ -282,8 +282,8 @@ function LocationHistoryContent() {
             Device call metadata
           </CardTitle>
           <CardDescription>
-            OS call-log sync (Android when permitted). Phone numbers are masked. iOS shows
-            UNAVAILABLE — use CRM dialer logs below.
+            OS call-log sync (Android when permitted). Full phone numbers are visible to admins. iOS
+            shows UNAVAILABLE — use CRM dialer logs below.
           </CardDescription>
         </CardHeader>
         <CardContent>
