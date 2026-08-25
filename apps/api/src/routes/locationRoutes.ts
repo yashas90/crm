@@ -941,7 +941,7 @@ locationRoutes.get("/call-logs", validate("query", historyQuerySchema), async (c
   const items = rows.map((row) => ({
     id: row.id,
     callType: row.callType,
-    phoneNumber: row.phoneNumber ? row.phoneNumber.replace(/(\d{2})\d+(\d{2})/, "$1****$2") : null,
+    phoneNumber: row.phoneNumber,
     callStartTime: row.callStartTime.toISOString(),
     callEndTime: row.callEndTime?.toISOString() ?? null,
     durationSeconds: row.durationSeconds,
