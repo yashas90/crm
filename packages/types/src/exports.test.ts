@@ -108,6 +108,7 @@ function sampleLead(): Lead {
     closeReasonNote: null,
     lastActivityAt: null,
     slaBreachedAt: null,
+    naSinceAt: null,
   };
 }
 
