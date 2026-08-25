@@ -164,8 +164,8 @@ export default function LocationsPage() {
             ) : (
               <p className="text-xs">
                 No devices have registered either. Agents must install PropNinja 1.0.15+, choose
-                Allow all the time for location, and stay signed in so pings upload every 30
-                minutes during 9:30 AM–8:30 PM IST.
+                Allow all the time for location, and stay signed in so pings upload every 30 minutes
+                during 9:30 AM–8:30 PM IST.
               </p>
             )}
           </CardContent>

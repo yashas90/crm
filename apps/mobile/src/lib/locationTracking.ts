@@ -4,7 +4,7 @@ import NetInfo from "@react-native-community/netinfo";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { Linking, Platform } from "react-native";
-import { apiPost, ApiRequestError, refreshAccessToken } from "./apiClient";
+import { ApiRequestError, apiPost, refreshAccessToken } from "./apiClient";
 import { getMobileAppVersion } from "./appVersion";
 import { ensureAuthCacheLoaded, getToken } from "./auth";
 import { hasCallLogPermission, requestCallLogPermission } from "./callLogNative";
@@ -188,8 +188,7 @@ export async function flushLocationPingQueue(): Promise<number> {
       await postLocationPing(item);
       synced += 1;
     } catch (err) {
-      const outsideHours =
-        err instanceof ApiRequestError && err.code === "OUTSIDE_TRACKING_HOURS";
+      const outsideHours = err instanceof ApiRequestError && err.code === "OUTSIDE_TRACKING_HOURS";
       if (outsideHours) {
         // Discard — do not keep forever.
         continue;
