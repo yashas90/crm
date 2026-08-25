@@ -149,10 +149,12 @@ async function insertLocationPing(
     capturedAt,
   };
 
+  // Prefer no explicit conflict target so inserts still work if the unique index
+  // is partial (historical drift) or renamed — ON CONFLICT DO NOTHING catches all.
   const inserted = await db
     .insert(agentLocations)
     .values(values)
-    .onConflictDoNothing({ target: [agentLocations.userId, agentLocations.eventId] })
+    .onConflictDoNothing()
     .returning({ id: agentLocations.id });
 
   if (inserted.length > 0) {
@@ -290,16 +292,41 @@ locationRoutes.post(
     let duplicates = 0;
     let outsideHours = 0;
     let disabled = 0;
+    const acceptedEventIds: string[] = [];
+    const rejectedOutsideHoursEventIds: string[] = [];
+    const rejectedDisabledEventIds: string[] = [];
 
     for (const item of body.items) {
       const status = await insertLocationPing(db, authUser.id, item, config);
-      if (status === "inserted") inserted += 1;
-      else if (status === "duplicate") duplicates += 1;
-      else if (status === "disabled") disabled += 1;
-      else outsideHours += 1;
+      if (status === "inserted") {
+        inserted += 1;
+        acceptedEventIds.push(item.eventId);
+      } else if (status === "duplicate") {
+        duplicates += 1;
+        acceptedEventIds.push(item.eventId);
+      } else if (status === "disabled") {
+        disabled += 1;
+        rejectedDisabledEventIds.push(item.eventId);
+      } else {
+        outsideHours += 1;
+        rejectedOutsideHoursEventIds.push(item.eventId);
+      }
     }
 
-    return jsonOk(c, { inserted, duplicates, outsideHours, disabled }, undefined, 201);
+    return jsonOk(
+      c,
+      {
+        inserted,
+        duplicates,
+        outsideHours,
+        disabled,
+        acceptedEventIds,
+        rejectedOutsideHoursEventIds,
+        rejectedDisabledEventIds,
+      },
+      undefined,
+      201,
+    );
   },
 );
 
@@ -498,6 +525,39 @@ locationRoutes.get("/live", async (c) => {
     ORDER BY u.name ASC
   `);
 
+  const deviceRows = await db.execute<{
+    user_id: string;
+    device_id: string;
+    platform: string;
+    app_version: string | null;
+    location_permission_status: string | null;
+    call_log_permission_status: string | null;
+    tracking_enabled: boolean;
+    last_seen_at: Date | string;
+    network_status: string | null;
+    battery_level: number | null;
+    name: string;
+    email: string;
+  }>(sql`
+    SELECT DISTINCT ON (d.user_id)
+      d.user_id AS user_id,
+      d.device_id AS device_id,
+      d.platform AS platform,
+      d.app_version AS app_version,
+      d.location_permission_status AS location_permission_status,
+      d.call_log_permission_status AS call_log_permission_status,
+      d.tracking_enabled AS tracking_enabled,
+      d.last_seen_at AS last_seen_at,
+      d.network_status AS network_status,
+      d.battery_level AS battery_level,
+      u.name AS name,
+      u.email AS email
+    FROM agent_devices d
+    INNER JOIN users u ON u.id = d.user_id
+    WHERE u.role = 'agent' AND u.is_active = true
+    ORDER BY d.user_id, d.last_seen_at DESC
+  `);
+
   const agents = rows.map((row) => {
     const capturedAt = row.captured_at
       ? row.captured_at instanceof Date
@@ -542,8 +602,31 @@ locationRoutes.get("/live", async (c) => {
     };
   });
 
+  const devices = deviceRows.map((row) => {
+    const lastSeenAt =
+      row.last_seen_at instanceof Date
+        ? row.last_seen_at.toISOString()
+        : new Date(row.last_seen_at).toISOString();
+    return {
+      userId: row.user_id,
+      name: row.name,
+      email: row.email,
+      deviceId: row.device_id,
+      platform: row.platform,
+      appVersion: row.app_version,
+      locationPermissionStatus: row.location_permission_status,
+      callLogPermissionStatus: row.call_log_permission_status,
+      trackingEnabled: row.tracking_enabled,
+      lastSeenAt,
+      networkStatus: row.network_status,
+      batteryLevel: row.battery_level,
+      minutesSinceDeviceSeen: Math.floor((Date.now() - new Date(lastSeenAt).getTime()) / 60_000),
+    };
+  });
+
   return jsonOk(c, {
     agents,
+    devices,
     config: {
       enabled: config.enabled,
       scheduleLabel: config.scheduleLabel,

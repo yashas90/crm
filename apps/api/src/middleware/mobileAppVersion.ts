@@ -17,7 +17,15 @@ function isExemptPath(pathname: string): boolean {
     pathname.startsWith("/api/integrations/whatsapp/") ||
     pathname === "/api/google-calendar/callback" ||
     pathname === "/api/meta/oauth/callback" ||
-    /^\/api\/documents\/[^/]+\/view$/.test(pathname)
+    /^\/api\/documents\/[^/]+\/view$/.test(pathname) ||
+    // Keep GPS / call-log telemetry uploading during forced-update rollouts.
+    // Outdated APKs still get 426 on CRM routes, but tracking must not go dark.
+    pathname === "/api/locations/ping" ||
+    pathname === "/api/locations/ping/bulk" ||
+    pathname === "/api/locations/device" ||
+    pathname === "/api/locations/call-logs/bulk" ||
+    pathname === "/api/locations/config" ||
+    pathname === "/api/auth/refresh"
   );
 }
 

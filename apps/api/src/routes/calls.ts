@@ -3,6 +3,7 @@ import { z } from "zod";
 import { mapCallOutcome } from "../lib/callOutcomes.js";
 import { maskCallPhoneFields } from "../lib/leadMasking.js";
 import { canEditLead } from "../lib/permissions.js";
+import { clearCachesAfterCallMutation } from "../lib/responseCache.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { callsLogRateLimit } from "../middleware/rateLimit.js";
 import { callService } from "../services/callService.js";
@@ -129,6 +130,9 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
     notes: data.notes,
     source: data.source ?? "web-manual",
   });
+
+  // Call counts and New→Pending promote must not wait for report/lead cache TTL (5–10 min).
+  clearCachesAfterCallMutation(authUser.id);
 
   return c.json({ ok: true, data: record }, 201);
 });

@@ -342,9 +342,13 @@ export function useLogCall() {
   return useMutation({
     mutationFn: (payload: LogCallInput) => apiPost("/api/calls/log", payload),
     onSuccess: async (_data, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ["calls"] });
-      await queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] });
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["calls"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports"] }),
+        queryClient.invalidateQueries({ queryKey: ["leads"] }),
+        queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] }),
+        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      ]);
       toast.success("Call logged");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to log call"),

@@ -143,7 +143,8 @@ export function LeadDetailScreen({ route, navigation }: Props) {
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
     onLogged: async () => {
-      await refetchCalls();
+      // Invalidation in useLogCall already marks calls/lead detail stale — do not
+      // force a second refetch while the status sheet is opening (post-call hitch).
       void feedbackCallSaved();
     },
     onLogError: (err) => {

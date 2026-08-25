@@ -25,6 +25,23 @@ export type AgentLocationPing = {
   withinHours?: boolean;
 };
 
+/** Latest registered PropNinja device heartbeat (may exist even with no GPS ping). */
+export type AgentTrackingDevice = {
+  userId: string;
+  name: string;
+  email: string;
+  deviceId: string;
+  platform: string;
+  appVersion: string | null;
+  locationPermissionStatus: string | null;
+  callLogPermissionStatus: string | null;
+  trackingEnabled: boolean;
+  lastSeenAt: string;
+  networkStatus: string | null;
+  batteryLevel: number | null;
+  minutesSinceDeviceSeen: number;
+};
+
 export type LocationHistoryItem = {
   id: string;
   latitude: number;

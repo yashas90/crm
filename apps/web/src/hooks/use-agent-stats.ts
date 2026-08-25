@@ -3,7 +3,7 @@
 import { apiGet } from "@/lib/apiClient";
 import { useQuery } from "@tanstack/react-query";
 
-const STALE_TIME_MS = 5 * 60 * 1000;
+const STALE_TIME_MS = 30 * 1000;
 
 export type AgentStatsToday = {
   callsMade: number;

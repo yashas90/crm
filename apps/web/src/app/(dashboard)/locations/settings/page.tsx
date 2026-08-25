@@ -93,9 +93,10 @@ export default function TrackingSettingsPage() {
           <CardDescription>{settings.data?.scheduleLabel ?? "Loading…"}</CardDescription>
         </CardHeader>
         <CardContent className="grid max-w-xl gap-4 sm:grid-cols-2">
-          <label className="space-y-1 text-sm sm:col-span-2">
+          <label className="space-y-1 text-sm sm:col-span-2" htmlFor="tracking-enabled">
             <span className="text-muted-foreground">Tracking enabled</span>
             <select
+              id="tracking-enabled"
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
               value={form.enabled === false ? "false" : "true"}
               onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.value === "true" }))}
@@ -104,23 +105,26 @@ export default function TrackingSettingsPage() {
               <option value="false">OFF</option>
             </select>
           </label>
-          <label className="space-y-1 text-sm">
+          <label className="space-y-1 text-sm" htmlFor="tracking-start">
             <span className="text-muted-foreground">Start (HH:MM)</span>
             <Input
+              id="tracking-start"
               value={form.startTime ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
             />
           </label>
-          <label className="space-y-1 text-sm">
+          <label className="space-y-1 text-sm" htmlFor="tracking-end">
             <span className="text-muted-foreground">End (HH:MM)</span>
             <Input
+              id="tracking-end"
               value={form.endTime ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
             />
           </label>
-          <label className="space-y-1 text-sm">
+          <label className="space-y-1 text-sm" htmlFor="tracking-interval">
             <span className="text-muted-foreground">Interval (minutes)</span>
             <Input
+              id="tracking-interval"
               type="number"
               value={form.intervalMinutes ?? 30}
               onChange={(e) =>
@@ -128,9 +132,10 @@ export default function TrackingSettingsPage() {
               }
             />
           </label>
-          <label className="space-y-1 text-sm">
+          <label className="space-y-1 text-sm" htmlFor="tracking-retention">
             <span className="text-muted-foreground">Retention (days)</span>
             <Input
+              id="tracking-retention"
               type="number"
               value={form.retentionDays ?? 14}
               onChange={(e) =>
@@ -138,19 +143,21 @@ export default function TrackingSettingsPage() {
               }
             />
           </label>
-          <label className="space-y-1 text-sm">
+          <label className="space-y-1 text-sm" htmlFor="tracking-missing-alert">
             <span className="text-muted-foreground">Missing location alert (min)</span>
             <Input
+              id="tracking-missing-alert"
               type="number"
-              value={form.missingAlertMinutes ?? 75}
+              value={form.missingAlertMinutes ?? 45}
               onChange={(e) =>
-                setForm((f) => ({ ...f, missingAlertMinutes: Number(e.target.value) || 75 }))
+                setForm((f) => ({ ...f, missingAlertMinutes: Number(e.target.value) || 45 }))
               }
             />
           </label>
-          <label className="space-y-1 text-sm">
+          <label className="space-y-1 text-sm" htmlFor="tracking-heartbeat">
             <span className="text-muted-foreground">Heartbeat offline threshold (min)</span>
             <Input
+              id="tracking-heartbeat"
               type="number"
               value={form.heartbeatThresholdMinutes ?? 60}
               onChange={(e) =>
@@ -161,9 +168,10 @@ export default function TrackingSettingsPage() {
               }
             />
           </label>
-          <label className="space-y-1 text-sm sm:col-span-2">
+          <label className="space-y-1 text-sm sm:col-span-2" htmlFor="tracking-uninstall">
             <span className="text-muted-foreground">Possible uninstall threshold (min)</span>
             <Input
+              id="tracking-uninstall"
               type="number"
               value={form.possibleUninstallMinutes ?? 180}
               onChange={(e) =>

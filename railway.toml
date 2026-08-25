@@ -1,9 +1,27 @@
+# Config-as-code for the Railway "crm" API service.
+# Dashboard Build settings are locked to this file ("value is set in /railway.toml").
+
 [build]
-builder = "nixpacks"
-buildCommand = "pnpm install --prod=false && pnpm railway:build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+watchPatterns = [
+  "/Dockerfile",
+  "/.dockerignore",
+  "/railway.toml",
+  "/package.json",
+  "/pnpm-lock.yaml",
+  "/pnpm-workspace.yaml",
+  "/scripts/**",
+  "/packages/db/**",
+  "/packages/types/**",
+  "/packages/config/**",
+  "/apps/api/**",
+]
 
 [deploy]
-startCommand = "pnpm railway:start"
+# Migrate before the new replica receives traffic, so start can bind PORT immediately.
+preDeployCommand = ["pnpm db:migrate"]
+startCommand = "pnpm --filter @propninja/api start"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

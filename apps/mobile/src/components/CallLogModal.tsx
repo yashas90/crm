@@ -109,7 +109,12 @@ export function CallLogModal({
     }
   }, [visible, defaultDurationSeconds, progressAnim]);
 
-  // Auto-submit countdown for reviewOnly mode
+  // Auto-submit countdown for reviewOnly mode.
+  // onSubmit is read via ref so parent re-renders (RQ invalidation, isPending) do not
+  // restart the interval — that caused double submits + timer flicker during post-call lag.
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+
   useEffect(() => {
     if (!visible || !reviewOnly) return;
 
@@ -124,7 +129,7 @@ export function CallLogModal({
         if (c <= 1) {
           clearInterval(tick);
           if (!timerTouched.current) {
-            onSubmit({
+            onSubmitRef.current({
               outcome: defaultOutcomeFromDuration(defaultDurationSeconds),
               durationSeconds: defaultDurationSeconds,
               ringSeconds: 0,
@@ -140,7 +145,7 @@ export function CallLogModal({
       clearInterval(tick);
       progressAnim.stopAnimation();
     };
-  }, [visible, reviewOnly, defaultDurationSeconds, onSubmit, progressAnim]);
+  }, [visible, reviewOnly, defaultDurationSeconds, progressAnim]);
 
   function buildPayload(): QuickLogPayload | null {
     const duration = Number.parseInt(durationSeconds, 10);

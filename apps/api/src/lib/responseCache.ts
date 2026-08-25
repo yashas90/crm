@@ -138,8 +138,26 @@ function deleteKeysMatching(predicate: (key: string) => boolean): number {
   return keys.length;
 }
 
+/**
+ * Clears cache entries for a route and any nested paths.
+ * Keys are `{pathname}#{scopeId}#{queryHash}` — e.g. `/api/reports/agent-stats#…`
+ * must match prefix `/api/reports`.
+ */
 export function clearCacheByRoutePrefix(routePrefix: string): number {
-  return deleteKeysMatching((key) => key.startsWith(`${routePrefix}#`));
+  const exact = `${routePrefix}#`;
+  const nested = `${routePrefix}/`;
+  return deleteKeysMatching(
+    (key) => key === routePrefix || key.startsWith(exact) || key.startsWith(nested),
+  );
+}
+
+/** Bust report / lead / analytics caches after a call is logged so counts show immediately. */
+export function clearCachesAfterCallMutation(userId: string): number {
+  return (
+    clearCacheByRoutePrefix("/api/reports") +
+    clearCacheByRoutePrefix("/api/leads") +
+    clearAnalyticsCacheForUser(userId)
+  );
 }
 
 export function clearAnalyticsCacheForUser(userId: string): number {

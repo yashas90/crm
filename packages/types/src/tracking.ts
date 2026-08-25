@@ -9,7 +9,8 @@ export const TRACKING_DEFAULTS = {
   endMinute: 30,
   intervalMinutes: 30,
   retentionDays: 14,
-  missingAlertMinutes: 75,
+  /** Mark STALE after ~1.5 missed cycles (was 75 — too late for office ops). */
+  missingAlertMinutes: 45,
   heartbeatThresholdMinutes: 60,
   /** After this many minutes with no heartbeat+location, prefer POSSIBLE_APP_UNINSTALLED. */
   possibleUninstallMinutes: 180,

@@ -1,19 +1,37 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  buildCacheKey,
+  getCachedResponse,
+  resetResponseCacheForTests,
+  setCachedResponse,
+} from "../lib/responseCache.js";
 
 const listCalls = vi.fn();
 const getSummary = vi.fn();
+const logCall = vi.fn();
+const getLeadById = vi.fn();
 
 vi.mock("../services/callService.js", () => ({
   callService: {
     listCalls,
     getSummary,
-    logCall: vi.fn(),
+    logCall,
+  },
+}));
+
+vi.mock("../services/leadService.js", () => ({
+  leadService: {
+    getLeadById,
   },
 }));
 
 vi.mock("../middleware/rateLimit.js", () => ({
   callsLogRateLimit: async (_c: unknown, next: () => Promise<void>) => next(),
+}));
+
+vi.mock("../lib/permissions.js", () => ({
+  canEditLead: () => true,
 }));
 
 const adminUser = {
@@ -33,6 +51,8 @@ const agentUser = {
   orgId: "00000000-0000-0000-0000-0000000000aa",
   isFirstLogin: false,
 };
+
+const leadId = "00000000-0000-4000-8000-0000000000aa";
 
 describe("GET /api/calls", () => {
   let app: Hono;
@@ -145,5 +165,60 @@ describe("GET /api/calls/summary", () => {
     const body = (await res.json()) as { ok: boolean; data: { answered_calls: number } };
     expect(body.ok).toBe(true);
     expect(body.data.answered_calls).toBe(7);
+  });
+});
+
+describe("POST /api/calls/log", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetResponseCacheForTests();
+    getLeadById.mockResolvedValue({
+      id: leadId,
+      phone: "+919876543210",
+      assignedTo: agentUser.id,
+    });
+    logCall.mockResolvedValue({
+      id: "call-new",
+      leadId,
+      phoneNumber: "+919876543210",
+      outcome: "answered",
+      followUpTask: null,
+    });
+  });
+
+  it("clears report/lead caches so call counts are not stuck for 5–10 minutes", async () => {
+    const statsKey = buildCacheKey("/api/reports/agent-stats", agentUser.id, "");
+    const leadsKey = buildCacheKey("/api/leads", agentUser.id, "");
+    setCachedResponse(statsKey, { today: { callsMade: 0 } }, 600);
+    setCachedResponse(leadsKey, { items: [] }, 15);
+
+    const { callsRoute } = await import("./calls.js");
+    const app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("authUser", agentUser);
+      await next();
+    });
+    app.route("/api/calls", callsRoute);
+
+    const endedAt = new Date("2026-06-16T10:01:00.000Z");
+    const startedAt = new Date("2026-06-16T10:00:00.000Z");
+    const res = await app.request("/api/calls/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lead_id: leadId,
+        phone_number: "+919876543210",
+        duration_seconds: 60,
+        outcome: "answered",
+        started_at: startedAt.toISOString(),
+        ended_at: endedAt.toISOString(),
+        source: "mobile-auto",
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(logCall).toHaveBeenCalled();
+    expect(getCachedResponse(statsKey)).toBeUndefined();
+    expect(getCachedResponse(leadsKey)).toBeUndefined();
   });
 });

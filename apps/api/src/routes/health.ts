@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
-import { getApiVersion } from "../lib/apiVersion.js";
+import { API_DEPLOY_MARKER, getApiVersion, getDeployMarker } from "../lib/apiVersion.js";
 import { db } from "../lib/db.js";
 import { env } from "../lib/env.js";
 import { parseSemver } from "../lib/mobileAppVersion.js";
@@ -42,10 +42,23 @@ function mobileVersionFields() {
   };
 }
 
+function deployFields() {
+  const gitSha =
+    process.env.RAILWAY_GIT_COMMIT_SHA?.trim() ||
+    process.env.COMMIT_SHA?.trim() ||
+    process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
+    null;
+  return {
+    gitSha: gitSha ? gitSha.slice(0, 12) : null,
+    deployMarker: getDeployMarker() || API_DEPLOY_MARKER,
+  };
+}
+
 healthRoutes.get("/", async (c) => {
   const timestamp = new Date().toISOString();
   const version = getApiVersion();
   const mobile = mobileVersionFields();
+  const deploy = deployFields();
 
   try {
     await checkDatabase();
@@ -59,6 +72,7 @@ healthRoutes.get("/", async (c) => {
         db: "ok",
         schema: schemaIssue,
         ...mobile,
+        ...deploy,
       });
     }
     return c.json({
@@ -68,6 +82,7 @@ healthRoutes.get("/", async (c) => {
       service: "propninja-api",
       db: "ok",
       ...mobile,
+      ...deploy,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Database unavailable";
@@ -80,6 +95,7 @@ healthRoutes.get("/", async (c) => {
       db: "error",
       message,
       ...mobile,
+      ...deploy,
     });
   }
 });

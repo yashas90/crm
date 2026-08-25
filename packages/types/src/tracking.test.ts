@@ -58,7 +58,7 @@ describe("deriveTrackingHealthStatus", () => {
     isCurrentDevice: true,
     withinHours: true,
     heartbeatThresholdMinutes: 60,
-    missingAlertMinutes: 75,
+    missingAlertMinutes: 45,
     possibleUninstallMinutes: 180,
     now: new Date("2026-08-20T06:10:00.000Z"),
   };

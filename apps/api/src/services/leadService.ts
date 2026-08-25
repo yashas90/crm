@@ -43,6 +43,7 @@ import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
+import { resolveBulkImportLeadStatus } from "../lib/resolveBulkImportLeadStatus.js";
 import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
 import { recordLeadAssignment } from "./leadAssignmentService.js";
@@ -842,6 +843,10 @@ export const leadService = {
     skipDuplicates: boolean;
     /** keep_assignee (default) or reassign duplicates to assignedToAgents. */
     onDuplicate?: "keep_assignee" | "reassign";
+    /** Record assignment history when reassigning (default true). */
+    assignWithHistory?: boolean;
+    /** Move dropped/not_interested duplicates to new (default false). */
+    applyNewStatus?: boolean;
     assignedToAgents: string[];
     actingUserId: string;
     batchId?: string;
@@ -859,6 +864,8 @@ export const leadService = {
     }[] = [];
 
     const assignmentCounts: Record<string, number> = {};
+    const assignWithHistory = input.assignWithHistory ?? true;
+    const applyNewStatus = input.applyNewStatus ?? false;
 
     const trackAssignment = (assigneeId: string | null | undefined) => {
       if (!assigneeId || assigneeId === input.actingUserId) return;
@@ -899,6 +906,8 @@ export const leadService = {
           storedPhone,
           assignedTo,
           onDuplicate: input.onDuplicate ?? "keep_assignee",
+          assignWithHistory,
+          applyNewStatus,
           actingUserId: input.actingUserId,
           source: "bulk_import",
         });
@@ -993,6 +1002,8 @@ export const leadService = {
     assignedTo?: string;
     /** Default keep_assignee — only bulk import passes reassign. */
     onDuplicate?: "keep_assignee" | "reassign";
+    assignWithHistory?: boolean;
+    applyNewStatus?: boolean;
     actingUserId: string;
     source?: string;
   }) {
@@ -1011,6 +1022,9 @@ export const leadService = {
     if (!existing) {
       return null;
     }
+
+    const assignWithHistory = input.assignWithHistory ?? true;
+    const applyNewStatus = input.applyNewStatus ?? false;
 
     const resolvedProject = await resolveProjectFields({
       projectId: input.data.projectId,
@@ -1033,10 +1047,21 @@ export const leadService = {
     if (input.data.temperature !== undefined) update.temperature = input.data.temperature ?? null;
     if (input.data.notes !== undefined) update.notes = input.data.notes ?? null;
     if (input.data.tags !== undefined) update.tags = input.data.tags ?? null;
-    if (input.data.leadStatus !== undefined) {
-      update.leadStatus = input.data.leadStatus;
-    } else if (existing.leadStatus === "lost" || existing.leadStatus === "won") {
-      update.leadStatus = "new";
+
+    const shouldApplyNewStatus =
+      applyNewStatus && (NA_STATUSES as string[]).includes(existing.leadStatus);
+
+    const statusUpdate = resolveBulkImportLeadStatus({
+      existingStatus: existing.leadStatus,
+      csvStatus: input.data.leadStatus,
+      applyNewStatus,
+    });
+    if (statusUpdate.leadStatus !== undefined) {
+      update.leadStatus = statusUpdate.leadStatus;
+    }
+    if (statusUpdate.clearNaFields) {
+      update.naSinceAt = null;
+      update.nextFollowupAt = null;
     }
 
     if (input.data.projectId !== undefined || input.data.projectName !== undefined) {
@@ -1069,13 +1094,35 @@ export const leadService = {
       return null;
     }
 
-    if (shouldReassign && input.assignedTo) {
+    if (shouldReassign && input.assignedTo && assignWithHistory) {
       await recordLeadAssignment(db, {
         leadId: input.leadId,
         fromAgentId: existing.assignedTo,
         toAgentId: input.assignedTo,
         assignedBy: input.actingUserId,
         reason: "bulk_import_reassign",
+      });
+
+      await db.insert(leadActivities).values({
+        orgId: SINGLE_TENANT_ORG_ID,
+        leadId: input.leadId,
+        userId: input.actingUserId,
+        type: "status_change",
+        metadata: {
+          kind: "assignment",
+          assignedTo: input.assignedTo,
+          source: input.source ?? "bulk_import",
+        },
+      });
+    }
+
+    if (shouldApplyNewStatus && existing.leadStatus !== "new") {
+      await db.insert(leadActivities).values({
+        orgId: SINGLE_TENANT_ORG_ID,
+        leadId: input.leadId,
+        userId: input.actingUserId,
+        type: "status_change",
+        metadata: { from: existing.leadStatus, to: "new", source: input.source ?? "bulk_import" },
       });
     }
 
@@ -1414,7 +1461,7 @@ export const leadService = {
 
     const [updated] = await db.transaction(async (tx) => {
       const nextLeadStatus: typeof existing.leadStatus | null =
-        applyNewStatus && NA_STATUSES.includes(existing.leadStatus) ? "new" : null;
+        applyNewStatus && (NA_STATUSES as string[]).includes(existing.leadStatus) ? "new" : null;
 
       const [row] = await tx
         .update(leads)
@@ -1462,7 +1509,7 @@ export const leadService = {
     // If we moved NA → "new", record a normal status change activity (regardless of assignment-history flag).
     if (
       applyNewStatus &&
-      NA_STATUSES.includes(existing.leadStatus) &&
+      (NA_STATUSES as string[]).includes(existing.leadStatus) &&
       existing.leadStatus !== "new"
     ) {
       await db.insert(leadActivities).values({

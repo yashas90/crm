@@ -1,11 +1,14 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
+import { invalidateQueriesAfterCallLog } from "@/lib/invalidateQueriesAfterCallLog";
 import { lightweightLiveQueryOptions } from "@/lib/liveQuery";
 
 const live = lightweightLiveQueryOptions();
 import { useAuth } from "@/providers/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+export { invalidateQueriesAfterCallLog } from "@/lib/invalidateQueriesAfterCallLog";
 
 export type CallRecord = {
   id: string;
@@ -61,7 +64,7 @@ export function useCalls(
         `/api/calls?${search.toString()}`,
       ),
     enabled: ready && Boolean(params.lead_id || params.user_id || params.date_from),
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
     meta: { suppressErrorToast: options?.suppressErrorToast ?? false },
   });
 }
@@ -85,7 +88,7 @@ export function useTodayCalls() {
         `/api/calls?${params.toString()}`,
       ),
     enabled: ready,
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
     ...live,
     meta: { suppressErrorToast: true },
   });
@@ -105,31 +108,25 @@ export function useTodayCallSummary() {
     queryKey: ["calls", "summary", "today", userId],
     queryFn: () => apiGet<CallSummary>(`/api/calls/summary?${params.toString()}`),
     enabled: ready,
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
     ...live,
     meta: { suppressErrorToast: true },
   });
 }
 
+/**
+ * Cache refresh after a successful call log.
+ * Must invalidate with default (active) refetch so mounted lists update;
+ * callers must not await this from the mutation critical path.
+ */
 export function useLogCall() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload: LogCallInput) => apiPost("/api/calls/log", payload),
-    onSuccess: async (_data, variables) => {
-      const userId = getCurrentUserId();
-      const tasks: Promise<unknown>[] = [queryClient.invalidateQueries({ queryKey: ["calls"] })];
-      if (userId) {
-        tasks.push(queryClient.invalidateQueries({ queryKey: ["calls", "today", userId] }));
-        tasks.push(
-          queryClient.invalidateQueries({ queryKey: ["calls", "summary", "today", userId] }),
-        );
-      }
-      if (variables.lead_id) {
-        tasks.push(queryClient.invalidateQueries({ queryKey: ["leads", variables.lead_id] }));
-        tasks.push(queryClient.invalidateQueries({ queryKey: ["tasks"] }));
-      }
-      await Promise.all(tasks);
+    onSuccess: (_data, variables) => {
+      // Fire-and-forget — do not await. Awaiting blocked the post-call status sheet.
+      invalidateQueriesAfterCallLog(queryClient, variables, getCurrentUserId());
     },
   });
 }

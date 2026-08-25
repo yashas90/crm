@@ -6,7 +6,7 @@ import {
 } from "@/hooks/useCallDurationTracking";
 import { getOutgoingCallTalkSeconds } from "@/lib/callLogNative";
 import type { CallOutcome } from "@propninja/types/enums";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type UseAutoDialerCallLogOptions = {
   logCall: (payload: LogCallInput) => Promise<unknown>;
@@ -35,6 +35,12 @@ function elapsedSeconds(info: CallReturnInfo): number {
   return Math.max(1, fromClock || fromMinutes || 60);
 }
 
+function defaultOutcomeFromDuration(seconds: number): CallOutcome {
+  return seconds > 0 ? "answered" : "no_answer";
+}
+
+export { defaultOutcomeFromDuration };
+
 export function resolveTalkSeconds(params: {
   pending: Pick<PostCallPrompt, "durationSeconds" | "durationIsTalkOnly">;
   outcome: CallOutcome;
@@ -59,8 +65,9 @@ export function resolveTalkSeconds(params: {
 
 /**
  * Tracks native dialer sessions. When the agent returns from the dialer a post-call
- * prompt is shown so they can confirm outcome, ring time, and talk duration before
- * the call is logged to the API.
+ * prompt is shown so they can confirm outcome, ring time, and talk duration.
+ * Dismissing without confirm still logs the call (default outcome) so counts stay accurate
+ * even when the agent skips the lead status update.
  *
  * Talk time = connected (phone timer 00:00) → hangup. Dial/ring time is excluded.
  */
@@ -73,8 +80,26 @@ export function useAutoDialerCallLog({
   const [postCallPrompt, setPostCallPrompt] = useState<PostCallPrompt | null>(null);
   const postCallPromptRef = useRef<PostCallPrompt | null>(null);
   const loggingRef = useRef(false);
+  /** Prevents dismiss-after-confirm from logging the same dial twice. */
+  const callCountedRef = useRef(false);
+  const nativeReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onLoggedRef = useRef(onLogged);
+  const onLogErrorRef = useRef(onLogError);
+  const logCallRef = useRef(logCall);
+  onLoggedRef.current = onLogged;
+  onLogErrorRef.current = onLogError;
+  logCallRef.current = logCall;
 
   postCallPromptRef.current = postCallPrompt;
+
+  useEffect(() => {
+    return () => {
+      if (nativeReadTimerRef.current) {
+        clearTimeout(nativeReadTimerRef.current);
+        nativeReadTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const submitCallLog = useCallback(
     async (
@@ -83,8 +108,8 @@ export function useAutoDialerCallLog({
       notes?: string,
       ringSeconds?: number,
       talkOverride?: number,
-    ) => {
-      if (loggingRef.current) return;
+    ): Promise<boolean> => {
+      if (loggingRef.current || callCountedRef.current) return false;
       loggingRef.current = true;
       try {
         const talkSeconds = resolveTalkSeconds({
@@ -96,7 +121,7 @@ export function useAutoDialerCallLog({
         const endedAt = new Date();
         // Persist the connected window (talk start → hangup), not dial-tap → app return.
         const startedAt = new Date(endedAt.getTime() - talkSeconds * 1000);
-        await logCall({
+        await logCallRef.current({
           lead_id: pending.leadId,
           phone_number: pending.phoneNumber,
           direction: "outgoing",
@@ -108,15 +133,17 @@ export function useAutoDialerCallLog({
           ring_seconds: ringSeconds,
           source: "mobile-auto",
         });
-        onLogged?.(outcome);
+        callCountedRef.current = true;
+        onLoggedRef.current?.(outcome);
+        return true;
       } catch (error) {
-        onLogError?.(error);
+        onLogErrorRef.current?.(error);
         throw error;
       } finally {
         loggingRef.current = false;
       }
     },
-    [logCall, onLogged, onLogError],
+    [],
   );
 
   const handleReturn = useCallback((info: CallReturnInfo) => {
@@ -128,10 +155,16 @@ export function useAutoDialerCallLog({
     const fallbackSeconds = elapsedSeconds(info);
     const callStartMs = new Date(calledAt).getTime();
 
+    if (nativeReadTimerRef.current) {
+      clearTimeout(nativeReadTimerRef.current);
+      nativeReadTimerRef.current = null;
+    }
+
     // Android writes the call to the system call log after the call ends.
     // DURATION in CallLog.Calls is talk time only — ring time is excluded by the OS.
     // We wait 2 s for the OS to flush the record, then try to read accurate talktime.
-    setTimeout(() => {
+    nativeReadTimerRef.current = setTimeout(() => {
+      nativeReadTimerRef.current = null;
       void getOutgoingCallTalkSeconds(context.phoneNumber, callStartMs - 5_000).then(
         (nativeSecs) => {
           setPostCallPrompt({
@@ -152,7 +185,13 @@ export function useAutoDialerCallLog({
 
   const beginCall = useCallback(
     (context: CallSessionContext) => {
+      if (nativeReadTimerRef.current) {
+        clearTimeout(nativeReadTimerRef.current);
+        nativeReadTimerRef.current = null;
+      }
       sessionRef.current = context;
+      callCountedRef.current = false;
+      postCallPromptRef.current = null;
       setPostCallPrompt(null);
       trackCall(context);
     },
@@ -160,15 +199,27 @@ export function useAutoDialerCallLog({
   );
 
   const dismissPostCall = useCallback(() => {
+    const pending = postCallPromptRef.current;
+    postCallPromptRef.current = null;
     setPostCallPrompt(null);
     clearCallSession();
-  }, [clearCallSession]);
+    // Closing without confirming still counts the call (default outcome from duration).
+    // Lead status update remains optional — call_records drive counts either way.
+    if (pending && !callCountedRef.current) {
+      void submitCallLog(pending, defaultOutcomeFromDuration(pending.durationSeconds)).catch(
+        () => undefined,
+      );
+    }
+  }, [clearCallSession, submitCallLog]);
 
   const confirmLog = useCallback(
     async (outcome: CallOutcome, notes?: string, ringSeconds?: number, talkSeconds?: number) => {
       const pending = postCallPromptRef.current;
       if (!pending) return;
-      await submitCallLog(pending, outcome, notes, ringSeconds, talkSeconds);
+      const logged = await submitCallLog(pending, outcome, notes, ringSeconds, talkSeconds);
+      // Only clear the prompt after a successful log — early-return no-ops keep it open.
+      if (!logged) return;
+      postCallPromptRef.current = null;
       setPostCallPrompt(null);
       clearCallSession();
     },
