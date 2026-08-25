@@ -33,6 +33,4 @@ if (!markerMatch) {
   process.exit(1);
 }
 
-console.log(
-  `[assert-api-deploy-identity] ok version=${version} deployMarker=${markerMatch[1]}`,
-);
+console.log(`[assert-api-deploy-identity] ok version=${version} deployMarker=${markerMatch[1]}`);
