@@ -23,3 +23,10 @@ jest.mock("expo-notifications", () => ({
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   removeNotificationSubscription: jest.fn(),
 }));
+
+// locationTracking imports this at module load via auth-provider; keep Jest native-free.
+jest.mock("expo-task-manager", () => ({
+  defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn(async () => false),
+  unregisterTaskAsync: jest.fn(async () => undefined),
+}));

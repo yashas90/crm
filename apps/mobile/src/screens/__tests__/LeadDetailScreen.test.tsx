@@ -57,6 +57,7 @@ jest.mock("@/hooks/use-documents", () => ({
 }));
 jest.mock("@/hooks/use-users", () => ({
   useTeamMembers: () => ({ data: { items: [] }, isLoading: false }),
+  useAssignableUsers: () => ({ data: { items: [] }, isLoading: false }),
 }));
 
 const mockUseLead = useLead as jest.MockedFunction<typeof useLead>;
