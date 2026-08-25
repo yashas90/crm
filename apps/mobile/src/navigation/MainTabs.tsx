@@ -3,6 +3,7 @@ import { useUnreadNotificationCount } from "@/hooks/use-notifications";
 import { useIsManager } from "@/hooks/use-role";
 import { useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useOpenTaskCount } from "@/hooks/use-tasks";
+import { LeadsStack } from "@/navigation/LeadsStack";
 import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, navigationTheme } from "@/theme";
@@ -14,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const LeadsStack = lazyNamed(() => import("@/navigation/LeadsStack"), "LeadsStack");
+// Leads is the default tab — eager import avoids blank native-stack + React.lazy.
 const ProfileStack = lazyNamed(() => import("@/navigation/ProfileStack"), "ProfileStack");
 const TeamStack = lazyNamed(() => import("@/navigation/TeamStack"), "TeamStack");
 const VisitsStack = lazyNamed(() => import("@/navigation/VisitsStack"), "VisitsStack");

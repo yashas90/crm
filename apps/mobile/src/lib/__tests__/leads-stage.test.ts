@@ -1,18 +1,26 @@
 import { MOBILE_LEAD_STAGES, defaultMobileLeadsStage, stageToLeadQuery } from "../leads-stage";
 
 describe("leads-stage", () => {
-  it("defaults to pending", () => {
-    expect(defaultMobileLeadsStage()).toBe("pending");
+  it("defaults to active", () => {
+    expect(defaultMobileLeadsStage()).toBe("active");
   });
 
-  it("exposes pending, new, overdue, follow_up, hot", () => {
+  it("exposes active, pending, new, overdue, follow_up, hot", () => {
     expect(MOBILE_LEAD_STAGES.map((s) => s.id)).toEqual([
+      "active",
       "pending",
       "new",
       "overdue",
       "follow_up",
       "hot",
     ]);
+  });
+
+  it("maps active to open pipeline excluding fresh new", () => {
+    expect(stageToLeadQuery("active")).toEqual({
+      activeOnly: "true",
+      excludeNew: "true",
+    });
   });
 
   it("maps pending to contacted status", () => {

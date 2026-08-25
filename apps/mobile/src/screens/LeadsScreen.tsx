@@ -146,11 +146,30 @@ export function LeadsScreen({ navigation }: Props) {
     navigation.navigate("LeadCreateScreen");
   }, [navigation]);
 
-  const emptyTitle = stage === "new" ? "No fresh New leads" : "No leads found";
+  const emptyTitle =
+    stage === "new"
+      ? "No fresh New leads"
+      : stage === "pending"
+        ? "No Pending leads"
+        : stage === "active"
+          ? "No Active leads"
+          : "No leads found";
   const emptyMessage =
     stage === "new"
-      ? "New only shows leads from the last 24 hours. Try Pending for your assigned book."
-      : "Try a different filter or create a new lead.";
+      ? "New only shows leads from the last 24 hours. Try Active for your assigned book."
+      : stage === "pending"
+        ? "Pending is contacted / aged New with no follow-up. Try Active or Follow up."
+        : stage === "active"
+          ? "Active is your open assigned book (excluding fresh New). Try New or Pending."
+          : "Try a different filter or create a new lead.";
+  const emptyActionLabel =
+    stage === "active" ? "Show New" : stage === "new" || stage === "pending" ? "Show Active" : null;
+  const onEmptyAction =
+    stage === "active"
+      ? () => setStage("new")
+      : stage === "new" || stage === "pending"
+        ? () => setStage("active")
+        : onCreateLead;
 
   const listHeaderExtra = useMemo(
     () => (
@@ -231,14 +250,26 @@ export function LeadsScreen({ navigation }: Props) {
         <View style={styles.loadingWrap}>
           <ListSkeleton rows={5} />
         </View>
+      ) : visibleLeads.length === 0 ? (
+        // Empty state outside FlatList — Android native-stack + ListEmptyComponent can blank.
+        <View style={[styles.emptyWrap, { paddingBottom: listBottomPadding }]}>
+          <EmptyState
+            icon="people-outline"
+            title={emptyTitle}
+            message={emptyMessage}
+            actionLabel={emptyActionLabel ?? "Create lead"}
+            onAction={onEmptyAction}
+          />
+          <Pressable onPress={onRefresh} style={styles.refreshHint} accessibilityRole="button">
+            <Text style={styles.refreshHintText}>
+              {isRefetching ? "Refreshing…" : "Tap to refresh"}
+            </Text>
+          </Pressable>
+        </View>
       ) : (
         <FlatList
           style={styles.list}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: listBottomPadding },
-            visibleLeads.length === 0 ? styles.emptyContent : null,
-          ]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
           data={visibleLeads}
           keyExtractor={leadKeyExtractor}
           renderItem={renderItem}
@@ -251,22 +282,12 @@ export function LeadsScreen({ navigation }: Props) {
               tintColor={colors.primary}
             />
           }
-          ListEmptyComponent={
-            <EmptyState
-              icon="people-outline"
-              title={emptyTitle}
-              message={emptyMessage}
-              actionLabel={stage === "new" ? "Show Pending" : "Create lead"}
-              onAction={stage === "new" ? () => setStage("pending") : onCreateLead}
-            />
-          }
           ListFooterComponent={
             isFetchingNextPage ? (
               <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
             ) : null
           }
           {...FLAT_LIST_PERF}
-          // Extra Android guard — never clip empty state / rows.
           removeClippedSubviews={
             Platform.OS === "android" ? false : FLAT_LIST_PERF.removeClippedSubviews
           }
@@ -321,7 +342,9 @@ const styles = StyleSheet.create({
   chipTextActive: { color: "#fff" },
   list: { flex: 1 },
   listContent: { paddingHorizontal: spacing.md, paddingTop: 0 },
-  emptyContent: { flexGrow: 1 },
+  emptyWrap: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.md },
+  refreshHint: { alignItems: "center", paddingVertical: spacing.sm },
+  refreshHintText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
   loadingWrap: { flex: 1 },
   fab: {
     position: "absolute",
