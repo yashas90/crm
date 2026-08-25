@@ -1,7 +1,8 @@
 /** Segment chips on the mobile Leads list (aligned with web stage filters). */
-export type MobileLeadsStage = "overdue" | "pending" | "new" | "follow_up" | "hot";
+export type MobileLeadsStage = "active" | "overdue" | "pending" | "new" | "follow_up" | "hot";
 
 export const MOBILE_LEAD_STAGES: { id: MobileLeadsStage; label: string }[] = [
+  { id: "active", label: "Active" },
   { id: "pending", label: "Pending" },
   { id: "new", label: "New" },
   { id: "overdue", label: "Overdue" },
@@ -9,9 +10,12 @@ export const MOBILE_LEAD_STAGES: { id: MobileLeadsStage; label: string }[] = [
   { id: "hot", label: "Hot" },
 ];
 
-/** Default to Pending — New is only ≤24h fresh leads and is empty for most agents. */
+/**
+ * Default to Active — same as web. Pending only has contacted/stale-new with no
+ * follow-up; New is ≤24h only. Active shows the open assigned book.
+ */
 export function defaultMobileLeadsStage(): MobileLeadsStage {
-  return "pending";
+  return "active";
 }
 
 /** Map a segment chip to GET /api/leads query params. */
@@ -19,6 +23,8 @@ export function stageToLeadQuery(stage: MobileLeadsStage): Record<string, string
   const now = new Date().toISOString();
 
   switch (stage) {
+    case "active":
+      return { activeOnly: "true", excludeNew: "true" };
     case "overdue":
       return {
         followUpDueBefore: now,
@@ -38,6 +44,6 @@ export function stageToLeadQuery(stage: MobileLeadsStage): Record<string, string
     case "hot":
       return { temperature: "hot" };
     default:
-      return { status: "new" };
+      return { activeOnly: "true", excludeNew: "true" };
   }
 }
