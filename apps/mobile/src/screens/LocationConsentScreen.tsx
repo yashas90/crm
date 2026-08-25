@@ -4,6 +4,7 @@ import {
   checkRequiredWorkPermissions,
   openAppPermissionSettings,
   requestRequiredWorkPermissions,
+  startLocationTracking,
 } from "@/lib/locationTracking";
 import { colors, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,6 +28,9 @@ export function LocationConsentScreen({ onDone }: Props) {
   const refresh = useCallback(async () => {
     const next = await checkRequiredWorkPermissions();
     setStatus(next);
+    if (next.locationGranted) {
+      void startLocationTracking();
+    }
     if (next.allGranted) {
       onDone();
     }

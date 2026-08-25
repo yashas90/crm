@@ -220,9 +220,42 @@ describe("locationRoutes", () => {
     expect(res.status).toBe(201);
     const json = (await res.json()) as {
       ok: boolean;
-      data: { inserted: number };
+      data: { inserted: number; acceptedEventIds: string[] };
     };
     expect(json.data.inserted).toBe(2);
+    expect(json.data.acceptedEventIds).toEqual(["evt_test_001", "evt_test_002"]);
+  });
+
+  it("bulk pings report outside-hours event ids without treating them as accepted", async () => {
+    const app = appWithUser("agent");
+    const res = await app.request("/api/locations/ping/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: [
+          withinHoursPing,
+          {
+            ...withinHoursPing,
+            eventId: "evt_night",
+            capturedAt: "2026-08-20T16:00:00.000Z",
+          },
+        ],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as {
+      ok: boolean;
+      data: {
+        inserted: number;
+        outsideHours: number;
+        acceptedEventIds: string[];
+        rejectedOutsideHoursEventIds: string[];
+      };
+    };
+    expect(json.data.inserted).toBe(1);
+    expect(json.data.outsideHours).toBe(1);
+    expect(json.data.acceptedEventIds).toEqual(["evt_test_001"]);
+    expect(json.data.rejectedOutsideHoursEventIds).toEqual(["evt_night"]);
   });
 
   it("upserts device status", async () => {
@@ -289,24 +322,41 @@ describe("locationRoutes", () => {
   });
 
   it("allows live locations for admins with status fields", async () => {
-    execute.mockResolvedValue([
-      {
-        user_id: "11111111-1111-1111-1111-111111111111",
-        latitude: 12.97,
-        longitude: 77.59,
-        accuracy: 15,
-        captured_at: new Date("2026-08-20T05:00:00.000Z"),
-        battery_level: 67,
-        network_status: "online",
-        name: "Rahul",
-        email: "r@test.com",
-        location_permission_status: "granted",
-        call_log_permission_status: "granted",
-        device_platform: "android",
-        app_version: "1.0.10",
-        tracking_enabled: true,
-      },
-    ]);
+    execute
+      .mockResolvedValueOnce([
+        {
+          user_id: "11111111-1111-1111-1111-111111111111",
+          latitude: 12.97,
+          longitude: 77.59,
+          accuracy: 15,
+          captured_at: new Date("2026-08-20T05:00:00.000Z"),
+          battery_level: 67,
+          network_status: "online",
+          name: "Rahul",
+          email: "r@test.com",
+          location_permission_status: "granted",
+          call_log_permission_status: "granted",
+          device_platform: "android",
+          app_version: "1.0.10",
+          tracking_enabled: true,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          user_id: "11111111-1111-1111-1111-111111111111",
+          device_id: "dev-1",
+          platform: "android",
+          app_version: "1.0.10",
+          location_permission_status: "granted",
+          call_log_permission_status: "granted",
+          tracking_enabled: true,
+          last_seen_at: new Date("2026-08-20T05:05:00.000Z"),
+          network_status: "online",
+          battery_level: 67,
+          name: "Rahul",
+          email: "r@test.com",
+        },
+      ]);
     insertValues.mockImplementation(() => ({
       onConflictDoNothing: insertOnConflict,
       onConflictDoUpdate: insertOnConflictUpdate,
@@ -328,6 +378,7 @@ describe("locationRoutes", () => {
           batteryLevel: number | null;
           locationPermissionStatus: string | null;
         }>;
+        devices: Array<{ name: string; appVersion: string | null }>;
       };
     };
     expect(json.ok).toBe(true);
@@ -335,6 +386,8 @@ describe("locationRoutes", () => {
     expect(json.data.agents[0]?.name).toBe("Rahul");
     expect(json.data.agents[0]?.batteryLevel).toBe(67);
     expect(json.data.agents[0]?.locationPermissionStatus).toBe("granted");
+    expect(json.data.devices).toHaveLength(1);
+    expect(json.data.devices[0]?.appVersion).toBe("1.0.10");
   });
 
   it("history returns gaps for missing intervals", async () => {

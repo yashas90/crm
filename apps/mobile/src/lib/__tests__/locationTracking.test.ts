@@ -27,12 +27,11 @@ jest.mock("@react-native-community/netinfo", () => ({
 }));
 jest.mock("@/lib/apiClient", () => ({
   apiPost: jest.fn(() => Promise.resolve({ ok: true })),
+  refreshAccessToken: jest.fn(() => Promise.resolve(true)),
 }));
 jest.mock("@/lib/auth", () => ({
   ensureAuthCacheLoaded: jest.fn(() => Promise.resolve()),
-  getRefreshToken: jest.fn(() => null),
   getToken: jest.fn(() => "token"),
-  updateTokens: jest.fn(),
 }));
 jest.mock("@/lib/jwt", () => ({
   isTokenExpired: jest.fn(() => false),
@@ -42,7 +41,7 @@ jest.mock("@/lib/callLogNative", () => ({
   requestCallLogPermission: jest.fn(() => Promise.resolve(true)),
 }));
 jest.mock("@/lib/callLogSync", () => ({
-  getOsCallLogPermissionStatus: jest.fn(() => Promise.resolve("granted")),
+  getOsCallLogPermissionStatus: jest.fn(() => "granted"),
   syncOsCallLogMetadata: jest.fn(() => Promise.resolve()),
 }));
 
@@ -175,13 +174,21 @@ describe("startLocationTracking", () => {
     jest.useRealTimers();
   });
 
-  it("does not start tracking outside working hours", async () => {
+  it("keeps the foreground service running outside working hours (uploads still gated)", async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-08-20T16:00:00.000Z"));
 
     await startLocationTracking();
 
-    expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
+    expect(Location.stopLocationUpdatesAsync).not.toHaveBeenCalled();
+    expect(Location.startLocationUpdatesAsync).toHaveBeenCalledWith(
+      "PROPNINJA_LOCATION_TASK",
+      expect.objectContaining({
+        timeInterval: PING_INTERVAL_MS,
+        distanceInterval: 0,
+        deferredUpdatesInterval: 0,
+      }),
+    );
     jest.useRealTimers();
   });
 });

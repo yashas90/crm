@@ -24,10 +24,12 @@ export function RootNavigator() {
 
   const evaluatePermissions = useCallback(async () => {
     const perms = await checkRequiredWorkPermissions();
+    // Start GPS whenever Always location is granted — call-log must not block tracking.
+    if (perms.locationGranted) {
+      void startLocationTracking().then(() => flushLocationPingQueue());
+    }
     if (perms.allGranted) {
       setNeedsPermissions(false);
-      // Location start is non-blocking — do not delay MainTabs.
-      void startLocationTracking().then(() => flushLocationPingQueue());
       return;
     }
     setNeedsPermissions(true);
@@ -43,9 +45,11 @@ export function RootNavigator() {
     void (async () => {
       const perms = await checkRequiredWorkPermissions();
       if (cancelled) return;
+      if (perms.locationGranted) {
+        void startLocationTracking().then(() => flushLocationPingQueue());
+      }
       if (perms.allGranted) {
         setNeedsPermissions(false);
-        void startLocationTracking().then(() => flushLocationPingQueue());
         return;
       }
       setNeedsPermissions(true);
