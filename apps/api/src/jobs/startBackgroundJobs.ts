@@ -19,6 +19,7 @@ import { reclassifyZeroDurationAnsweredCalls } from "./reclassifyZeroDurationCal
 import { startSiteVisitReminderJob } from "./siteVisitReminderJob.js";
 import { startSlaBreachJob } from "./slaBreachJob.js";
 import { startTaskDueNotificationJob } from "./taskDueNotificationJob.js";
+import { startTrackingHealthJob } from "./trackingHealthJob.js";
 
 /** Use BullMQ when Redis is configured; otherwise fall back to in-process timers. */
 export async function startBackgroundJobs() {
@@ -50,6 +51,7 @@ export async function startBackgroundJobs() {
     startAgeOutNewLeadsJob();
     startPurgeExpiredLeadsJob();
     startPurgeExpiredTrackingJob();
+    startTrackingHealthJob();
     startSlaBreachJob();
     startTaskDueNotificationJob();
     return;
@@ -64,6 +66,7 @@ export async function startBackgroundJobs() {
   startAgeOutNewLeadsJob();
   startPurgeExpiredLeadsJob();
   startPurgeExpiredTrackingJob();
+  startTrackingHealthJob();
   startTaskDueNotificationJob();
   setInterval(
     () => {

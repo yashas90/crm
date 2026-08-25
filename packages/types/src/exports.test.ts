@@ -52,6 +52,7 @@ function sampleUser(): User {
     isFirstLogin: false,
     sessionsRevokedAt: null,
     reportEmailEnabled: true,
+    trackingPolicyEnabled: true,
     expoPushToken: null,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
   };

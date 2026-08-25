@@ -26,7 +26,13 @@ function minutesAgo(iso: string): string {
 }
 
 function buildStaticMapUrl(agents: AgentLocationPing[], apiKey: string): string {
-  const markers = agents.map((a) => `markers=color:red%7C${a.latitude},${a.longitude}`).join("&");
+  const withCoords = agents.filter(
+    (a) => a.latitude != null && a.longitude != null && !Number.isNaN(a.latitude),
+  );
+  if (withCoords.length === 0) return "";
+  const markers = withCoords
+    .map((a) => `markers=color:${a.isLastKnown ? "orange" : "red"}%7C${a.latitude},${a.longitude}`)
+    .join("&");
   return `https://maps.googleapis.com/maps/api/staticmap?size=600x400&${markers}&key=${apiKey}`;
 }
 
@@ -89,7 +95,8 @@ export default function LocationsPage() {
   }, [devices]);
   const mapUrl = useMemo(() => {
     if (!mapsKey || agents.length === 0) return null;
-    return buildStaticMapUrl(agents, mapsKey);
+    const url = buildStaticMapUrl(agents, mapsKey);
+    return url || null;
   }, [agents, mapsKey]);
 
   if (!ready || !session || !isAdmin) {
@@ -127,6 +134,12 @@ export default function LocationsPage() {
         >
           <RefreshCw className={`mr-2 h-4 w-4 ${live.isFetching ? "animate-spin" : ""}`} />
           Refresh
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/locations/health">Tracking health</Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/locations/alerts">Alerts</Link>
         </Button>
       </div>
 
@@ -179,8 +192,25 @@ export default function LocationsPage() {
                 <CardDescription>{agent.email}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <p className="text-muted-foreground">Last seen {minutesAgo(agent.capturedAt)}</p>
-                {agent.trackingStatus ? (
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {agent.isLastKnown || agent.locationLabel === "LAST_KNOWN_LOCATION"
+                    ? "Last known location"
+                    : "Current location"}
+                </p>
+                <p className="text-muted-foreground">
+                  {agent.capturedAt
+                    ? `Last seen ${minutesAgo(agent.capturedAt)}`
+                    : "No location yet"}
+                </p>
+                {agent.healthStatus ? (
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Status: {agent.healthStatus.replaceAll("_", " ")}
+                    {agent.locationPermissionStatus
+                      ? ` · Location ${agent.locationPermissionStatus}`
+                      : ""}
+                    {agent.batteryLevel != null ? ` · Battery ${agent.batteryLevel}%` : ""}
+                  </p>
+                ) : agent.trackingStatus ? (
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Status: {agent.trackingStatus.replaceAll("_", " ")}
                     {agent.locationPermissionStatus
@@ -189,21 +219,30 @@ export default function LocationsPage() {
                     {agent.batteryLevel != null ? ` · Battery ${agent.batteryLevel}%` : ""}
                   </p>
                 ) : null}
+                {agent.lastSeenAt ? (
+                  <p className="text-xs text-muted-foreground">
+                    Last communication {minutesAgo(agent.lastSeenAt)}
+                  </p>
+                ) : null}
                 <p className="font-mono text-xs">
-                  {agent.latitude.toFixed(5)}, {agent.longitude.toFixed(5)}
+                  {agent.latitude != null && agent.longitude != null
+                    ? `${agent.latitude.toFixed(5)}, ${agent.longitude.toFixed(5)}`
+                    : "—"}
                   {agent.accuracy != null ? ` · ±${Math.round(agent.accuracy)}m` : ""}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Button asChild variant="outline" size="sm">
-                    <a
-                      href={`https://www.google.com/maps?q=${agent.latitude},${agent.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                      Open map
-                    </a>
-                  </Button>
+                  {agent.latitude != null && agent.longitude != null ? (
+                    <Button asChild variant="outline" size="sm">
+                      <a
+                        href={`https://www.google.com/maps?q=${agent.latitude},${agent.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <MapPin className="mr-1.5 h-3.5 w-3.5" />
+                        Open map
+                      </a>
+                    </Button>
+                  ) : null}
                   <Button asChild variant="outline" size="sm">
                     <Link href={`/locations/history?userId=${encodeURIComponent(agent.userId)}`}>
                       Travel & calls

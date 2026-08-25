@@ -3,18 +3,28 @@ import {
   agentDevices,
   agentLocations,
   trackingAuditLogs,
+  trackingSettings,
   users,
 } from "@propninja/db";
 import { getIstDateKey, istWallClockToDate } from "@propninja/types/ist";
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Database } from "../lib/db.js";
 import { jsonError, jsonOk } from "../lib/response.js";
-import { getTrackingConfig, isTrackingCaptureAllowed } from "../lib/trackingConfig.js";
+import {
+  getTrackingConfig,
+  getTrackingConfigForOrg,
+  isTrackingCaptureAllowed,
+} from "../lib/trackingConfig.js";
 import { validate } from "../lib/validate.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
+import {
+  recordSuccessfulLocationOnDevice,
+  upsertAgentDevice,
+} from "../services/deviceTrackingService.js";
+import { listOpenTrackingAlerts } from "../services/trackingAlertService.js";
 
 export const locationRoutes = new Hono();
 
@@ -43,9 +53,22 @@ const deviceBodySchema = z.object({
   deviceId: z.string().min(1).max(128),
   platform: z.enum(["android", "ios", "web"]),
   appVersion: z.string().max(32).optional(),
+  installationId: z.string().max(128).optional(),
+  manufacturer: z.string().max(64).optional(),
+  model: z.string().max(64).optional(),
+  osVersion: z.string().max(64).optional(),
   locationPermissionStatus: z.string().max(64).optional(),
   callLogPermissionStatus: z.string().max(64).optional(),
   trackingEnabled: z.boolean().optional(),
+  batteryLevel: z.number().int().min(0).max(100).nullable().optional(),
+  networkStatus: z.enum(["online", "offline", "unknown"]).nullable().optional(),
+  heartbeat: z.boolean().optional(),
+});
+
+const heartbeatBodySchema = z.object({
+  deviceId: z.string().min(1).max(128),
+  platform: z.enum(["android", "ios", "web"]),
+  appVersion: z.string().max(32).optional(),
   batteryLevel: z.number().int().min(0).max(100).nullable().optional(),
   networkStatus: z.enum(["online", "offline", "unknown"]).nullable().optional(),
 });
@@ -73,6 +96,27 @@ const historyQuerySchema = z.object({
     .optional(),
 });
 
+const settingsBodySchema = z.object({
+  enabled: z.boolean().optional(),
+  timezone: z.string().min(1).max(64).optional(),
+  startTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional(),
+  endTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional(),
+  intervalMinutes: z.number().int().positive().max(240).optional(),
+  retentionDays: z.number().int().positive().max(90).optional(),
+  missingAlertMinutes: z.number().int().positive().max(1440).optional(),
+  heartbeatThresholdMinutes: z.number().int().positive().max(1440).optional(),
+  possibleUninstallMinutes: z.number().int().positive().max(10080).optional(),
+  activeDays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+});
+
+const agentIdParamSchema = z.object({ agentId: z.string().uuid() });
+
 function requireAdmin(authUser: AuthUser) {
   return authUser.role === "admin";
 }
@@ -81,9 +125,11 @@ async function insertLocationPing(
   db: Database,
   userId: string,
   body: z.infer<typeof pingBodySchema>,
-): Promise<"inserted" | "duplicate" | "outside_hours"> {
+  config = getTrackingConfig(),
+): Promise<"inserted" | "duplicate" | "outside_hours" | "disabled"> {
+  if (!config.enabled) return "disabled";
   const capturedAt = new Date(body.capturedAt);
-  if (!isTrackingCaptureAllowed(capturedAt)) {
+  if (!isTrackingCaptureAllowed(capturedAt, config)) {
     return "outside_hours";
   }
 
@@ -110,20 +156,89 @@ async function insertLocationPing(
     .values(values)
     .onConflictDoNothing()
     .returning({ id: agentLocations.id });
+
+  if (inserted.length > 0) {
+    await recordSuccessfulLocationOnDevice(db, userId, body.deviceId, {
+      latitude: body.latitude,
+      longitude: body.longitude,
+      accuracy: body.accuracy ?? null,
+      capturedAt,
+    });
+  }
+
   return inserted.length > 0 ? "inserted" : "duplicate";
 }
 
-locationRoutes.get("/config", (c) => {
-  const config = getTrackingConfig();
+locationRoutes.get("/config", async (c) => {
+  const authUser = c.get("authUser");
+  const db = c.get("db");
+  const config = await getTrackingConfigForOrg(db, authUser.orgId);
+  const [me] = await db
+    .select({ trackingPolicyEnabled: users.trackingPolicyEnabled })
+    .from(users)
+    .where(eq(users.id, authUser.id))
+    .limit(1);
+
   return jsonOk(c, {
+    enabled: config.enabled,
     timezone: config.timezone,
     startTime: config.startTime,
     endTime: config.endTime,
     intervalMinutes: config.intervalMinutes,
     retentionDays: config.retentionDays,
     missingAlertMinutes: config.missingAlertMinutes,
+    heartbeatThresholdMinutes: config.heartbeatThresholdMinutes,
+    possibleUninstallMinutes: config.possibleUninstallMinutes,
+    activeDays: config.activeDays,
     scheduleLabel: config.scheduleLabel,
-    withinHours: isTrackingCaptureAllowed(new Date()),
+    withinHours: isTrackingCaptureAllowed(new Date(), config),
+    trackingPolicyEnabled: me?.trackingPolicyEnabled ?? true,
+  });
+});
+
+locationRoutes.get("/me/status", async (c) => {
+  const authUser = c.get("authUser");
+  const db = c.get("db");
+  const config = await getTrackingConfigForOrg(db, authUser.orgId);
+  const [me] = await db
+    .select({ trackingPolicyEnabled: users.trackingPolicyEnabled })
+    .from(users)
+    .where(eq(users.id, authUser.id))
+    .limit(1);
+  const [device] = await db
+    .select()
+    .from(agentDevices)
+    .where(and(eq(agentDevices.userId, authUser.id), eq(agentDevices.isCurrent, true)))
+    .orderBy(desc(agentDevices.lastSeenAt))
+    .limit(1);
+
+  return jsonOk(c, {
+    config: {
+      enabled: config.enabled,
+      scheduleLabel: config.scheduleLabel,
+      startTime: config.startTime,
+      endTime: config.endTime,
+      withinHours: isTrackingCaptureAllowed(new Date(), config),
+    },
+    trackingPolicyEnabled: me?.trackingPolicyEnabled ?? true,
+    device: device
+      ? {
+          deviceId: device.deviceId,
+          platform: device.platform,
+          appVersion: device.appVersion,
+          locationPermissionStatus: device.locationPermissionStatus,
+          callLogPermissionStatus: device.callLogPermissionStatus,
+          healthStatus: device.healthStatus,
+          deviceStatus: device.deviceStatus,
+          lastSeenAt: device.lastSeenAt?.toISOString() ?? null,
+          lastHeartbeatAt: device.lastHeartbeatAt?.toISOString() ?? null,
+          lastLocationAt: device.lastLocationAt?.toISOString() ?? null,
+          lastKnownLatitude: device.lastKnownLatitude,
+          lastKnownLongitude: device.lastKnownLongitude,
+          lastKnownAccuracy: device.lastKnownAccuracy,
+          lastKnownCapturedAt: device.lastKnownCapturedAt?.toISOString() ?? null,
+        }
+      : null,
   });
 });
 
@@ -131,8 +246,18 @@ locationRoutes.post("/ping", writeRateLimit, validate("json", pingBodySchema), a
   const authUser = c.get("authUser");
   const body = c.req.valid("json");
   const db = c.get("db");
+  const config = await getTrackingConfigForOrg(db, authUser.orgId);
 
-  const result = await insertLocationPing(db, authUser.id, body);
+  const [me] = await db
+    .select({ trackingPolicyEnabled: users.trackingPolicyEnabled })
+    .from(users)
+    .where(eq(users.id, authUser.id))
+    .limit(1);
+  if (me && me.trackingPolicyEnabled === false) {
+    return jsonError(c, "TRACKING_DISABLED", "Tracking disabled for this agent", 403);
+  }
+
+  const result = await insertLocationPing(db, authUser.id, body, config);
   if (result === "outside_hours") {
     return jsonError(
       c,
@@ -140,6 +265,9 @@ locationRoutes.post("/ping", writeRateLimit, validate("json", pingBodySchema), a
       "Location updates are only accepted during configured working hours",
       422,
     );
+  }
+  if (result === "disabled") {
+    return jsonError(c, "TRACKING_DISABLED", "Tracking is disabled", 403);
   }
 
   return jsonOk(
@@ -158,21 +286,27 @@ locationRoutes.post(
     const authUser = c.get("authUser");
     const body = c.req.valid("json");
     const db = c.get("db");
+    const config = await getTrackingConfigForOrg(db, authUser.orgId);
 
     let inserted = 0;
     let duplicates = 0;
     let outsideHours = 0;
+    let disabled = 0;
     const acceptedEventIds: string[] = [];
     const rejectedOutsideHoursEventIds: string[] = [];
+    const rejectedDisabledEventIds: string[] = [];
 
     for (const item of body.items) {
-      const status = await insertLocationPing(db, authUser.id, item);
+      const status = await insertLocationPing(db, authUser.id, item, config);
       if (status === "inserted") {
         inserted += 1;
         acceptedEventIds.push(item.eventId);
       } else if (status === "duplicate") {
         duplicates += 1;
         acceptedEventIds.push(item.eventId);
+      } else if (status === "disabled") {
+        disabled += 1;
+        rejectedDisabledEventIds.push(item.eventId);
       } else {
         outsideHours += 1;
         rejectedOutsideHoursEventIds.push(item.eventId);
@@ -181,7 +315,15 @@ locationRoutes.post(
 
     return jsonOk(
       c,
-      { inserted, duplicates, outsideHours, acceptedEventIds, rejectedOutsideHoursEventIds },
+      {
+        inserted,
+        duplicates,
+        outsideHours,
+        disabled,
+        acceptedEventIds,
+        rejectedOutsideHoursEventIds,
+        rejectedDisabledEventIds,
+      },
       undefined,
       201,
     );
@@ -192,40 +334,53 @@ locationRoutes.post("/device", writeRateLimit, validate("json", deviceBodySchema
   const authUser = c.get("authUser");
   const body = c.req.valid("json");
   const db = c.get("db");
-  const now = new Date();
+  const config = await getTrackingConfigForOrg(db, authUser.orgId);
 
-  await db
-    .insert(agentDevices)
-    .values({
-      userId: authUser.id,
-      deviceId: body.deviceId,
-      platform: body.platform,
-      appVersion: body.appVersion ?? null,
-      locationPermissionStatus: body.locationPermissionStatus ?? null,
-      callLogPermissionStatus: body.callLogPermissionStatus ?? null,
-      trackingEnabled: body.trackingEnabled ?? true,
-      batteryLevel: body.batteryLevel ?? null,
-      networkStatus: body.networkStatus ?? null,
-      lastSeenAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [agentDevices.userId, agentDevices.deviceId],
-      set: {
-        platform: body.platform,
-        appVersion: body.appVersion ?? null,
-        locationPermissionStatus: body.locationPermissionStatus ?? null,
-        callLogPermissionStatus: body.callLogPermissionStatus ?? null,
-        trackingEnabled: body.trackingEnabled ?? true,
-        batteryLevel: body.batteryLevel ?? null,
-        networkStatus: body.networkStatus ?? null,
-        lastSeenAt: now,
-        updatedAt: now,
-      },
-    });
+  const device = await upsertAgentDevice(
+    db,
+    authUser.id,
+    authUser.orgId,
+    { ...body, heartbeat: body.heartbeat !== false },
+    config,
+  );
 
-  return jsonOk(c, { ok: true as const });
+  return jsonOk(c, {
+    ok: true as const,
+    healthStatus: device.healthStatus,
+    deviceStatus: device.deviceStatus,
+  });
 });
+
+locationRoutes.post(
+  "/device/heartbeat",
+  writeRateLimit,
+  validate("json", heartbeatBodySchema),
+  async (c) => {
+    const authUser = c.get("authUser");
+    const body = c.req.valid("json");
+    const db = c.get("db");
+    const config = await getTrackingConfigForOrg(db, authUser.orgId);
+    const device = await upsertAgentDevice(
+      db,
+      authUser.id,
+      authUser.orgId,
+      {
+        deviceId: body.deviceId,
+        platform: body.platform,
+        appVersion: body.appVersion,
+        batteryLevel: body.batteryLevel,
+        networkStatus: body.networkStatus,
+        heartbeat: true,
+      },
+      config,
+    );
+    return jsonOk(c, {
+      ok: true as const,
+      healthStatus: device.healthStatus,
+      lastHeartbeatAt: device.lastHeartbeatAt?.toISOString() ?? null,
+    });
+  },
+);
 
 locationRoutes.post(
   "/call-logs/bulk",
@@ -235,12 +390,13 @@ locationRoutes.post(
     const authUser = c.get("authUser");
     const body = c.req.valid("json");
     const db = c.get("db");
-    const { retentionDays } = getTrackingConfig();
-    const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+    const config = await getTrackingConfigForOrg(db, authUser.orgId);
+    const cutoff = Date.now() - config.retentionDays * 24 * 60 * 60 * 1000;
 
     let inserted = 0;
     let duplicates = 0;
     let skipped = 0;
+    let lastDeviceId: string | null = null;
 
     for (const item of body.items) {
       const start = new Date(item.callStartTime);
@@ -265,8 +421,17 @@ locationRoutes.post(
         .onConflictDoNothing({ target: [agentCallLogs.userId, agentCallLogs.eventId] })
         .returning({ id: agentCallLogs.id });
 
-      if (rows.length > 0) inserted += 1;
-      else duplicates += 1;
+      if (rows.length > 0) {
+        inserted += 1;
+        lastDeviceId = item.deviceId;
+      } else duplicates += 1;
+    }
+
+    if (lastDeviceId) {
+      await db
+        .update(agentDevices)
+        .set({ lastCallLogSyncAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(agentDevices.userId, authUser.id), eq(agentDevices.deviceId, lastDeviceId)));
     }
 
     return jsonOk(c, { inserted, duplicates, skipped }, undefined, 201);
@@ -280,8 +445,8 @@ locationRoutes.get("/live", async (c) => {
   }
 
   const db = c.get("db");
-  const config = getTrackingConfig();
-  const withinHours = isTrackingCaptureAllowed(new Date());
+  const config = await getTrackingConfigForOrg(db, authUser.orgId);
+  const withinHours = isTrackingCaptureAllowed(new Date(), config);
 
   await db.insert(trackingAuditLogs).values({
     adminId: authUser.id,
@@ -292,10 +457,10 @@ locationRoutes.get("/live", async (c) => {
 
   const rows = await db.execute<{
     user_id: string;
-    latitude: number;
-    longitude: number;
+    latitude: number | null;
+    longitude: number | null;
     accuracy: number | null;
-    captured_at: Date | string;
+    captured_at: Date | string | null;
     battery_level: number | null;
     network_status: string | null;
     name: string;
@@ -305,33 +470,59 @@ locationRoutes.get("/live", async (c) => {
     device_platform: string | null;
     app_version: string | null;
     tracking_enabled: boolean | null;
+    health_status: string | null;
+    device_status: string | null;
+    last_seen_at: Date | string | null;
+    last_heartbeat_at: Date | string | null;
+    last_location_at: Date | string | null;
+    tracking_policy_enabled: boolean;
+    is_stale: boolean;
   }>(sql`
-    SELECT DISTINCT ON (loc.user_id)
-      loc.user_id AS user_id,
-      loc.latitude AS latitude,
-      loc.longitude AS longitude,
-      loc.accuracy AS accuracy,
-      loc.captured_at AS captured_at,
-      loc.battery_level AS battery_level,
-      loc.network_status AS network_status,
+    SELECT
+      u.id AS user_id,
       u.name AS name,
       u.email AS email,
+      u.tracking_policy_enabled AS tracking_policy_enabled,
+      COALESCE(d.last_known_latitude, loc.latitude) AS latitude,
+      COALESCE(d.last_known_longitude, loc.longitude) AS longitude,
+      COALESCE(d.last_known_accuracy, loc.accuracy) AS accuracy,
+      COALESCE(d.last_known_captured_at, loc.captured_at) AS captured_at,
+      d.battery_level AS battery_level,
+      d.network_status AS network_status,
       d.location_permission_status AS location_permission_status,
       d.call_log_permission_status AS call_log_permission_status,
       d.platform AS device_platform,
       d.app_version AS app_version,
-      d.tracking_enabled AS tracking_enabled
-    FROM agent_locations loc
-    INNER JOIN users u ON u.id = loc.user_id
+      d.tracking_enabled AS tracking_enabled,
+      d.health_status AS health_status,
+      d.device_status AS device_status,
+      d.last_seen_at AS last_seen_at,
+      d.last_heartbeat_at AS last_heartbeat_at,
+      d.last_location_at AS last_location_at,
+      CASE
+        WHEN COALESCE(d.last_known_captured_at, loc.captured_at) IS NULL THEN true
+        WHEN COALESCE(d.last_known_captured_at, loc.captured_at)
+          < NOW() - (${config.missingAlertMinutes}::text || ' minutes')::interval
+        THEN true
+        ELSE false
+      END AS is_stale
+    FROM users u
     LEFT JOIN LATERAL (
       SELECT *
       FROM agent_devices
-      WHERE user_id = loc.user_id
+      WHERE user_id = u.id AND is_current = true
       ORDER BY last_seen_at DESC
       LIMIT 1
     ) d ON true
-    WHERE loc.captured_at > NOW() - INTERVAL '24 hours'
-    ORDER BY loc.user_id, loc.captured_at DESC
+    LEFT JOIN LATERAL (
+      SELECT latitude, longitude, accuracy, captured_at
+      FROM agent_locations
+      WHERE user_id = u.id
+      ORDER BY captured_at DESC
+      LIMIT 1
+    ) loc ON true
+    WHERE u.role = 'agent' AND u.is_active = true AND u.org_id = ${authUser.orgId}
+    ORDER BY u.name ASC
   `);
 
   const deviceRows = await db.execute<{
@@ -368,38 +559,46 @@ locationRoutes.get("/live", async (c) => {
   `);
 
   const agents = rows.map((row) => {
-    const capturedAt =
-      row.captured_at instanceof Date
+    const capturedAt = row.captured_at
+      ? row.captured_at instanceof Date
         ? row.captured_at.toISOString()
-        : new Date(row.captured_at).toISOString();
-    const minutesSince = Math.floor((Date.now() - new Date(capturedAt).getTime()) / 60_000);
-    let trackingStatus: AgentLocationPingStatus = "active";
-    if (row.location_permission_status && row.location_permission_status !== "granted") {
-      trackingStatus = "permission_denied";
-    } else if (!withinHours) {
-      trackingStatus = "outside_hours";
-    } else if (row.tracking_enabled === false) {
-      trackingStatus = "inactive";
-    } else if (minutesSince >= config.missingAlertMinutes) {
-      trackingStatus = "stale";
-    }
+        : new Date(row.captured_at).toISOString()
+      : null;
+    const lastSeenAt = row.last_seen_at
+      ? row.last_seen_at instanceof Date
+        ? row.last_seen_at.toISOString()
+        : new Date(row.last_seen_at).toISOString()
+      : null;
+    const minutesSince = capturedAt
+      ? Math.floor((Date.now() - new Date(capturedAt).getTime()) / 60_000)
+      : null;
+    const isStale = Boolean(row.is_stale);
 
     return {
       userId: row.user_id,
       name: row.name,
       email: row.email,
-      latitude: Number(row.latitude),
-      longitude: Number(row.longitude),
+      latitude: row.latitude == null ? null : Number(row.latitude),
+      longitude: row.longitude == null ? null : Number(row.longitude),
       accuracy: row.accuracy == null ? null : Number(row.accuracy),
       capturedAt,
+      lastSeenAt,
+      lastHeartbeatAt: row.last_heartbeat_at ? new Date(row.last_heartbeat_at).toISOString() : null,
+      lastLocationAt: row.last_location_at ? new Date(row.last_location_at).toISOString() : null,
       batteryLevel: row.battery_level,
       networkStatus: row.network_status,
-      trackingStatus,
+      trackingStatus: (row.health_status ?? "UNKNOWN").toLowerCase(),
+      healthStatus: row.health_status ?? "UNKNOWN",
+      deviceStatus: row.device_status ?? "UNKNOWN",
       locationPermissionStatus: row.location_permission_status,
       callLogPermissionStatus: row.call_log_permission_status,
       devicePlatform: row.device_platform,
       appVersion: row.app_version,
       minutesSinceLastPing: minutesSince,
+      isLastKnown: isStale,
+      locationLabel: isStale ? "LAST_KNOWN_LOCATION" : "CURRENT_LOCATION",
+      trackingPolicyEnabled: row.tracking_policy_enabled,
+      withinHours,
     };
   });
 
@@ -429,21 +628,208 @@ locationRoutes.get("/live", async (c) => {
     agents,
     devices,
     config: {
+      enabled: config.enabled,
       scheduleLabel: config.scheduleLabel,
       intervalMinutes: config.intervalMinutes,
       retentionDays: config.retentionDays,
       missingAlertMinutes: config.missingAlertMinutes,
+      heartbeatThresholdMinutes: config.heartbeatThresholdMinutes,
       withinHours,
     },
   });
 });
 
-type AgentLocationPingStatus =
-  | "active"
-  | "inactive"
-  | "outside_hours"
-  | "permission_denied"
-  | "stale";
+locationRoutes.get("/health", async (c) => {
+  const authUser = c.get("authUser");
+  if (!requireAdmin(authUser)) {
+    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  }
+  const db = c.get("db");
+  await db.insert(trackingAuditLogs).values({
+    adminId: authUser.id,
+    action: "VIEW_DEVICE_STATUS",
+  });
+
+  const config = await getTrackingConfigForOrg(db, authUser.orgId);
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      trackingPolicyEnabled: users.trackingPolicyEnabled,
+      deviceId: agentDevices.deviceId,
+      platform: agentDevices.platform,
+      model: agentDevices.model,
+      manufacturer: agentDevices.manufacturer,
+      appVersion: agentDevices.appVersion,
+      healthStatus: agentDevices.healthStatus,
+      deviceStatus: agentDevices.deviceStatus,
+      locationPermissionStatus: agentDevices.locationPermissionStatus,
+      callLogPermissionStatus: agentDevices.callLogPermissionStatus,
+      lastSeenAt: agentDevices.lastSeenAt,
+      lastLocationAt: agentDevices.lastLocationAt,
+      lastKnownLatitude: agentDevices.lastKnownLatitude,
+      lastKnownLongitude: agentDevices.lastKnownLongitude,
+      lastKnownCapturedAt: agentDevices.lastKnownCapturedAt,
+      isCurrent: agentDevices.isCurrent,
+    })
+    .from(users)
+    .leftJoin(
+      agentDevices,
+      and(eq(agentDevices.userId, users.id), eq(agentDevices.isCurrent, true)),
+    )
+    .where(and(eq(users.orgId, authUser.orgId), eq(users.role, "agent"), eq(users.isActive, true)))
+    .orderBy(asc(users.name));
+
+  return jsonOk(c, {
+    agents: rows.map((r) => ({
+      ...r,
+      lastSeenAt: r.lastSeenAt?.toISOString() ?? null,
+      lastLocationAt: r.lastLocationAt?.toISOString() ?? null,
+      lastKnownCapturedAt: r.lastKnownCapturedAt?.toISOString() ?? null,
+    })),
+    config: {
+      scheduleLabel: config.scheduleLabel,
+      heartbeatThresholdMinutes: config.heartbeatThresholdMinutes,
+      missingAlertMinutes: config.missingAlertMinutes,
+    },
+  });
+});
+
+locationRoutes.get("/alerts", async (c) => {
+  const authUser = c.get("authUser");
+  if (!requireAdmin(authUser)) {
+    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  }
+  const db = c.get("db");
+  const alerts = await listOpenTrackingAlerts(db, authUser.orgId);
+  return jsonOk(c, {
+    alerts: alerts.map((a) => ({
+      ...a,
+      createdAt: a.createdAt.toISOString(),
+    })),
+  });
+});
+
+locationRoutes.get("/settings", async (c) => {
+  const authUser = c.get("authUser");
+  if (!requireAdmin(authUser)) {
+    return jsonError(c, "FORBIDDEN", "Access denied", 403);
+  }
+  const db = c.get("db");
+  const config = await getTrackingConfigForOrg(db, authUser.orgId);
+  return jsonOk(c, config);
+});
+
+locationRoutes.patch(
+  "/settings",
+  writeRateLimit,
+  validate("json", settingsBodySchema),
+  async (c) => {
+    const authUser = c.get("authUser");
+    if (!requireAdmin(authUser)) {
+      return jsonError(c, "FORBIDDEN", "Access denied", 403);
+    }
+    const body = c.req.valid("json");
+    const db = c.get("db");
+    const now = new Date();
+    const current = await getTrackingConfigForOrg(db, authUser.orgId);
+
+    await db
+      .insert(trackingSettings)
+      .values({
+        orgId: authUser.orgId,
+        enabled: body.enabled ?? current.enabled,
+        timezone: body.timezone ?? current.timezone,
+        startTime: body.startTime ?? current.startTime,
+        endTime: body.endTime ?? current.endTime,
+        intervalMinutes: body.intervalMinutes ?? current.intervalMinutes,
+        retentionDays: body.retentionDays ?? current.retentionDays,
+        missingAlertMinutes: body.missingAlertMinutes ?? current.missingAlertMinutes,
+        heartbeatThresholdMinutes:
+          body.heartbeatThresholdMinutes ?? current.heartbeatThresholdMinutes,
+        possibleUninstallMinutes: body.possibleUninstallMinutes ?? current.possibleUninstallMinutes,
+        activeDays: body.activeDays ?? current.activeDays,
+        updatedBy: authUser.id,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [trackingSettings.orgId],
+        set: {
+          enabled: body.enabled ?? current.enabled,
+          timezone: body.timezone ?? current.timezone,
+          startTime: body.startTime ?? current.startTime,
+          endTime: body.endTime ?? current.endTime,
+          intervalMinutes: body.intervalMinutes ?? current.intervalMinutes,
+          retentionDays: body.retentionDays ?? current.retentionDays,
+          missingAlertMinutes: body.missingAlertMinutes ?? current.missingAlertMinutes,
+          heartbeatThresholdMinutes:
+            body.heartbeatThresholdMinutes ?? current.heartbeatThresholdMinutes,
+          possibleUninstallMinutes:
+            body.possibleUninstallMinutes ?? current.possibleUninstallMinutes,
+          activeDays: body.activeDays ?? current.activeDays,
+          updatedBy: authUser.id,
+          updatedAt: now,
+        },
+      });
+
+    await db.insert(trackingAuditLogs).values({
+      adminId: authUser.id,
+      action: "CHANGE_TRACKING_SETTINGS",
+    });
+
+    const next = await getTrackingConfigForOrg(db, authUser.orgId);
+    return jsonOk(c, next);
+  },
+);
+
+locationRoutes.post(
+  "/agents/:agentId/enable",
+  writeRateLimit,
+  validate("param", agentIdParamSchema),
+  async (c) => {
+    const authUser = c.get("authUser");
+    if (!requireAdmin(authUser)) {
+      return jsonError(c, "FORBIDDEN", "Access denied", 403);
+    }
+    const { agentId } = c.req.valid("param");
+    const db = c.get("db");
+    await db
+      .update(users)
+      .set({ trackingPolicyEnabled: true })
+      .where(and(eq(users.id, agentId), eq(users.orgId, authUser.orgId)));
+    await db.insert(trackingAuditLogs).values({
+      adminId: authUser.id,
+      action: "ENABLE_TRACKING",
+      agentId,
+    });
+    return jsonOk(c, { ok: true as const, trackingPolicyEnabled: true });
+  },
+);
+
+locationRoutes.post(
+  "/agents/:agentId/disable",
+  writeRateLimit,
+  validate("param", agentIdParamSchema),
+  async (c) => {
+    const authUser = c.get("authUser");
+    if (!requireAdmin(authUser)) {
+      return jsonError(c, "FORBIDDEN", "Access denied", 403);
+    }
+    const { agentId } = c.req.valid("param");
+    const db = c.get("db");
+    await db
+      .update(users)
+      .set({ trackingPolicyEnabled: false })
+      .where(and(eq(users.id, agentId), eq(users.orgId, authUser.orgId)));
+    await db.insert(trackingAuditLogs).values({
+      adminId: authUser.id,
+      action: "DISABLE_TRACKING",
+      agentId,
+    });
+    return jsonOk(c, { ok: true as const, trackingPolicyEnabled: false });
+  },
+);
 
 locationRoutes.get("/history", validate("query", historyQuerySchema), async (c) => {
   const authUser = c.get("authUser");
@@ -555,7 +941,6 @@ locationRoutes.get("/call-logs", validate("query", historyQuerySchema), async (c
   const items = rows.map((row) => ({
     id: row.id,
     callType: row.callType,
-    // Mask middle digits for admin UI privacy.
     phoneNumber: row.phoneNumber ? row.phoneNumber.replace(/(\d{2})\d+(\d{2})/, "$1****$2") : null,
     callStartTime: row.callStartTime.toISOString(),
     callEndTime: row.callEndTime?.toISOString() ?? null,

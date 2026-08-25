@@ -4,8 +4,10 @@ import { AppLogo } from "@/components/layout/app-logo";
 import { useSession } from "@/hooks/use-session";
 import { cn } from "@propninja/ui/lib/utils";
 import {
+  Activity,
   AlertTriangle,
   BarChart3,
+  Bell,
   BookMarked,
   Building2,
   CheckSquare,
@@ -56,6 +58,8 @@ const navItems: NavItem[] = [
     roles: ["admin", "manager", "agent"],
   },
   { href: "/locations", label: "Locations", icon: MapPin, roles: ["admin"] },
+  { href: "/locations/health", label: "Tracking health", icon: Activity, roles: ["admin"] },
+  { href: "/locations/alerts", label: "Tracking alerts", icon: Bell, roles: ["admin"] },
   {
     href: "/bookings",
     label: "Bookings",

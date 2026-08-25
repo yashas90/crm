@@ -73,6 +73,11 @@ function getIstWeekdayIndex(date = new Date()): number {
   return map[weekday] ?? 0;
 }
 
+/** 0=Sunday … 6=Saturday in Asia/Kolkata. */
+export function getIstDayOfWeek(date = new Date()): number {
+  return getIstWeekdayIndex(date);
+}
+
 export function getIstWeekBounds(reference = new Date()): { start: Date; end: Date } {
   const dayIndex = getIstWeekdayIndex(reference);
   const mondayOffset = dayIndex === 0 ? 6 : dayIndex - 1;

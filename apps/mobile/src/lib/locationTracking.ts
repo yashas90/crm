@@ -1,9 +1,10 @@
 import { isWithinTrackingHours } from "@propninja/types/tracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
+import Constants from "expo-constants";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
-import { Linking, Platform } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 import { ApiRequestError, apiPost, refreshAccessToken } from "./apiClient";
 import { getMobileAppVersion } from "./appVersion";
 import { ensureAuthCacheLoaded, getToken } from "./auth";
@@ -18,6 +19,8 @@ export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v6";
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 /** Office wants a position at least every 30 minutes during working hours. */
 export const PING_INTERVAL_MS = 30 * 60 * 1000;
+/** Lightweight device heartbeat (not a location substitute). */
+export const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
 /** Force a catch-up GPS ping when the last successful upload is this old. */
 export const LOCATION_CATCHUP_AFTER_MS = 25 * 60 * 1000;
 /** Restart the native FGS task if no ping landed within interval + grace (OS often stalls). */
@@ -25,7 +28,10 @@ export const LOCATION_OVERDUE_RESTART_MS = 35 * 60 * 1000;
 const LOCATION_PING_QUEUE_KEY = "propninja_pending_location_pings";
 const LAST_PING_AT_KEY = "propninja_last_location_ping_at";
 const DEVICE_ID_KEY = "propninja_tracking_device_id";
+const INSTALLATION_ID_KEY = "propninja_tracking_installation_id";
 const MAX_QUEUED_PINGS = 200;
+
+let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 
 type LocationPingBody = {
   eventId: string;
@@ -48,6 +54,27 @@ async function getOrCreateDeviceId(): Promise<string> {
   const next = `dev_${Platform.OS}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   await AsyncStorage.setItem(DEVICE_ID_KEY, next);
   return next;
+}
+
+async function getOrCreateInstallationId(): Promise<string> {
+  const existing = await AsyncStorage.getItem(INSTALLATION_ID_KEY);
+  if (existing) return existing;
+  const next = `inst_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+  await AsyncStorage.setItem(INSTALLATION_ID_KEY, next);
+  return next;
+}
+
+function deviceHardwareInfo(): {
+  manufacturer: string | null;
+  model: string | null;
+  osVersion: string | null;
+} {
+  const platform = Constants.platform;
+  return {
+    manufacturer: Platform.OS === "android" ? "Android" : Platform.OS === "ios" ? "Apple" : null,
+    model: Constants.deviceName ?? platform?.ios?.model ?? null,
+    osVersion: String(Platform.Version ?? ""),
+  };
 }
 
 async function currentNetworkStatus(): Promise<"online" | "offline" | "unknown"> {
@@ -133,8 +160,10 @@ type BulkPingResult = {
   inserted: number;
   duplicates: number;
   outsideHours: number;
+  disabled?: number;
   acceptedEventIds?: string[];
   rejectedOutsideHoursEventIds?: string[];
+  rejectedDisabledEventIds?: string[];
 };
 
 /** Flush queued location pings (network restore / app foreground). Prefer bulk when possible. */
@@ -158,8 +187,12 @@ export async function flushLocationPingQueue(): Promise<number> {
     if (Array.isArray(result.acceptedEventIds)) {
       const accepted = new Set(result.acceptedEventIds);
       const rejectedOutside = new Set(result.rejectedOutsideHoursEventIds ?? []);
+      const rejectedDisabled = new Set(result.rejectedDisabledEventIds ?? []);
       const remaining = queue.filter(
-        (item) => !accepted.has(item.eventId) && !rejectedOutside.has(item.eventId),
+        (item) =>
+          !accepted.has(item.eventId) &&
+          !rejectedOutside.has(item.eventId) &&
+          !rejectedDisabled.has(item.eventId),
       );
       await writePingQueue(remaining);
       const lastAccepted = [...queue].reverse().find((item) => accepted.has(item.eventId));
@@ -188,8 +221,10 @@ export async function flushLocationPingQueue(): Promise<number> {
       await postLocationPing(item);
       synced += 1;
     } catch (err) {
-      const outsideHours = err instanceof ApiRequestError && err.code === "OUTSIDE_TRACKING_HOURS";
-      if (outsideHours) {
+      const discardable =
+        err instanceof ApiRequestError &&
+        (err.code === "OUTSIDE_TRACKING_HOURS" || err.code === "TRACKING_DISABLED");
+      if (discardable) {
         // Discard — do not keep forever.
         continue;
       }
@@ -270,24 +305,66 @@ export async function requestLocationPermissionsOnce(): Promise<boolean> {
 
 export async function registerTrackingDevice(): Promise<void> {
   const deviceId = await getOrCreateDeviceId();
+  const installationId = await getOrCreateInstallationId();
   const perms = await checkRequiredWorkPermissions();
+  const hw = deviceHardwareInfo();
   try {
     await apiPost(
       "/api/locations/device",
       {
         deviceId,
+        installationId,
         platform: Platform.OS === "ios" ? "ios" : "android",
         appVersion: getMobileAppVersion(),
+        manufacturer: hw.manufacturer,
+        model: hw.model,
+        osVersion: hw.osVersion,
         locationPermissionStatus: perms.locationGranted ? "granted" : "denied",
         callLogPermissionStatus: getOsCallLogPermissionStatus(perms.callLogGranted),
         // Location tracking runs whenever Always location is granted — call-log is separate.
         trackingEnabled: perms.locationGranted,
         networkStatus: await currentNetworkStatus(),
+        heartbeat: true,
       },
       { skipSessionLogout: true },
     );
   } catch {
     // Best-effort heartbeat.
+  }
+}
+
+export async function sendDeviceHeartbeat(): Promise<void> {
+  const deviceId = await getOrCreateDeviceId();
+  try {
+    await apiPost(
+      "/api/locations/device/heartbeat",
+      {
+        deviceId,
+        platform: Platform.OS === "ios" ? "ios" : "android",
+        appVersion: getMobileAppVersion(),
+        networkStatus: await currentNetworkStatus(),
+      },
+      { skipSessionLogout: true },
+    );
+  } catch {
+    // Best-effort
+  }
+}
+
+function startHeartbeatLoop() {
+  if (heartbeatTimer) return;
+  void sendDeviceHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    if (AppState.currentState === "active") {
+      void sendDeviceHeartbeat();
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeatLoop() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = undefined;
   }
 }
 
@@ -367,6 +444,7 @@ export async function startLocationTracking() {
   await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, "true");
   await ensureAuthCacheLoaded();
   void registerTrackingDevice();
+  startHeartbeatLoop();
 
   // Keep the foreground-service task running around the clock so Android does not
   // silently drop deliveries overnight. Uploads still skip outside 09:30–20:30 IST.
@@ -398,6 +476,7 @@ export function resetForegroundSyncDebounceForTests(): void {
 }
 
 export async function stopLocationTracking() {
+  stopHeartbeatLoop();
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
   if (isRunning) await Location.stopLocationUpdatesAsync(TASK_NAME);
 }

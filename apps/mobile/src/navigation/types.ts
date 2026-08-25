@@ -19,6 +19,7 @@ export type TeamStackParamList = {
 export type ProfileStackParamList = {
   ProfileScreen: undefined;
   CallLogsScreen: { dateFilter?: string } | undefined;
+  TrackingStatusScreen: undefined;
   UserManagementScreen: undefined;
   ProjectsScreen: undefined;
   ProjectDetailScreen: { projectId: string; projectName?: string };
