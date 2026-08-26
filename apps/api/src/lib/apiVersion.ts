@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Bump when shipping API behavior that must be verified on Railway /health. */
-export const API_DEPLOY_MARKER = "dialing-pad-feature-2026-08-26b";
+export const API_DEPLOY_MARKER = "dialing-pad-feature-2026-08-26c";
 
 type DeployIdentity = {
   version: string;

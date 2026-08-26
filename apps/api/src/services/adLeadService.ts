@@ -3,6 +3,7 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { notifyNewAdLeadReceived } from "../lib/adLeadNotifications.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
+import { allocateNextLeadCode } from "../lib/leadCode.js";
 import { canonicalizeLeadSource } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { recordReEnquiryActivity } from "./leadReEnquiry.js";
@@ -393,10 +394,12 @@ export const adLeadService = {
             : {}),
         });
       } else {
+        const leadCode = await allocateNextLeadCode();
         const [created] = await db
           .insert(leads)
           .values({
             orgId: SINGLE_TENANT_ORG_ID,
+            leadCode,
             firstName,
             lastName,
             email: email ?? null,
