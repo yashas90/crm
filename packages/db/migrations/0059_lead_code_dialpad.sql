@@ -4,7 +4,7 @@ ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "lead_code" text;
 WITH numbered AS (
   SELECT
     id,
-    row_number() OVER (ORDER BY created_at ASC, id ASC) AS rn
+    row_number() OVER (PARTITION BY org_id ORDER BY created_at ASC, id ASC) AS rn
   FROM "leads"
   WHERE "lead_code" IS NULL
 )
