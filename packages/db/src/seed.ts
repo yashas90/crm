@@ -326,6 +326,7 @@ export async function seedDemoData(connectionString = process.env.DATABASE_URL) 
     return {
       orgId: org!.id,
       assignedTo: pick(agents, index).id,
+      leadCode: `PROP-${String(index + 1).padStart(4, "0")}`,
       firstName: pick(FIRST_NAMES, index),
       lastName: pick(LAST_NAMES, index + 3),
       email: `lead${index + 1}@example.com`,

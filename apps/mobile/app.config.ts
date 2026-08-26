@@ -38,7 +38,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: BUNDLE_ID,
     /** Must increase on every sideload APK or Android reports "App not installed". */
-    versionCode: 17,
+    versionCode: 18,
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#8CAFBF",
