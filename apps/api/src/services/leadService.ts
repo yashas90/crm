@@ -32,6 +32,10 @@ import {
   pendingLeadWhere,
 } from "../lib/ageOutNewLeads.js";
 import { applyAdvancedLeadFilters } from "../lib/applyAdvancedLeadFilters.js";
+import {
+  buildApplyNewStatusFields,
+  shouldApplyNewStatusOnAssign,
+} from "../lib/applyNewStatusOnAssign.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { toCsv } from "../lib/csv.js";
 import { db } from "../lib/db.js";
@@ -1053,7 +1057,7 @@ export const leadService = {
     if (input.data.tags !== undefined) update.tags = input.data.tags ?? null;
 
     const shouldApplyNewStatus =
-      applyNewStatus && (NA_STATUSES as string[]).includes(existing.leadStatus);
+      applyNewStatus && shouldApplyNewStatusOnAssign(existing.leadStatus);
 
     const statusUpdate = resolveBulkImportLeadStatus({
       existingStatus: existing.leadStatus,
@@ -1066,6 +1070,9 @@ export const leadService = {
     if (statusUpdate.clearNaFields) {
       update.naSinceAt = null;
       update.nextFollowupAt = null;
+    }
+    if (statusUpdate.refreshNewWindow) {
+      update.createdAt = new Date();
     }
 
     if (input.data.projectId !== undefined || input.data.projectName !== undefined) {
@@ -1464,17 +1471,16 @@ export const leadService = {
     }
 
     const [updated] = await db.transaction(async (tx) => {
-      const nextLeadStatus: typeof existing.leadStatus | null =
-        applyNewStatus && (NA_STATUSES as string[]).includes(existing.leadStatus) ? "new" : null;
+      const applyFields =
+        applyNewStatus && shouldApplyNewStatusOnAssign(existing.leadStatus)
+          ? buildApplyNewStatusFields()
+          : null;
 
       const [row] = await tx
         .update(leads)
         .set({
           assignedTo: userId,
-          ...(nextLeadStatus
-            ? { leadStatus: nextLeadStatus, naSinceAt: null, nextFollowupAt: null }
-            : {}),
-          updatedAt: new Date(),
+          ...(applyFields ?? { updatedAt: new Date() }),
         })
         .where(
           and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
@@ -1510,10 +1516,10 @@ export const leadService = {
       });
     }
 
-    // If we moved NA → "new", record a normal status change activity (regardless of assignment-history flag).
+    // Record status change when we moved Pending/NA → New (or refreshed stale New).
     if (
       applyNewStatus &&
-      (NA_STATUSES as string[]).includes(existing.leadStatus) &&
+      shouldApplyNewStatusOnAssign(existing.leadStatus) &&
       existing.leadStatus !== "new"
     ) {
       await db.insert(leadActivities).values({

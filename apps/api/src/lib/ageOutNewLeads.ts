@@ -18,14 +18,21 @@ export type AgeOutNewLeadsResult = {
   total: number;
 };
 
-/** SQL: new lead has been contacted (call logged or lastContactedAt set). */
+/** SQL: new lead contacted *after* its current New cycle started (createdAt).
+ * Historical calls from a prior Pending cycle must not instantly age a freshly
+ * reopened New lead back to contacted.
+ */
 function touchedNewLeadSql() {
   return sql`(
-    ${leads.lastContactedAt} is not null
+    (
+      ${leads.lastContactedAt} is not null
+      AND ${leads.lastContactedAt} >= ${leads.createdAt}
+    )
     OR EXISTS (
       SELECT 1 FROM ${callRecords} cr
       WHERE cr.lead_id = ${leads.id}
         AND cr.org_id = ${leads.orgId}
+        AND cr.created_at >= ${leads.createdAt}
     )
   )`;
 }
