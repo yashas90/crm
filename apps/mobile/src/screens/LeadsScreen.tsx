@@ -128,8 +128,10 @@ export function LeadsScreen({ navigation }: Props) {
   );
 
   const renderItem: ListRenderItem<LeadRow> = useCallback(
-    ({ item }) => <LeadListItem lead={item} onPress={onPressLead} />,
-    [onPressLead],
+    ({ item }) => (
+      <LeadListItem lead={item} onPress={onPressLead} highlightQuery={debouncedSearch} />
+    ),
+    [debouncedSearch, onPressLead],
   );
 
   const onEndReached = useCallback(() => {

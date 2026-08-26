@@ -9,6 +9,51 @@ import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+function highlightParts(text: string, query: string) {
+  const trimmed = query.trim();
+  if (!trimmed) return [{ text, highlight: false }] as const;
+
+  const lowerText = text.toLowerCase();
+  const lowerQuery = trimmed.toLowerCase();
+  const parts: { text: string; highlight: boolean }[] = [];
+  let start = 0;
+  let index = lowerText.indexOf(lowerQuery, start);
+
+  while (index !== -1) {
+    if (index > start) parts.push({ text: text.slice(start, index), highlight: false });
+    parts.push({ text: text.slice(index, index + trimmed.length), highlight: true });
+    start = index + trimmed.length;
+    index = lowerText.indexOf(lowerQuery, start);
+  }
+
+  if (start < text.length) parts.push({ text: text.slice(start), highlight: false });
+  return parts;
+}
+
+function HighlightedText({
+  text,
+  query,
+  style,
+  highlightStyle,
+}: {
+  text: string;
+  query?: string;
+  style: object;
+  highlightStyle: object;
+}) {
+  if (!query?.trim()) return <Text style={style}>{text}</Text>;
+  const parts = highlightParts(text, query);
+  return (
+    <Text style={style}>
+      {parts.map((part, index) => (
+        <Text key={`${part.text}-${index}`} style={part.highlight ? highlightStyle : undefined}>
+          {part.text}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
 function initials(lead: LeadRow) {
   const first = (lead.firstName ?? "").trim().charAt(0);
   const last = (lead.lastName ?? "").trim().charAt(0);
@@ -27,6 +72,7 @@ function daysSinceContact(value: string | null | undefined) {
 export type LeadListItemProps = {
   lead: LeadRow;
   onPress: (leadId: string) => void;
+  highlightQuery?: string;
 };
 
 function leadRowEqual(a: LeadRow, b: LeadRow) {
@@ -39,12 +85,13 @@ function leadRowEqual(a: LeadRow, b: LeadRow) {
     a.leadStatus === b.leadStatus &&
     a.temperature === b.temperature &&
     a.leadSource === b.leadSource &&
+    a.leadCode === b.leadCode &&
     a.lastContactedAt === b.lastContactedAt &&
     a.nextFollowupAt === b.nextFollowupAt
   );
 }
 
-function LeadListItemComponent({ lead, onPress }: LeadListItemProps) {
+function LeadListItemComponent({ lead, onPress, highlightQuery }: LeadListItemProps) {
   const display = getLeadStatusDisplay(lead);
   const status = statusStyle(display.tone);
   const sourceLabel = formatLeadSourceDisplay(lead.leadSource);
@@ -61,10 +108,21 @@ function LeadListItemComponent({ lead, onPress }: LeadListItemProps) {
         <Text style={styles.avatarText}>{initials(lead)}</Text>
       </View>
       <View style={styles.cardBody}>
+        <Text style={styles.leadCode}>
+          <HighlightedText
+            text={lead.leadCode}
+            query={highlightQuery}
+            style={styles.leadCode}
+            highlightStyle={styles.leadCodeHighlight}
+          />
+        </Text>
         <View style={styles.titleRow}>
-          <Text style={styles.name} numberOfLines={1}>
-            {lead.firstName} {lead.lastName}
-          </Text>
+          <HighlightedText
+            text={`${lead.firstName} ${lead.lastName}`.trim()}
+            query={highlightQuery}
+            style={styles.name}
+            highlightStyle={styles.nameHighlight}
+          />
           <Badge label={display.primary} backgroundColor={status.bg} color={status.text} />
         </View>
         <Text style={styles.subline} numberOfLines={1}>
@@ -89,7 +147,11 @@ function LeadListItemComponent({ lead, onPress }: LeadListItemProps) {
 }
 
 export const LeadListItem = memo(LeadListItemComponent, (prev, next) => {
-  return prev.onPress === next.onPress && leadRowEqual(prev.lead, next.lead);
+  return (
+    prev.onPress === next.onPress &&
+    prev.highlightQuery === next.highlightQuery &&
+    leadRowEqual(prev.lead, next.lead)
+  );
 });
 
 LeadListItem.displayName = "LeadListItem";
@@ -114,8 +176,17 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   cardBody: { flex: 1, minWidth: 0 },
+  leadCode: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  leadCodeHighlight: { backgroundColor: "#fef08a", color: colors.text },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   name: { color: colors.text, fontSize: 16, fontWeight: "700", flex: 1 },
+  nameHighlight: { backgroundColor: "#fef08a" },
   subline: { color: colors.textMuted, fontSize: 13, marginBottom: 6 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   contactLine: { color: colors.textMuted, fontSize: 12 },

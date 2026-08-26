@@ -20,9 +20,16 @@ function formatDuration(seconds: number) {
 type CallsListTableProps = {
   calls: CallRecord[];
   showLead?: boolean;
+  showLeadId?: boolean;
+  showPhone?: boolean;
 };
 
-export function CallsListTable({ calls, showLead = false }: CallsListTableProps) {
+export function CallsListTable({
+  calls,
+  showLead = false,
+  showLeadId = false,
+  showPhone = false,
+}: CallsListTableProps) {
   if (calls.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">No calls found for the selected filters.</p>
@@ -34,7 +41,9 @@ export function CallsListTable({ calls, showLead = false }: CallsListTableProps)
       <TableHeader>
         <TableRow>
           <TableHead>Date / time</TableHead>
+          {showLeadId ? <TableHead>Lead ID</TableHead> : null}
           {showLead ? <TableHead>Lead</TableHead> : null}
+          {showPhone ? <TableHead>Phone</TableHead> : null}
           <TableHead>Direction</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Duration</TableHead>
@@ -49,6 +58,11 @@ export function CallsListTable({ calls, showLead = false }: CallsListTableProps)
             <TableCell className="whitespace-nowrap tabular-nums font-medium text-foreground">
               {new Date(call.startedAt).toLocaleString()}
             </TableCell>
+            {showLeadId ? (
+              <TableCell className="font-mono text-sm font-semibold text-primary">
+                {call.lead?.leadCode ?? "—"}
+              </TableCell>
+            ) : null}
             {showLead ? (
               <TableCell>
                 {call.lead ? (
@@ -59,9 +73,12 @@ export function CallsListTable({ calls, showLead = false }: CallsListTableProps)
                     {call.lead.firstName} {call.lead.lastName}
                   </Link>
                 ) : (
-                  <span className="text-foreground">{call.phoneNumber}</span>
+                  <span className="text-muted-foreground">Unlinked</span>
                 )}
               </TableCell>
+            ) : null}
+            {showPhone ? (
+              <TableCell className="tabular-nums text-foreground">{call.phoneNumber}</TableCell>
             ) : null}
             <TableCell className="capitalize text-foreground">{call.direction}</TableCell>
             <TableCell className="capitalize text-foreground">{call.status}</TableCell>

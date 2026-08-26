@@ -350,6 +350,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         >
           <View style={styles.profileCard}>
             <View style={styles.profileCardInner}>
+              <Text style={styles.leadCode}>{lead.leadCode}</Text>
               <View style={styles.titleRow}>
                 <Text style={styles.title}>
                   {lead.firstName} {lead.lastName}
@@ -1005,6 +1006,13 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     marginBottom: 8,
+  },
+  leadCode: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+    marginBottom: 4,
   },
   title: { ...typography.subheading, color: colors.text, flexShrink: 1 },
   statusChip: {

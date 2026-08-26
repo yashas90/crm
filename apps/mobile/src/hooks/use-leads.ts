@@ -20,6 +20,7 @@ const LEADS_PAGE_SIZE = "50";
 
 export type LeadRow = {
   id: string;
+  leadCode: string;
   firstName: string;
   lastName: string;
   phone: string | null;

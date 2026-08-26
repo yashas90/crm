@@ -16,6 +16,7 @@ export type LeadsListData = {
 
 export type LeadRow = {
   id: string;
+  leadCode: string;
   firstName: string;
   lastName: string;
   email: string | null;
@@ -91,10 +92,12 @@ export type CallRecord = {
   userName?: string | null;
   lead?: {
     id: string;
+    leadCode: string;
     firstName: string;
     lastName: string;
     phone: string | null;
   } | null;
+  source?: string | null;
 };
 
 export type LeadsQueryParams = {
@@ -310,6 +313,25 @@ export function useCalls(params: CallsQueryParams) {
         `/api/calls${query}`,
       ),
     enabled: hasFilter,
+  });
+}
+
+export type CallSummary = {
+  total_calls: number;
+  completed_calls: number;
+  missed_calls: number;
+  average_duration: number;
+};
+
+export function useCallSummary(params: CallsQueryParams) {
+  const query = buildQuery(params);
+  const hasRange = Boolean(params.date_from && params.date_to);
+
+  return useQuery({
+    queryKey: ["calls", "summary", query],
+    queryFn: () => apiGet<CallSummary>(`/api/calls/summary${query}`),
+    enabled: hasRange,
+    staleTime: 30_000,
   });
 }
 

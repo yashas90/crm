@@ -42,7 +42,7 @@ export type LogCallInput = {
   notes?: string;
   /** Reserved for future analytics; API ignores this field today. */
   ring_seconds?: number;
-  source: "mobile-manual" | "mobile-auto" | "web-manual";
+  source: "mobile-manual" | "mobile-auto" | "mobile-dialpad" | "web-manual";
 };
 
 function useAuthReady() {

@@ -216,6 +216,9 @@ export default function LeadDetailPage() {
               {avatarInitials(`${lead.firstName} ${lead.lastName}`)}
             </div>
             <div className="space-y-3">
+              <p className="font-mono text-sm font-bold tracking-wide text-primary">
+                {lead.leadCode}
+              </p>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl dark:text-white">
                 {lead.firstName} {lead.lastName}
               </h1>

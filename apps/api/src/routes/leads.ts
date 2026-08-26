@@ -507,6 +507,25 @@ leadsRoute.get("/hot", async (c) => {
   });
 });
 
+/** Match a dialed phone to an assigned lead (dial pad). Returns null when no match or no access. */
+leadsRoute.get("/lookup-phone", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  const phone = c.req.query("phone")?.trim();
+  if (!phone) {
+    return c.json(
+      { ok: false, error: { code: "VALIDATION_ERROR", message: "phone query is required" } },
+      400,
+    );
+  }
+
+  const lead = await leadService.lookupByPhone(phone);
+  if (!lead || !canViewLead(authUser, { assignedTo: lead.assignedTo })) {
+    return c.json({ ok: true, data: null });
+  }
+
+  return c.json({ ok: true, data: maskLeadContactFields(authUser, lead) });
+});
+
 leadsRoute.get("/scoring/config", async (c) => {
   const data = await getScoringConfig();
   return c.json({ ok: true, data });

@@ -9,7 +9,7 @@ import { recalculateLeadScore } from "../services/leadScoringService.js";
 
 type CallDirection = "incoming" | "outgoing";
 type CallStatus = "completed" | "missed" | "rejected" | "failed";
-type CallSource = "mobile-manual" | "mobile-auto" | "web-manual";
+type CallSource = "mobile-manual" | "mobile-auto" | "web-manual" | "mobile-dialpad";
 
 export interface LogCallInput {
   userId: string;
@@ -226,6 +226,7 @@ export const callService = {
       lead: row.lead
         ? {
             id: row.lead.id,
+            leadCode: row.lead.leadCode,
             firstName: row.lead.firstName,
             lastName: row.lead.lastName,
             phone: row.lead.phone,

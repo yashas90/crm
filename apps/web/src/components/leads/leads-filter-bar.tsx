@@ -88,7 +88,7 @@ export function LeadsFilterBar({
         <Input
           id={searchId}
           className="h-10 rounded-full border-border bg-background pl-10 pr-16 shadow-sm transition-shadow focus-visible:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/20"
-          placeholder="Search leads…"
+          placeholder="Search name, phone, or Lead ID…"
           value={searchDraft}
           onChange={(event) => onSearchDraftChange(event.target.value)}
           onKeyDown={(event) => {

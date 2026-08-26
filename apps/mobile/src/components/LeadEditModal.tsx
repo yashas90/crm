@@ -91,6 +91,7 @@ export function LeadEditModal({ visible, lead, isSaving, onClose, onSave }: Lead
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>Edit lead</Text>
+          <Text style={styles.leadCode}>{lead.leadCode}</Text>
 
           <ScrollView contentContainerStyle={styles.content}>
             <SectionLabel text="Contact info" />
@@ -254,6 +255,14 @@ const styles = StyleSheet.create({
   title: {
     ...typography.subheading,
     color: colors.text,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  leadCode: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.6,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },

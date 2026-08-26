@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "PropNinja",
   slug: "propninja-crm",
-  version: "1.0.17",
+  version: "1.0.18",
   description:
     "PropNinja CRM for real estate agents — manage leads, follow-ups, and log SIM calls from your phone.",
   orientation: "portrait",

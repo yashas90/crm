@@ -39,6 +39,7 @@ import { notFound } from "../lib/errors.js";
 import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.js";
 import { inferFollowupType } from "../lib/followupType.js";
 import type { LeadAdvancedListQuery } from "../lib/leadAdvancedListQuery.js";
+import { allocateNextLeadCode } from "../lib/leadCode.js";
 import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
@@ -395,6 +396,7 @@ function buildListWhere(params: ListLeadsParams) {
         ilike(leads.firstName, term),
         ilike(leads.lastName, term),
         ilike(leads.email, term),
+        ilike(leads.leadCode, term),
         ...phoneClauses,
       )!,
     );
@@ -809,11 +811,13 @@ export const leadService = {
     const resolvedStatus = leadStatus ?? "new";
     const now = new Date();
     const isNaStatus = (NA_STATUSES as string[]).includes(resolvedStatus);
+    const leadCode = await allocateNextLeadCode();
 
     const [created] = await db
       .insert(leads)
       .values({
         orgId: SINGLE_TENANT_ORG_ID,
+        leadCode,
         assignedTo: options?.assignedTo ?? null,
         firstName,
         lastName: lastName ?? "",
@@ -1984,5 +1988,9 @@ export const leadService = {
     );
 
     return { csv, rowCount: rows.length };
+  },
+
+  async lookupByPhone(phone: string) {
+    return findLeadByPhone(phone);
   },
 };

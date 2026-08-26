@@ -82,6 +82,8 @@ export const leads = pgTable(
     orgId: uuid("org_id")
       .notNull()
       .references(() => organizations.id),
+    /** Human-readable ID shown in UI — PROP-0001, auto-incrementing per org. */
+    leadCode: text("lead_code").notNull(),
     assignedTo: uuid("assigned_to").references(() => users.id),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
@@ -142,6 +144,8 @@ export const leads = pgTable(
     index("leads_org_id_lead_status_idx").on(table.orgId, table.leadStatus),
     index("leads_org_id_phone_idx").on(table.orgId, table.phone),
     index("leads_project_id_idx").on(table.projectId),
+    uniqueIndex("leads_org_lead_code_uidx").on(table.orgId, table.leadCode),
+    index("leads_lead_code_idx").on(table.leadCode),
   ],
 );
 
@@ -257,7 +261,7 @@ export const callRecords = pgTable(
     ),
     check(
       "call_records_source_check",
-      sql`${table.source} in ('mobile-manual', 'mobile-auto', 'web-manual')`,
+      sql`${table.source} in ('mobile-manual', 'mobile-auto', 'web-manual', 'mobile-dialpad')`,
     ),
     index("call_records_org_user_started_at_idx").on(table.orgId, table.userId, table.startedAt),
     index("call_records_org_lead_id_idx").on(table.orgId, table.leadId),

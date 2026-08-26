@@ -9,6 +9,8 @@ type Props = {
   onOpenFilters: () => void;
   /** Debounce delay for search → query (ms). */
   debounceMs?: number;
+  placeholder?: string;
+  showFilterButton?: boolean;
 };
 
 /**
@@ -19,6 +21,8 @@ function LeadsSearchBarComponent({
   onDebouncedSearchChange,
   onOpenFilters,
   debounceMs = 400,
+  placeholder = "Search name, phone, or Lead ID",
+  showFilterButton = true,
 }: Props) {
   const [search, setSearch] = useState("");
 
@@ -33,24 +37,26 @@ function LeadsSearchBarComponent({
         <Ionicons name="search" size={18} color={colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search name or phone"
+          placeholder={placeholder}
           placeholderTextColor={colors.textMuted}
           value={search}
           onChangeText={setSearch}
         />
       </View>
-      <Pressable
-        style={styles.filterBtn}
-        onPress={onOpenFilters}
-        accessibilityLabel="Open lead filters"
-      >
-        <Ionicons name="options-outline" size={22} color={colors.text} />
-        {activeFilterCount > 0 ? (
-          <View style={styles.filterBadge}>
-            <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-          </View>
-        ) : null}
-      </Pressable>
+      {showFilterButton ? (
+        <Pressable
+          style={styles.filterBtn}
+          onPress={onOpenFilters}
+          accessibilityLabel="Open lead filters"
+        >
+          <Ionicons name="options-outline" size={22} color={colors.text} />
+          {activeFilterCount > 0 ? (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      ) : null}
     </View>
   );
 }

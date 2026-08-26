@@ -23,7 +23,12 @@ export const CALL_STATUSES = ["completed", "missed", "rejected", "failed"] as co
 
 export type CallStatus = (typeof CALL_STATUSES)[number];
 
-export const CALL_SOURCES = ["mobile-manual", "mobile-auto", "web-manual"] as const;
+export const CALL_SOURCES = [
+  "mobile-manual",
+  "mobile-auto",
+  "web-manual",
+  "mobile-dialpad",
+] as const;
 
 export type CallSource = (typeof CALL_SOURCES)[number];
 
