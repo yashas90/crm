@@ -1,6 +1,6 @@
 # Config-as-code for the Railway "crm" API service.
 # Dashboard Build settings are locked to this file ("value is set in /railway.toml").
-# Redeploy trigger: dialing-pad feature 2026-08-26
+# Redeploy trigger: dialing-pad feature 2026-08-26b (harden migration)
 
 [build]
 builder = "DOCKERFILE"
