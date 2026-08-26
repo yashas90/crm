@@ -248,7 +248,7 @@ export function CallLogModal({
 
               {reviewOnly ? (
                 <>
-                  {/* Duration pill */}
+                  {/* Duration pill — locked, OS/auto detected */}
                   <View style={styles.durationPill}>
                     <Ionicons name="time-outline" size={14} color={colors.primary} />
                     <Text style={styles.durationPillText}>
@@ -256,45 +256,17 @@ export function CallLogModal({
                     </Text>
                   </View>
 
-                  {/* Outcome chips */}
-                  <Text style={styles.label}>How did the call go?</Text>
-                  <View style={styles.outcomeChips}>
-                    {OUTCOME_CHIPS.map((chip) => (
-                      <Pressable
-                        key={chip.value}
-                        style={[
-                          styles.outcomeChip,
-                          outcome === chip.value && styles.outcomeChipActive,
-                        ]}
-                        onPress={() => handleOutcomeChipPress(chip.value)}
-                      >
-                        <Ionicons
-                          name={chip.icon as never}
-                          size={15}
-                          color={outcome === chip.value ? "#fff" : colors.textMuted}
-                        />
-                        <Text
-                          style={[
-                            styles.outcomeChipText,
-                            outcome === chip.value && styles.outcomeChipTextActive,
-                          ]}
-                        >
-                          {chip.label}
-                        </Text>
-                      </Pressable>
-                    ))}
+                  <View style={styles.lockedBanner}>
+                    <Ionicons name="lock-closed" size={14} color={colors.primary} />
+                    <Text style={styles.lockedBannerText}>
+                      Call recorded automatically as{" "}
+                      {CALL_OUTCOME_LABELS[defaultOutcomeFromDuration(defaultDurationSeconds)]}.
+                      Outcome and talk time cannot be edited.
+                    </Text>
                   </View>
 
-                  {renderDurationFields()}
-
-                  {/* Notes toggle */}
-                  <Pressable
-                    onPress={() => {
-                      timerTouched.current = true;
-                      progressAnim.stopAnimation();
-                      setShowNotes((v) => !v);
-                    }}
-                  >
+                  {/* Notes toggle (CRM notes only — does not change counts) */}
+                  <Pressable onPress={() => setShowNotes((v) => !v)}>
                     <Text style={styles.notesToggle}>
                       {showNotes ? "Hide notes" : "+ Add notes (optional)"}
                     </Text>
@@ -311,53 +283,22 @@ export function CallLogModal({
                     />
                   ) : null}
 
-                  {/* Auto-submit progress bar */}
-                  {!timerTouched.current ? (
-                    <View style={styles.countdownWrap}>
-                      <View style={styles.countdownTrack}>
-                        <Animated.View
-                          style={[
-                            styles.countdownBar,
-                            {
-                              width: progressAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: ["0%", "100%"],
-                              }),
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.countdownText}>
-                        Auto-logging as Answered in {countdown}s…
-                      </Text>
-                    </View>
-                  ) : null}
-
                   <View style={styles.actions}>
-                    <Pressable
-                      style={styles.ghostButton}
-                      onPress={() => {
-                        timerTouched.current = true;
-                        progressAnim.stopAnimation();
-                        onClose();
-                      }}
-                    >
-                      <Text style={styles.ghostButtonText}>Not a real call</Text>
-                    </Pressable>
                     <Pressable
                       testID="call-log-save"
                       style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
                       disabled={isSubmitting}
                       onPress={() => {
-                        timerTouched.current = true;
-                        progressAnim.stopAnimation();
-                        const payload = buildPayload();
-                        if (!payload) return;
-                        onSubmit(payload);
+                        onSubmit({
+                          outcome: defaultOutcomeFromDuration(defaultDurationSeconds),
+                          durationSeconds: defaultDurationSeconds,
+                          notes: notes.trim() || undefined,
+                          ringSeconds: 0,
+                        });
                       }}
                     >
                       <Text style={styles.primaryButtonText}>
-                        {isSubmitting ? "Saving…" : "Log Call"}
+                        {isSubmitting ? "Saving…" : "Continue"}
                       </Text>
                     </Pressable>
                   </View>
@@ -537,6 +478,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   durationPillText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
+  lockedBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#eff6ff",
+    borderRadius: radii.md,
+    padding: 12,
+    marginTop: 4,
+  },
+  lockedBannerText: { flex: 1, color: colors.text, fontSize: 13, lineHeight: 18 },
   elapsedHint: { color: colors.textMuted, fontSize: 12, marginBottom: 2 },
   // 2×2 outcome chip grid
   outcomeChips: {

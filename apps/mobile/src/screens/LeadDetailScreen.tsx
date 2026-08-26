@@ -1,4 +1,3 @@
-import { CallLogModal } from "@/components/CallLogModal";
 import { ComplianceChip } from "@/components/ComplianceChip";
 import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
 import { LeadContactActions } from "@/components/LeadContactActions";
@@ -142,10 +141,14 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
-    onLogged: async () => {
+    onLogged: async (_outcome, meta) => {
       // Invalidation in useLogCall already marks calls/lead detail stale — do not
       // force a second refetch while the status sheet is opening (post-call hitch).
       void feedbackCallSaved();
+      if (meta.leadId) {
+        setStatusSheetAfterCall(true);
+        setStatusSheetOpen(true);
+      }
     },
     onLogError: (err) => {
       Alert.alert("Error", err instanceof Error ? err.message : "Failed to save call.");
@@ -199,7 +202,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
 
       setStatusSheetOpen(false);
       setStatusSheetAfterCall(false);
-      dialerLog.dismissPending();
+      dialerLog.clearAutoLoggedCall();
 
       if (closingLead) {
         setIsExitingLead(true);
@@ -710,32 +713,17 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         ) : null}
       </View>
 
-      {dialerLog.isPendingLog && dialerLog.pendingLog ? (
-        <CallLogModal
-          visible
-          reviewOnly
-          phoneNumber={dialerLog.pendingLog.phoneNumber}
-          defaultDurationSeconds={dialerLog.pendingLog.durationSeconds}
-          durationIsTalkOnly={dialerLog.pendingLog.durationIsTalkOnly}
-          isSubmitting={logCall.isPending}
-          onClose={dialerLog.dismissPending}
-          onSubmit={(payload) => {
-            void (async () => {
-              try {
-                await dialerLog.confirmLog(
-                  payload.outcome,
-                  payload.notes,
-                  payload.ringSeconds,
-                  payload.durationSeconds,
-                );
-                setStatusSheetAfterCall(true);
-                setStatusSheetOpen(true);
-              } catch {
-                // onLogError surfaces the failure
-              }
-            })();
-          }}
-        />
+      {dialerLog.autoLoggedCall ? (
+        <View
+          style={[styles.callLoggedToast, { bottom: 80 + insets.bottom }]}
+          testID="auto-call-toast"
+        >
+          <Text style={styles.callLoggedToastText}>
+            Call recorded automatically ·{" "}
+            {dialerLog.autoLoggedCall.outcome === "answered" ? "Answered" : "No answer"} ·{" "}
+            {dialerLog.autoLoggedCall.durationSeconds}s
+          </Text>
+        </View>
       ) : null}
 
       <UpdateLeadStatusSheet
@@ -749,7 +737,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
         onClose={() => {
           setStatusSheetOpen(false);
           setStatusSheetAfterCall(false);
-          dialerLog.dismissPending();
+          dialerLog.clearAutoLoggedCall();
         }}
         onSave={(payload) => void handleStatusSave(payload)}
       />

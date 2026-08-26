@@ -2,9 +2,7 @@ import { Button } from "@/components/ui/Button";
 import { colors, radii, spacing, typography } from "@/theme";
 import type { CallOutcome } from "@propninja/types/enums";
 import { CALL_OUTCOME_LABELS } from "@propninja/types/enums";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-
-const OUTCOMES: CallOutcome[] = ["answered", "no_answer", "busy", "left_voicemail"];
+import { Modal, StyleSheet, Text, View } from "react-native";
 
 function formatDuration(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -17,20 +15,23 @@ type PostCallActionModalProps = {
   visible: boolean;
   durationSeconds: number;
   phoneNumber: string;
+  /** Auto-inferred outcome — not editable by the agent (drives Call Report counts). */
   outcome: CallOutcome;
-  onOutcomeChange: (outcome: CallOutcome) => void;
   onAddNewLead: () => void;
   onLinkExisting: () => void;
   onSkip: () => void;
   busy?: boolean;
 };
 
+/**
+ * Post-dial-pad sheet. Call result is locked to the auto-detected outcome/duration.
+ * Agents only choose whether to link a lead — they cannot change Answered / talk time.
+ */
 export function PostCallActionModal({
   visible,
   durationSeconds,
   phoneNumber,
   outcome,
-  onOutcomeChange,
   onAddNewLead,
   onLinkExisting,
   onSkip,
@@ -40,28 +41,13 @@ export function PostCallActionModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onSkip}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>Call ended</Text>
+          <Text style={styles.title}>Call recorded</Text>
           <Text style={styles.subtitle}>
-            {phoneNumber} · Duration: {formatDuration(durationSeconds)}
+            {phoneNumber} · {formatDuration(durationSeconds)} · {CALL_OUTCOME_LABELS[outcome]}
           </Text>
-
-          <Text style={styles.sectionLabel}>Call result</Text>
-          <View style={styles.outcomeRow}>
-            {OUTCOMES.map((item) => (
-              <Pressable
-                key={item}
-                style={[styles.outcomeChip, outcome === item && styles.outcomeChipActive]}
-                onPress={() => onOutcomeChange(item)}
-              >
-                <Text
-                  style={[styles.outcomeText, outcome === item && styles.outcomeTextActive]}
-                  numberOfLines={1}
-                >
-                  {CALL_OUTCOME_LABELS[item]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={styles.lockHint}>
+            Outcome and duration are recorded automatically from the call. They cannot be edited.
+          </Text>
 
           <Button label="Add as New Lead" onPress={onAddNewLead} disabled={busy} />
           <Button
@@ -72,7 +58,7 @@ export function PostCallActionModal({
             style={{ marginTop: spacing.sm }}
           />
           <Button
-            label="Skip"
+            label="Done"
             variant="ghost"
             onPress={onSkip}
             disabled={busy}
@@ -100,24 +86,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   title: { ...typography.heading, color: colors.text },
-  subtitle: { color: colors.textMuted, marginTop: spacing.xs, marginBottom: spacing.md },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "800",
+  subtitle: { color: colors.textMuted, marginTop: spacing.xs, marginBottom: spacing.sm },
+  lockHint: {
     color: colors.textMuted,
-    textTransform: "uppercase",
-    marginBottom: spacing.sm,
+    fontSize: 12,
+    marginBottom: spacing.lg,
+    lineHeight: 18,
   },
-  outcomeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
-  outcomeChip: {
-    borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-  },
-  outcomeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  outcomeText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
-  outcomeTextActive: { color: "#fff" },
 });

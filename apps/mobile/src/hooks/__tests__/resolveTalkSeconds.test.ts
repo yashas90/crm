@@ -4,49 +4,48 @@ describe("resolveTalkSeconds", () => {
   it("returns 0 for non-answered outcomes", () => {
     expect(
       resolveTalkSeconds({
-        pending: { durationSeconds: 90, durationIsTalkOnly: true },
+        pending: { durationSeconds: 40, durationIsTalkOnly: true },
         outcome: "no_answer",
       }),
     ).toBe(0);
   });
 
-  it("uses talkOverride when provided for answered calls", () => {
+  it("uses native talk-only duration when answered", () => {
     expect(
       resolveTalkSeconds({
-        pending: { durationSeconds: 90, durationIsTalkOnly: true },
+        pending: { durationSeconds: 42, durationIsTalkOnly: true },
         outcome: "answered",
-        talkOverride: 45,
+      }),
+    ).toBe(42);
+  });
+
+  it("subtracts ring from wall-clock fallback", () => {
+    expect(
+      resolveTalkSeconds({
+        pending: { durationSeconds: 60, durationIsTalkOnly: false },
+        outcome: "answered",
+        ringSeconds: 15,
       }),
     ).toBe(45);
   });
 
-  it("uses native talk-only duration when available", () => {
+  it("prefers talkOverride when provided", () => {
     expect(
       resolveTalkSeconds({
-        pending: { durationSeconds: 70, durationIsTalkOnly: true },
+        pending: { durationSeconds: 60, durationIsTalkOnly: true },
         outcome: "answered",
-        ringSeconds: 20,
+        talkOverride: 12,
       }),
-    ).toBe(70);
-  });
-
-  it("subtracts ring from wall-clock elapsed when not talk-only", () => {
-    expect(
-      resolveTalkSeconds({
-        pending: { durationSeconds: 90, durationIsTalkOnly: false },
-        outcome: "answered",
-        ringSeconds: 15,
-      }),
-    ).toBe(75);
+    ).toBe(12);
   });
 });
 
 describe("defaultOutcomeFromDuration", () => {
-  it("counts positive duration as answered when agent skips call update", () => {
+  it("maps positive duration to answered", () => {
     expect(defaultOutcomeFromDuration(42)).toBe("answered");
   });
 
-  it("counts zero duration as no_answer when agent skips call update", () => {
+  it("maps zero duration to no_answer (not connected)", () => {
     expect(defaultOutcomeFromDuration(0)).toBe("no_answer");
   });
 });

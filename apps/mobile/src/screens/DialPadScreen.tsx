@@ -37,7 +37,6 @@ export function DialPadScreen({ navigation }: Props) {
   const callStartRef = useRef<number | null>(null);
   const matchedLeadIdRef = useRef<string | undefined>(undefined);
   const [pendingCall, setPendingCall] = useState<PendingCall | null>(null);
-  const [outcome, setOutcome] = useState<CallOutcome>("answered");
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
 
   const logCall = useLogCall();
@@ -60,8 +59,6 @@ export function DialPadScreen({ navigation }: Props) {
   const openPostCall = useCallback((startMs: number, phone: string) => {
     const endedAt = new Date();
     const durationSeconds = Math.max(0, Math.round((endedAt.getTime() - startMs) / 1000));
-    const inferred = inferOutcome(durationSeconds);
-    setOutcome(inferred);
     setPendingCall({
       phoneNumber: phone,
       startedAt: new Date(startMs).toISOString(),
@@ -71,6 +68,8 @@ export function DialPadScreen({ navigation }: Props) {
     setCalling(false);
     callStartRef.current = null;
   }, []);
+
+  const pendingOutcome = pendingCall ? inferOutcome(pendingCall.durationSeconds) : "answered";
 
   const { beginCall, clearCallSession } = useCallDurationTracking({
     onReturn: ({ calledAt }) => {
@@ -130,6 +129,7 @@ export function DialPadScreen({ navigation }: Props) {
   const submitCallLog = useCallback(
     async (leadId?: string) => {
       if (!pendingCall) return;
+      const outcome = inferOutcome(pendingCall.durationSeconds);
       await logCall.mutateAsync({
         phone_number: pendingCall.phoneNumber,
         lead_id: leadId,
@@ -143,7 +143,7 @@ export function DialPadScreen({ navigation }: Props) {
       setPendingCall(null);
       setLinkPickerOpen(false);
     },
-    [logCall, outcome, pendingCall],
+    [logCall, pendingCall],
   );
 
   const onSkip = useCallback(() => {
@@ -154,6 +154,7 @@ export function DialPadScreen({ navigation }: Props) {
 
   const onAddNewLead = useCallback(() => {
     if (!pendingCall) return;
+    const outcome = inferOutcome(pendingCall.durationSeconds);
     const payload = { ...pendingCall, outcome };
     setPendingCall(null);
     navigation.navigate("LeadsTab", {
@@ -163,7 +164,7 @@ export function DialPadScreen({ navigation }: Props) {
         pendingCallLog: payload,
       },
     });
-  }, [navigation, outcome, pendingCall]);
+  }, [navigation, pendingCall]);
 
   const onLinkExisting = useCallback(() => {
     setLinkPickerOpen(true);
@@ -228,8 +229,7 @@ export function DialPadScreen({ navigation }: Props) {
         visible={Boolean(pendingCall)}
         durationSeconds={pendingCall?.durationSeconds ?? 0}
         phoneNumber={pendingCall?.phoneNumber ?? ""}
-        outcome={outcome}
-        onOutcomeChange={setOutcome}
+        outcome={pendingOutcome}
         onAddNewLead={onAddNewLead}
         onLinkExisting={onLinkExisting}
         onSkip={onSkip}
