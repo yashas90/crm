@@ -22,6 +22,7 @@ const VisitsStack = lazyNamed(() => import("@/navigation/VisitsStack"), "VisitsS
 const PipelineScreen = lazyNamed(() => import("@/screens/PipelineScreen"), "PipelineScreen");
 const TodayScreen = lazyNamed(() => import("@/screens/TodayScreen"), "TodayScreen");
 const TasksScreen = lazyNamed(() => import("@/screens/TasksScreen"), "TasksScreen");
+const DialPadScreen = lazyNamed(() => import("@/screens/DialPadScreen"), "DialPadScreen");
 const NotificationsScreen = lazyNamed(
   () => import("@/screens/NotificationsScreen"),
   "NotificationsScreen",
@@ -130,6 +131,15 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             }}
           />
         )}
+        <Tab.Screen
+          name="DialPadTab"
+          component={DialPadScreen}
+          options={{
+            title: "Dial",
+            tabBarIcon: ({ focused }) => tabIcon("call-outline", focused),
+            headerShown: false,
+          }}
+        />
         <Tab.Screen
           name="VisitsTab"
           component={VisitsStack}

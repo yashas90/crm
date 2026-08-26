@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { LeadRow } from "@/hooks/use-leads";
+import { HighlightText } from "@/lib/highlight-text";
 import { formatLeadSourceDisplay } from "@/lib/lead-sources";
 import { getLeadStatusDisplay } from "@/lib/lead-status-display";
 import type { LeadsColumnVisibility } from "@/lib/leads-table-columns";
@@ -53,6 +54,7 @@ type LeadsTableProps = {
   pageSizeOptions?: readonly number[];
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
+  highlightQuery?: string;
 };
 
 type ActionIconButtonProps = {
@@ -118,6 +120,7 @@ type LeadsTableRowProps = {
   onEdit: (lead: LeadRow) => void;
   onView: (leadId: string) => void;
   onNotes: (lead: LeadRow) => void;
+  highlightQuery?: string;
 };
 
 const LeadsTableRow = memo(function LeadsTableRow({
@@ -129,6 +132,7 @@ const LeadsTableRow = memo(function LeadsTableRow({
   onEdit,
   onView,
   onNotes,
+  highlightQuery,
 }: LeadsTableRowProps) {
   const status = getLeadStatusDisplay(lead);
   const fullName = `${lead.firstName} ${lead.lastName}`.trim();
@@ -153,6 +157,12 @@ const LeadsTableRow = memo(function LeadsTableRow({
         />
       </TableCell>
 
+      {columnsToShow.leadId ? (
+        <TableCell className="font-mono text-sm font-semibold text-primary">
+          <HighlightText text={lead.leadCode} query={highlightQuery} />
+        </TableCell>
+      ) : null}
+
       {columnsToShow.name ? (
         <TableCell>
           <div className="flex items-center gap-2.5">
@@ -165,7 +175,9 @@ const LeadsTableRow = memo(function LeadsTableRow({
                 .toUpperCase()}
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-medium text-slate-800 dark:text-white">{fullName}</span>
+              <span className="font-medium text-slate-800 dark:text-white">
+                <HighlightText text={fullName} query={highlightQuery} />
+              </span>
               {status.primary === "New" ? (
                 <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
                   New
@@ -288,6 +300,7 @@ function LeadsTableHeader({
             aria-label="Select all leads on this page"
           />
         </TableHead>
+        {columnsToShow.leadId ? <TableHead className="bg-muted/95">Lead ID</TableHead> : null}
         {columnsToShow.name ? <TableHead className="bg-muted/95">Lead Name</TableHead> : null}
         {columnsToShow.assignedTo ? (
           <TableHead className="bg-muted/95">Assigned To</TableHead>
@@ -318,6 +331,7 @@ export const LeadsTable = memo(function LeadsTable({
   pageSizeOptions,
   selectedIds,
   onSelectionChange,
+  highlightQuery,
 }: LeadsTableProps) {
   const router = useRouter();
   const [internalSelected, setInternalSelected] = useState<string[]>([]);
@@ -395,6 +409,7 @@ export const LeadsTable = memo(function LeadsTable({
                     onEdit={onEdit}
                     onView={handleView}
                     onNotes={handleNotes}
+                    highlightQuery={highlightQuery}
                   />
                 ))
               )}

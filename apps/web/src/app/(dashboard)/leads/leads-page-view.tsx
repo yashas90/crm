@@ -511,6 +511,7 @@ export function LeadsPageView() {
             onSelectionChange={setSelectedLeadIds}
             onEdit={setEditingLead}
             onAddLead={() => setShowForm(true)}
+            highlightQuery={filters.search}
           />
         </section>
       )}

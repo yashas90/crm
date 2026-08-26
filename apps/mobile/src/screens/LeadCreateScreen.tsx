@@ -1,4 +1,5 @@
 import { FollowUpQuickPicker } from "@/components/FollowUpQuickPicker";
+import { useLogCall } from "@/hooks/use-calls";
 import type { LeadRow } from "@/hooks/use-leads";
 import { apiGet, apiPost } from "@/lib/apiClient";
 import type { LeadsStackParamList } from "@/navigation/types";
@@ -30,11 +31,13 @@ const LEAD_SOURCE_OPTIONS = [
   { label: "Other", value: "other" },
 ] as const;
 
-export function LeadCreateScreen({ navigation }: Props) {
+export function LeadCreateScreen({ navigation, route }: Props) {
   const queryClient = useQueryClient();
+  const logCall = useLogCall();
+  const pendingCallLog = route.params?.pendingCallLog;
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(route.params?.prefilledPhone ?? "");
   const [debouncedPhone, setDebouncedPhone] = useState("");
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
@@ -85,6 +88,18 @@ export function LeadCreateScreen({ navigation }: Props) {
       });
     },
     onSuccess: async (lead) => {
+      if (pendingCallLog) {
+        await logCall.mutateAsync({
+          lead_id: lead.id,
+          phone_number: pendingCallLog.phoneNumber,
+          direction: "outgoing",
+          started_at: pendingCallLog.startedAt,
+          ended_at: pendingCallLog.endedAt,
+          duration_seconds: pendingCallLog.durationSeconds,
+          outcome: pendingCallLog.outcome,
+          source: "mobile-dialpad",
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: ["leads"] });
       navigation.replace("LeadDetailScreen", { leadId: lead.id });
     },
@@ -137,7 +152,7 @@ export function LeadCreateScreen({ navigation }: Props) {
             </Text>
             {dupMatches.slice(0, 3).map((d) => (
               <Text key={d.id} style={styles.dupWarnRow}>
-                {d.firstName} {d.lastName} · {d.leadStatus}
+                {d.leadCode} · {d.firstName} {d.lastName} · {d.leadStatus}
               </Text>
             ))}
           </View>

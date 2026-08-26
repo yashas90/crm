@@ -160,6 +160,10 @@ export function LeadEditForm({ lead, onSuccess }: LeadEditFormProps) {
         mutation.mutate();
       }}
     >
+      <div className="space-y-2 md:col-span-2">
+        <Label htmlFor="leadCode">Lead ID</Label>
+        <Input id="leadCode" value={lead.leadCode} readOnly disabled className="font-mono" />
+      </div>
       <div className="space-y-2">
         <Label htmlFor="firstName">First name</Label>
         <Input

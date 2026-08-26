@@ -1,8 +1,21 @@
 import type { NavigatorScreenParams } from "@react-navigation/native";
 
+export type PendingDialPadCallLog = {
+  phoneNumber: string;
+  startedAt: string;
+  endedAt: string;
+  durationSeconds: number;
+  outcome: "answered" | "no_answer" | "busy" | "left_voicemail";
+};
+
 export type LeadsStackParamList = {
   LeadsScreen: undefined;
-  LeadCreateScreen: undefined;
+  LeadCreateScreen:
+    | {
+        prefilledPhone?: string;
+        pendingCallLog?: PendingDialPadCallLog;
+      }
+    | undefined;
   LeadDetailScreen: {
     leadId: string;
     leadIds?: string[];
@@ -43,4 +56,5 @@ export type MainTabParamList = {
   NotificationsTab: undefined;
   ProfileTab: undefined;
   PipelineTab: undefined;
+  DialPadTab: undefined;
 };

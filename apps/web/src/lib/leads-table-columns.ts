@@ -1,4 +1,5 @@
 export type LeadsTableColumnId =
+  | "leadId"
   | "name"
   | "assignedTo"
   | "source"
@@ -10,6 +11,7 @@ export type LeadsTableColumnId =
 export type LeadsColumnVisibility = Record<LeadsTableColumnId, boolean>;
 
 export const LEADS_TABLE_COLUMNS: { id: LeadsTableColumnId; label: string }[] = [
+  { id: "leadId", label: "Lead ID" },
   { id: "name", label: "Lead Name" },
   { id: "assignedTo", label: "Assigned To" },
   { id: "source", label: "Source" },
@@ -20,6 +22,7 @@ export const LEADS_TABLE_COLUMNS: { id: LeadsTableColumnId; label: string }[] = 
 ];
 
 export const DEFAULT_LEADS_COLUMN_VISIBILITY: LeadsColumnVisibility = {
+  leadId: true,
   name: true,
   assignedTo: true,
   source: true,

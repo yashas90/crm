@@ -109,6 +109,7 @@ function sampleLead(): Lead {
     lastActivityAt: null,
     slaBreachedAt: null,
     naSinceAt: null,
+    leadCode: "PROP-0001",
   };
 }
 

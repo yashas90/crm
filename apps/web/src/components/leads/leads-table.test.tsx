@@ -20,6 +20,7 @@ const freshCreatedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 const mockLeads: LeadRow[] = [
   {
     id: "lead-1",
+    leadCode: "PROP-0001",
     firstName: "Aarav",
     lastName: "Sharma",
     email: "aarav@example.com",
@@ -34,6 +35,7 @@ const mockLeads: LeadRow[] = [
   },
   {
     id: "lead-2",
+    leadCode: "PROP-0002",
     firstName: "Priya",
     lastName: "Patel",
     email: null,

@@ -29,20 +29,13 @@ const logCallSchema = z
     outcome: callOutcomeSchema,
     disposition: z.string().min(1).optional(),
     notes: z.string().optional(),
-    source: z.enum(["mobile-manual", "mobile-auto", "web-manual"]).optional(),
+    source: z.enum(["mobile-manual", "mobile-auto", "web-manual", "mobile-dialpad"]).optional(),
   })
   .superRefine((value, ctx) => {
     const leadId = value.lead_id ?? value.leadId;
     const phone = value.phone_number ?? value.phoneNumber;
     const hasDuration = value.duration_seconds !== undefined || value.duration !== undefined;
 
-    if (!leadId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "lead_id is required",
-        path: ["lead_id"],
-      });
-    }
     if (!phone) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -100,13 +93,15 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
   const leadId = data.lead_id ?? data.leadId;
   const clientPhone = data.phone_number ?? data.phoneNumber!;
 
-  const lead = leadId ? await leadService.getLeadById(leadId) : null;
-  if (!lead || !canEditLead(authUser, { assignedTo: lead.assignedTo })) {
-    return c.json({ ok: false, error: { code: "NOT_FOUND", message: "Lead not found" } }, 404);
+  let phoneNumber = clientPhone;
+  if (leadId) {
+    const lead = await leadService.getLeadById(leadId);
+    if (!lead || !canEditLead(authUser, { assignedTo: lead.assignedTo })) {
+      return c.json({ ok: false, error: { code: "NOT_FOUND", message: "Lead not found" } }, 404);
+    }
+    // Prefer DB number so masked display values from clients are never stored.
+    phoneNumber = lead.phone ?? clientPhone;
   }
-
-  // Prefer DB number so masked display values from clients are never stored.
-  const phoneNumber = lead.phone ?? clientPhone;
 
   const durationSeconds = data.duration_seconds ?? Math.round((data.duration ?? 0) * 60);
   const mapped = mapCallOutcome(data.outcome);
@@ -128,7 +123,7 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
     disposition: data.disposition ?? mapped.disposition,
     outcome: data.outcome,
     notes: data.notes,
-    source: data.source ?? "web-manual",
+    source: data.source ?? (leadId ? "web-manual" : "mobile-dialpad"),
   });
 
   // Call counts and New→Pending promote must not wait for report/lead cache TTL (5–10 min).

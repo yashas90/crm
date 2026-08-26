@@ -5,6 +5,7 @@ import { AccessDeniedEmptyState } from "@/components/common/access-denied-empty-
 import { EmptyState } from "@/components/common/empty-state";
 import { QuickFilterTabs } from "@/components/common/quick-filter-tabs";
 import { BarChart } from "@/components/reports/bar-chart";
+import { CallLogsReportPanel } from "@/components/reports/call-logs-report-panel";
 import { CallsFilterDrawer } from "@/components/reports/calls-filter-drawer";
 import { CallsUserReportTable } from "@/components/reports/calls-user-report-table";
 import { LineAreaChart } from "@/components/reports/line-area-chart";
@@ -194,6 +195,7 @@ export default function CallsReportPage() {
           <TabsList>
             <TabsTrigger value="report">Call report</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="call-logs">Call Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="report" className="mt-4 space-y-4">
@@ -371,6 +373,10 @@ export default function CallsReportPage() {
               </>
             ) : null}
           </TabsContent>
+
+          <TabsContent value="call-logs" className="mt-4 space-y-4">
+            <CallLogsReportPanel dateFrom={apiRange.dateFrom} dateTo={apiRange.dateTo} />
+          </TabsContent>
         </Tabs>
       )}
 
@@ -401,7 +407,7 @@ export default function CallsReportPage() {
                 <p className="text-sm text-muted-foreground">Unable to load call list.</p>
               )
             ) : callsList.data ? (
-              <CallsListTable calls={callsList.data.items} showLead />
+              <CallsListTable calls={callsList.data.items} showLead showLeadId showPhone />
             ) : (
               <p className="text-sm text-muted-foreground">Unable to load call list.</p>
             )}
