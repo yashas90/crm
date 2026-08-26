@@ -151,7 +151,9 @@ async function loadLeadForEdit(c: JsonContext, id: string | undefined, authUser:
 
 leadsRoute.get("/activities/recent", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
-  const data = await leadService.getRecentActivities(10, {
+  const limitRaw = Number(c.req.query("limit") ?? "25");
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, Math.floor(limitRaw)), 50) : 25;
+  const data = await leadService.getRecentActivities(limit, {
     assignedTo: authUser.role === "agent" ? authUser.id : undefined,
   });
   return c.json({ ok: true, data });
@@ -682,8 +684,9 @@ leadsRoute.post("/", leadsCreateRateLimit, validate("json", createLeadBodySchema
   try {
     const body = c.req.valid("json");
 
-    // Auto-assign via rules when admin/manager creates a lead without explicit assignee
-    let assignedTo = authUser.role === "agent" ? authUser.id : undefined;
+    // Agents always own leads they create. Admins/managers may pass assignedTo;
+    // otherwise fall back to auto-assign rules.
+    let assignedTo = authUser.role === "agent" ? authUser.id : body.assignedTo;
     if (!assignedTo && authUser.role !== "agent") {
       const autoAssignee = await autoAssignLead(c.get("db"), {
         leadSource: body.leadSource,

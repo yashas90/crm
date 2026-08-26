@@ -224,9 +224,11 @@ describe("startLocationTracking", () => {
 describe("closed-app watchdog", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetForegroundSyncDebounceForTests();
     (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(false);
     (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
     (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
+    (Location.startLocationUpdatesAsync as jest.Mock).mockResolvedValue(undefined);
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
     (TaskManager.isTaskRegisteredAsync as jest.Mock).mockResolvedValue(false);
     (BackgroundFetch.getStatusAsync as jest.Mock).mockResolvedValue(
@@ -244,6 +246,19 @@ describe("closed-app watchdog", () => {
     (TaskManager.isTaskRegisteredAsync as jest.Mock).mockResolvedValue(true);
     await registerLocationWatchdog();
     expect(BackgroundFetch.registerTaskAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces concurrent startLocationTracking calls into one native start", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-08-20T06:30:00.000Z"));
+
+    const first = startLocationTracking();
+    const second = startLocationTracking();
+    expect(first).toBe(second);
+
+    await Promise.all([first, second]);
+    expect(Location.startLocationUpdatesAsync).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
   });
 
   it("catch-up GPS when last ping is stale during hours", async () => {

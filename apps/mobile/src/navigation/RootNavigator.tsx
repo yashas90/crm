@@ -1,8 +1,4 @@
-import {
-  checkRequiredWorkPermissions,
-  flushLocationPingQueue,
-  startLocationTracking,
-} from "@/lib/locationTracking";
+import { checkRequiredWorkPermissions, startLocationTracking } from "@/lib/locationTracking";
 import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
 import { useAuth } from "@/providers/auth-provider";
 import { colors } from "@/theme";
@@ -25,8 +21,9 @@ export function RootNavigator() {
   const evaluatePermissions = useCallback(async () => {
     const perms = await checkRequiredWorkPermissions();
     // Start GPS whenever Always location is granted — call-log must not block tracking.
+    // startLocationTracking coalesces stacked calls and already flushes the offline queue.
     if (perms.locationGranted) {
-      void startLocationTracking().then(() => flushLocationPingQueue());
+      void startLocationTracking();
     }
     if (perms.allGranted) {
       setNeedsPermissions(false);
@@ -46,7 +43,7 @@ export function RootNavigator() {
       const perms = await checkRequiredWorkPermissions();
       if (cancelled) return;
       if (perms.locationGranted) {
-        void startLocationTracking().then(() => flushLocationPingQueue());
+        void startLocationTracking();
       }
       if (perms.allGranted) {
         setNeedsPermissions(false);

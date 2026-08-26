@@ -132,6 +132,13 @@ describe("Last admin protection", () => {
       body: JSON.stringify({ isActive: true }),
     });
     expect(reactivateRes.status).toBe(200);
+
+    // Refresh the original admin JWT — deactivated-user tokens stay rejected even after
+    // the account is reactivated (auth checks DB isActive on each request, but the next
+    // tests still need a live admin session).
+    const restored = await loginToken();
+    expect(restored.status).toBe(200);
+    adminToken = restored.token;
   });
 
   it("non-admin user deactivation is always allowed", async ({ skip }) => {

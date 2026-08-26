@@ -29,12 +29,16 @@ export const PING_INTERVAL_MS = 30 * 60 * 1000;
 export const LOCATION_OS_INTERVAL_MS = 15 * 60 * 1000;
 /** Background-fetch minimum interval (seconds) — OS may coalesce further. */
 export const WATCHDOG_MINIMUM_INTERVAL_SECONDS = 15 * 60;
-/** Lightweight device heartbeat (not a location substitute). */
+/** Lightweight device heartbeat while the UI process is alive. */
 export const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
+/** Skip duplicate closed-app heartbeats closer than this (Fused can wake often). */
+export const HEARTBEAT_MIN_GAP_MS = 5 * 60 * 1000;
 /** Force a catch-up GPS ping when the last successful upload is this old. */
 export const LOCATION_CATCHUP_AFTER_MS = 25 * 60 * 1000;
 /** Restart the native FGS task if no ping landed within interval + grace (OS often stalls). */
 export const LOCATION_OVERDUE_RESTART_MS = 35 * 60 * 1000;
+/** Avoid re-POSTing full device registration on every AppState bounce. */
+const DEVICE_REGISTER_MIN_GAP_MS = 30 * 60 * 1000;
 const LOCATION_PING_QUEUE_KEY = "propninja_pending_location_pings";
 const LAST_PING_AT_KEY = "propninja_last_location_ping_at";
 const DEVICE_ID_KEY = "propninja_tracking_device_id";
@@ -42,6 +46,12 @@ const INSTALLATION_ID_KEY = "propninja_tracking_installation_id";
 const MAX_QUEUED_PINGS = 200;
 
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+let cachedDeviceId: string | null = null;
+let cachedInstallationId: string | null = null;
+let lastHeartbeatAtMs = 0;
+let lastDeviceRegisterAtMs = 0;
+let startTrackingInFlight: Promise<void> | null = null;
+let watchdogRegisterInFlight: Promise<void> | null = null;
 
 type LocationPingBody = {
   eventId: string;
@@ -59,19 +69,36 @@ function createEventId(): string {
 }
 
 async function getOrCreateDeviceId(): Promise<string> {
+  if (cachedDeviceId) return cachedDeviceId;
   const existing = await AsyncStorage.getItem(DEVICE_ID_KEY);
-  if (existing) return existing;
+  if (existing) {
+    cachedDeviceId = existing;
+    return existing;
+  }
   const next = `dev_${Platform.OS}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   await AsyncStorage.setItem(DEVICE_ID_KEY, next);
+  cachedDeviceId = next;
   return next;
 }
 
 async function getOrCreateInstallationId(): Promise<string> {
+  if (cachedInstallationId) return cachedInstallationId;
   const existing = await AsyncStorage.getItem(INSTALLATION_ID_KEY);
-  if (existing) return existing;
+  if (existing) {
+    cachedInstallationId = existing;
+    return existing;
+  }
   const next = `inst_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
   await AsyncStorage.setItem(INSTALLATION_ID_KEY, next);
+  cachedInstallationId = next;
   return next;
+}
+
+function clearTrackingCaches(): void {
+  cachedDeviceId = null;
+  cachedInstallationId = null;
+  lastHeartbeatAtMs = 0;
+  lastDeviceRegisterAtMs = 0;
 }
 
 function deviceHardwareInfo(): {
@@ -235,7 +262,6 @@ export async function flushLocationPingQueue(): Promise<number> {
         err instanceof ApiRequestError &&
         (err.code === "OUTSIDE_TRACKING_HOURS" || err.code === "TRACKING_DISABLED");
       if (discardable) {
-        // Discard — do not keep forever.
         continue;
       }
       remaining.push(...queue.slice(i));
@@ -252,34 +278,97 @@ async function sendLocationObject(
 ): Promise<void> {
   if (!isLocationCollectionAllowed(new Date(loc.timestamp))) return;
 
+  const [deviceId, networkStatus] = await Promise.all([
+    getOrCreateDeviceId(),
+    currentNetworkStatus(),
+  ]);
+
   const body: LocationPingBody = {
     eventId: createEventId(),
     latitude: loc.coords.latitude,
     longitude: loc.coords.longitude,
     accuracy: loc.coords.accuracy ?? null,
     capturedAt: new Date(loc.timestamp).toISOString(),
-    deviceId: await getOrCreateDeviceId(),
-    networkStatus: await currentNetworkStatus(),
+    deviceId,
+    networkStatus,
     source,
   };
 
   try {
     await postLocationPing(body);
-    await flushLocationPingQueue();
+    // Successful live ping — drain any backlog without blocking the next GPS wake.
+    void flushLocationPingQueue();
   } catch {
     await enqueueLocationPing(body);
+  }
+}
+
+function locationUpdateOptions(): Location.LocationTaskOptions {
+  return {
+    accuracy: Location.Accuracy.Balanced,
+    timeInterval: LOCATION_OS_INTERVAL_MS,
+    distanceInterval: 0,
+    deferredUpdatesInterval: 0,
+    deferredUpdatesDistance: 0,
+    showsBackgroundLocationIndicator: true,
+    foregroundService: {
+      notificationTitle: "PropNinja",
+      notificationBody: "Sharing location with your office every 30 minutes (9:30 AM–8:30 PM IST)",
+      notificationColor: "#204060",
+      killServiceOnDestroy: false,
+    },
+    pausesUpdatesAutomatically: false,
+  };
+}
+
+async function pingCurrentPositionOnce(source = "mobile_catchup"): Promise<void> {
+  if (!isLocationCollectionAllowed()) return;
+  try {
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    await sendLocationObject(loc, source);
+  } catch {
+    // Best-effort
+  }
+}
+
+export async function sendDeviceHeartbeat(options?: { force?: boolean }): Promise<void> {
+  const force = options?.force === true;
+  if (!force && Date.now() - lastHeartbeatAtMs < HEARTBEAT_MIN_GAP_MS) return;
+
+  const [deviceId, networkStatus] = await Promise.all([
+    getOrCreateDeviceId(),
+    currentNetworkStatus(),
+  ]);
+  try {
+    await apiPost(
+      "/api/locations/device/heartbeat",
+      {
+        deviceId,
+        platform: Platform.OS === "ios" ? "ios" : "android",
+        appVersion: getMobileAppVersion(),
+        networkStatus,
+      },
+      { skipSessionLogout: true },
+    );
+    lastHeartbeatAtMs = Date.now();
+  } catch {
+    // Best-effort
   }
 }
 
 TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   if (error) return;
 
-  // Always refresh last-communication — even outside hours / empty payloads —
-  // so closed-app stalls do not look like "APP NOT COMMUNICATING" overnight.
+  // Throttled heartbeat so closed-app "last communication" stays fresh without
+  // burning radio on every Fused micro-wake.
   await sendDeviceHeartbeat();
-  await flushLocationPingQueue().catch(() => 0);
 
-  if (!isLocationCollectionAllowed()) return;
+  if (!isLocationCollectionAllowed()) {
+    await flushLocationPingQueue().catch(() => 0);
+    return;
+  }
 
   const payload = data as { locations?: Location.LocationObject[] } | undefined;
   const loc = payload?.locations?.[0];
@@ -287,7 +376,6 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
     await sendLocationObject(loc, "mobile_background");
     return;
   }
-  // Fused sometimes wakes the task without coords — still take a GPS sample.
   await pingCurrentPositionOnce("mobile_background_fallback");
 });
 
@@ -308,14 +396,18 @@ export type RequiredWorkPermissions = {
 };
 
 export async function hasAlwaysAllowLocationPermission(): Promise<boolean> {
-  const foreground = await Location.getForegroundPermissionsAsync();
-  const background = await Location.getBackgroundPermissionsAsync();
+  const [foreground, background] = await Promise.all([
+    Location.getForegroundPermissionsAsync(),
+    Location.getBackgroundPermissionsAsync(),
+  ]);
   return foreground.status === "granted" && background.status === "granted";
 }
 
 export async function checkRequiredWorkPermissions(): Promise<RequiredWorkPermissions> {
-  const locationGranted = await hasAlwaysAllowLocationPermission();
-  const callLogGranted = await hasCallLogPermission();
+  const [locationGranted, callLogGranted] = await Promise.all([
+    hasAlwaysAllowLocationPermission(),
+    hasCallLogPermission(),
+  ]);
   return {
     locationGranted,
     callLogGranted,
@@ -332,9 +424,12 @@ export async function requestLocationPermissionsOnce(): Promise<boolean> {
 }
 
 export async function registerTrackingDevice(): Promise<void> {
-  const deviceId = await getOrCreateDeviceId();
-  const installationId = await getOrCreateInstallationId();
-  const perms = await checkRequiredWorkPermissions();
+  const [deviceId, installationId, perms, networkStatus] = await Promise.all([
+    getOrCreateDeviceId(),
+    getOrCreateInstallationId(),
+    checkRequiredWorkPermissions(),
+    currentNetworkStatus(),
+  ]);
   const hw = deviceHardwareInfo();
   try {
     await apiPost(
@@ -349,42 +444,25 @@ export async function registerTrackingDevice(): Promise<void> {
         osVersion: hw.osVersion,
         locationPermissionStatus: perms.locationGranted ? "granted" : "denied",
         callLogPermissionStatus: getOsCallLogPermissionStatus(perms.callLogGranted),
-        // Location tracking runs whenever Always location is granted — call-log is separate.
         trackingEnabled: perms.locationGranted,
-        networkStatus: await currentNetworkStatus(),
+        networkStatus,
         heartbeat: true,
       },
       { skipSessionLogout: true },
     );
+    lastDeviceRegisterAtMs = Date.now();
+    lastHeartbeatAtMs = Date.now();
   } catch {
-    // Best-effort heartbeat.
-  }
-}
-
-export async function sendDeviceHeartbeat(): Promise<void> {
-  const deviceId = await getOrCreateDeviceId();
-  try {
-    await apiPost(
-      "/api/locations/device/heartbeat",
-      {
-        deviceId,
-        platform: Platform.OS === "ios" ? "ios" : "android",
-        appVersion: getMobileAppVersion(),
-        networkStatus: await currentNetworkStatus(),
-      },
-      { skipSessionLogout: true },
-    );
-  } catch {
-    // Best-effort
+    // Best-effort registration.
   }
 }
 
 function startHeartbeatLoop() {
   if (heartbeatTimer) return;
-  void sendDeviceHeartbeat();
+  void sendDeviceHeartbeat({ force: true });
   heartbeatTimer = setInterval(() => {
     if (AppState.currentState === "active") {
-      void sendDeviceHeartbeat();
+      void sendDeviceHeartbeat({ force: true });
     }
   }, HEARTBEAT_INTERVAL_MS);
 }
@@ -401,7 +479,6 @@ export async function requestRequiredWorkPermissions(): Promise<RequiredWorkPerm
   const callLogGranted = await requestCallLogPermission({ allowSkip: false });
   const allGranted = locationGranted && callLogGranted;
   await markLocationConsentPrompted(allGranted);
-  // Start GPS as soon as Always location is granted — do not wait on call-log.
   if (locationGranted) {
     await startLocationTracking();
   }
@@ -420,39 +497,6 @@ export async function hasLocationConsentPromptBeenShown(): Promise<boolean> {
 export async function markLocationConsentPrompted(enabled: boolean): Promise<void> {
   await AsyncStorage.setItem(LOCATION_CONSENT_PROMPTED_KEY, "true");
   await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, enabled ? "true" : "false");
-}
-
-function locationUpdateOptions(): Location.LocationTaskOptions {
-  return {
-    accuracy: Location.Accuracy.Balanced,
-    timeInterval: LOCATION_OS_INTERVAL_MS,
-    // Time-based even when stationary — distance>0 was skipping office dwells.
-    distanceInterval: 0,
-    // Do not ask the OS to further batch deliveries past our cadence.
-    deferredUpdatesInterval: 0,
-    deferredUpdatesDistance: 0,
-    showsBackgroundLocationIndicator: true,
-    foregroundService: {
-      notificationTitle: "PropNinja",
-      notificationBody: "Sharing location with your office every 30 minutes (9:30 AM–8:30 PM IST)",
-      notificationColor: "#204060",
-      // Keep FGS alive after swipe-away / process death when the OS allows it.
-      killServiceOnDestroy: false,
-    },
-    pausesUpdatesAutomatically: false,
-  };
-}
-
-async function pingCurrentPositionOnce(source = "mobile_catchup"): Promise<void> {
-  if (!isLocationCollectionAllowed()) return;
-  try {
-    const loc = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-    await sendLocationObject(loc, source);
-  } catch {
-    // Best-effort
-  }
 }
 
 /**
@@ -483,7 +527,7 @@ export async function runClosedAppWatchdog(): Promise<void> {
   if (!(await hasAlwaysAllowLocationPermission())) return;
 
   await ensureAuthCacheLoaded();
-  await sendDeviceHeartbeat();
+  await sendDeviceHeartbeat({ force: true });
   await flushLocationPingQueue().catch(() => 0);
   await ensureLocationUpdatesRunning();
 
@@ -495,26 +539,34 @@ export async function runClosedAppWatchdog(): Promise<void> {
   }
 }
 
-export async function registerLocationWatchdog(): Promise<void> {
-  if (Platform.OS === "web") return;
-  try {
-    const status = await BackgroundFetch.getStatusAsync();
-    if (
-      status === BackgroundFetch.BackgroundFetchStatus.Denied ||
-      status === BackgroundFetch.BackgroundFetchStatus.Restricted
-    ) {
-      return;
+export function registerLocationWatchdog(): Promise<void> {
+  if (Platform.OS === "web") return Promise.resolve();
+  if (watchdogRegisterInFlight) return watchdogRegisterInFlight;
+
+  watchdogRegisterInFlight = (async () => {
+    try {
+      const status = await BackgroundFetch.getStatusAsync();
+      if (
+        status === BackgroundFetch.BackgroundFetchStatus.Denied ||
+        status === BackgroundFetch.BackgroundFetchStatus.Restricted
+      ) {
+        return;
+      }
+      const registered = await TaskManager.isTaskRegisteredAsync(WATCHDOG_TASK_NAME);
+      if (registered) return;
+      await BackgroundFetch.registerTaskAsync(WATCHDOG_TASK_NAME, {
+        minimumInterval: WATCHDOG_MINIMUM_INTERVAL_SECONDS,
+        stopOnTerminate: false,
+        startOnBoot: true,
+      });
+    } catch {
+      // Best-effort — OEM may still kill WorkManager jobs under extreme battery modes.
+    } finally {
+      watchdogRegisterInFlight = null;
     }
-    const registered = await TaskManager.isTaskRegisteredAsync(WATCHDOG_TASK_NAME);
-    if (registered) return;
-    await BackgroundFetch.registerTaskAsync(WATCHDOG_TASK_NAME, {
-      minimumInterval: WATCHDOG_MINIMUM_INTERVAL_SECONDS,
-      stopOnTerminate: false,
-      startOnBoot: true,
-    });
-  } catch {
-    // Best-effort — OEM may still kill WorkManager jobs under extreme battery modes.
-  }
+  })();
+
+  return watchdogRegisterInFlight;
 }
 
 /** Skip duplicate GPS + OS call-log sync when AppState "active" fires twice (auth + navigator). */
@@ -530,39 +582,58 @@ async function maybeForegroundSync(): Promise<void> {
   void syncOsCallLogMetadata().catch(() => undefined);
 }
 
-export async function startLocationTracking() {
-  if (!(await hasAlwaysAllowLocationPermission())) return;
+export function startLocationTracking(): Promise<void> {
+  // Coalesce stacked calls from auth + RootNavigator + consent gate + AppState.
+  // Must be a non-async function so callers share the same Promise instance.
+  if (startTrackingInFlight) return startTrackingInFlight;
 
-  await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, "true");
-  await ensureAuthCacheLoaded();
-  void registerTrackingDevice();
-  startHeartbeatLoop();
-  await registerLocationWatchdog();
+  startTrackingInFlight = (async () => {
+    if (!(await hasAlwaysAllowLocationPermission())) return;
 
-  // Keep the foreground-service task running around the clock so Android does not
-  // silently drop deliveries overnight. Uploads still skip outside 09:30–20:30 IST.
-  const lastAgeMs = await readLastPingAgeMs();
-  const ageMs = lastAgeMs ?? Number.POSITIVE_INFINITY;
-  const needsCatchUp = isLocationCollectionAllowed() && ageMs >= LOCATION_CATCHUP_AFTER_MS;
+    await AsyncStorage.setItem(LOCATION_CONSENT_GIVEN_KEY, "true");
+    await ensureAuthCacheLoaded();
 
-  await ensureLocationUpdatesRunning();
+    if (Date.now() - lastDeviceRegisterAtMs >= DEVICE_REGISTER_MIN_GAP_MS) {
+      void registerTrackingDevice();
+    }
 
-  void flushLocationPingQueue();
-  if (needsCatchUp) {
-    lastForegroundSyncAt = 0;
-    await maybeForegroundSync();
-  } else if (isLocationCollectionAllowed()) {
-    await maybeForegroundSync();
-  }
+    startHeartbeatLoop();
+    await registerLocationWatchdog();
+
+    // Keep the foreground-service task running around the clock so Android does not
+    // silently drop deliveries overnight. Uploads still skip outside 09:30–20:30 IST.
+    const lastAgeMs = await readLastPingAgeMs();
+    const ageMs = lastAgeMs ?? Number.POSITIVE_INFINITY;
+    const needsCatchUp = isLocationCollectionAllowed() && ageMs >= LOCATION_CATCHUP_AFTER_MS;
+
+    await ensureLocationUpdatesRunning();
+
+    void flushLocationPingQueue();
+    if (needsCatchUp) {
+      lastForegroundSyncAt = 0;
+      await maybeForegroundSync();
+    } else if (isLocationCollectionAllowed()) {
+      await maybeForegroundSync();
+    }
+  })().finally(() => {
+    startTrackingInFlight = null;
+  });
+
+  return startTrackingInFlight;
 }
 
 /** Test helper */
 export function resetForegroundSyncDebounceForTests(): void {
   lastForegroundSyncAt = 0;
+  lastHeartbeatAtMs = 0;
+  lastDeviceRegisterAtMs = 0;
+  startTrackingInFlight = null;
+  watchdogRegisterInFlight = null;
 }
 
 export async function stopLocationTracking() {
   stopHeartbeatLoop();
+  clearTrackingCaches();
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
   if (isRunning) await Location.stopLocationUpdatesAsync(TASK_NAME);
   try {
