@@ -120,7 +120,7 @@ const envSchema = z
           z.string().regex(/^\d+\.\d+\.\d+/, "MIN_MOBILE_APP_VERSION must be semver like 1.0.8"),
         ])
         // Vitest defaults off so API tests are not blocked by missing version headers.
-        .default(process.env.VITEST === "true" ? "" : "1.0.18"),
+        .default(process.env.VITEST === "true" ? "" : "1.0.19"),
     ),
     /** Optional download / update URL shown to outdated mobile clients. */
     MOBILE_UPDATE_URL: z.preprocess(

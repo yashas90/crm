@@ -1,6 +1,7 @@
 import { isWithinTrackingHours } from "@propninja/types/tracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
+import * as BackgroundFetch from "expo-background-fetch";
 import Constants from "expo-constants";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
@@ -17,8 +18,17 @@ export const LOCATION_CONSENT_GIVEN_KEY = "location_consent_given";
 export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v6";
 
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
+/** Closed-app recovery: WorkManager-style wake even when the UI process is dead. */
+const WATCHDOG_TASK_NAME = "PROPNINJA_LOCATION_WATCHDOG";
 /** Office wants a position at least every 30 minutes during working hours. */
 export const PING_INTERVAL_MS = 30 * 60 * 1000;
+/**
+ * Ask the OS for deliveries more often than the SLA. Android Fused Location + OEM
+ * battery savers routinely stretch `timeInterval`; 15m requests keep us under 30m.
+ */
+export const LOCATION_OS_INTERVAL_MS = 15 * 60 * 1000;
+/** Background-fetch minimum interval (seconds) — OS may coalesce further. */
+export const WATCHDOG_MINIMUM_INTERVAL_SECONDS = 15 * 60;
 /** Lightweight device heartbeat (not a location substitute). */
 export const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000;
 /** Force a catch-up GPS ping when the last successful upload is this old. */
@@ -263,13 +273,31 @@ async function sendLocationObject(
 
 TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   if (error) return;
-  const payload = data as { locations?: Location.LocationObject[] } | undefined;
-  if (!payload?.locations?.length) return;
+
+  // Always refresh last-communication — even outside hours / empty payloads —
+  // so closed-app stalls do not look like "APP NOT COMMUNICATING" overnight.
+  await sendDeviceHeartbeat();
+  await flushLocationPingQueue().catch(() => 0);
+
   if (!isLocationCollectionAllowed()) return;
 
-  const loc = payload.locations[0];
-  if (!loc) return;
-  await sendLocationObject(loc);
+  const payload = data as { locations?: Location.LocationObject[] } | undefined;
+  const loc = payload?.locations?.[0];
+  if (loc) {
+    await sendLocationObject(loc, "mobile_background");
+    return;
+  }
+  // Fused sometimes wakes the task without coords — still take a GPS sample.
+  await pingCurrentPositionOnce("mobile_background_fallback");
+});
+
+TaskManager.defineTask(WATCHDOG_TASK_NAME, async () => {
+  try {
+    await runClosedAppWatchdog();
+    return BackgroundFetch.BackgroundFetchResult.NewData;
+  } catch {
+    return BackgroundFetch.BackgroundFetchResult.Failed;
+  }
 });
 
 export type RequiredWorkPermissions = {
@@ -397,10 +425,10 @@ export async function markLocationConsentPrompted(enabled: boolean): Promise<voi
 function locationUpdateOptions(): Location.LocationTaskOptions {
   return {
     accuracy: Location.Accuracy.Balanced,
-    timeInterval: PING_INTERVAL_MS,
+    timeInterval: LOCATION_OS_INTERVAL_MS,
     // Time-based even when stationary — distance>0 was skipping office dwells.
     distanceInterval: 0,
-    // Do not ask the OS to further batch deliveries past our 30m cadence.
+    // Do not ask the OS to further batch deliveries past our cadence.
     deferredUpdatesInterval: 0,
     deferredUpdatesDistance: 0,
     showsBackgroundLocationIndicator: true,
@@ -408,6 +436,8 @@ function locationUpdateOptions(): Location.LocationTaskOptions {
       notificationTitle: "PropNinja",
       notificationBody: "Sharing location with your office every 30 minutes (9:30 AM–8:30 PM IST)",
       notificationColor: "#204060",
+      // Keep FGS alive after swipe-away / process death when the OS allows it.
+      killServiceOnDestroy: false,
     },
     pausesUpdatesAutomatically: false,
   };
@@ -422,6 +452,68 @@ async function pingCurrentPositionOnce(source = "mobile_catchup"): Promise<void>
     await sendLocationObject(loc, source);
   } catch {
     // Best-effort
+  }
+}
+
+/**
+ * Restart or (re)start the native location FGS when missing or overdue.
+ * Safe to call from background-fetch when the UI is not open.
+ */
+export async function ensureLocationUpdatesRunning(): Promise<void> {
+  if (!(await hasAlwaysAllowLocationPermission())) return;
+
+  const lastAgeMs = await readLastPingAgeMs();
+  const ageMs = lastAgeMs ?? Number.POSITIVE_INFINITY;
+  const overdueForRestart = ageMs >= LOCATION_OVERDUE_RESTART_MS;
+
+  const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
+  if (isRunning && overdueForRestart) {
+    await Location.stopLocationUpdatesAsync(TASK_NAME).catch(() => undefined);
+    await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
+  } else if (!isRunning) {
+    await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
+  }
+}
+
+/**
+ * Closed-app path: heartbeat + queue flush + ensure FGS + catch-up GPS if overdue.
+ * Invoked by BackgroundFetch (~15m) even when the user never opens the app.
+ */
+export async function runClosedAppWatchdog(): Promise<void> {
+  if (!(await hasAlwaysAllowLocationPermission())) return;
+
+  await ensureAuthCacheLoaded();
+  await sendDeviceHeartbeat();
+  await flushLocationPingQueue().catch(() => 0);
+  await ensureLocationUpdatesRunning();
+
+  if (!isLocationCollectionAllowed()) return;
+
+  const ageMs = (await readLastPingAgeMs()) ?? Number.POSITIVE_INFINITY;
+  if (ageMs >= LOCATION_CATCHUP_AFTER_MS) {
+    await pingCurrentPositionOnce("mobile_watchdog_catchup");
+  }
+}
+
+export async function registerLocationWatchdog(): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    const status = await BackgroundFetch.getStatusAsync();
+    if (
+      status === BackgroundFetch.BackgroundFetchStatus.Denied ||
+      status === BackgroundFetch.BackgroundFetchStatus.Restricted
+    ) {
+      return;
+    }
+    const registered = await TaskManager.isTaskRegisteredAsync(WATCHDOG_TASK_NAME);
+    if (registered) return;
+    await BackgroundFetch.registerTaskAsync(WATCHDOG_TASK_NAME, {
+      minimumInterval: WATCHDOG_MINIMUM_INTERVAL_SECONDS,
+      stopOnTerminate: false,
+      startOnBoot: true,
+    });
+  } catch {
+    // Best-effort — OEM may still kill WorkManager jobs under extreme battery modes.
   }
 }
 
@@ -445,21 +537,15 @@ export async function startLocationTracking() {
   await ensureAuthCacheLoaded();
   void registerTrackingDevice();
   startHeartbeatLoop();
+  await registerLocationWatchdog();
 
   // Keep the foreground-service task running around the clock so Android does not
   // silently drop deliveries overnight. Uploads still skip outside 09:30–20:30 IST.
   const lastAgeMs = await readLastPingAgeMs();
   const ageMs = lastAgeMs ?? Number.POSITIVE_INFINITY;
-  const overdueForRestart = ageMs >= LOCATION_OVERDUE_RESTART_MS;
   const needsCatchUp = isLocationCollectionAllowed() && ageMs >= LOCATION_CATCHUP_AFTER_MS;
 
-  const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
-  if (isRunning && overdueForRestart) {
-    await Location.stopLocationUpdatesAsync(TASK_NAME).catch(() => undefined);
-    await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
-  } else if (!isRunning) {
-    await Location.startLocationUpdatesAsync(TASK_NAME, locationUpdateOptions());
-  }
+  await ensureLocationUpdatesRunning();
 
   void flushLocationPingQueue();
   if (needsCatchUp) {
@@ -479,4 +565,10 @@ export async function stopLocationTracking() {
   stopHeartbeatLoop();
   const isRunning = await Location.hasStartedLocationUpdatesAsync(TASK_NAME).catch(() => false);
   if (isRunning) await Location.stopLocationUpdatesAsync(TASK_NAME);
+  try {
+    const registered = await TaskManager.isTaskRegisteredAsync(WATCHDOG_TASK_NAME);
+    if (registered) await BackgroundFetch.unregisterTaskAsync(WATCHDOG_TASK_NAME);
+  } catch {
+    // Best-effort
+  }
 }

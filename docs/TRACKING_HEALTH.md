@@ -41,6 +41,7 @@ TRACKING_POSSIBLE_UNINSTALL_MINUTES=180
 
 - Profile → **Tracking status**
 - Heartbeat loop while app process is alive (15 min when foreground)
+- Closed-app BackgroundFetch watchdog heartbeats + catch-up GPS even when UI is not open
 - Device registration includes installationId + model/OS (non-invasive)
 
 ## Jobs

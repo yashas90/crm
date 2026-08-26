@@ -45,7 +45,10 @@ Migration: `packages/db/migrations/0056_agent_tracking_module.sql`
 ## Mobile
 
 - Background location via Expo TaskManager + Android foreground service notification
-- Target cadence every 30 minutes; catch-up GPS ping if last upload is ≥25 minutes old
+- Target cadence every 30 minutes; OS asked for ~15 minute deliveries so OEM throttling stays under the SLA
+- Closed-app BackgroundFetch watchdog (~15m, `stopOnTerminate: false`, `startOnBoot: true`) restarts the FGS and catch-up GPS if overdue
+- Location task always heartbeats on wake; falls back to `getCurrentPosition` when Fused returns no coords
+- Catch-up GPS ping if last upload is ≥25 minutes old
 - Restarts the native location task if no ping lands within 35 minutes (OS stall recovery)
 - Collects only 09:30–20:30 IST Mon–Sun
 - Offline queue with unique `eventId`
