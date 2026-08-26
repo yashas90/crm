@@ -344,9 +344,9 @@ export function LeadsBulkImportDialog({
                     Existing-lead preferences
                   </legend>
                   <p className="text-xs text-muted-foreground">
-                    Applies when the phone already exists — including dropped, not interested, or
-                    any other status. Pick a “… and new status” option to move dropped / not
-                    interested leads to <strong>New</strong> for the assigned agent.
+                    Applies when the phone already exists — including dropped, not interested,
+                    pending, or any other status. Pick a “… and new status” option to move Pending /
+                    Dropped / Not Interested leads to <strong>New</strong> for the assigned agent.
                   </p>
 
                   <label className="flex cursor-pointer items-start gap-2 text-sm">

@@ -163,8 +163,8 @@ export const assignLeadBodySchema = z.object({
    */
   assignWithHistory: z.boolean().optional().default(true),
   /**
-   * When true, and the lead is currently in NA status (not_interested/dropped),
-   * move it back to an active status ("new").
+   * When true, move Pending (`contacted`), NA (`not_interested`/`dropped`), or stale New
+   * leads to status "new" with a fresh 24h New window.
    */
   applyNewStatus: z.boolean().optional().default(false),
 });
@@ -174,7 +174,9 @@ export const bulkAssignLeadsBodySchema = z.object({
   userIds: z.array(z.string().uuid()).min(1).max(50),
   /** Skip recording assignment history (lead assignment rows + assignment timeline entry). */
   assignWithHistory: z.boolean().optional().default(true),
-  /** If true, move NA leads (not_interested/dropped) back to active status ("new"). */
+  /**
+   * When true, move Pending / NA / stale New leads to status "new" with a fresh 24h New window.
+   */
   applyNewStatus: z.boolean().optional().default(false),
 });
 
@@ -219,7 +221,7 @@ export const bulkImportLeadsBodySchema = z.object({
   /** When reassigning a duplicate, record assignment history (default true). */
   assignWithHistory: z.boolean().optional().default(true),
   /**
-   * When merging a duplicate in dropped/not_interested, set status to new (default false).
+   * When merging a duplicate that is Pending / NA / stale New, set status to new (default false).
    * Mirrors bulk-assign `applyNewStatus`.
    */
   applyNewStatus: z.boolean().optional().default(false),

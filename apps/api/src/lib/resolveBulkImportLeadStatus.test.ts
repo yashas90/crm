@@ -9,7 +9,7 @@ describe("resolveBulkImportLeadStatus", () => {
         csvStatus: "dropped",
         applyNewStatus: true,
       }),
-    ).toEqual({ leadStatus: "new", clearNaFields: true });
+    ).toEqual({ leadStatus: "new", clearNaFields: true, refreshNewWindow: true });
   });
 
   it("forces not_interested → new when applyNewStatus is on", () => {
@@ -19,7 +19,17 @@ describe("resolveBulkImportLeadStatus", () => {
         csvStatus: "not_interested",
         applyNewStatus: true,
       }),
-    ).toEqual({ leadStatus: "new", clearNaFields: true });
+    ).toEqual({ leadStatus: "new", clearNaFields: true, refreshNewWindow: true });
+  });
+
+  it("forces Pending (contacted) → new when applyNewStatus is on", () => {
+    expect(
+      resolveBulkImportLeadStatus({
+        existingStatus: "contacted",
+        csvStatus: undefined,
+        applyNewStatus: true,
+      }),
+    ).toEqual({ leadStatus: "new", clearNaFields: true, refreshNewWindow: true });
   });
 
   it("keeps CSV status when applyNewStatus is off", () => {
@@ -32,10 +42,10 @@ describe("resolveBulkImportLeadStatus", () => {
     ).toEqual({ leadStatus: "dropped" });
   });
 
-  it("does not force new for non-NA statuses", () => {
+  it("does not force new for qualified when applyNewStatus is on", () => {
     expect(
       resolveBulkImportLeadStatus({
-        existingStatus: "contacted",
+        existingStatus: "qualified",
         csvStatus: undefined,
         applyNewStatus: true,
       }),

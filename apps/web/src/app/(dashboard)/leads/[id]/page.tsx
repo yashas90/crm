@@ -364,6 +364,10 @@ export default function LeadDetailPage() {
                 <legend className="text-sm font-medium text-foreground/90">
                   Assignment preferences
                 </legend>
+                <p className="text-xs text-muted-foreground">
+                  “… and new status” moves Pending, Dropped, and Not Interested leads to{" "}
+                  <strong>New</strong> for the assigned agent.
+                </p>
 
                 <label className="flex cursor-pointer items-start gap-2 text-sm">
                   <input
