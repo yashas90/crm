@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type UseAutoDialerCallLogOptions = {
   logCall: (payload: LogCallInput) => Promise<unknown>;
-  onLogged?: (outcome: CallOutcome) => void;
+  onLogged?: (outcome: CallOutcome, meta: AutoLoggedCall) => void;
   onLogError?: (error: unknown) => void;
 };
 
@@ -25,6 +25,15 @@ export type PostCallPrompt = {
   phoneNumber: string;
   leadId: string;
   calledAt: string;
+};
+
+/** Result of an automatic (non-editable) call count write. */
+export type AutoLoggedCall = {
+  leadId: string;
+  phoneNumber: string;
+  durationSeconds: number;
+  durationIsTalkOnly: boolean;
+  outcome: CallOutcome;
 };
 
 function elapsedSeconds(info: CallReturnInfo): number {
@@ -50,7 +59,7 @@ export function resolveTalkSeconds(params: {
   const { pending, outcome, ringSeconds, talkOverride } = params;
   if (outcome !== "answered") return 0;
 
-  // Modal talk field is authoritative when provided (already adjusted for ring in UI).
+  // Prefer explicit talk override only when provided by automated pipeline (not agent UI).
   if (talkOverride != null && Number.isFinite(talkOverride) && talkOverride >= 0) {
     return Math.round(talkOverride);
   }
@@ -64,12 +73,11 @@ export function resolveTalkSeconds(params: {
 }
 
 /**
- * Tracks native dialer sessions. When the agent returns from the dialer a post-call
- * prompt is shown so they can confirm outcome, ring time, and talk duration.
- * Dismissing without confirm still logs the call (default outcome) so counts stay accurate
- * even when the agent skips the lead status update.
+ * Tracks native dialer sessions. When the agent returns from the dialer, the call is
+ * **automatically recorded** from OS talk time (or wall-clock fallback). Agents cannot
+ * edit outcome or duration — those drive Call Report counts.
  *
- * Talk time = connected (phone timer 00:00) → hangup. Dial/ring time is excluded.
+ * After auto-log, screens may open a lead-status sheet (notes / stage only).
  */
 export function useAutoDialerCallLog({
   logCall,
@@ -77,10 +85,9 @@ export function useAutoDialerCallLog({
   onLogError,
 }: UseAutoDialerCallLogOptions) {
   const sessionRef = useRef<CallSessionContext | null>(null);
-  const [postCallPrompt, setPostCallPrompt] = useState<PostCallPrompt | null>(null);
-  const postCallPromptRef = useRef<PostCallPrompt | null>(null);
+  const [autoLoggedCall, setAutoLoggedCall] = useState<AutoLoggedCall | null>(null);
   const loggingRef = useRef(false);
-  /** Prevents dismiss-after-confirm from logging the same dial twice. */
+  /** Prevents double-counting the same dial. */
   const callCountedRef = useRef(false);
   const nativeReadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onLoggedRef = useRef(onLogged);
@@ -89,8 +96,6 @@ export function useAutoDialerCallLog({
   onLoggedRef.current = onLogged;
   onLogErrorRef.current = onLogError;
   logCallRef.current = logCall;
-
-  postCallPromptRef.current = postCallPrompt;
 
   useEffect(() => {
     return () => {
@@ -134,7 +139,15 @@ export function useAutoDialerCallLog({
           source: "mobile-auto",
         });
         callCountedRef.current = true;
-        onLoggedRef.current?.(outcome);
+        const meta: AutoLoggedCall = {
+          leadId: pending.leadId,
+          phoneNumber: pending.phoneNumber,
+          durationSeconds: talkSeconds,
+          durationIsTalkOnly: pending.durationIsTalkOnly,
+          outcome,
+        };
+        setAutoLoggedCall(meta);
+        onLoggedRef.current?.(outcome, meta);
         return true;
       } catch (error) {
         onLogErrorRef.current?.(error);
@@ -146,38 +159,45 @@ export function useAutoDialerCallLog({
     [],
   );
 
-  const handleReturn = useCallback((info: CallReturnInfo) => {
-    const context = sessionRef.current;
-    if (!context) return;
-    sessionRef.current = null;
+  const handleReturn = useCallback(
+    (info: CallReturnInfo) => {
+      const context = sessionRef.current;
+      if (!context) return;
+      sessionRef.current = null;
 
-    const calledAt = info.calledAt;
-    const fallbackSeconds = elapsedSeconds(info);
-    const callStartMs = new Date(calledAt).getTime();
+      const calledAt = info.calledAt;
+      const fallbackSeconds = elapsedSeconds(info);
+      const callStartMs = new Date(calledAt).getTime();
 
-    if (nativeReadTimerRef.current) {
-      clearTimeout(nativeReadTimerRef.current);
-      nativeReadTimerRef.current = null;
-    }
+      if (nativeReadTimerRef.current) {
+        clearTimeout(nativeReadTimerRef.current);
+        nativeReadTimerRef.current = null;
+      }
 
-    // Android writes the call to the system call log after the call ends.
-    // DURATION in CallLog.Calls is talk time only — ring time is excluded by the OS.
-    // We wait 2 s for the OS to flush the record, then try to read accurate talktime.
-    nativeReadTimerRef.current = setTimeout(() => {
-      nativeReadTimerRef.current = null;
-      void getOutgoingCallTalkSeconds(context.phoneNumber, callStartMs - 5_000).then(
-        (nativeSecs) => {
-          setPostCallPrompt({
-            durationSeconds: nativeSecs != null ? nativeSecs : fallbackSeconds,
-            durationIsTalkOnly: nativeSecs != null,
-            phoneNumber: context.phoneNumber,
-            leadId: context.leadId,
-            calledAt,
-          });
-        },
-      );
-    }, 2_000);
-  }, []);
+      // Android writes the call to the system call log after the call ends.
+      // DURATION in CallLog.Calls is talk time only — ring time is excluded by the OS.
+      // Wait 2 s for the OS to flush, then auto-record without agent edits.
+      nativeReadTimerRef.current = setTimeout(() => {
+        nativeReadTimerRef.current = null;
+        void getOutgoingCallTalkSeconds(context.phoneNumber, callStartMs - 5_000).then(
+          (nativeSecs) => {
+            const durationSeconds = nativeSecs != null ? nativeSecs : fallbackSeconds;
+            const durationIsTalkOnly = nativeSecs != null;
+            const pending: PostCallPrompt = {
+              durationSeconds,
+              durationIsTalkOnly,
+              phoneNumber: context.phoneNumber,
+              leadId: context.leadId,
+              calledAt,
+            };
+            const outcome = defaultOutcomeFromDuration(durationSeconds);
+            void submitCallLog(pending, outcome).catch(() => undefined);
+          },
+        );
+      }, 2_000);
+    },
+    [submitCallLog],
+  );
 
   const { beginCall: trackCall, clearCallSession } = useCallDurationTracking({
     onReturn: handleReturn,
@@ -191,57 +211,55 @@ export function useAutoDialerCallLog({
       }
       sessionRef.current = context;
       callCountedRef.current = false;
-      postCallPromptRef.current = null;
-      setPostCallPrompt(null);
+      setAutoLoggedCall(null);
       trackCall(context);
     },
     [trackCall],
   );
 
-  const dismissPostCall = useCallback(() => {
-    const pending = postCallPromptRef.current;
-    postCallPromptRef.current = null;
-    setPostCallPrompt(null);
+  const clearAutoLoggedCall = useCallback(() => {
+    setAutoLoggedCall(null);
     clearCallSession();
-    // Closing without confirming still counts the call (default outcome from duration).
-    // Lead status update remains optional — call_records drive counts either way.
-    if (pending && !callCountedRef.current) {
-      void submitCallLog(pending, defaultOutcomeFromDuration(pending.durationSeconds)).catch(
-        () => undefined,
-      );
-    }
-  }, [clearCallSession, submitCallLog]);
+  }, [clearCallSession]);
 
+  /** @deprecated Prefer clearAutoLoggedCall — kept for screen compatibility. */
+  const dismissPostCall = useCallback(() => {
+    clearAutoLoggedCall();
+  }, [clearAutoLoggedCall]);
+
+  /**
+   * @deprecated Manual confirm removed — calls auto-log on dialer return.
+   * Kept so older screens/tests compile; no-ops if already counted.
+   */
   const confirmLog = useCallback(
     async (outcome: CallOutcome, notes?: string, ringSeconds?: number, talkSeconds?: number) => {
-      const pending = postCallPromptRef.current;
-      if (!pending) return;
-      const logged = await submitCallLog(pending, outcome, notes, ringSeconds, talkSeconds);
-      // Only clear the prompt after a successful log — early-return no-ops keep it open.
-      if (!logged) return;
-      postCallPromptRef.current = null;
-      setPostCallPrompt(null);
-      clearCallSession();
+      // No pending prompt in auto mode — already logged or nothing to do.
+      if (callCountedRef.current) return;
+      void outcome;
+      void notes;
+      void ringSeconds;
+      void talkSeconds;
     },
-    [clearCallSession, submitCallLog],
+    [],
   );
 
   return {
     beginCall,
-    postCallPrompt,
-    isPostCallPrompt: postCallPrompt !== null,
+    /** Set after a successful automatic call count write. */
+    autoLoggedCall,
+    clearAutoLoggedCall,
     dismissPostCall,
     submitCallLog,
     isLogging: loggingRef.current,
-    // Legacy aliases used by screens/tests
-    pendingLog: postCallPrompt,
-    isPendingLog: postCallPrompt !== null,
+    // Legacy aliases — post-call metric modal removed; always null / false.
+    postCallPrompt: null as PostCallPrompt | null,
+    isPostCallPrompt: false,
+    pendingLog: null as PostCallPrompt | null,
+    isPendingLog: false,
     dismissPending: dismissPostCall,
     confirmLog,
-    review: postCallPrompt
-      ? { durationSeconds: postCallPrompt.durationSeconds, phoneNumber: postCallPrompt.phoneNumber }
-      : null,
+    review: null,
     dismissReview: dismissPostCall,
-    isReviewOpen: postCallPrompt !== null,
+    isReviewOpen: false,
   };
 }

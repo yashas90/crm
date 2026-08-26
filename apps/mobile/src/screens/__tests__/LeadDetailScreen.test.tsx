@@ -88,6 +88,8 @@ function renderWithQueryClient(ui: ReactElement) {
 describe("LeadDetailScreen consent section", () => {
   beforeEach(() => {
     mockUseAutoDialerCallLog.mockReturnValue({
+      autoLoggedCall: null,
+      clearAutoLoggedCall: jest.fn(),
       beginCall: jest.fn(),
       postCallPrompt: null,
       isPostCallPrompt: false,

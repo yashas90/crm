@@ -1,4 +1,3 @@
-import { CallLogModal } from "@/components/CallLogModal";
 import { LeadContactActions } from "@/components/LeadContactActions";
 import {
   type UpdateLeadStatusPayload,
@@ -238,17 +237,22 @@ export function TodayScreen({ route, navigation }: Props) {
 
   const dialerLog = useAutoDialerCallLog({
     logCall: (payload) => logCall.mutateAsync(payload),
-    onLogged: async () => {
+    onLogged: async (_outcome, meta) => {
       // useLogCall already invalidates calls/reports; avoid triple-refetching the
       // Today queue while the status sheet opens (main post-call lag driver).
       void feedbackCallSaved();
+      if (meta.leadId) {
+        setPostCallLeadId(meta.leadId);
+        setStatusSheetAfterCall(true);
+        setStatusSheetOpen(true);
+      }
     },
     onLogError: (err) => {
       Alert.alert("Error", err instanceof Error ? err.message : "Failed to save call.");
     },
   });
 
-  const activePostCallLeadId = postCallLeadId ?? dialerLog.pendingLog?.leadId ?? "";
+  const activePostCallLeadId = postCallLeadId ?? dialerLog.autoLoggedCall?.leadId ?? "";
   const updateFollowUp = useUpdateLeadFollowUp(activePostCallLeadId);
   const addNote = useAddLeadNote(activePostCallLeadId);
 
@@ -323,7 +327,7 @@ export function TodayScreen({ route, navigation }: Props) {
         setStatusSheetOpen(false);
         setStatusSheetAfterCall(false);
         setPostCallLeadId(null);
-        dialerLog.dismissPending();
+        dialerLog.clearAutoLoggedCall();
         setSavedToast("Marked not interested");
         setTimeout(() => setSavedToast(null), 1200);
         void Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
@@ -337,7 +341,7 @@ export function TodayScreen({ route, navigation }: Props) {
       setStatusSheetOpen(false);
       setStatusSheetAfterCall(false);
       setPostCallLeadId(null);
-      dialerLog.dismissPending();
+      dialerLog.clearAutoLoggedCall();
       setSavedToast(afterCall ? "Call logged · status updated" : "Lead status updated");
       setTimeout(() => setSavedToast(null), 2500);
       void Promise.all([queue.refetch(), calls.refetch(), summary.refetch()]);
@@ -499,34 +503,14 @@ export function TodayScreen({ route, navigation }: Props) {
         onCompleted={() => void todayVisits.refetch()}
       />
 
-      {dialerLog.isPendingLog && dialerLog.pendingLog ? (
-        <CallLogModal
-          visible
-          reviewOnly
-          phoneNumber={dialerLog.pendingLog.phoneNumber}
-          defaultDurationSeconds={dialerLog.pendingLog.durationSeconds}
-          durationIsTalkOnly={dialerLog.pendingLog.durationIsTalkOnly}
-          isSubmitting={logCall.isPending}
-          onClose={dialerLog.dismissPending}
-          onSubmit={(payload) => {
-            void (async () => {
-              const leadId = dialerLog.pendingLog?.leadId ?? null;
-              try {
-                await dialerLog.confirmLog(
-                  payload.outcome,
-                  payload.notes,
-                  payload.ringSeconds,
-                  payload.durationSeconds,
-                );
-                setPostCallLeadId(leadId);
-                setStatusSheetAfterCall(true);
-                setStatusSheetOpen(true);
-              } catch {
-                // onLogError surfaces the failure
-              }
-            })();
-          }}
-        />
+      {dialerLog.autoLoggedCall ? (
+        <View style={styles.autoCallToast} testID="auto-call-toast">
+          <Text style={styles.autoCallToastText}>
+            Call recorded automatically ·{" "}
+            {dialerLog.autoLoggedCall.outcome === "answered" ? "Answered" : "No answer"} ·{" "}
+            {dialerLog.autoLoggedCall.durationSeconds}s
+          </Text>
+        </View>
       ) : null}
 
       <UpdateLeadStatusSheet
@@ -541,7 +525,7 @@ export function TodayScreen({ route, navigation }: Props) {
           setStatusSheetOpen(false);
           setStatusSheetAfterCall(false);
           setPostCallLeadId(null);
-          dialerLog.dismissPending();
+          dialerLog.clearAutoLoggedCall();
         }}
         onSave={(payload) => void handleStatusSave(payload)}
       />
@@ -731,4 +715,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   visitViewBtnText: { color: colors.text, fontWeight: "600", fontSize: 13 },
+  autoCallToast: {
+    position: "absolute",
+    left: spacing.md,
+    right: spacing.md,
+    bottom: 100,
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    zIndex: 20,
+  },
+  autoCallToastText: { color: "#fff", fontWeight: "700", fontSize: 13, textAlign: "center" },
 });
