@@ -133,6 +133,8 @@ async function insertLocationPing(
     return "outside_hours";
   }
 
+  const normalizedSource = normalizePingSource(body.source);
+
   const values = {
     userId,
     eventId: body.eventId,
@@ -142,7 +144,7 @@ async function insertLocationPing(
     accuracy: body.accuracy ?? null,
     batteryLevel: body.batteryLevel ?? null,
     networkStatus: body.networkStatus ?? null,
-    source: body.source ?? "mobile_background",
+    source: normalizedSource,
     speed: body.speed ?? null,
     heading: body.heading ?? null,
     altitude: body.altitude ?? null,
@@ -163,10 +165,47 @@ async function insertLocationPing(
       longitude: body.longitude,
       accuracy: body.accuracy ?? null,
       capturedAt,
+      batteryLevel: body.batteryLevel ?? null,
     });
+    // Spec: keep last 100 pings per agent in location history.
+    await pruneAgentLocationHistory(db, userId, 100);
   }
 
   return inserted.length > 0 ? "inserted" : "duplicate";
+}
+
+/** Map mobile sources onto the spec enum: foreground | background | terminated. */
+function normalizePingSource(source: string | undefined): string {
+  const raw = (source ?? "background").toLowerCase();
+  if (raw === "foreground" || raw === "mobile_foreground") return "foreground";
+  if (
+    raw === "terminated" ||
+    raw === "mobile_terminated" ||
+    raw.includes("watchdog") ||
+    raw.includes("catchup")
+  ) {
+    return "terminated";
+  }
+  return "background";
+}
+
+async function pruneAgentLocationHistory(
+  db: Database,
+  userId: string,
+  keepLast: number,
+): Promise<void> {
+  await db.execute(sql`
+    DELETE FROM agent_locations
+    WHERE id IN (
+      SELECT id FROM (
+        SELECT id,
+          ROW_NUMBER() OVER (ORDER BY captured_at DESC) AS rn
+        FROM agent_locations
+        WHERE user_id = ${userId}
+      ) ranked
+      WHERE rn > ${keepLast}
+    )
+  `);
 }
 
 locationRoutes.get("/config", async (c) => {
@@ -229,7 +268,9 @@ locationRoutes.get("/me/status", async (c) => {
           locationPermissionStatus: device.locationPermissionStatus,
           callLogPermissionStatus: device.callLogPermissionStatus,
           healthStatus: device.healthStatus,
+          agentStatus: device.agentStatus,
           deviceStatus: device.deviceStatus,
+          batteryLevel: device.batteryLevel,
           lastSeenAt: device.lastSeenAt?.toISOString() ?? null,
           lastHeartbeatAt: device.lastHeartbeatAt?.toISOString() ?? null,
           lastLocationAt: device.lastLocationAt?.toISOString() ?? null,
@@ -472,6 +513,7 @@ locationRoutes.get("/live", async (c) => {
     tracking_enabled: boolean | null;
     health_status: string | null;
     device_status: string | null;
+    agent_status: string | null;
     last_seen_at: Date | string | null;
     last_heartbeat_at: Date | string | null;
     last_location_at: Date | string | null;
@@ -496,6 +538,7 @@ locationRoutes.get("/live", async (c) => {
       d.tracking_enabled AS tracking_enabled,
       d.health_status AS health_status,
       d.device_status AS device_status,
+      d.agent_status AS agent_status,
       d.last_seen_at AS last_seen_at,
       d.last_heartbeat_at AS last_heartbeat_at,
       d.last_location_at AS last_location_at,
@@ -573,6 +616,12 @@ locationRoutes.get("/live", async (c) => {
       ? Math.floor((Date.now() - new Date(capturedAt).getTime()) / 60_000)
       : null;
     const isStale = Boolean(row.is_stale);
+    const agentStatus =
+      row.tracking_policy_enabled === false
+        ? "offline"
+        : isStale
+          ? "stale"
+          : (row.agent_status ?? "active");
 
     return {
       userId: row.user_id,
@@ -589,6 +638,7 @@ locationRoutes.get("/live", async (c) => {
       networkStatus: row.network_status,
       trackingStatus: (row.health_status ?? "UNKNOWN").toLowerCase(),
       healthStatus: row.health_status ?? "UNKNOWN",
+      agentStatus,
       deviceStatus: row.device_status ?? "UNKNOWN",
       locationPermissionStatus: row.location_permission_status,
       callLogPermissionStatus: row.call_log_permission_status,
@@ -596,6 +646,7 @@ locationRoutes.get("/live", async (c) => {
       appVersion: row.app_version,
       minutesSinceLastPing: minutesSince,
       isLastKnown: isStale,
+      isStale,
       locationLabel: isStale ? "LAST_KNOWN_LOCATION" : "CURRENT_LOCATION",
       trackingPolicyEnabled: row.tracking_policy_enabled,
       withinHours,
@@ -663,6 +714,7 @@ locationRoutes.get("/health", async (c) => {
       manufacturer: agentDevices.manufacturer,
       appVersion: agentDevices.appVersion,
       healthStatus: agentDevices.healthStatus,
+      agentStatus: agentDevices.agentStatus,
       deviceStatus: agentDevices.deviceStatus,
       locationPermissionStatus: agentDevices.locationPermissionStatus,
       callLogPermissionStatus: agentDevices.callLogPermissionStatus,
@@ -671,6 +723,7 @@ locationRoutes.get("/health", async (c) => {
       lastKnownLatitude: agentDevices.lastKnownLatitude,
       lastKnownLongitude: agentDevices.lastKnownLongitude,
       lastKnownCapturedAt: agentDevices.lastKnownCapturedAt,
+      batteryLevel: agentDevices.batteryLevel,
       isCurrent: agentDevices.isCurrent,
     })
     .from(users)

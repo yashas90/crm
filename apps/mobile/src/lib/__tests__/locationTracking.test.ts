@@ -1,3 +1,6 @@
+jest.mock("expo-battery", () => ({
+  getBatteryLevelAsync: jest.fn(() => Promise.resolve(0.82)),
+}));
 jest.mock("expo-task-manager", () => ({
   defineTask: jest.fn(),
   isTaskRegisteredAsync: jest.fn(() => Promise.resolve(false)),
@@ -56,6 +59,7 @@ jest.mock("@/lib/callLogSync", () => ({
 
 import { hasCallLogPermission } from "@/lib/callLogNative";
 import {
+  LOCATION_DISTANCE_FILTER_M,
   LOCATION_OS_INTERVAL_MS,
   LOCATION_OVERDUE_RESTART_MS,
   PING_INTERVAL_MS,
@@ -137,9 +141,10 @@ describe("startLocationTracking", () => {
     );
   });
 
-  it("starts OS updates on a 15m cadence for a 30m SLA when inside hours", async () => {
+  it("starts OS updates every 30m with 50m distance filter (spec Rule 2)", async () => {
     expect(PING_INTERVAL_MS).toBe(30 * 60 * 1000);
-    expect(LOCATION_OS_INTERVAL_MS).toBe(15 * 60 * 1000);
+    expect(LOCATION_OS_INTERVAL_MS).toBe(30 * 60 * 1000);
+    expect(LOCATION_DISTANCE_FILTER_M).toBe(50);
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-08-20T06:30:00.000Z"));
 
@@ -149,8 +154,9 @@ describe("startLocationTracking", () => {
       "PROPNINJA_LOCATION_TASK",
       expect.objectContaining({
         timeInterval: LOCATION_OS_INTERVAL_MS,
-        distanceInterval: 0,
-        deferredUpdatesInterval: 0,
+        distanceInterval: LOCATION_DISTANCE_FILTER_M,
+        deferredUpdatesInterval: LOCATION_OS_INTERVAL_MS,
+        deferredUpdatesDistance: LOCATION_DISTANCE_FILTER_M,
         foregroundService: expect.objectContaining({ killServiceOnDestroy: false }),
       }),
     );
@@ -213,8 +219,8 @@ describe("startLocationTracking", () => {
       "PROPNINJA_LOCATION_TASK",
       expect.objectContaining({
         timeInterval: LOCATION_OS_INTERVAL_MS,
-        distanceInterval: 0,
-        deferredUpdatesInterval: 0,
+        distanceInterval: LOCATION_DISTANCE_FILTER_M,
+        deferredUpdatesInterval: LOCATION_OS_INTERVAL_MS,
       }),
     );
     jest.useRealTimers();

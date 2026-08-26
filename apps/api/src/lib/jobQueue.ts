@@ -206,7 +206,7 @@ export async function startDurableJobQueue(): Promise<boolean> {
     await queue.add(
       JOB_NAMES.TRACKING_HEALTH_EVAL,
       {},
-      { repeat: { every: 15 * 60 * 1000 }, jobId: JOB_NAMES.TRACKING_HEALTH_EVAL },
+      { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.TRACKING_HEALTH_EVAL },
     );
     await queue.add(
       JOB_NAMES.SLA_BREACH_SYNC,

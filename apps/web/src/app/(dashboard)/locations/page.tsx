@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MapPin, Phone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function minutesAgo(iso: string): string {
   const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000));
@@ -25,36 +25,136 @@ function minutesAgo(iso: string): string {
   return `${hours}h ${rem}m ago`;
 }
 
-function buildStaticMapUrl(agents: AgentLocationPing[], apiKey: string): string {
+function resolveAgentStatus(
+  agent: AgentLocationPing,
+  missingAlertMinutes: number,
+): "active" | "stale" | "offline" {
+  if (agent.trackingPolicyEnabled === false || agent.agentStatus === "offline") {
+    return "offline";
+  }
+  if (agent.agentStatus === "stale" || agent.isStale || agent.isLastKnown) return "stale";
+  if (agent.capturedAt) {
+    const mins = Math.floor((Date.now() - new Date(agent.capturedAt).getTime()) / 60_000);
+    if (mins >= missingAlertMinutes) return "stale";
+  } else {
+    return "stale";
+  }
+  return "active";
+}
+
+function pinColor(status: "active" | "stale" | "offline"): string {
+  if (status === "active") return "green";
+  if (status === "stale") return "orange";
+  return "gray";
+}
+
+function buildStaticMapUrl(
+  agents: AgentLocationPing[],
+  apiKey: string,
+  missingAlertMinutes: number,
+): string {
   const withCoords = agents.filter(
     (a) => a.latitude != null && a.longitude != null && !Number.isNaN(a.latitude),
   );
   if (withCoords.length === 0) return "";
   const markers = withCoords
-    .map((a) => `markers=color:${a.isLastKnown ? "orange" : "red"}%7C${a.latitude},${a.longitude}`)
+    .map((a) => {
+      const status = resolveAgentStatus(a, missingAlertMinutes);
+      return `markers=color:${pinColor(status)}%7C${a.latitude},${a.longitude}`;
+    })
     .join("&");
   return `https://maps.googleapis.com/maps/api/staticmap?size=600x400&${markers}&key=${apiKey}`;
 }
 
+function StaleBadge() {
+  return (
+    <span className="ml-2 inline-flex items-center rounded border border-amber-500/60 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+      Stale
+    </span>
+  );
+}
+
+function AgentStatusBadge({ status }: { status: "active" | "stale" | "offline" }) {
+  if (status === "stale") return <StaleBadge />;
+  if (status === "active") {
+    return (
+      <span className="ml-2 inline-flex items-center rounded border border-emerald-500/50 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+        Active
+      </span>
+    );
+  }
+  return (
+    <span className="ml-2 inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+      Offline
+    </span>
+  );
+}
+
+async function reverseGeocode(
+  lat: number,
+  lng: number,
+  mapsKey: string | undefined,
+): Promise<string | null> {
+  try {
+    if (mapsKey) {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${mapsKey}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = (await res.json()) as { results?: Array<{ formatted_address?: string }> };
+        const addr = data.results?.[0]?.formatted_address;
+        if (addr) return addr;
+      }
+    }
+    const nominatim = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!nominatim.ok) return null;
+    const data = (await nominatim.json()) as { display_name?: string };
+    return data.display_name ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function agentTrackLabel(
   agentId: string,
-  liveIds: Set<string>,
+  agentsById: Map<string, AgentLocationPing>,
   devicesByUser: Map<string, AgentTrackingDevice>,
-): { text: string; tone: "live" | "device" | "none" } {
-  if (liveIds.has(agentId)) return { text: "Live", tone: "live" };
+  missingAlertMinutes: number,
+): {
+  text: string;
+  tone: "live" | "stale" | "device" | "none";
+  status: "active" | "stale" | "offline";
+} {
+  const live = agentsById.get(agentId);
+  if (live) {
+    const status = resolveAgentStatus(live, missingAlertMinutes);
+    if (status === "stale") return { text: "STALE", tone: "stale", status };
+    if (status === "offline") return { text: "Offline", tone: "none", status };
+    return { text: "Live", tone: "live", status };
+  }
   const device = devicesByUser.get(agentId);
-  if (!device) return { text: "Not tracked", tone: "none" };
+  if (!device) return { text: "Not tracked", tone: "none", status: "offline" };
   const version = device.appVersion ? ` · app ${device.appVersion}` : "";
   if (device.locationPermissionStatus && device.locationPermissionStatus !== "granted") {
-    return { text: `App seen · location denied${version}`, tone: "device" };
+    return { text: `App seen · location denied${version}`, tone: "device", status: "stale" };
   }
-  return { text: `App seen ${minutesAgo(device.lastSeenAt)}${version}`, tone: "device" };
+  return {
+    text: `App seen ${minutesAgo(device.lastSeenAt)}${version}`,
+    tone: "device",
+    status: "stale",
+  };
 }
 
 export default function LocationsPage() {
   const { session, ready, isAdmin } = useSession();
   const router = useRouter();
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+  const [showOnlyStale, setShowOnlyStale] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [addresses, setAddresses] = useState<Record<string, string>>({});
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (!ready) return;
@@ -63,8 +163,14 @@ export default function LocationsPage() {
     }
   }, [ready, session, isAdmin, router]);
 
+  // Rule 1 — re-evaluate STALE every 5 minutes in the UI (also refetch).
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const live = useQuery({
-    queryKey: ["locations", "live"],
+    queryKey: ["locations", "live", tick],
     queryFn: () =>
       apiGet<{
         agents: AgentLocationPing[];
@@ -77,15 +183,26 @@ export default function LocationsPage() {
         };
       }>("/api/locations/live"),
     enabled: ready && isAdmin,
-    refetchInterval: 30_000,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const agentsList = useUsers("agent", { enabled: ready && isAdmin });
   const teamAgents = (agentsList.data ?? []).filter((u) => u.isActive);
 
+  const missingAlertMinutes = live.data?.config?.missingAlertMinutes ?? 45;
   const agents = live.data?.agents ?? [];
   const devices = live.data?.devices ?? [];
-  const liveIds = useMemo(() => new Set(agents.map((a) => a.userId)), [agents]);
+
+  const filteredAgents = useMemo(() => {
+    if (!showOnlyStale) return agents;
+    return agents.filter((a) => resolveAgentStatus(a, missingAlertMinutes) === "stale");
+  }, [agents, showOnlyStale, missingAlertMinutes]);
+
+  const agentsById = useMemo(() => {
+    const map = new Map<string, AgentLocationPing>();
+    for (const agent of agents) map.set(agent.userId, agent);
+    return map;
+  }, [agents]);
   const devicesByUser = useMemo(() => {
     const map = new Map<string, AgentTrackingDevice>();
     for (const device of devices) {
@@ -94,10 +211,29 @@ export default function LocationsPage() {
     return map;
   }, [devices]);
   const mapUrl = useMemo(() => {
-    if (!mapsKey || agents.length === 0) return null;
-    const url = buildStaticMapUrl(agents, mapsKey);
+    if (!mapsKey || filteredAgents.length === 0) return null;
+    const url = buildStaticMapUrl(filteredAgents, mapsKey, missingAlertMinutes);
     return url || null;
-  }, [agents, mapsKey]);
+  }, [filteredAgents, mapsKey, missingAlertMinutes]);
+
+  const selected = selectedId
+    ? (filteredAgents.find((a) => a.userId === selectedId) ??
+      agents.find((a) => a.userId === selectedId) ??
+      null)
+    : null;
+
+  useEffect(() => {
+    if (!selected || selected.latitude == null || selected.longitude == null) return;
+    if (addresses[selected.userId]) return;
+    let cancelled = false;
+    void reverseGeocode(selected.latitude, selected.longitude, mapsKey).then((addr) => {
+      if (cancelled || !addr) return;
+      setAddresses((prev) => ({ ...prev, [selected.userId]: addr }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, mapsKey, addresses]);
 
   if (!ready || !session || !isAdmin) {
     return null;
@@ -112,12 +248,13 @@ export default function LocationsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Agent Locations</h1>
           </div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Live positions are pushed from agents&apos; phones (PropNinja app) — Refresh only
-            reloads what the API already received. Tracking runs 9:30 AM–8:30 PM IST (Mon–Sun),
-            about every 30 minutes, only with &quot;Allow all the time&quot; location. Agents show{" "}
-            <span className="font-medium text-foreground">STALE</span> after{" "}
-            {live.data?.config?.missingAlertMinutes ?? 45} minutes without a GPS ping. Records are
-            kept 14 days. The CRM stays locked until agents grant required permissions.
+            Live positions from agents&apos; phones. Tracking runs 9:30 AM–8:30 PM IST every ~30
+            minutes with Allow all the time location.{" "}
+            <span className="font-medium text-foreground">STALE</span> after {missingAlertMinutes}{" "}
+            minutes without a GPS ping (overrides Active). Pins:{" "}
+            <span className="text-emerald-600">green = active</span>,{" "}
+            <span className="text-amber-600">orange = stale</span>,{" "}
+            <span className="text-muted-foreground">grey = offline</span>.
             {live.data?.config?.withinHours === false ? (
               <span className="mt-1 block text-amber-600 dark:text-amber-400">
                 Outside working hours — new pings are paused until the next window.
@@ -125,29 +262,41 @@ export default function LocationsPage() {
             ) : null}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={live.isFetching}
-          onClick={() => void live.refetch()}
-        >
-          <RefreshCw className={`mr-2 h-4 w-4 ${live.isFetching ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/locations/health">Tracking health</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/locations/alerts">Alerts</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={showOnlyStale ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowOnlyStale((v) => !v)}
+          >
+            {showOnlyStale ? "Showing stale only" : "Show Only Stale Agents"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={live.isFetching}
+            onClick={() => void live.refetch()}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${live.isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/locations/health">Tracking health</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/locations/alerts">Alerts</Link>
+          </Button>
+        </div>
       </div>
 
       {mapUrl ? (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Live map</CardTitle>
-            <CardDescription>Pins for agents with a ping in the last 24 hours</CardDescription>
+            <CardDescription>
+              Click an agent card below for last seen, address, and battery
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <img
@@ -159,99 +308,120 @@ export default function LocationsPage() {
         </Card>
       ) : null}
 
+      {selected ? (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex flex-wrap items-center text-base">
+              {selected.name}
+              <AgentStatusBadge status={resolveAgentStatus(selected, missingAlertMinutes)} />
+            </CardTitle>
+            <CardDescription>{selected.email}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p>
+              Last seen: {selected.capturedAt ? minutesAgo(selected.capturedAt) : "No GPS ping yet"}
+            </p>
+            <p>
+              Address:{" "}
+              {addresses[selected.userId] ??
+                (selected.latitude != null
+                  ? `${selected.latitude.toFixed(5)}, ${selected.longitude?.toFixed(5)} (resolving…)`
+                  : "—")}
+            </p>
+            <p>
+              Battery:{" "}
+              {selected.batteryLevel != null ? `${selected.batteryLevel}%` : "Not reported"}
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {live.isError ? (
         <p className="text-sm text-destructive">Could not load live locations. Try refresh.</p>
       ) : null}
 
-      {agents.length === 0 && !live.isLoading ? (
+      {filteredAgents.length === 0 && !live.isLoading ? (
         <Card>
           <CardContent className="space-y-2 py-10 text-center text-sm text-muted-foreground">
-            <p>No agent GPS pings in the last 24 hours.</p>
-            {devices.length > 0 ? (
-              <p className="text-xs">
-                {devices.length} agent device{devices.length === 1 ? "" : "s"} contacted the API
-                recently — GPS uploads may still be blocked (outdated APK, location permission, or
-                outside tracking hours). See the roster below for app version and last device
-                heartbeat.
-              </p>
-            ) : (
-              <p className="text-xs">
-                No devices have registered either. Agents must install PropNinja 1.0.15+, choose
-                Allow all the time for location, and stay signed in so pings upload every 30 minutes
-                during 9:30 AM–8:30 PM IST.
-              </p>
-            )}
+            <p>
+              {showOnlyStale
+                ? "No stale agents right now."
+                : "No agent GPS pings in the last 24 hours."}
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {agents.map((agent) => (
-            <Card key={agent.userId}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{agent.name}</CardTitle>
-                <CardDescription>{agent.email}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {agent.isLastKnown || agent.locationLabel === "LAST_KNOWN_LOCATION"
-                    ? "Last known location"
-                    : "Current location"}
-                </p>
-                <p className="text-muted-foreground">
-                  {agent.capturedAt
-                    ? `Last seen ${minutesAgo(agent.capturedAt)}`
-                    : "No location yet"}
-                </p>
-                {agent.healthStatus ? (
+          {filteredAgents.map((agent) => {
+            const status = resolveAgentStatus(agent, missingAlertMinutes);
+            return (
+              <Card
+                key={agent.userId}
+                className={
+                  selectedId === agent.userId
+                    ? "cursor-pointer ring-2 ring-primary"
+                    : "cursor-pointer"
+                }
+                onClick={() => setSelectedId(agent.userId)}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex flex-wrap items-center text-base">
+                    {agent.name}
+                    <AgentStatusBadge status={status} />
+                  </CardTitle>
+                  <CardDescription>{agent.email}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {status === "stale" ? "Last known location" : "Current location"}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {agent.capturedAt
+                      ? `Last seen ${minutesAgo(agent.capturedAt)}`
+                      : "No location yet"}
+                  </p>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Status: {agent.healthStatus.replaceAll("_", " ")}
-                    {agent.locationPermissionStatus
-                      ? ` · Location ${agent.locationPermissionStatus}`
-                      : ""}
+                    Status: {status.toUpperCase()}
                     {agent.batteryLevel != null ? ` · Battery ${agent.batteryLevel}%` : ""}
                   </p>
-                ) : agent.trackingStatus ? (
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Status: {agent.trackingStatus.replaceAll("_", " ")}
-                    {agent.locationPermissionStatus
-                      ? ` · Location ${agent.locationPermissionStatus}`
-                      : ""}
-                    {agent.batteryLevel != null ? ` · Battery ${agent.batteryLevel}%` : ""}
-                  </p>
-                ) : null}
-                {agent.lastSeenAt ? (
-                  <p className="text-xs text-muted-foreground">
-                    Last communication {minutesAgo(agent.lastSeenAt)}
-                  </p>
-                ) : null}
-                <p className="font-mono text-xs">
-                  {agent.latitude != null && agent.longitude != null
-                    ? `${agent.latitude.toFixed(5)}, ${agent.longitude.toFixed(5)}`
-                    : "—"}
-                  {agent.accuracy != null ? ` · ±${Math.round(agent.accuracy)}m` : ""}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {agent.latitude != null && agent.longitude != null ? (
-                    <Button asChild variant="outline" size="sm">
-                      <a
-                        href={`https://www.google.com/maps?q=${agent.latitude},${agent.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <MapPin className="mr-1.5 h-3.5 w-3.5" />
-                        Open map
-                      </a>
-                    </Button>
+                  {agent.lastSeenAt ? (
+                    <p className="text-xs text-muted-foreground">
+                      Last communication {minutesAgo(agent.lastSeenAt)}
+                    </p>
                   ) : null}
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/locations/history?userId=${encodeURIComponent(agent.userId)}`}>
-                      Travel & calls
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <p className="font-mono text-xs">
+                    {agent.latitude != null && agent.longitude != null
+                      ? `${agent.latitude.toFixed(5)}, ${agent.longitude.toFixed(5)}`
+                      : "—"}
+                    {agent.accuracy != null ? ` · ±${Math.round(agent.accuracy)}m` : ""}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {agent.latitude != null && agent.longitude != null ? (
+                      <Button asChild variant="outline" size="sm">
+                        <a
+                          href={`https://www.google.com/maps?q=${agent.latitude},${agent.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MapPin className="mr-1.5 h-3.5 w-3.5" />
+                          Open map
+                        </a>
+                      </Button>
+                    ) : null}
+                    <Button asChild variant="outline" size="sm">
+                      <Link
+                        href={`/locations/history?userId=${encodeURIComponent(agent.userId)}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Travel & calls
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -259,9 +429,8 @@ export default function LocationsPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">All agents</CardTitle>
           <CardDescription>
-            Green &quot;Live&quot; means a GPS ping in the last 24 hours. &quot;App seen&quot; means
-            the phone registered with the API (permissions / version) even if GPS has not arrived
-            yet. Travel history and call logs are still available when they use the app.
+            Green Live = GPS within {missingAlertMinutes} min. Orange STALE = no ping for{" "}
+            {missingAlertMinutes}+ min. Grey = offline / tracking disabled.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -270,7 +439,13 @@ export default function LocationsPage() {
           ) : (
             <ul className="divide-y divide-border">
               {teamAgents.map((agent) => {
-                const label = agentTrackLabel(agent.id, liveIds, devicesByUser);
+                const label = agentTrackLabel(
+                  agent.id,
+                  agentsById,
+                  devicesByUser,
+                  missingAlertMinutes,
+                );
+                if (showOnlyStale && label.status !== "stale") return null;
                 return (
                   <li
                     key={agent.id}
@@ -279,13 +454,16 @@ export default function LocationsPage() {
                     <div>
                       <p className="font-medium">
                         {agent.name}
+                        <AgentStatusBadge status={label.status} />
                         <span
                           className={
                             label.tone === "live"
                               ? "ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400"
-                              : label.tone === "device"
+                              : label.tone === "stale"
                                 ? "ml-2 text-xs font-normal text-amber-600 dark:text-amber-400"
-                                : "ml-2 text-xs font-normal text-muted-foreground"
+                                : label.tone === "device"
+                                  ? "ml-2 text-xs font-normal text-amber-600 dark:text-amber-400"
+                                  : "ml-2 text-xs font-normal text-muted-foreground"
                           }
                         >
                           {label.text}
@@ -316,14 +494,6 @@ export default function LocationsPage() {
           )}
         </CardContent>
       </Card>
-
-      <p className="text-xs text-muted-foreground">
-        Live pins show the latest ping within 24 hours during the tracking window (9:30 AM–8:30 PM
-        IST, Mon–Sun). GPS cannot be collected without the mobile app — phone location permission
-        alone in Android Settings is not enough if PropNinja is not installed. After install, agents
-        must choose Allow all the time, keep the app installed (do not force-stop), and stay signed
-        in so pings upload about every 30 minutes during working hours.
-      </p>
     </div>
   );
 }

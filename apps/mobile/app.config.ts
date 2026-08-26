@@ -10,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "PropNinja",
   slug: "propninja-crm",
-  version: "1.0.19",
+  version: "1.0.20",
   description:
     "PropNinja CRM for real estate agents — manage leads, follow-ups, and log SIM calls from your phone.",
   orientation: "portrait",
@@ -33,12 +33,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       LSApplicationQueriesSchemes: ["tel", "whatsapp", "https"],
       ITSAppUsesNonExemptEncryption: false,
       NSUserNotificationUsageDescription: "PropNinja sends follow-up reminders and lead alerts.",
+      NSLocationWhenInUseUsageDescription:
+        "PropNinja uses location for site visits, maps, and office live tracking.",
+      NSLocationAlwaysAndWhenInUseUsageDescription:
+        "PropNinja needs your location in the background to track your availability. This runs every 30 minutes automatically.",
+      NSLocationAlwaysUsageDescription:
+        "PropNinja needs your location in the background to track your availability. This runs every 30 minutes automatically.",
+      UIBackgroundModes: ["location", "fetch", "processing"],
     },
   },
   android: {
     package: BUNDLE_ID,
     /** Must increase on every sideload APK or Android reports "App not installed". */
-    versionCode: 19,
+    versionCode: 20,
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#8CAFBF",
@@ -75,13 +82,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-location",
       {
         locationAlwaysAndWhenInUsePermission:
-          "PropNinja shares your location with the office every 30 minutes, including when the app is closed, so managers can see live agent positions.",
+          "PropNinja needs your location in the background to track your availability. This runs every 30 minutes automatically.",
         locationAlwaysPermission:
-          "PropNinja shares your location with the office every 30 minutes, including when the app is closed, so managers can see live agent positions.",
+          "PropNinja needs your location in the background to track your availability. This runs every 30 minutes automatically.",
         locationWhenInUsePermission:
           "PropNinja uses location for site visits, maps, and office live tracking.",
         isIosBackgroundLocationEnabled: true,
         isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
       },
     ],
     "expo-background-fetch",

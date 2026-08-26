@@ -25,7 +25,9 @@ type MeStatus = {
     locationPermissionStatus: string | null;
     callLogPermissionStatus: string | null;
     healthStatus: string | null;
+    agentStatus: string | null;
     deviceStatus: string | null;
+    batteryLevel: number | null;
     lastSeenAt: string | null;
     lastHeartbeatAt: string | null;
     lastLocationAt: string | null;
@@ -81,21 +83,50 @@ export function TrackingStatusScreen() {
     return () => sub.remove();
   }, [refresh]);
 
+  // Rule 1 — client re-evaluates status every 5 minutes.
+  useEffect(() => {
+    const timer = setInterval(
+      () => {
+        void refresh();
+      },
+      5 * 60 * 1000,
+    );
+    return () => clearInterval(timer);
+  }, [refresh]);
+
+  const agentStatus = (status?.device?.agentStatus ?? "").toLowerCase();
+  const healthStatus = (status?.device?.healthStatus ?? "").toUpperCase();
+  const isStale =
+    agentStatus === "stale" || healthStatus === "STALE" || healthStatus === "APP_NOT_COMMUNICATING";
+
   const trackingActive =
     Boolean(status?.config.enabled) &&
     Boolean(status?.trackingPolicyEnabled) &&
     Boolean(perms?.locationGranted) &&
-    Boolean(status?.config.withinHours);
+    Boolean(status?.config.withinHours) &&
+    !isStale;
 
-  const reason = !status?.config.enabled
-    ? "Tracking is turned off by your organization."
-    : !status?.trackingPolicyEnabled
-      ? "Tracking is disabled for your account by an admin."
-      : !perms?.locationGranted
-        ? "Location permission has been revoked or is not Allow all the time."
-        : !status?.config.withinHours
-          ? "Outside working hours — scheduled tracking is paused."
-          : null;
+  const displayStatus = !perms?.locationGranted
+    ? "STALE"
+    : isStale
+      ? "STALE"
+      : trackingActive
+        ? "ACTIVE"
+        : agentStatus === "offline"
+          ? "OFFLINE"
+          : "PAUSED";
+
+  const reason = !perms?.locationGranted
+    ? "Background location is required to stay Active. Your status will show as STALE."
+    : !status?.config.enabled
+      ? "Tracking is turned off by your organization."
+      : !status?.trackingPolicyEnabled
+        ? "Tracking is disabled for your account by an admin."
+        : isStale
+          ? "No GPS ping received for 45+ minutes — status is STALE."
+          : !status?.config.withinHours
+            ? "Outside working hours — scheduled tracking is paused."
+            : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
@@ -104,9 +135,23 @@ export function TrackingStatusScreen() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
       >
         <Text style={styles.title}>Location Tracking</Text>
-        <Text style={[styles.value, trackingActive ? styles.ok : styles.warn]}>
-          {trackingActive ? "ACTIVE" : "PAUSED"}
+        <Text
+          style={[
+            styles.value,
+            displayStatus === "ACTIVE"
+              ? styles.ok
+              : displayStatus === "STALE"
+                ? styles.stale
+                : styles.warn,
+          ]}
+        >
+          {displayStatus}
         </Text>
+        {displayStatus === "STALE" ? (
+          <View style={styles.staleBadge}>
+            <Text style={styles.staleBadgeText}>STALE</Text>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.label}>Working Hours</Text>
@@ -175,6 +220,18 @@ const styles = StyleSheet.create({
   value: { ...typography.h2, marginBottom: spacing.md },
   ok: { color: colors.success },
   warn: { color: colors.warning },
+  stale: { color: "#D97706" },
+  staleBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#FEF3C7",
+    borderColor: "#F59E0B",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: spacing.md,
+  },
+  staleBadgeText: { ...typography.caption, color: "#B45309", fontWeight: "700" },
   card: {
     paddingVertical: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
