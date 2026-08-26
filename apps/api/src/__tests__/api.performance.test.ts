@@ -31,9 +31,10 @@ async function dbReachable(token: string) {
 
 async function seedPerfLeads(): Promise<void> {
   await db.execute(sql`
-    INSERT INTO leads (org_id, first_name, last_name, phone, lead_status, created_at, updated_at)
+    INSERT INTO leads (org_id, lead_code, first_name, last_name, phone, lead_status, created_at, updated_at)
     SELECT
       ${SINGLE_TENANT_ORG_ID}::uuid,
+      'PERF-' || lpad(i::text, 5, '0'),
       ${PERF_SEED_TAG},
       'Lead' || i::text,
       '+9198' || lpad(i::text, 8, '0'),
