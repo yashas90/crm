@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import app from "../index.js";
 import { LAST_ADMIN_MESSAGE } from "../lib/lastAdminGuard.js";
 
@@ -52,6 +52,16 @@ describe("Last admin protection", () => {
     adminToken = admin.token;
     hasDb = admin.status === 200 && (await dbReachable(adminToken));
     if (hasDb) {
+      soleAdminId = await getAdminUserId(adminToken);
+    }
+  });
+
+  beforeEach(async () => {
+    if (!hasDb) return;
+    // Parallel suites / prior cases can deactivate the seeded admin — always refresh.
+    const admin = await loginToken();
+    if (admin.status === 200 && admin.token) {
+      adminToken = admin.token;
       soleAdminId = await getAdminUserId(adminToken);
     }
   });
