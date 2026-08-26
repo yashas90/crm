@@ -30,13 +30,23 @@ type HealthRow = {
   deviceId: string | null;
   platform: string | null;
   healthStatus: string | null;
+  agentStatus: string | null;
   deviceStatus: string | null;
   locationPermissionStatus: string | null;
   callLogPermissionStatus: string | null;
   lastSeenAt: string | null;
   lastLocationAt: string | null;
   lastKnownCapturedAt: string | null;
+  batteryLevel?: number | null;
 };
+
+function StaleBadge() {
+  return (
+    <span className="inline-flex items-center rounded border border-amber-500/60 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+      Stale
+    </span>
+  );
+}
 
 export default function TrackingHealthPage() {
   const { session, ready, isAdmin } = useSession();
@@ -51,9 +61,12 @@ export default function TrackingHealthPage() {
   const health = useQuery({
     queryKey: ["locations", "health"],
     queryFn: () =>
-      apiGet<{ agents: HealthRow[]; config: { scheduleLabel: string } }>("/api/locations/health"),
+      apiGet<{
+        agents: HealthRow[];
+        config: { scheduleLabel: string; missingAlertMinutes?: number };
+      }>("/api/locations/health"),
     enabled: ready && isAdmin,
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const toggle = useMutation({
@@ -156,7 +169,17 @@ export default function TrackingHealthPage() {
                         Call: {agent.callLogPermissionStatus ?? "—"}
                       </td>
                       <td className="px-2 py-2 text-xs font-medium">
-                        {(agent.healthStatus ?? "UNKNOWN").replaceAll("_", " ")}
+                        <div className="flex flex-wrap items-center gap-1">
+                          {(agent.agentStatus === "stale" ||
+                            agent.healthStatus === "STALE" ||
+                            agent.healthStatus === "APP_NOT_COMMUNICATING") && <StaleBadge />}
+                          <span>
+                            {(agent.agentStatus ?? agent.healthStatus ?? "UNKNOWN")
+                              .toString()
+                              .replaceAll("_", " ")
+                              .toUpperCase()}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex flex-wrap gap-1">

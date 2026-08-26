@@ -5,7 +5,8 @@ import { logger } from "../lib/logger.js";
 import { getTrackingConfigForOrg } from "../lib/trackingConfig.js";
 import { evaluateDeviceHealthAndAlert } from "../services/trackingAlertService.js";
 
-const INTERVAL_MS = 15 * 60 * 1000;
+/** Rule 6 — server-side STALE check every 5 minutes. */
+const INTERVAL_MS = 5 * 60 * 1000;
 
 let syncTimer: ReturnType<typeof setInterval> | undefined;
 

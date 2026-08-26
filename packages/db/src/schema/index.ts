@@ -541,6 +541,8 @@ export const agentDevices = pgTable(
     lastKnownCapturedAt: timestamp("last_known_captured_at", { withTimezone: true }),
     deviceStatus: text("device_status").notNull().default("UNKNOWN"),
     healthStatus: text("health_status").notNull().default("UNKNOWN"),
+    /** Spec enum: active | stale | offline — STALE when no GPS for missingAlertMinutes. */
+    agentStatus: text("agent_status").notNull().default("offline"),
     isCurrent: boolean("is_current").notNull().default(true),
     replacedAt: timestamp("replaced_at", { withTimezone: true }),
     batteryLevel: integer("battery_level"),
@@ -575,7 +577,7 @@ export const trackingSettings = pgTable(
     endTime: text("end_time").notNull().default("20:30"),
     intervalMinutes: integer("interval_minutes").notNull().default(30),
     retentionDays: integer("retention_days").notNull().default(14),
-    missingAlertMinutes: integer("missing_alert_minutes").notNull().default(75),
+    missingAlertMinutes: integer("missing_alert_minutes").notNull().default(45),
     heartbeatThresholdMinutes: integer("heartbeat_threshold_minutes").notNull().default(60),
     possibleUninstallMinutes: integer("possible_uninstall_minutes").notNull().default(180),
     activeDays: integer("active_days").array().notNull().default([0, 1, 2, 3, 4, 5, 6]),

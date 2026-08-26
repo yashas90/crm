@@ -141,6 +141,7 @@ export async function recordSuccessfulLocationOnDevice(
     longitude: number;
     accuracy: number | null;
     capturedAt: Date;
+    batteryLevel?: number | null;
   },
 ): Promise<void> {
   if (!deviceId) return;
@@ -154,6 +155,10 @@ export async function recordSuccessfulLocationOnDevice(
       lastKnownAccuracy: loc.accuracy,
       lastKnownCapturedAt: loc.capturedAt,
       lastSeenAt: now,
+      agentStatus: "active",
+      healthStatus: "ACTIVE",
+      deviceStatus: "ONLINE",
+      ...(loc.batteryLevel != null ? { batteryLevel: loc.batteryLevel } : {}),
       updatedAt: now,
     })
     .where(and(eq(agentDevices.userId, userId), eq(agentDevices.deviceId, deviceId)));

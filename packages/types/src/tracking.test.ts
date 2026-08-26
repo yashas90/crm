@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  deriveAgentAvailabilityStatus,
   deriveTrackingHealthStatus,
   isWithinTrackingHours,
   trackingScheduleLabel,
@@ -101,7 +102,7 @@ describe("deriveTrackingHealthStatus", () => {
     ).toBe("OUTSIDE_HOURS");
   });
 
-  it("returns APP_NOT_COMMUNICATING during hours after long silence", () => {
+  it("returns STALE during hours after 45+ min without GPS (overrides Active)", () => {
     expect(
       deriveTrackingHealthStatus({
         ...base,
@@ -111,6 +112,47 @@ describe("deriveTrackingHealthStatus", () => {
         lastHeartbeatAt: new Date("2026-08-20T04:00:00.000Z"),
         now: new Date("2026-08-20T06:00:00.000Z"),
       }),
-    ).toBe("APP_NOT_COMMUNICATING");
+    ).toBe("STALE");
+  });
+
+  it("returns STALE even when heartbeat is recent but GPS is old", () => {
+    expect(
+      deriveTrackingHealthStatus({
+        ...base,
+        withinHours: true,
+        lastSeenAt: new Date("2026-08-20T06:05:00.000Z"),
+        lastHeartbeatAt: new Date("2026-08-20T06:05:00.000Z"),
+        lastLocationAt: new Date("2026-08-20T05:00:00.000Z"),
+        now: new Date("2026-08-20T06:10:00.000Z"),
+      }),
+    ).toBe("STALE");
+  });
+});
+
+describe("deriveAgentAvailabilityStatus", () => {
+  it("marks stale after missingAlertMinutes without GPS", () => {
+    expect(
+      deriveAgentAvailabilityStatus({
+        trackingPolicyEnabled: true,
+        trackingEnabledGlobal: true,
+        clientTrackingEnabled: true,
+        lastLocationAt: new Date("2026-08-20T05:00:00.000Z"),
+        missingAlertMinutes: 45,
+        now: new Date("2026-08-20T06:00:00.000Z"),
+      }),
+    ).toBe("stale");
+  });
+
+  it("marks offline when tracking disabled", () => {
+    expect(
+      deriveAgentAvailabilityStatus({
+        trackingPolicyEnabled: false,
+        trackingEnabledGlobal: true,
+        clientTrackingEnabled: true,
+        lastLocationAt: new Date("2026-08-20T06:00:00.000Z"),
+        missingAlertMinutes: 45,
+        now: new Date("2026-08-20T06:10:00.000Z"),
+      }),
+    ).toBe("offline");
   });
 });

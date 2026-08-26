@@ -30,6 +30,7 @@ export type TrackingSchedule = {
 
 export const TRACKING_HEALTH_STATUSES = [
   "ACTIVE",
+  "STALE",
   "OFFLINE",
   "LOCATION_PERMISSION_DENIED",
   "LOCATION_PERMISSION_REVOKED",
@@ -44,6 +45,10 @@ export const TRACKING_HEALTH_STATUSES = [
 ] as const;
 
 export type TrackingHealthStatus = (typeof TRACKING_HEALTH_STATUSES)[number];
+
+/** Spec-facing agent availability: active | stale | offline. */
+export const AGENT_AVAILABILITY_STATUSES = ["active", "stale", "offline"] as const;
+export type AgentAvailabilityStatus = (typeof AGENT_AVAILABILITY_STATUSES)[number];
 
 export const TRACKING_ALERT_TYPES = [
   "LOCATION_PERMISSION_REVOKED",
@@ -115,7 +120,37 @@ export type DeviceHealthInput = {
 };
 
 /**
+ * Spec Rule 1: if no GPS ping for `missingAlertMinutes` (default 45), status is STALE.
+ * STALE overrides ACTIVE / Busy-style operational statuses while tracking is expected.
+ */
+export function deriveAgentAvailabilityStatus(input: {
+  trackingPolicyEnabled: boolean;
+  trackingEnabledGlobal: boolean;
+  clientTrackingEnabled: boolean | null;
+  lastLocationAt: Date | null;
+  missingAlertMinutes: number;
+  now?: Date;
+}): AgentAvailabilityStatus {
+  const now = input.now ?? new Date();
+  if (
+    !input.trackingEnabledGlobal ||
+    !input.trackingPolicyEnabled ||
+    input.clientTrackingEnabled === false
+  ) {
+    return "offline";
+  }
+  const minutesSinceLoc = input.lastLocationAt
+    ? Math.floor((now.getTime() - input.lastLocationAt.getTime()) / 60_000)
+    : Number.POSITIVE_INFINITY;
+  if (minutesSinceLoc >= input.missingAlertMinutes) {
+    return "stale";
+  }
+  return "active";
+}
+
+/**
  * Derive a conservative health status. Never claims APP_UNINSTALLED with certainty.
+ * STALE overrides ACTIVE when GPS is older than missingAlertMinutes during hours.
  */
 export function deriveTrackingHealthStatus(input: DeviceHealthInput): TrackingHealthStatus {
   const now = input.now ?? new Date();
@@ -138,8 +173,24 @@ export function deriveTrackingHealthStatus(input: DeviceHealthInput): TrackingHe
   if (!input.isCurrentDevice) return "DEVICE_CHANGED";
 
   // Outside the tracking window, silence is expected — do not alarm as
-  // APP_NOT_COMMUNICATING overnight just because GPS uploads paused after 20:30 IST.
+  // STALE overnight just because GPS uploads paused after 20:30 IST.
   if (!input.withinHours) return "OUTSIDE_HOURS";
+
+  const minutesSinceLoc = input.lastLocationAt
+    ? Math.floor((now.getTime() - input.lastLocationAt.getTime()) / 60_000)
+    : Number.POSITIVE_INFINITY;
+
+  // RULE 1 — STALE overrides Active when no GPS for 45+ minutes.
+  if (minutesSinceLoc >= input.missingAlertMinutes) {
+    const lastComm = latestDate([input.lastHeartbeatAt, input.lastSeenAt, input.lastLocationAt]);
+    const minutesSinceComm = lastComm
+      ? Math.floor((now.getTime() - lastComm.getTime()) / 60_000)
+      : Number.POSITIVE_INFINITY;
+    if (minutesSinceComm >= input.possibleUninstallMinutes) {
+      return "POSSIBLE_APP_UNINSTALLED";
+    }
+    return "STALE";
+  }
 
   const lastComm = latestDate([input.lastHeartbeatAt, input.lastSeenAt, input.lastLocationAt]);
   const minutesSinceComm = lastComm
@@ -150,18 +201,10 @@ export function deriveTrackingHealthStatus(input: DeviceHealthInput): TrackingHe
     return "POSSIBLE_APP_UNINSTALLED";
   }
   if (minutesSinceComm >= input.heartbeatThresholdMinutes) {
-    return minutesSinceComm >= input.missingAlertMinutes ? "APP_NOT_COMMUNICATING" : "OFFLINE";
-  }
-
-  const minutesSinceLoc = input.lastLocationAt
-    ? Math.floor((now.getTime() - input.lastLocationAt.getTime()) / 60_000)
-    : Number.POSITIVE_INFINITY;
-  if (minutesSinceLoc >= input.missingAlertMinutes) {
-    return "APP_NOT_COMMUNICATING";
+    return "OFFLINE";
   }
 
   if (callPerm === "UNAVAILABLE") {
-    // Still actively tracking location.
     return "ACTIVE";
   }
 
@@ -183,6 +226,7 @@ export function alertSeverityForStatus(status: TrackingHealthStatus): TrackingAl
     case "LOCATION_PERMISSION_REVOKED":
     case "LOCATION_PERMISSION_DENIED":
       return "CRITICAL";
+    case "STALE":
     case "APP_NOT_COMMUNICATING":
     case "OFFLINE":
     case "CALL_LOG_PERMISSION_DENIED":

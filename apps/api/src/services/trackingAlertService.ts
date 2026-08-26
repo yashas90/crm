@@ -4,6 +4,7 @@ import {
   type TrackingAlertType,
   type TrackingHealthStatus,
   alertSeverityForStatus,
+  deriveAgentAvailabilityStatus,
   deriveTrackingHealthStatus,
 } from "@propninja/types/tracking";
 import { and, desc, eq } from "drizzle-orm";
@@ -18,6 +19,7 @@ const STATUS_TO_ALERT: Partial<Record<TrackingHealthStatus, TrackingAlertType>> 
   LOCATION_PERMISSION_REVOKED: "LOCATION_PERMISSION_REVOKED",
   CALL_LOG_PERMISSION_DENIED: "CALL_LOG_PERMISSION_REVOKED",
   OFFLINE: "DEVICE_OFFLINE",
+  STALE: "MISSING_LOCATION",
   APP_NOT_COMMUNICATING: "MISSING_LOCATION",
   POSSIBLE_APP_UNINSTALLED: "POSSIBLE_APP_REMOVAL",
   TRACKING_DISABLED: "TRACKING_STOPPED",
@@ -192,16 +194,27 @@ export async function evaluateDeviceHealthAndAlert(
     possibleUninstallMinutes: config.possibleUninstallMinutes,
   });
 
+  const agentStatus = deriveAgentAvailabilityStatus({
+    trackingPolicyEnabled: policyEnabled,
+    trackingEnabledGlobal: config.enabled,
+    clientTrackingEnabled: device.trackingEnabled,
+    lastLocationAt: device.lastLocationAt,
+    missingAlertMinutes: config.missingAlertMinutes,
+  });
+
   await db
     .update(agentDevices)
     .set({
       healthStatus: status,
+      agentStatus,
       deviceStatus:
         status === "ACTIVE" || status === "OUTSIDE_HOURS"
           ? "ONLINE"
           : status === "TRACKING_DISABLED"
             ? "DISABLED"
-            : "OFFLINE",
+            : status === "STALE"
+              ? "ONLINE"
+              : "OFFLINE",
       updatedAt: new Date(),
     })
     .where(eq(agentDevices.id, device.id));
@@ -217,7 +230,7 @@ export async function evaluateDeviceHealthAndAlert(
       alertType,
       severity: alertSeverityForStatus(status),
       message: `Status ${status}. Last seen ${lastSeen ?? "never"}; last location ${lastLoc ?? "never"}.`,
-      metadata: { healthStatus: status, lastSeen, lastLoc },
+      metadata: { healthStatus: status, agentStatus, lastSeen, lastLoc },
     });
   } else if (status === "ACTIVE" || status === "OUTSIDE_HOURS") {
     await resolveTrackingAlertsOfTypes(db, device.userId, [
