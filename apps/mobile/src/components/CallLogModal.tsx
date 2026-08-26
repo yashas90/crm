@@ -49,13 +49,6 @@ function defaultOutcomeFromDuration(seconds: number | undefined): CallOutcome {
   return (seconds ?? 0) > 0 ? "answered" : "no_answer";
 }
 
-const OUTCOME_CHIPS: { value: CallOutcome; label: string; icon: string }[] = [
-  { value: "answered", label: "Answered", icon: "checkmark-circle" },
-  { value: "no_answer", label: "No Answer", icon: "close-circle" },
-  { value: "busy", label: "Busy", icon: "radio-button-off" },
-  { value: "left_voicemail", label: "Voicemail", icon: "mic" },
-];
-
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   const m = Math.floor(seconds / 60);
@@ -91,7 +84,6 @@ export function CallLogModal({
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [countdown, setCountdown] = useState(AUTO_SUBMIT_SECONDS);
   const timerTouched = useRef(false);
   const progressAnim = useRef(new Animated.Value(1)).current;
 
@@ -104,20 +96,18 @@ export function CallLogModal({
       setNotes("");
       setDropdownOpen(false);
       timerTouched.current = false;
-      setCountdown(AUTO_SUBMIT_SECONDS);
       progressAnim.setValue(1);
     }
   }, [visible, defaultDurationSeconds, progressAnim]);
 
-  // Auto-submit countdown for reviewOnly mode.
-  // onSubmit is read via ref so parent re-renders (RQ invalidation, isPending) do not
-  // restart the interval — that caused double submits + timer flicker during post-call lag.
+  // Auto-continue for reviewOnly (metrics already locked / pre-logged by dialer hook).
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
 
   useEffect(() => {
     if (!visible || !reviewOnly) return;
 
+    let remaining = AUTO_SUBMIT_SECONDS;
     Animated.timing(progressAnim, {
       toValue: 0,
       duration: AUTO_SUBMIT_SECONDS * 1000,
@@ -125,20 +115,17 @@ export function CallLogModal({
     }).start();
 
     const tick = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(tick);
-          if (!timerTouched.current) {
-            onSubmitRef.current({
-              outcome: defaultOutcomeFromDuration(defaultDurationSeconds),
-              durationSeconds: defaultDurationSeconds,
-              ringSeconds: 0,
-            });
-          }
-          return 0;
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(tick);
+        if (!timerTouched.current) {
+          onSubmitRef.current({
+            outcome: defaultOutcomeFromDuration(defaultDurationSeconds),
+            durationSeconds: defaultDurationSeconds,
+            ringSeconds: 0,
+          });
         }
-        return c - 1;
-      });
+      }
     }, 1000);
 
     return () => {
@@ -166,7 +153,6 @@ export function CallLogModal({
     progressAnim.stopAnimation();
     const sanitized = value.replace(/[^\d]/g, "");
     setRingSeconds(sanitized);
-    // Only subtract ring from wall-clock elapsed. Native talk time already excludes ring.
     if (reviewOnly && !durationIsTalkOnly) {
       setDurationSeconds(String(talkDurationSeconds(defaultDurationSeconds, sanitized)));
     }
@@ -182,54 +168,10 @@ export function CallLogModal({
     }
   }
 
-  function renderDurationFields() {
-    return (
-      <>
-        <Text style={styles.label}>Talk time (sec)</Text>
-        {reviewOnly ? (
-          <Text style={styles.elapsedHint}>
-            {durationIsTalkOnly
-              ? `Connected talk time: ${formatDuration(defaultDurationSeconds)} (ring excluded)`
-              : `Total elapsed (dial→return): ${formatDuration(defaultDurationSeconds)} — enter ring time to get talk time`}
-          </Text>
-        ) : null}
-        <TextInput
-          style={styles.input}
-          keyboardType="number-pad"
-          value={durationSeconds}
-          onChangeText={(value) => {
-            timerTouched.current = true;
-            progressAnim.stopAnimation();
-            setDurationSeconds(value.replace(/[^\d]/g, ""));
-          }}
-          placeholder="Talk time in seconds"
-          placeholderTextColor="#64748b"
-        />
-        {outcome === "answered" ? (
-          <>
-            <Text style={styles.label}>Ring time (sec)</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="number-pad"
-              value={ringSeconds}
-              onChangeText={handleRingChange}
-              placeholder="0"
-              placeholderTextColor="#64748b"
-            />
-          </>
-        ) : null}
-      </>
-    );
-  }
-
   function handleSave(goNext = false) {
     const payload = buildPayload();
     if (!payload) return;
     onSubmit(payload, goNext ? { goNext: true } : undefined);
-  }
-
-  function handleOutcomeChipPress(value: CallOutcome) {
-    handleOutcomeChange(value);
   }
 
   // Avoid mounting the native Modal on Android when hidden — can crash on some devices.
