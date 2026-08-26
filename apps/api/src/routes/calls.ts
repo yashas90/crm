@@ -32,7 +32,6 @@ const logCallSchema = z
     source: z.enum(["mobile-manual", "mobile-auto", "web-manual", "mobile-dialpad"]).optional(),
   })
   .superRefine((value, ctx) => {
-    const leadId = value.lead_id ?? value.leadId;
     const phone = value.phone_number ?? value.phoneNumber;
     const hasDuration = value.duration_seconds !== undefined || value.duration !== undefined;
 

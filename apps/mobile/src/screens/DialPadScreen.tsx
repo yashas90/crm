@@ -73,7 +73,7 @@ export function DialPadScreen({ navigation }: Props) {
   }, []);
 
   const { beginCall, clearCallSession } = useCallDurationTracking({
-    onReturn: ({ durationMinutes, calledAt }) => {
+    onReturn: ({ calledAt }) => {
       const startMs = new Date(calledAt).getTime();
       const phone = normalizeTelPhone(digits);
       if (!phone) return;
