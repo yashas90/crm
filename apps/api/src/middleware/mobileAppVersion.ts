@@ -23,6 +23,7 @@ function isExemptPath(pathname: string): boolean {
     pathname === "/api/locations/ping" ||
     pathname === "/api/locations/ping/bulk" ||
     pathname === "/api/locations/device" ||
+    pathname === "/api/locations/device/heartbeat" ||
     pathname === "/api/locations/call-logs/bulk" ||
     pathname === "/api/locations/config" ||
     pathname === "/api/auth/refresh"

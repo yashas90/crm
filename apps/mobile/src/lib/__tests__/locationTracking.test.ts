@@ -1,5 +1,14 @@
 jest.mock("expo-task-manager", () => ({
   defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn(() => Promise.resolve(false)),
+}));
+
+jest.mock("expo-background-fetch", () => ({
+  BackgroundFetchResult: { NewData: 2, NoData: 1, Failed: 3 },
+  BackgroundFetchStatus: { Denied: 1, Restricted: 2, Available: 3 },
+  getStatusAsync: jest.fn(() => Promise.resolve(3)),
+  registerTaskAsync: jest.fn(() => Promise.resolve()),
+  unregisterTaskAsync: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock("expo-location", () => ({
@@ -47,18 +56,23 @@ jest.mock("@/lib/callLogSync", () => ({
 
 import { hasCallLogPermission } from "@/lib/callLogNative";
 import {
+  LOCATION_OS_INTERVAL_MS,
   LOCATION_OVERDUE_RESTART_MS,
   PING_INTERVAL_MS,
   checkRequiredWorkPermissions,
   hasAlwaysAllowLocationPermission,
   isLocationCollectionAllowed,
   isWorkHours,
+  registerLocationWatchdog,
   requestLocationPermissionsOnce,
   resetForegroundSyncDebounceForTests,
+  runClosedAppWatchdog,
   startLocationTracking,
 } from "@/lib/locationTracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as BackgroundFetch from "expo-background-fetch";
 import * as Location from "expo-location";
+import * as TaskManager from "expo-task-manager";
 
 describe("isLocationCollectionAllowed", () => {
   it("allows weekday mid-day IST", () => {
@@ -117,10 +131,15 @@ describe("startLocationTracking", () => {
     (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
     (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (TaskManager.isTaskRegisteredAsync as jest.Mock).mockResolvedValue(false);
+    (BackgroundFetch.getStatusAsync as jest.Mock).mockResolvedValue(
+      BackgroundFetch.BackgroundFetchStatus.Available,
+    );
   });
 
-  it("starts background updates every 30 minutes when inside hours", async () => {
+  it("starts OS updates on a 15m cadence for a 30m SLA when inside hours", async () => {
     expect(PING_INTERVAL_MS).toBe(30 * 60 * 1000);
+    expect(LOCATION_OS_INTERVAL_MS).toBe(15 * 60 * 1000);
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2026-08-20T06:30:00.000Z"));
 
@@ -129,9 +148,18 @@ describe("startLocationTracking", () => {
     expect(Location.startLocationUpdatesAsync).toHaveBeenCalledWith(
       "PROPNINJA_LOCATION_TASK",
       expect.objectContaining({
-        timeInterval: PING_INTERVAL_MS,
+        timeInterval: LOCATION_OS_INTERVAL_MS,
         distanceInterval: 0,
         deferredUpdatesInterval: 0,
+        foregroundService: expect.objectContaining({ killServiceOnDestroy: false }),
+      }),
+    );
+    expect(BackgroundFetch.registerTaskAsync).toHaveBeenCalledWith(
+      "PROPNINJA_LOCATION_WATCHDOG",
+      expect.objectContaining({
+        stopOnTerminate: false,
+        startOnBoot: true,
+        minimumInterval: 15 * 60,
       }),
     );
     jest.useRealTimers();
@@ -184,11 +212,70 @@ describe("startLocationTracking", () => {
     expect(Location.startLocationUpdatesAsync).toHaveBeenCalledWith(
       "PROPNINJA_LOCATION_TASK",
       expect.objectContaining({
-        timeInterval: PING_INTERVAL_MS,
+        timeInterval: LOCATION_OS_INTERVAL_MS,
         distanceInterval: 0,
         deferredUpdatesInterval: 0,
       }),
     );
+    jest.useRealTimers();
+  });
+});
+
+describe("closed-app watchdog", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetForegroundSyncDebounceForTests();
+    (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(false);
+    (Location.getForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
+    (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: "granted" });
+    (Location.startLocationUpdatesAsync as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (TaskManager.isTaskRegisteredAsync as jest.Mock).mockResolvedValue(false);
+    (BackgroundFetch.getStatusAsync as jest.Mock).mockResolvedValue(
+      BackgroundFetch.BackgroundFetchStatus.Available,
+    );
+  });
+
+  it("registers the background-fetch watchdog once", async () => {
+    await registerLocationWatchdog();
+    expect(BackgroundFetch.registerTaskAsync).toHaveBeenCalledWith(
+      "PROPNINJA_LOCATION_WATCHDOG",
+      expect.objectContaining({ stopOnTerminate: false, startOnBoot: true }),
+    );
+
+    (TaskManager.isTaskRegisteredAsync as jest.Mock).mockResolvedValue(true);
+    await registerLocationWatchdog();
+    expect(BackgroundFetch.registerTaskAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces concurrent startLocationTracking calls into one native start", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-08-20T06:30:00.000Z"));
+
+    const first = startLocationTracking();
+    const second = startLocationTracking();
+    expect(first).toBe(second);
+
+    await Promise.all([first, second]);
+    expect(Location.startLocationUpdatesAsync).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
+  });
+
+  it("catch-up GPS when last ping is stale during hours", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-08-20T06:30:00.000Z"));
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => {
+      if (key === "propninja_last_location_ping_at") {
+        return new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      }
+      if (key === "propninja_tracking_device_id") return "dev_test";
+      return null;
+    });
+
+    await runClosedAppWatchdog();
+
+    expect(Location.startLocationUpdatesAsync).toHaveBeenCalled();
+    expect(Location.getCurrentPositionAsync).toHaveBeenCalled();
     jest.useRealTimers();
   });
 });

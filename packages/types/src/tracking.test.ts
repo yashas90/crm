@@ -87,4 +87,30 @@ describe("deriveTrackingHealthStatus", () => {
       }),
     ).toBe("LOCATION_PERMISSION_DENIED");
   });
+
+  it("returns OUTSIDE_HOURS instead of APP_NOT_COMMUNICATING overnight", () => {
+    expect(
+      deriveTrackingHealthStatus({
+        ...base,
+        withinHours: false,
+        lastSeenAt: new Date("2026-08-19T15:00:00.000Z"),
+        lastLocationAt: new Date("2026-08-19T15:00:00.000Z"),
+        lastHeartbeatAt: new Date("2026-08-19T15:00:00.000Z"),
+        now: new Date("2026-08-20T01:00:00.000Z"),
+      }),
+    ).toBe("OUTSIDE_HOURS");
+  });
+
+  it("returns APP_NOT_COMMUNICATING during hours after long silence", () => {
+    expect(
+      deriveTrackingHealthStatus({
+        ...base,
+        withinHours: true,
+        lastSeenAt: new Date("2026-08-20T04:00:00.000Z"),
+        lastLocationAt: new Date("2026-08-20T04:00:00.000Z"),
+        lastHeartbeatAt: new Date("2026-08-20T04:00:00.000Z"),
+        now: new Date("2026-08-20T06:00:00.000Z"),
+      }),
+    ).toBe("APP_NOT_COMMUNICATING");
+  });
 });

@@ -121,6 +121,7 @@ describe("mobileAppVersionMiddleware", () => {
     const app = new Hono();
     app.use("/api/*", mobileAppVersionMiddleware);
     app.post("/api/locations/ping", (c) => c.json({ ok: true }));
+    app.post("/api/locations/device/heartbeat", (c) => c.json({ ok: true }));
     app.post("/api/auth/refresh", (c) => c.json({ ok: true }));
     const ping = await app.request("/api/locations/ping", {
       method: "POST",
@@ -130,6 +131,14 @@ describe("mobileAppVersionMiddleware", () => {
       },
     });
     expect(ping.status).toBe(200);
+    const heartbeat = await app.request("/api/locations/device/heartbeat", {
+      method: "POST",
+      headers: {
+        "X-PropNinja-Client": "mobile",
+        "X-PropNinja-App-Version": "1.0.9",
+      },
+    });
+    expect(heartbeat.status).toBe(200);
     const refresh = await app.request("/api/auth/refresh", {
       method: "POST",
       headers: {

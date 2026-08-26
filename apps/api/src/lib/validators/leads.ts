@@ -105,7 +105,10 @@ const leadWritableFieldsSchema = z.object({
 });
 
 /** Create requires firstName + phone; all other fields optional. */
-export const createLeadBodySchema = leadWritableFieldsSchema;
+export const createLeadBodySchema = leadWritableFieldsSchema.extend({
+  /** Admin/manager may assign on create; agents ignore this (forced to self). */
+  assignedTo: z.string().uuid().optional(),
+});
 
 /** Coerce legacy mobile PATCH bodies before Zod validation. */
 export function preprocessUpdateLeadBody(input: unknown): unknown {

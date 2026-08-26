@@ -561,7 +561,7 @@ describe("API integration", () => {
       await addLeadNote(token, ownLeadId, "Recent activity on agent1 lead");
       await addLeadNote(token, otherLeadId, "Recent activity on agent2 lead");
 
-      const res = await app.request("/api/leads/activities/recent", {
+      const res = await app.request("/api/leads/activities/recent?limit=50", {
         headers: { Authorization: `Bearer ${agentLogin.token}` },
       });
       expect(res.status).toBe(200);
@@ -588,7 +588,7 @@ describe("API integration", () => {
       await addLeadNote(token, ownLeadId, "Admin-visible activity on agent1 lead");
       await addLeadNote(token, otherLeadId, "Admin-visible activity on agent2 lead");
 
-      const res = await app.request("/api/leads/activities/recent", {
+      const res = await app.request("/api/leads/activities/recent?limit=50", {
         headers: { Authorization: `Bearer ${token}` },
       });
       expect(res.status).toBe(200);

@@ -81,9 +81,11 @@ function leadNameExpr() {
   return sql<string>`trim(coalesce(${leads.firstName}, '') || ' ' || coalesce(${leads.lastName}, ''))`;
 }
 
-function daysSince(from: Date | null, now = new Date()) {
-  if (!from) return 0;
-  return Math.floor((now.getTime() - from.getTime()) / 86_400_000);
+function daysSince(from: Date | string | null | undefined, now = new Date()) {
+  if (from == null) return 0;
+  const ms = from instanceof Date ? from.getTime() : Date.parse(String(from));
+  if (Number.isNaN(ms)) return 0;
+  return Math.floor((now.getTime() - ms) / 86_400_000);
 }
 
 async function countTotalLeads(range: DateRange) {

@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import app from "../index.js";
 import { LAST_ADMIN_MESSAGE } from "../lib/lastAdminGuard.js";
 
@@ -52,6 +52,16 @@ describe("Last admin protection", () => {
     adminToken = admin.token;
     hasDb = admin.status === 200 && (await dbReachable(adminToken));
     if (hasDb) {
+      soleAdminId = await getAdminUserId(adminToken);
+    }
+  });
+
+  beforeEach(async () => {
+    if (!hasDb) return;
+    // Parallel suites / prior cases can deactivate the seeded admin — always refresh.
+    const admin = await loginToken();
+    if (admin.status === 200 && admin.token) {
+      adminToken = admin.token;
       soleAdminId = await getAdminUserId(adminToken);
     }
   });
@@ -132,6 +142,13 @@ describe("Last admin protection", () => {
       body: JSON.stringify({ isActive: true }),
     });
     expect(reactivateRes.status).toBe(200);
+
+    // Refresh the original admin JWT — deactivated-user tokens stay rejected even after
+    // the account is reactivated (auth checks DB isActive on each request, but the next
+    // tests still need a live admin session).
+    const restored = await loginToken();
+    expect(restored.status).toBe(200);
+    adminToken = restored.token;
   });
 
   it("non-admin user deactivation is always allowed", async ({ skip }) => {

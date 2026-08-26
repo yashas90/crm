@@ -137,6 +137,10 @@ export function deriveTrackingHealthStatus(input: DeviceHealthInput): TrackingHe
 
   if (!input.isCurrentDevice) return "DEVICE_CHANGED";
 
+  // Outside the tracking window, silence is expected — do not alarm as
+  // APP_NOT_COMMUNICATING overnight just because GPS uploads paused after 20:30 IST.
+  if (!input.withinHours) return "OUTSIDE_HOURS";
+
   const lastComm = latestDate([input.lastHeartbeatAt, input.lastSeenAt, input.lastLocationAt]);
   const minutesSinceComm = lastComm
     ? Math.floor((now.getTime() - lastComm.getTime()) / 60_000)
@@ -148,8 +152,6 @@ export function deriveTrackingHealthStatus(input: DeviceHealthInput): TrackingHe
   if (minutesSinceComm >= input.heartbeatThresholdMinutes) {
     return minutesSinceComm >= input.missingAlertMinutes ? "APP_NOT_COMMUNICATING" : "OFFLINE";
   }
-
-  if (!input.withinHours) return "OUTSIDE_HOURS";
 
   const minutesSinceLoc = input.lastLocationAt
     ? Math.floor((now.getTime() - input.lastLocationAt.getTime()) / 60_000)

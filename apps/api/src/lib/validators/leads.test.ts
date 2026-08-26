@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bulkImportLeadsBodySchema, listLeadsQuerySchema, updateLeadBodySchema } from "./leads.js";
+import {
+  bulkImportLeadsBodySchema,
+  createLeadBodySchema,
+  listLeadsQuerySchema,
+  updateLeadBodySchema,
+} from "./leads.js";
 
 describe("listLeadsQuerySchema", () => {
   const agentId = "550e8400-e29b-41d4-a716-446655440000";
@@ -104,6 +109,31 @@ describe("updateLeadBodySchema", () => {
     expect(parsed.success).toBe(true);
     if (parsed.success) {
       expect(parsed.data.assignedTo).toBe("550e8400-e29b-41d4-a716-446655440000");
+    }
+  });
+
+  it("accepts assignedTo on create", () => {
+    const parsed = createLeadBodySchema.safeParse({
+      firstName: "Delete",
+      lastName: "Lead",
+      phone: "9876543210",
+      assignedTo: "550e8400-e29b-41d4-a716-446655440000",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.assignedTo).toBe("550e8400-e29b-41d4-a716-446655440000");
+    }
+  });
+
+  it("strips unknown assignedTo when missing from create payload shape is still valid", () => {
+    const parsed = createLeadBodySchema.safeParse({
+      firstName: "No",
+      lastName: "Assignee",
+      phone: "9876543211",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.assignedTo).toBeUndefined();
     }
   });
 
