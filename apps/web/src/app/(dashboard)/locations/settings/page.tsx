@@ -169,15 +169,17 @@ export default function TrackingSettingsPage() {
             />
           </label>
           <label className="space-y-1 text-sm sm:col-span-2" htmlFor="tracking-uninstall">
-            <span className="text-muted-foreground">Possible uninstall threshold (min)</span>
+            <span className="text-muted-foreground">
+              Likely-uninstalled / STALE threshold (min, default 1440 = 24h)
+            </span>
             <Input
               id="tracking-uninstall"
               type="number"
-              value={form.possibleUninstallMinutes ?? 180}
+              value={form.possibleUninstallMinutes ?? 1440}
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,
-                  possibleUninstallMinutes: Number(e.target.value) || 180,
+                  possibleUninstallMinutes: Number(e.target.value) || 1440,
                 }))
               }
             />

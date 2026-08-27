@@ -13,8 +13,8 @@ export type AgentLocationPing = {
   networkStatus?: string | null;
   trackingStatus?: string;
   healthStatus?: string | null;
-  /** Spec enum: active | stale | offline */
-  agentStatus?: "active" | "stale" | "offline" | string | null;
+  /** Spec enum: active | paused | stale | offline. STALE = likely uninstalled only. */
+  agentStatus?: "active" | "paused" | "stale" | "offline" | string | null;
   deviceStatus?: string | null;
   locationPermissionStatus?: string | null;
   callLogPermissionStatus?: string | null;

@@ -96,8 +96,12 @@ export function TrackingStatusScreen() {
 
   const agentStatus = (status?.device?.agentStatus ?? "").toLowerCase();
   const healthStatus = (status?.device?.healthStatus ?? "").toUpperCase();
-  const isStale =
-    agentStatus === "stale" || healthStatus === "STALE" || healthStatus === "APP_NOT_COMMUNICATING";
+  const isStale = agentStatus === "stale" || healthStatus === "STALE";
+  const isPaused =
+    agentStatus === "paused" ||
+    healthStatus === "PAUSED" ||
+    healthStatus === "OUTSIDE_HOURS" ||
+    status?.config.withinHours === false;
 
   const trackingActive =
     Boolean(status?.config.enabled) &&
@@ -107,25 +111,27 @@ export function TrackingStatusScreen() {
     !isStale;
 
   const displayStatus = !perms?.locationGranted
-    ? "STALE"
+    ? "PERMISSION REQUIRED"
     : isStale
       ? "STALE"
       : trackingActive
         ? "ACTIVE"
         : agentStatus === "offline"
           ? "OFFLINE"
-          : "PAUSED";
+          : isPaused
+            ? "PAUSED"
+            : "ACTIVE";
 
   const reason = !perms?.locationGranted
-    ? "Background location is required to stay Active. Your status will show as STALE."
+    ? "Background location must be Allow all the time."
     : !status?.config.enabled
       ? "Tracking is turned off by your organization."
       : !status?.trackingPolicyEnabled
         ? "Tracking is disabled for your account by an admin."
         : isStale
-          ? "No GPS ping received for 45+ minutes — status is STALE."
-          : !status?.config.withinHours
-            ? "Outside working hours — scheduled tracking is paused."
+          ? "No GPS ping for 24+ hours with no boot or queued offline pings — likely uninstalled."
+          : isPaused
+            ? "Outside working hours — tracking is paused until 09:30 IST. This is not STALE."
             : null;
 
   return (

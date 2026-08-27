@@ -20,6 +20,11 @@ export type DeviceUpsertInput = {
   networkStatus?: string | null;
   heartbeat?: boolean;
   lastCallLogSyncAt?: Date | null;
+  lastBootAt?: Date | null;
+  queuedOfflinePingCount?: number | null;
+  permissionDeniedCount?: number | null;
+  batteryOptimizationIgnored?: boolean | null;
+  notifyPermissionDenied?: boolean;
 };
 
 export async function upsertAgentDevice(
@@ -50,23 +55,42 @@ export async function upsertAgentDevice(
     })
     .where(and(eq(agentDevices.userId, userId), ne(agentDevices.deviceId, input.deviceId)));
 
+  const locStatus = (
+    input.locationPermissionStatus ??
+    existing?.locationPermissionStatus ??
+    ""
+  ).toLowerCase();
+  const locationDenied =
+    locStatus === "denied" || locStatus === "restricted" || locStatus.includes("revok");
+  const deniedCount = locationDenied
+    ? (input.permissionDeniedCount ?? existing?.permissionDeniedCount ?? 0)
+    : 0;
+
   const values = {
     userId,
     deviceId: input.deviceId,
     platform: input.platform,
-    appVersion: input.appVersion ?? null,
-    installationId: input.installationId ?? null,
-    manufacturer: input.manufacturer ?? null,
-    model: input.model ?? null,
-    osVersion: input.osVersion ?? null,
-    locationPermissionStatus: input.locationPermissionStatus ?? null,
-    callLogPermissionStatus: input.callLogPermissionStatus ?? null,
-    trackingEnabled: input.trackingEnabled ?? true,
-    batteryLevel: input.batteryLevel ?? null,
-    networkStatus: input.networkStatus ?? null,
+    appVersion: input.appVersion ?? existing?.appVersion ?? null,
+    installationId: input.installationId ?? existing?.installationId ?? null,
+    manufacturer: input.manufacturer ?? existing?.manufacturer ?? null,
+    model: input.model ?? existing?.model ?? null,
+    osVersion: input.osVersion ?? existing?.osVersion ?? null,
+    locationPermissionStatus:
+      input.locationPermissionStatus ?? existing?.locationPermissionStatus ?? null,
+    callLogPermissionStatus:
+      input.callLogPermissionStatus ?? existing?.callLogPermissionStatus ?? null,
+    trackingEnabled: input.trackingEnabled ?? existing?.trackingEnabled ?? true,
+    batteryLevel: input.batteryLevel ?? existing?.batteryLevel ?? null,
+    networkStatus: input.networkStatus ?? existing?.networkStatus ?? null,
     lastSeenAt: now,
     lastHeartbeatAt: input.heartbeat !== false ? now : (existing?.lastHeartbeatAt ?? now),
     lastCallLogSyncAt: input.lastCallLogSyncAt ?? existing?.lastCallLogSyncAt ?? null,
+    lastBootAt: input.lastBootAt ?? existing?.lastBootAt ?? null,
+    queuedOfflinePingCount: input.queuedOfflinePingCount ?? existing?.queuedOfflinePingCount ?? 0,
+    permissionDeniedCount: deniedCount,
+    permissionDeniedAt: locationDenied ? (existing?.permissionDeniedAt ?? now) : null,
+    batteryOptimizationIgnored:
+      input.batteryOptimizationIgnored ?? existing?.batteryOptimizationIgnored ?? null,
     isCurrent: true,
     replacedAt: null,
     updatedAt: now,
@@ -112,6 +136,17 @@ export async function upsertAgentDevice(
       alertType: "CALL_LOG_PERMISSION_REVOKED",
       severity: "WARNING",
       message: "Call-log permission was revoked.",
+    });
+  }
+
+  if (input.notifyPermissionDenied || (locationDenied && (input.permissionDeniedCount ?? 0) >= 3)) {
+    await upsertOpenTrackingAlert(db, {
+      orgId,
+      agentId: userId,
+      deviceId: input.deviceId,
+      alertType: "LOCATION_PERMISSION_REVOKED",
+      severity: "CRITICAL",
+      message: `Agent denied background location (${deniedCount} prompt${deniedCount === 1 ? "" : "s"}).`,
     });
   }
 

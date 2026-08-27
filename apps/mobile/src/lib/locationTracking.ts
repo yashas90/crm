@@ -1,3 +1,4 @@
+import { getIstHourMinute } from "@propninja/types/ist";
 import { isWithinTrackingHours } from "@propninja/types/tracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
@@ -13,10 +14,17 @@ import { ensureAuthCacheLoaded, getToken } from "./auth";
 import { hasCallLogPermission, requestCallLogPermission } from "./callLogNative";
 import { getOsCallLogPermissionStatus, syncOsCallLogMetadata } from "./callLogSync";
 import { isTokenExpired } from "./jwt";
+import {
+  getLastBootAtIso,
+  isIgnoringBatteryOptimizations,
+  requestIgnoreBatteryOptimizations,
+  scheduleNativeTrackingWatchdog,
+} from "./trackingNative";
 
 export const LOCATION_CONSENT_GIVEN_KEY = "location_consent_given";
 /** Bumped when required-permission gate / schedule copy changes. */
-export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v7";
+export const LOCATION_CONSENT_PROMPTED_KEY = "location_consent_prompted_v8";
+const PERMISSION_DENIED_COUNT_KEY = "propninja_location_permission_denied_count";
 
 const TASK_NAME = "PROPNINJA_LOCATION_TASK";
 /** Closed-app recovery: WorkManager-style wake even when the UI process is dead. */
@@ -46,8 +54,9 @@ const LOCATION_PING_QUEUE_KEY = "propninja_pending_location_pings";
 const LAST_PING_AT_KEY = "propninja_last_location_ping_at";
 const DEVICE_ID_KEY = "propninja_tracking_device_id";
 const INSTALLATION_ID_KEY = "propninja_tracking_installation_id";
-const MAX_QUEUED_PINGS = 200;
+const MAX_QUEUED_PINGS = 500;
 const PING_MAX_RETRIES = 3;
+const QUEUE_FLUSH_BACKOFF_MS = [60_000, 120_000, 240_000, 480_000, 960_000, 1_800_000];
 
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 let statusReevalTimer: ReturnType<typeof setInterval> | undefined;
@@ -57,6 +66,9 @@ let lastHeartbeatAtMs = 0;
 let lastDeviceRegisterAtMs = 0;
 let startTrackingInFlight: Promise<void> | null = null;
 let watchdogRegisterInFlight: Promise<void> | null = null;
+let flushRetryAttempt = 0;
+let flushRetryTimer: ReturnType<typeof setTimeout> | undefined;
+let hoursResumeTimer: ReturnType<typeof setTimeout> | undefined;
 
 type LocationPingSource = "foreground" | "background" | "terminated";
 
@@ -70,6 +82,12 @@ type LocationPingBody = {
   networkStatus: "online" | "offline" | "unknown";
   source: LocationPingSource;
   batteryLevel: number | null;
+};
+
+type QueuedLocationPing = LocationPingBody & {
+  pingId: string;
+  synced: boolean;
+  queuedAt: string;
 };
 
 function createEventId(): string {
@@ -166,28 +184,64 @@ export function isWorkHours(now: Date = new Date()): boolean {
   return isLocationCollectionAllowed(now);
 }
 
-async function readPingQueue(): Promise<LocationPingBody[]> {
+async function readPingQueue(): Promise<QueuedLocationPing[]> {
   const raw = await AsyncStorage.getItem(LOCATION_PING_QUEUE_KEY);
   if (!raw) return [];
   try {
-    const parsed = JSON.parse(raw) as LocationPingBody[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(raw) as Array<Partial<QueuedLocationPing> & LocationPingBody>;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => ({
+      ...item,
+      pingId: item.pingId ?? item.eventId,
+      synced: item.synced === true,
+      queuedAt: item.queuedAt ?? item.capturedAt,
+    }));
   } catch {
     return [];
   }
 }
 
-async function writePingQueue(queue: LocationPingBody[]): Promise<void> {
-  await AsyncStorage.setItem(LOCATION_PING_QUEUE_KEY, JSON.stringify(queue));
+async function writePingQueue(queue: QueuedLocationPing[]): Promise<void> {
+  const trimmed = queue.filter((item) => !item.synced).slice(-MAX_QUEUED_PINGS);
+  await AsyncStorage.setItem(LOCATION_PING_QUEUE_KEY, JSON.stringify(trimmed));
+}
+
+export async function getQueuedLocationPingCount(): Promise<number> {
+  return (await readPingQueue()).length;
 }
 
 async function enqueueLocationPing(body: LocationPingBody): Promise<void> {
   const queue = await readPingQueue();
-  queue.push(body);
+  queue.push({
+    ...body,
+    pingId: body.eventId,
+    synced: false,
+    queuedAt: new Date().toISOString(),
+  });
   while (queue.length > MAX_QUEUED_PINGS) {
     queue.shift();
   }
   await writePingQueue(queue);
+  scheduleQueueFlushRetry();
+}
+
+function scheduleQueueFlushRetry(): void {
+  if (flushRetryTimer) return;
+  const delay =
+    QUEUE_FLUSH_BACKOFF_MS[Math.min(flushRetryAttempt, QUEUE_FLUSH_BACKOFF_MS.length - 1)] ??
+    1_800_000;
+  flushRetryTimer = setTimeout(() => {
+    flushRetryTimer = undefined;
+    void flushLocationPingQueue();
+  }, delay);
+}
+
+function clearQueueFlushRetry(): void {
+  flushRetryAttempt = 0;
+  if (flushRetryTimer) {
+    clearTimeout(flushRetryTimer);
+    flushRetryTimer = undefined;
+  }
 }
 
 async function markLastPingAt(iso: string): Promise<void> {
@@ -253,53 +307,72 @@ type BulkPingResult = {
 /** Flush queued location pings (network restore / app foreground). Prefer bulk when possible. */
 export async function flushLocationPingQueue(): Promise<number> {
   const queue = await readPingQueue();
-  if (queue.length === 0) return 0;
+  if (queue.length === 0) {
+    clearQueueFlushRetry();
+    return 0;
+  }
+
+  const unsynced = queue.filter((item) => !item.synced);
+  if (unsynced.length === 0) {
+    await writePingQueue([]);
+    clearQueueFlushRetry();
+    return 0;
+  }
+
+  const chunkSize = 100;
+  let synced = 0;
+  let remaining = [...unsynced];
 
   try {
     const ready = await prepareAuthForBackgroundPing();
     if (!ready) throw new Error("NO_AUTH");
 
-    const result = await apiPost<BulkPingResult>(
-      "/api/locations/ping/bulk",
-      { items: queue },
-      { skipSessionLogout: true },
-    );
-
-    // Only dequeue pings the server actually accepted (inserted or duplicate).
-    // Drop outside-hours samples — they are intentionally not stored and must not
-    // clog the offline queue forever.
-    if (Array.isArray(result.acceptedEventIds)) {
-      const accepted = new Set(result.acceptedEventIds);
-      const rejectedOutside = new Set(result.rejectedOutsideHoursEventIds ?? []);
-      const rejectedDisabled = new Set(result.rejectedDisabledEventIds ?? []);
-      const remaining = queue.filter(
-        (item) =>
-          !accepted.has(item.eventId) &&
-          !rejectedOutside.has(item.eventId) &&
-          !rejectedDisabled.has(item.eventId),
+    for (let offset = 0; offset < unsynced.length; offset += chunkSize) {
+      const chunk = unsynced.slice(offset, offset + chunkSize);
+      const result = await apiPost<BulkPingResult>(
+        "/api/locations/ping/bulk",
+        { items: chunk },
+        { skipSessionLogout: true },
       );
-      await writePingQueue(remaining);
-      const lastAccepted = [...queue].reverse().find((item) => accepted.has(item.eventId));
-      if (lastAccepted) await markLastPingAt(lastAccepted.capturedAt);
-      return accepted.size;
+
+      if (Array.isArray(result.acceptedEventIds)) {
+        const accepted = new Set(result.acceptedEventIds);
+        const rejectedOutside = new Set(result.rejectedOutsideHoursEventIds ?? []);
+        const rejectedDisabled = new Set(result.rejectedDisabledEventIds ?? []);
+        remaining = remaining.filter(
+          (item) =>
+            !accepted.has(item.eventId) &&
+            !rejectedOutside.has(item.eventId) &&
+            !rejectedDisabled.has(item.eventId),
+        );
+        synced += accepted.size;
+        const lastAccepted = [...chunk].reverse().find((item) => accepted.has(item.eventId));
+        if (lastAccepted) await markLastPingAt(lastAccepted.capturedAt);
+      } else if ((result.outsideHours ?? 0) > 0) {
+        throw new Error("BULK_PARTIAL_OUTSIDE_HOURS");
+      } else {
+        remaining = remaining.filter((item) => !chunk.some((c) => c.eventId === item.eventId));
+        synced += chunk.length;
+        const last = chunk[chunk.length - 1];
+        if (last) await markLastPingAt(last.capturedAt);
+      }
     }
 
-    // Legacy API without acceptedEventIds — never clear the queue if any item was outside hours.
-    if ((result.outsideHours ?? 0) > 0) {
-      throw new Error("BULK_PARTIAL_OUTSIDE_HOURS");
+    await writePingQueue(remaining);
+    if (remaining.length === 0) {
+      clearQueueFlushRetry();
+    } else {
+      flushRetryAttempt += 1;
+      scheduleQueueFlushRetry();
     }
-    await writePingQueue([]);
-    const last = queue[queue.length - 1];
-    if (last) await markLastPingAt(last.capturedAt);
-    return queue.length;
+    return synced;
   } catch {
     // Fall back to serial flush.
   }
 
-  let synced = 0;
-  const remaining: LocationPingBody[] = [];
-  for (let i = 0; i < queue.length; i += 1) {
-    const item = queue[i];
+  remaining = [];
+  for (let i = 0; i < unsynced.length; i += 1) {
+    const item = unsynced[i];
     if (!item) continue;
     try {
       await postLocationPing(item);
@@ -311,11 +384,17 @@ export async function flushLocationPingQueue(): Promise<number> {
       if (discardable) {
         continue;
       }
-      remaining.push(...queue.slice(i));
+      remaining.push(...unsynced.slice(i));
       break;
     }
   }
   await writePingQueue(remaining);
+  if (remaining.length === 0) {
+    clearQueueFlushRetry();
+  } else {
+    flushRetryAttempt += 1;
+    scheduleQueueFlushRetry();
+  }
   return synced;
 }
 
@@ -343,9 +422,14 @@ async function sendLocationObject(
     batteryLevel,
   };
 
+  // NEVER drop a ping because there is no internet — store locally and sync later.
+  if (networkStatus === "offline") {
+    await enqueueLocationPing(body);
+    return;
+  }
+
   try {
     await postLocationPing(body);
-    // Successful live ping — drain any backlog without blocking the next GPS wake.
     void flushLocationPingQueue();
   } catch {
     await enqueueLocationPing(body);
@@ -362,11 +446,18 @@ function locationUpdateOptions(): Location.LocationTaskOptions {
     showsBackgroundLocationIndicator: true,
     foregroundService: {
       notificationTitle: "PropNinja",
-      notificationBody: "Sharing location with your office every 30 minutes (9:30 AM–8:30 PM IST)",
+      notificationBody: "PropNinja is tracking your location for attendance",
       notificationColor: "#204060",
       killServiceOnDestroy: false,
     },
     pausesUpdatesAutomatically: false,
+    ...(Platform.OS === "ios"
+      ? {
+          // iOS relaunches the app after reboot when location Always is granted.
+          // Force-stop is an OS limitation — significant-change (~500m) is the fallback.
+          activityType: Location.ActivityType.OtherNavigation,
+        }
+      : {}),
   };
 }
 
@@ -386,10 +477,12 @@ export async function sendDeviceHeartbeat(options?: { force?: boolean }): Promis
   const force = options?.force === true;
   if (!force && Date.now() - lastHeartbeatAtMs < HEARTBEAT_MIN_GAP_MS) return;
 
-  const [deviceId, networkStatus, batteryLevel] = await Promise.all([
+  const [deviceId, networkStatus, batteryLevel, queuedCount, lastBootAt] = await Promise.all([
     getOrCreateDeviceId(),
     currentNetworkStatus(),
     readBatteryLevel(),
+    getQueuedLocationPingCount(),
+    getLastBootAtIso(),
   ]);
   try {
     await apiPost(
@@ -400,6 +493,8 @@ export async function sendDeviceHeartbeat(options?: { force?: boolean }): Promis
         appVersion: getMobileAppVersion(),
         networkStatus,
         batteryLevel,
+        queuedOfflinePingCount: queuedCount,
+        lastBootAt,
       },
       { skipSessionLogout: true },
     );
@@ -445,6 +540,8 @@ export type RequiredWorkPermissions = {
   /** True only for OS “Allow all the time” / Always. */
   locationGranted: boolean;
   callLogGranted: boolean;
+  batteryOptimizationIgnored: boolean;
+  lowPowerMode: boolean;
   allGranted: boolean;
 };
 
@@ -456,15 +553,29 @@ export async function hasAlwaysAllowLocationPermission(): Promise<boolean> {
   return foreground.status === "granted" && background.status === "granted";
 }
 
+export async function isLowPowerModeOn(): Promise<boolean> {
+  if (Platform.OS !== "ios") return false;
+  try {
+    return await Battery.isLowPowerModeEnabledAsync();
+  } catch {
+    return false;
+  }
+}
+
 export async function checkRequiredWorkPermissions(): Promise<RequiredWorkPermissions> {
-  const [locationGranted, callLogGranted] = await Promise.all([
-    hasAlwaysAllowLocationPermission(),
-    hasCallLogPermission(),
-  ]);
+  const [locationGranted, callLogGranted, batteryOptimizationIgnored, lowPowerMode] =
+    await Promise.all([
+      hasAlwaysAllowLocationPermission(),
+      hasCallLogPermission(),
+      isIgnoringBatteryOptimizations(),
+      isLowPowerModeOn(),
+    ]);
   return {
     locationGranted,
     callLogGranted,
-    allGranted: locationGranted && callLogGranted,
+    batteryOptimizationIgnored,
+    lowPowerMode,
+    allGranted: locationGranted && callLogGranted && batteryOptimizationIgnored,
   };
 }
 
@@ -476,14 +587,22 @@ export async function requestLocationPermissionsOnce(): Promise<boolean> {
   return hasAlwaysAllowLocationPermission();
 }
 
-export async function registerTrackingDevice(): Promise<void> {
-  const [deviceId, installationId, perms, networkStatus, batteryLevel] = await Promise.all([
-    getOrCreateDeviceId(),
-    getOrCreateInstallationId(),
-    checkRequiredWorkPermissions(),
-    currentNetworkStatus(),
-    readBatteryLevel(),
-  ]);
+export async function registerTrackingDevice(options?: {
+  notifyPermissionDenied?: boolean;
+}): Promise<void> {
+  const [deviceId, installationId, perms, networkStatus, batteryLevel, queuedCount, lastBootAt] =
+    await Promise.all([
+      getOrCreateDeviceId(),
+      getOrCreateInstallationId(),
+      checkRequiredWorkPermissions(),
+      currentNetworkStatus(),
+      readBatteryLevel(),
+      getQueuedLocationPingCount(),
+      getLastBootAtIso(),
+    ]);
+  const deniedCount = perms.locationGranted
+    ? 0
+    : Number((await AsyncStorage.getItem(PERMISSION_DENIED_COUNT_KEY)) ?? "0") || 0;
   const hw = deviceHardwareInfo();
   try {
     await apiPost(
@@ -502,6 +621,11 @@ export async function registerTrackingDevice(): Promise<void> {
         networkStatus,
         batteryLevel,
         heartbeat: true,
+        queuedOfflinePingCount: queuedCount,
+        lastBootAt,
+        permissionDeniedCount: deniedCount,
+        batteryOptimizationIgnored: perms.batteryOptimizationIgnored,
+        notifyPermissionDenied: options?.notifyPermissionDenied === true,
       },
       { skipSessionLogout: true },
     );
@@ -547,17 +671,65 @@ function stopHeartbeatLoop() {
     clearInterval(statusReevalTimer);
     statusReevalTimer = undefined;
   }
+  if (hoursResumeTimer) {
+    clearTimeout(hoursResumeTimer);
+    hoursResumeTimer = undefined;
+  }
+}
+
+function msUntilNextIstWallClock(hour: number, minute: number, now = new Date()): number {
+  const { hour: h, minute: m } = getIstHourMinute(now);
+  let deltaMin = hour * 60 + minute - (h * 60 + m);
+  if (deltaMin <= 1) deltaMin += 24 * 60;
+  return deltaMin * 60_000;
+}
+
+/** Keep the FGS alive overnight; at 09:30 IST force a catch-up ping without agent action. */
+function startHoursResumeAlarm() {
+  if (hoursResumeTimer) clearTimeout(hoursResumeTimer);
+  const delay = msUntilNextIstWallClock(9, 30);
+  hoursResumeTimer = setTimeout(() => {
+    hoursResumeTimer = undefined;
+    void pingCurrentPositionOnce("background");
+    void ensureLocationUpdatesRunning();
+    startHoursResumeAlarm();
+  }, delay);
 }
 
 export async function requestRequiredWorkPermissions(): Promise<RequiredWorkPermissions> {
   const locationGranted = await requestLocationPermissionsOnce();
-  const callLogGranted = await requestCallLogPermission({ allowSkip: false });
-  const allGranted = locationGranted && callLogGranted;
-  await markLocationConsentPrompted(allGranted);
-  if (locationGranted) {
+  await requestCallLogPermission({ allowSkip: false });
+  if (Platform.OS === "android" && locationGranted) {
+    const ignoring = await isIgnoringBatteryOptimizations();
+    if (!ignoring) {
+      await requestIgnoreBatteryOptimizations();
+    }
+  }
+  const all = await checkRequiredWorkPermissions();
+  await markLocationConsentPrompted(all.allGranted);
+  if (!all.locationGranted) {
+    await incrementPermissionDeniedCount();
+  } else {
+    await AsyncStorage.setItem(PERMISSION_DENIED_COUNT_KEY, "0");
+  }
+  if (all.locationGranted) {
     await startLocationTracking();
   }
-  return { locationGranted, callLogGranted, allGranted };
+  return all;
+}
+
+export async function incrementPermissionDeniedCount(): Promise<number> {
+  const raw = await AsyncStorage.getItem(PERMISSION_DENIED_COUNT_KEY);
+  const next = (Number(raw) || 0) + 1;
+  await AsyncStorage.setItem(PERMISSION_DENIED_COUNT_KEY, String(next));
+  if (next >= 3) {
+    void registerTrackingDevice({ notifyPermissionDenied: true });
+  }
+  return next;
+}
+
+export async function getPermissionDeniedCount(): Promise<number> {
+  return Number((await AsyncStorage.getItem(PERMISSION_DENIED_COUNT_KEY)) ?? "0") || 0;
 }
 
 export async function openAppPermissionSettings(): Promise<void> {
@@ -674,7 +846,9 @@ export function startLocationTracking(): Promise<void> {
 
     startHeartbeatLoop();
     startStatusReevalLoop();
+    startHoursResumeAlarm();
     await registerLocationWatchdog();
+    await scheduleNativeTrackingWatchdog();
 
     // Keep the foreground-service task running around the clock so Android does not
     // silently drop deliveries overnight. Uploads still skip outside 09:30–20:30 IST.
@@ -705,6 +879,11 @@ export function resetForegroundSyncDebounceForTests(): void {
   lastDeviceRegisterAtMs = 0;
   startTrackingInFlight = null;
   watchdogRegisterInFlight = null;
+  clearQueueFlushRetry();
+  if (hoursResumeTimer) {
+    clearTimeout(hoursResumeTimer);
+    hoursResumeTimer = undefined;
+  }
 }
 
 export async function stopLocationTracking() {
