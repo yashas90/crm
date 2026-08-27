@@ -66,6 +66,15 @@ if (!contents.includes("PropNinja monorepo")) {
   contents = `${contents.trimEnd()}\n${envHook}\n`;
 }
 
+if (!contents.includes("androidx.work:work-runtime-ktx")) {
+  contents = contents.replace(
+    /dependencies \{\s*\n/,
+    `dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+`,
+  );
+}
+
 fs.writeFileSync(buildGradle, contents);
 
 // Keep Android versionCode/versionName in sync with app.config.ts.

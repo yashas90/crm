@@ -1,4 +1,8 @@
-const { withAndroidManifest, withDangerousMod } = require("expo/config-plugins");
+const {
+  withAndroidManifest,
+  withAppBuildGradle,
+  withDangerousMod,
+} = require("expo/config-plugins");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -355,8 +359,22 @@ function withTrackingManifest(config) {
   });
 }
 
+function withWorkManagerDependency(config) {
+  return withAppBuildGradle(config, (mod) => {
+    if (!mod.modResults.contents.includes("androidx.work:work-runtime-ktx")) {
+      mod.modResults.contents = mod.modResults.contents.replace(
+        /dependencies \{\s*\n/,
+        `dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+`,
+      );
+    }
+    return mod;
+  });
+}
+
 function withBulletproofTracking(config) {
-  return withTrackingKotlinFiles(withTrackingManifest(config));
+  return withTrackingKotlinFiles(withTrackingManifest(withWorkManagerDependency(config)));
 }
 
 module.exports = withBulletproofTracking;
