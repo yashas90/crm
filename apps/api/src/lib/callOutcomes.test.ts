@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import { normalizeLoggedCall } from "./callOutcomes.js";
 
 describe("normalizeLoggedCall", () => {
