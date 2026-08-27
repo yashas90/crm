@@ -12,6 +12,7 @@ import {
 import { LEAD_STATUSES } from "@propninja/types/enums";
 import { and, asc, desc, eq, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { buildAnalyticsSourceCounts } from "../lib/analyticsSourceGroups.js";
+import { answeredCallFilter } from "../lib/callTalkTime.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { coldCutoffDate } from "../lib/followUp.js";
@@ -438,7 +439,7 @@ async function fetchLeaderboard(range: DateRange) {
       .select({
         userId: callRecords.userId,
         total: sql<number>`count(*)::int`,
-        answered: sql<number>`count(*) filter (where ${callRecords.outcome} = 'answered')::int`,
+        answered: sql<number>`count(*) filter (where ${answeredCallFilter()})::int`,
       })
       .from(callRecords)
       .where(callWhere)

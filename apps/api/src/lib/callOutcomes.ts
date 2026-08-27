@@ -23,3 +23,24 @@ export function mapCallOutcome(outcome: CallOutcome): {
     }
   }
 }
+
+/**
+ * Answered requires connected talk time. Zero-second "answered" rows are unanswered
+ * calls that were mis-tagged from ring/wall-clock.
+ */
+export function normalizeLoggedCall(input: {
+  outcome: CallOutcome;
+  durationSeconds: number;
+}): {
+  outcome: CallOutcome;
+  durationSeconds: number;
+  status: CallStatus;
+  disposition: string;
+} {
+  const raw = Number(input.durationSeconds);
+  const durationSeconds = Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : 0;
+  const outcome =
+    input.outcome === "answered" && durationSeconds <= 0 ? "no_answer" : input.outcome;
+  const mapped = mapCallOutcome(outcome);
+  return { outcome, durationSeconds, ...mapped };
+}

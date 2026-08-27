@@ -1,14 +1,17 @@
 import { callRecords } from "@propninja/db";
 import { and, eq, gt, or } from "drizzle-orm";
 
-/** Customer picked up — includes zero-duration edge cases for call counts. */
+/** Customer picked up — requires measurable talk time, not just an "answered" label. */
 export function answeredCallFilter() {
-  return or(eq(callRecords.outcome, "answered"), eq(callRecords.disposition, "answered"));
+  return and(
+    or(eq(callRecords.outcome, "answered"), eq(callRecords.disposition, "answered")),
+    gt(callRecords.durationSeconds, 0),
+  );
 }
 
 /**
  * Connected calls with measurable talk time — excludes ring/no-answer, busy, and voicemail.
  */
 export function connectedTalkTimeFilter() {
-  return and(answeredCallFilter(), gt(callRecords.durationSeconds, 0));
+  return answeredCallFilter();
 }

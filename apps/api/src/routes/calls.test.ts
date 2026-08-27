@@ -221,4 +221,40 @@ describe("POST /api/calls/log", () => {
     expect(getCachedResponse(statsKey)).toBeUndefined();
     expect(getCachedResponse(leadsKey)).toBeUndefined();
   });
+
+  it("coerces answered with zero talk time to no_answer", async () => {
+    const { callsRoute } = await import("./calls.js");
+    const app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("authUser", agentUser);
+      await next();
+    });
+    app.route("/api/calls", callsRoute);
+
+    const endedAt = new Date("2026-06-16T10:01:00.000Z");
+    const startedAt = new Date("2026-06-16T10:00:00.000Z");
+    const res = await app.request("/api/calls/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lead_id: leadId,
+        phone_number: "+919876543210",
+        duration_seconds: 0,
+        outcome: "answered",
+        started_at: startedAt.toISOString(),
+        ended_at: endedAt.toISOString(),
+        source: "mobile-auto",
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(logCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        durationSeconds: 0,
+        outcome: "no_answer",
+        status: "missed",
+        disposition: "no_answer",
+      }),
+    );
+  });
 });

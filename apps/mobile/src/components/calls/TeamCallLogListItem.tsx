@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { TeamCallLogItem } from "@/hooks/use-team-calls";
+import { displayCallOutcome, formatCallLogDuration } from "@/lib/callLogDisplay";
 import { formatDateTime } from "@/lib/dates";
 import { colors, radii, spacing } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -42,14 +43,6 @@ function outcomeStyle(outcome: string | null) {
   );
 }
 
-function formatDurationMinutes(minutes: number) {
-  if (minutes <= 0) return "0m";
-  if (minutes < 60) return `${minutes}m`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
-
 type Props = {
   item: TeamCallLogItem;
   expanded: boolean;
@@ -58,7 +51,8 @@ type Props = {
 };
 
 export function TeamCallLogListItem({ item, expanded, onToggle, onViewLead }: Props) {
-  const badge = outcomeStyle(item.outcome);
+  const seconds = item.durationSeconds ?? item.duration * 60;
+  const badge = outcomeStyle(displayCallOutcome(item.outcome, seconds));
   const displayName = item.leadName?.trim() || "Unknown lead";
 
   return (
@@ -80,7 +74,7 @@ export function TeamCallLogListItem({ item, expanded, onToggle, onViewLead }: Pr
               backgroundColor={badge.backgroundColor}
               color={badge.color}
             />
-            <Text style={styles.metaText}>{formatDurationMinutes(item.duration)}</Text>
+            <Text style={styles.metaText}>{formatCallLogDuration(seconds)}</Text>
             <Text style={styles.metaText}>{formatDateTime(item.calledAt)}</Text>
           </View>
         </View>

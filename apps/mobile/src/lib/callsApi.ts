@@ -5,6 +5,7 @@ export type CallLogItem = {
   phone: string;
   outcome: string | null;
   duration: number;
+  durationSeconds: number;
   notes: string | null;
   calledAt: string;
   agentName?: string | null;
@@ -46,7 +47,8 @@ export function mapCallRecordToLogItem(record: ApiCallRecord): CallLogItem {
     leadName: leadName || null,
     phone: record.phoneNumber,
     outcome: record.outcome,
-    duration: Math.max(0, Math.round(record.durationSeconds / 60)),
+    durationSeconds: Math.max(0, record.durationSeconds ?? 0),
+    duration: Math.max(0, Math.round((record.durationSeconds ?? 0) / 60)),
     notes: record.notes,
     calledAt: record.startedAt,
     agentName: record.userName ?? null,

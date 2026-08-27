@@ -22,6 +22,7 @@ describe("mapCallRecordToLogItem", () => {
       phone: "+919876543210",
       outcome: "answered",
       duration: 2,
+      durationSeconds: 125,
       notes: "Interested",
       calledAt: "2026-06-16T10:00:00.000Z",
       agentName: "Agent One",
