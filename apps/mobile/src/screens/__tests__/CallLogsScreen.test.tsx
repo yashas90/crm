@@ -94,4 +94,51 @@ describe("CallLogsScreen", () => {
     expect(screen.getByText("Today")).toBeTruthy();
     expect(screen.getAllByText("Answered").length).toBeGreaterThan(0);
   });
+
+  it("does not badge zero-talk rows as Answered", () => {
+    mockUseCallLogsInfinite.mockReturnValue({
+      data: {
+        pages: [
+          {
+            calls: [
+              {
+                id: "call-zero",
+                leadId: "lead-3",
+                leadName: "Keerthi Gowda",
+                phone: "+919800000001",
+                outcome: "answered",
+                duration: 0,
+                durationSeconds: 0,
+                notes: null,
+                calledAt: "2026-08-27T05:02:00.000Z",
+              },
+            ],
+            total: 1,
+            page: 1,
+            limit: 50,
+          },
+        ],
+        pageParams: [1],
+      },
+      isLoading: false,
+      isError: false,
+      isRefetching: false,
+      isFetchingNextPage: false,
+      hasNextPage: false,
+      refetch: jest.fn(),
+      fetchNextPage: jest.fn(),
+    } as never);
+
+    render(
+      <CallLogsScreen
+        navigation={{ getParent: jest.fn(), goBack: jest.fn() } as never}
+        route={{ key: "CallLogsScreen", name: "CallLogsScreen" }}
+      />,
+    );
+
+    expect(screen.getByText("Keerthi Gowda")).toBeTruthy();
+    expect(screen.getByText("0s")).toBeTruthy();
+    // Filter chip also says "No Answer"; the row badge must be present too.
+    expect(screen.getAllByText("No Answer").length).toBeGreaterThan(1);
+  });
 });
