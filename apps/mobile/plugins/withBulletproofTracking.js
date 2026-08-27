@@ -261,7 +261,11 @@ function withTrackingKotlinFiles(config) {
         "app/src/main/java/com/propninja/crm",
       );
       fs.mkdirSync(srcDir, { recursive: true });
-      fs.writeFileSync(path.join(srcDir, "TrackingNativeModule.kt"), TRACKING_NATIVE_MODULE_KT, "utf8");
+      fs.writeFileSync(
+        path.join(srcDir, "TrackingNativeModule.kt"),
+        TRACKING_NATIVE_MODULE_KT,
+        "utf8",
+      );
       fs.writeFileSync(path.join(srcDir, "TrackingPackage.kt"), TRACKING_PACKAGE_KT, "utf8");
       fs.writeFileSync(path.join(srcDir, "BootCompletedReceiver.kt"), BOOT_RECEIVER_KT, "utf8");
       fs.writeFileSync(path.join(srcDir, "TrackingAlarmReceiver.kt"), ALARM_RECEIVER_KT, "utf8");
