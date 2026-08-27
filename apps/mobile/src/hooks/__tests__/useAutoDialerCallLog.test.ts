@@ -1,4 +1,5 @@
 jest.mock("@/lib/callLogNative", () => ({
+  waitForOutgoingCallTalkSeconds: jest.fn(),
   getOutgoingCallTalkSeconds: jest.fn(),
 }));
 
@@ -6,26 +7,35 @@ jest.mock("@/hooks/useCallDurationTracking", () => ({
   useCallDurationTracking: jest.fn(({ onReturn }: { onReturn: (info: unknown) => void }) => ({
     beginCall: jest.fn(),
     clearCallSession: jest.fn(),
-    // Expose onReturn for tests via module helper
     __onReturn: onReturn,
   })),
 }));
 
 import { useAutoDialerCallLog } from "@/hooks/useAutoDialerCallLog";
 import { useCallDurationTracking } from "@/hooks/useCallDurationTracking";
-import { getOutgoingCallTalkSeconds } from "@/lib/callLogNative";
+import { waitForOutgoingCallTalkSeconds } from "@/lib/callLogNative";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 describe("useAutoDialerCallLog auto-record", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
     jest.clearAllMocks();
-    (getOutgoingCallTalkSeconds as jest.Mock).mockResolvedValue(12);
+    (waitForOutgoingCallTalkSeconds as jest.Mock).mockResolvedValue(12);
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
+  function startDial(logCall: jest.Mock) {
+    const { result } = renderHook(() => useAutoDialerCallLog({ logCall }));
+    act(() => {
+      result.current.beginCall({
+        leadId: "lead-1",
+        leadName: "Test",
+        phoneNumber: "+918971558855",
+      });
+    });
+    const tracking = (useCallDurationTracking as jest.Mock).mock.results.at(-1)?.value as {
+      __onReturn: (info: { calledAt: string; durationMinutes: number }) => void;
+    };
+    return { result, tracking };
+  }
 
   it("automatically logs answered + talk seconds without agent confirm", async () => {
     const logCall = jest.fn().mockResolvedValue({ ok: true });
@@ -57,10 +67,6 @@ describe("useAutoDialerCallLog auto-record", () => {
       });
     });
 
-    await act(async () => {
-      jest.advanceTimersByTime(2_000);
-    });
-
     await waitFor(() => {
       expect(logCall).toHaveBeenCalled();
     });
@@ -88,22 +94,9 @@ describe("useAutoDialerCallLog auto-record", () => {
   });
 
   it("auto-logs no_answer when OS talk time is 0", async () => {
-    (getOutgoingCallTalkSeconds as jest.Mock).mockResolvedValue(0);
+    (waitForOutgoingCallTalkSeconds as jest.Mock).mockResolvedValue(0);
     const logCall = jest.fn().mockResolvedValue({ ok: true });
-
-    const { result } = renderHook(() => useAutoDialerCallLog({ logCall }));
-
-    act(() => {
-      result.current.beginCall({
-        leadId: "lead-2",
-        leadName: "Test",
-        phoneNumber: "+919999999999",
-      });
-    });
-
-    const tracking = (useCallDurationTracking as jest.Mock).mock.results.at(-1)?.value as {
-      __onReturn: (info: { calledAt: string; durationMinutes: number }) => void;
-    };
+    const { tracking } = startDial(logCall);
 
     act(() => {
       tracking.__onReturn({
@@ -112,8 +105,27 @@ describe("useAutoDialerCallLog auto-record", () => {
       });
     });
 
-    await act(async () => {
-      jest.advanceTimersByTime(2_000);
+    await waitFor(() => expect(logCall).toHaveBeenCalled());
+
+    expect(logCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        duration_seconds: 0,
+        outcome: "no_answer",
+        source: "mobile-auto",
+      }),
+    );
+  });
+
+  it("does not treat dial-to-return ring time as answered when OS talk time is missing", async () => {
+    (waitForOutgoingCallTalkSeconds as jest.Mock).mockResolvedValue(null);
+    const logCall = jest.fn().mockResolvedValue({ ok: true });
+    const { tracking } = startDial(logCall);
+
+    act(() => {
+      tracking.__onReturn({
+        calledAt: new Date(Date.now() - 45_000).toISOString(),
+        durationMinutes: 1,
+      });
     });
 
     await waitFor(() => expect(logCall).toHaveBeenCalled());

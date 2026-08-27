@@ -13,6 +13,7 @@ import {
   buildReportSummarySubject,
   buildReportSummaryText,
 } from "../emails/reportSummary.js";
+import { answeredCallFilter } from "../lib/callTalkTime.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { type Database, db } from "../lib/db.js";
 import { getIstDayBounds } from "../lib/istSchedule.js";
@@ -70,7 +71,7 @@ async function countCalls(range: DateRange, answeredOnly = false) {
     lte(callRecords.startedAt, range.end),
   ];
   if (answeredOnly) {
-    filters.push(eq(callRecords.outcome, "answered"));
+    filters.push(answeredCallFilter());
   }
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })

@@ -5,11 +5,12 @@ import { useLogCall } from "@/hooks/use-calls";
 import type { LeadRow } from "@/hooks/use-leads";
 import { useCallDurationTracking } from "@/hooks/useCallDurationTracking";
 import { apiGet } from "@/lib/apiClient";
+import { waitForOutgoingCallTalkSeconds } from "@/lib/callLogNative";
+import { classifyNativeTalk, outcomeFromTalkSeconds } from "@/lib/callOutcomeFromTalk";
 import { dialPhoneNumber, normalizeTelPhone } from "@/lib/phoneActions";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
-import type { CallOutcome } from "@propninja/types/enums";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -25,11 +26,6 @@ type PendingCall = {
   durationSeconds: number;
 };
 
-function inferOutcome(durationSeconds: number): CallOutcome {
-  if (durationSeconds <= 0) return "no_answer";
-  return "answered";
-}
-
 export function DialPadScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [digits, setDigits] = useState("");
@@ -38,6 +34,8 @@ export function DialPadScreen({ navigation }: Props) {
   const matchedLeadIdRef = useRef<string | undefined>(undefined);
   const [pendingCall, setPendingCall] = useState<PendingCall | null>(null);
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
+  const [resolvingTalk, setResolvingTalk] = useState(false);
+  const nativeReadGenerationRef = useRef(0);
 
   const logCall = useLogCall();
   const normalizedPhone = useMemo(() => normalizeTelPhone(digits), [digits]);
@@ -57,19 +55,39 @@ export function DialPadScreen({ navigation }: Props) {
   const matchedLead = lookupQuery.data ?? null;
 
   const openPostCall = useCallback((startMs: number, phone: string) => {
-    const endedAt = new Date();
-    const durationSeconds = Math.max(0, Math.round((endedAt.getTime() - startMs) / 1000));
-    setPendingCall({
-      phoneNumber: phone,
-      startedAt: new Date(startMs).toISOString(),
-      endedAt: endedAt.toISOString(),
-      durationSeconds,
-    });
+    const generation = ++nativeReadGenerationRef.current;
     setCalling(false);
     callStartRef.current = null;
+    setResolvingTalk(true);
+    void waitForOutgoingCallTalkSeconds(phone, startMs - 5_000)
+      .then((nativeSecs) => {
+        if (generation !== nativeReadGenerationRef.current) return;
+        const classified = classifyNativeTalk(nativeSecs);
+        const endedAt = new Date();
+        setPendingCall({
+          phoneNumber: phone,
+          startedAt: new Date(startMs).toISOString(),
+          endedAt: endedAt.toISOString(),
+          durationSeconds: classified.durationSeconds,
+        });
+        setResolvingTalk(false);
+      })
+      .catch(() => {
+        if (generation !== nativeReadGenerationRef.current) return;
+        const endedAt = new Date();
+        setPendingCall({
+          phoneNumber: phone,
+          startedAt: new Date(startMs).toISOString(),
+          endedAt: endedAt.toISOString(),
+          durationSeconds: 0,
+        });
+        setResolvingTalk(false);
+      });
   }, []);
 
-  const pendingOutcome = pendingCall ? inferOutcome(pendingCall.durationSeconds) : "answered";
+  const pendingOutcome = pendingCall
+    ? outcomeFromTalkSeconds(pendingCall.durationSeconds)
+    : "no_answer";
 
   const { beginCall, clearCallSession } = useCallDurationTracking({
     onReturn: ({ calledAt }) => {
@@ -107,6 +125,8 @@ export function DialPadScreen({ navigation }: Props) {
     const startMs = Date.now();
     callStartRef.current = startMs;
     matchedLeadIdRef.current = matchedLead?.id;
+    nativeReadGenerationRef.current += 1;
+    setResolvingTalk(false);
     setCalling(true);
     beginCall({
       leadId: matchedLead?.id ?? "",
@@ -129,7 +149,7 @@ export function DialPadScreen({ navigation }: Props) {
   const submitCallLog = useCallback(
     async (leadId?: string) => {
       if (!pendingCall) return;
-      const outcome = inferOutcome(pendingCall.durationSeconds);
+      const outcome = outcomeFromTalkSeconds(pendingCall.durationSeconds);
       await logCall.mutateAsync({
         phone_number: pendingCall.phoneNumber,
         lead_id: leadId,
@@ -154,7 +174,7 @@ export function DialPadScreen({ navigation }: Props) {
 
   const onAddNewLead = useCallback(() => {
     if (!pendingCall) return;
-    const outcome = inferOutcome(pendingCall.durationSeconds);
+    const outcome = outcomeFromTalkSeconds(pendingCall.durationSeconds);
     const payload = { ...pendingCall, outcome };
     setPendingCall(null);
     navigation.navigate("LeadsTab", {
@@ -206,18 +226,23 @@ export function DialPadScreen({ navigation }: Props) {
 
       <View style={styles.actions}>
         <Pressable
-          style={[styles.callBtn, (!normalizedPhone || calling) && styles.btnDisabled]}
+          style={[
+            styles.callBtn,
+            (!normalizedPhone || calling || resolvingTalk) && styles.btnDisabled,
+          ]}
           onPress={() => void startCall()}
-          disabled={!normalizedPhone || calling}
+          disabled={!normalizedPhone || calling || resolvingTalk}
           accessibilityRole="button"
           accessibilityLabel="Call"
         >
-          <Text style={styles.callBtnText}>{calling ? "Calling…" : "CALL"}</Text>
+          <Text style={styles.callBtnText}>
+            {resolvingTalk ? "Saving…" : calling ? "Calling…" : "CALL"}
+          </Text>
         </Pressable>
         <Pressable
-          style={[styles.endBtn, !calling && styles.btnDisabled]}
+          style={[styles.endBtn, (!calling || resolvingTalk) && styles.btnDisabled]}
           onPress={endCallTracking}
-          disabled={!calling}
+          disabled={!calling || resolvingTalk}
           accessibilityRole="button"
           accessibilityLabel="End call tracking"
         >

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { mapCallOutcome } from "../lib/callOutcomes.js";
+import { normalizeLoggedCall } from "../lib/callOutcomes.js";
 import { maskCallPhoneFields } from "../lib/leadMasking.js";
 import { canEditLead } from "../lib/permissions.js";
 import { clearCachesAfterCallMutation } from "../lib/responseCache.js";
@@ -103,11 +103,11 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
   }
 
   const durationSeconds = data.duration_seconds ?? Math.round((data.duration ?? 0) * 60);
-  const mapped = mapCallOutcome(data.outcome);
+  const normalized = normalizeLoggedCall({ outcome: data.outcome, durationSeconds });
   const endedAt = data.ended_at ? new Date(data.ended_at) : new Date();
   const startedAt = data.started_at
     ? new Date(data.started_at)
-    : new Date(endedAt.getTime() - durationSeconds * 1000);
+    : new Date(endedAt.getTime() - normalized.durationSeconds * 1000);
 
   const record = await callService.logCall({
     userId: authUser.id,
@@ -115,12 +115,12 @@ callsRoute.post("/log", callsLogRateLimit, async (c) => {
     phoneNumber,
     direction: data.direction ?? "outgoing",
     // Outcome is source of truth — ignore client status which often sends "completed" for every dial.
-    status: mapped.status,
+    status: normalized.status,
     startedAt,
     endedAt,
-    durationSeconds,
-    disposition: data.disposition ?? mapped.disposition,
-    outcome: data.outcome,
+    durationSeconds: normalized.durationSeconds,
+    disposition: data.disposition ?? normalized.disposition,
+    outcome: normalized.outcome,
     notes: data.notes,
     source: data.source ?? (leadId ? "web-manual" : "mobile-dialpad"),
   });

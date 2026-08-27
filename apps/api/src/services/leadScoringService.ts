@@ -6,7 +6,7 @@ import {
   siteVisits,
   tcfConsents,
 } from "@propninja/db";
-import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import {
@@ -113,6 +113,7 @@ export async function gatherLeadScoringInput(
           eq(callRecords.leadId, lead.id),
           eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
           eq(callRecords.outcome, "answered"),
+          gt(callRecords.durationSeconds, 0),
         ),
       )
       .limit(1),
@@ -349,6 +350,7 @@ export async function recalculateAllActiveLeadScores(now = new Date()) {
         and(
           eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
           eq(callRecords.outcome, "answered"),
+          gt(callRecords.durationSeconds, 0),
           inArray(callRecords.leadId, leadIds),
         ),
       ),
