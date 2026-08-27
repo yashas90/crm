@@ -428,6 +428,13 @@
       "when": 1780632546748,
       "tag": "0060_agent_status_stale",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1780632546749,
+      "tag": "0061_bulletproof_tracking_status",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,10 @@
-import { getIstDayOfWeek, getIstHourMinute } from "./ist.js";
+import {
+  addDaysToDateKey,
+  getIstDateKey,
+  getIstDayOfWeek,
+  getIstHourMinute,
+  istWallClockToDate,
+} from "./ist.js";
 
 /** Shared agent-tracking schedule (Asia/Kolkata). Overridable via env / admin settings. */
 export const TRACKING_DEFAULTS = {
@@ -9,11 +15,11 @@ export const TRACKING_DEFAULTS = {
   endMinute: 30,
   intervalMinutes: 30,
   retentionDays: 14,
-  /** Mark STALE after ~1.5 missed cycles (was 75 — too late for office ops). */
+  /** GPS older than this (counting only 09:30–20:30 IST) is last-known, not STALE. */
   missingAlertMinutes: 45,
   heartbeatThresholdMinutes: 60,
-  /** After this many minutes with no heartbeat+location, prefer POSSIBLE_APP_UNINSTALLED. */
-  possibleUninstallMinutes: 180,
+  /** STALE / likely-uninstalled after 24h with no ping, boot, or queued offline pings. */
+  possibleUninstallMinutes: 1440,
   /** 0=Sun … 6=Sat — default every day. */
   activeDays: [0, 1, 2, 3, 4, 5, 6] as number[],
   enabled: true,
@@ -32,6 +38,7 @@ export const TRACKING_HEALTH_STATUSES = [
   "ACTIVE",
   "STALE",
   "OFFLINE",
+  "PAUSED",
   "LOCATION_PERMISSION_DENIED",
   "LOCATION_PERMISSION_REVOKED",
   "CALL_LOG_PERMISSION_DENIED",
@@ -46,8 +53,8 @@ export const TRACKING_HEALTH_STATUSES = [
 
 export type TrackingHealthStatus = (typeof TRACKING_HEALTH_STATUSES)[number];
 
-/** Spec-facing agent availability: active | stale | offline. */
-export const AGENT_AVAILABILITY_STATUSES = ["active", "stale", "offline"] as const;
+/** Spec-facing agent availability: active | paused | stale | offline. */
+export const AGENT_AVAILABILITY_STATUSES = ["active", "paused", "stale", "offline"] as const;
 export type AgentAvailabilityStatus = (typeof AGENT_AVAILABILITY_STATUSES)[number];
 
 export const TRACKING_ALERT_TYPES = [
@@ -102,6 +109,41 @@ export function trackingScheduleLabel(schedule: TrackingSchedule = TRACKING_DEFA
   return `${pad(schedule.startHour)}:${pad(schedule.startMinute)}–${pad(schedule.endHour)}:${pad(schedule.endMinute)} IST (${dayLabel})`;
 }
 
+/**
+ * Minutes of expected tracking time between `from` and `to` (exclusive of overnight /
+ * weekend gaps). Last ping at 20:28 IST → 09:45 next day counts ~17 minutes, not 13 hours.
+ */
+export function minutesDuringTrackingHours(
+  from: Date,
+  to: Date,
+  schedule: TrackingSchedule = TRACKING_DEFAULTS,
+): number {
+  if (to.getTime() <= from.getTime()) return 0;
+  const activeDays = schedule.activeDays ?? TRACKING_DEFAULTS.activeDays;
+  let total = 0;
+  let dateKey = getIstDateKey(from);
+  const endKey = getIstDateKey(to);
+  let guard = 0;
+
+  while (guard < 400) {
+    guard += 1;
+    const noon = istWallClockToDate(dateKey, 12, 0);
+    const dow = getIstDayOfWeek(noon);
+    if (activeDays.includes(dow)) {
+      const windowStart = istWallClockToDate(dateKey, schedule.startHour, schedule.startMinute);
+      const windowEnd = istWallClockToDate(dateKey, schedule.endHour, schedule.endMinute);
+      const overlapStart = Math.max(from.getTime(), windowStart.getTime());
+      const overlapEnd = Math.min(to.getTime(), windowEnd.getTime());
+      if (overlapEnd > overlapStart) {
+        total += Math.floor((overlapEnd - overlapStart) / 60_000);
+      }
+    }
+    if (dateKey === endKey) break;
+    dateKey = addDaysToDateKey(dateKey, 1);
+  }
+  return total;
+}
+
 export type DeviceHealthInput = {
   trackingPolicyEnabled: boolean;
   trackingEnabledGlobal: boolean;
@@ -111,27 +153,87 @@ export type DeviceHealthInput = {
   lastSeenAt: Date | null;
   lastLocationAt: Date | null;
   lastHeartbeatAt: Date | null;
+  lastBootAt?: Date | null;
+  hasQueuedOfflinePings?: boolean;
   isCurrentDevice: boolean;
   withinHours: boolean;
   heartbeatThresholdMinutes: number;
   missingAlertMinutes: number;
   possibleUninstallMinutes: number;
+  schedule?: TrackingSchedule;
   now?: Date;
 };
 
+function latestDate(dates: Array<Date | null | undefined>): Date | null {
+  let best: Date | null = null;
+  for (const d of dates) {
+    if (!d) continue;
+    if (!best || d.getTime() > best.getTime()) best = d;
+  }
+  return best;
+}
+
 /**
- * Spec Rule 1: if no GPS ping for `missingAlertMinutes` (default 45), status is STALE.
- * STALE overrides ACTIVE / Busy-style operational statuses while tracking is expected.
+ * STALE is reserved for likely uninstall: 24h+ silence, no boot after last ping,
+ * no queued offline pings. Phone-off / no-internet / force-stop / night gap are NOT stale.
  */
-export function deriveAgentAvailabilityStatus(input: {
+export function isLikelyUninstalled(input: {
+  lastSeenAt: Date | null;
+  lastLocationAt: Date | null;
+  lastHeartbeatAt: Date | null;
+  lastBootAt?: Date | null;
+  hasQueuedOfflinePings?: boolean;
+  possibleUninstallMinutes: number;
+  missingAlertMinutes: number;
+  schedule?: TrackingSchedule;
+  now?: Date;
+}): boolean {
+  if (input.hasQueuedOfflinePings) return false;
+  const now = input.now ?? new Date();
+  const lastComm = latestDate([input.lastHeartbeatAt, input.lastSeenAt, input.lastLocationAt]);
+  if (!lastComm) return true;
+
+  if (input.lastBootAt && input.lastBootAt.getTime() > lastComm.getTime()) {
+    return false;
+  }
+
+  const wallClockMinutes = Math.floor((now.getTime() - lastComm.getTime()) / 60_000);
+  if (wallClockMinutes < input.possibleUninstallMinutes) return false;
+
+  const trackingMinutes = minutesDuringTrackingHours(
+    lastComm,
+    now,
+    input.schedule ?? TRACKING_DEFAULTS,
+  );
+  return trackingMinutes >= input.missingAlertMinutes;
+}
+
+export type AgentAvailabilityInput = {
   trackingPolicyEnabled: boolean;
   trackingEnabledGlobal: boolean;
   clientTrackingEnabled: boolean | null;
   lastLocationAt: Date | null;
+  lastSeenAt?: Date | null;
+  lastHeartbeatAt?: Date | null;
+  lastBootAt?: Date | null;
+  hasQueuedOfflinePings?: boolean;
   missingAlertMinutes: number;
+  possibleUninstallMinutes?: number;
+  schedule?: TrackingSchedule;
+  withinHours?: boolean;
   now?: Date;
-}): AgentAvailabilityStatus {
+};
+
+/**
+ * Display status: active | paused | stale | offline.
+ * STALE only when the app is likely uninstalled (24h+ no ping during active hours,
+ * no boot event, no offline queue). Overnight and transient device issues stay Active/Paused.
+ */
+export function deriveAgentAvailabilityStatus(
+  input: AgentAvailabilityInput,
+): AgentAvailabilityStatus {
   const now = input.now ?? new Date();
+  const schedule = input.schedule ?? TRACKING_DEFAULTS;
   if (
     !input.trackingEnabledGlobal ||
     !input.trackingPolicyEnabled ||
@@ -139,21 +241,57 @@ export function deriveAgentAvailabilityStatus(input: {
   ) {
     return "offline";
   }
-  const minutesSinceLoc = input.lastLocationAt
-    ? Math.floor((now.getTime() - input.lastLocationAt.getTime()) / 60_000)
-    : Number.POSITIVE_INFINITY;
-  if (minutesSinceLoc >= input.missingAlertMinutes) {
+
+  const withinHours = input.withinHours ?? isWithinTrackingHours(now, schedule);
+  if (!withinHours) return "paused";
+
+  if (
+    isLikelyUninstalled({
+      lastSeenAt: input.lastSeenAt ?? input.lastLocationAt,
+      lastLocationAt: input.lastLocationAt,
+      lastHeartbeatAt: input.lastHeartbeatAt ?? null,
+      lastBootAt: input.lastBootAt,
+      hasQueuedOfflinePings: input.hasQueuedOfflinePings,
+      possibleUninstallMinutes:
+        input.possibleUninstallMinutes ?? TRACKING_DEFAULTS.possibleUninstallMinutes,
+      missingAlertMinutes: input.missingAlertMinutes,
+      schedule,
+      now,
+    })
+  ) {
     return "stale";
   }
+
   return "active";
 }
 
 /**
+ * True when the map should show last-known coordinates (GPS older than 45 tracking-hours
+ * minutes, or currently outside the window). This is independent of STALE.
+ */
+export function isLastKnownLocation(input: {
+  lastLocationAt: Date | null;
+  missingAlertMinutes: number;
+  schedule?: TrackingSchedule;
+  withinHours?: boolean;
+  now?: Date;
+}): boolean {
+  const now = input.now ?? new Date();
+  const schedule = input.schedule ?? TRACKING_DEFAULTS;
+  const withinHours = input.withinHours ?? isWithinTrackingHours(now, schedule);
+  if (!input.lastLocationAt) return true;
+  if (!withinHours) return true;
+  const missed = minutesDuringTrackingHours(input.lastLocationAt, now, schedule);
+  return missed >= input.missingAlertMinutes;
+}
+
+/**
  * Derive a conservative health status. Never claims APP_UNINSTALLED with certainty.
- * STALE overrides ACTIVE when GPS is older than missingAlertMinutes during hours.
+ * STALE is uninstall-only. Overnight silence is PAUSED (OUTSIDE_HOURS kept as alias).
  */
 export function deriveTrackingHealthStatus(input: DeviceHealthInput): TrackingHealthStatus {
   const now = input.now ?? new Date();
+  const schedule = input.schedule ?? TRACKING_DEFAULTS;
 
   if (!input.trackingEnabledGlobal || !input.trackingPolicyEnabled) {
     return "TRACKING_DISABLED";
@@ -168,65 +306,37 @@ export function deriveTrackingHealthStatus(input: DeviceHealthInput): TrackingHe
 
   const callPerm = (input.callLogPermissionStatus ?? "").toUpperCase();
   if (callPerm === "DENIED") return "CALL_LOG_PERMISSION_DENIED";
-  // UNAVAILABLE is informational; do not override ACTIVE/OFFLINE.
 
   if (!input.isCurrentDevice) return "DEVICE_CHANGED";
 
-  // Outside the tracking window, silence is expected — do not alarm as
-  // STALE overnight just because GPS uploads paused after 20:30 IST.
-  if (!input.withinHours) return "OUTSIDE_HOURS";
+  if (!input.withinHours) return "PAUSED";
 
-  const minutesSinceLoc = input.lastLocationAt
-    ? Math.floor((now.getTime() - input.lastLocationAt.getTime()) / 60_000)
-    : Number.POSITIVE_INFINITY;
-
-  // RULE 1 — STALE overrides Active when no GPS for 45+ minutes.
-  if (minutesSinceLoc >= input.missingAlertMinutes) {
-    const lastComm = latestDate([input.lastHeartbeatAt, input.lastSeenAt, input.lastLocationAt]);
-    const minutesSinceComm = lastComm
-      ? Math.floor((now.getTime() - lastComm.getTime()) / 60_000)
-      : Number.POSITIVE_INFINITY;
-    if (minutesSinceComm >= input.possibleUninstallMinutes) {
-      return "POSSIBLE_APP_UNINSTALLED";
-    }
+  if (
+    isLikelyUninstalled({
+      lastSeenAt: input.lastSeenAt,
+      lastLocationAt: input.lastLocationAt,
+      lastHeartbeatAt: input.lastHeartbeatAt,
+      lastBootAt: input.lastBootAt,
+      hasQueuedOfflinePings: input.hasQueuedOfflinePings,
+      possibleUninstallMinutes: input.possibleUninstallMinutes,
+      missingAlertMinutes: input.missingAlertMinutes,
+      schedule,
+      now,
+    })
+  ) {
     return "STALE";
-  }
-
-  const lastComm = latestDate([input.lastHeartbeatAt, input.lastSeenAt, input.lastLocationAt]);
-  const minutesSinceComm = lastComm
-    ? Math.floor((now.getTime() - lastComm.getTime()) / 60_000)
-    : Number.POSITIVE_INFINITY;
-
-  if (minutesSinceComm >= input.possibleUninstallMinutes) {
-    return "POSSIBLE_APP_UNINSTALLED";
-  }
-  if (minutesSinceComm >= input.heartbeatThresholdMinutes) {
-    return "OFFLINE";
-  }
-
-  if (callPerm === "UNAVAILABLE") {
-    return "ACTIVE";
   }
 
   return "ACTIVE";
 }
 
-function latestDate(dates: Array<Date | null | undefined>): Date | null {
-  let best: Date | null = null;
-  for (const d of dates) {
-    if (!d) continue;
-    if (!best || d.getTime() > best.getTime()) best = d;
-  }
-  return best;
-}
-
 export function alertSeverityForStatus(status: TrackingHealthStatus): TrackingAlertSeverity {
   switch (status) {
+    case "STALE":
     case "POSSIBLE_APP_UNINSTALLED":
     case "LOCATION_PERMISSION_REVOKED":
     case "LOCATION_PERMISSION_DENIED":
       return "CRITICAL";
-    case "STALE":
     case "APP_NOT_COMMUNICATING":
     case "OFFLINE":
     case "CALL_LOG_PERMISSION_DENIED":

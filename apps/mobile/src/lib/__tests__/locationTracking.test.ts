@@ -1,5 +1,6 @@
 jest.mock("expo-battery", () => ({
   getBatteryLevelAsync: jest.fn(() => Promise.resolve(0.82)),
+  isLowPowerModeEnabledAsync: jest.fn(() => Promise.resolve(false)),
 }));
 jest.mock("expo-task-manager", () => ({
   defineTask: jest.fn(),
@@ -16,6 +17,7 @@ jest.mock("expo-background-fetch", () => ({
 
 jest.mock("expo-location", () => ({
   Accuracy: { Balanced: 3 },
+  ActivityType: { OtherNavigation: 4 },
   getForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
   getBackgroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: "granted" })),
   hasStartedLocationUpdatesAsync: jest.fn(() => Promise.resolve(false)),
@@ -55,6 +57,12 @@ jest.mock("@/lib/callLogNative", () => ({
 jest.mock("@/lib/callLogSync", () => ({
   getOsCallLogPermissionStatus: jest.fn(() => "granted"),
   syncOsCallLogMetadata: jest.fn(() => Promise.resolve()),
+}));
+jest.mock("@/lib/trackingNative", () => ({
+  isIgnoringBatteryOptimizations: jest.fn(() => Promise.resolve(true)),
+  requestIgnoreBatteryOptimizations: jest.fn(() => Promise.resolve()),
+  getLastBootAtIso: jest.fn(() => Promise.resolve(null)),
+  scheduleNativeTrackingWatchdog: jest.fn(() => Promise.resolve()),
 }));
 
 import { hasCallLogPermission } from "@/lib/callLogNative";

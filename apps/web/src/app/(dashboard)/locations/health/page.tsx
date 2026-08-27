@@ -42,7 +42,7 @@ type HealthRow = {
 
 function StaleBadge() {
   return (
-    <span className="inline-flex items-center rounded border border-amber-500/60 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+    <span className="inline-flex items-center rounded border border-red-500/60 bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800 dark:bg-red-950 dark:text-red-300">
       Stale
     </span>
   );
@@ -119,8 +119,8 @@ export default function TrackingHealthPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Agents</CardTitle>
           <CardDescription>
-            Offline / possible app removal are inferred from missing heartbeats — never claimed as
-            certain uninstall without MDM evidence.
+            STALE is likely uninstall (24h+ no ping, no boot, no offline queue). Overnight silence
+            is PAUSED — never stale.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -170,9 +170,9 @@ export default function TrackingHealthPage() {
                       </td>
                       <td className="px-2 py-2 text-xs font-medium">
                         <div className="flex flex-wrap items-center gap-1">
-                          {(agent.agentStatus === "stale" ||
-                            agent.healthStatus === "STALE" ||
-                            agent.healthStatus === "APP_NOT_COMMUNICATING") && <StaleBadge />}
+                          {(agent.agentStatus === "stale" || agent.healthStatus === "STALE") && (
+                            <StaleBadge />
+                          )}
                           <span>
                             {(agent.agentStatus ?? agent.healthStatus ?? "UNKNOWN")
                               .toString()

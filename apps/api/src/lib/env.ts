@@ -144,7 +144,7 @@ const envSchema = z
       .default("true")
       .transform((v) => v === "true"),
     TRACKING_HEARTBEAT_THRESHOLD_MINUTES: z.coerce.number().int().positive().default(60),
-    TRACKING_POSSIBLE_UNINSTALL_MINUTES: z.coerce.number().int().positive().default(180),
+    TRACKING_POSSIBLE_UNINSTALL_MINUTES: z.coerce.number().int().positive().default(1440),
   })
   .superRefine((data, ctx) => {
     if (!data.META_WEBHOOK_ENABLED) return;

@@ -7,6 +7,7 @@ import {
   users,
 } from "@propninja/db";
 import { getIstDateKey, istWallClockToDate } from "@propninja/types/ist";
+import { deriveAgentAvailabilityStatus, isLastKnownLocation } from "@propninja/types/tracking";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -63,6 +64,11 @@ const deviceBodySchema = z.object({
   batteryLevel: z.number().int().min(0).max(100).nullable().optional(),
   networkStatus: z.enum(["online", "offline", "unknown"]).nullable().optional(),
   heartbeat: z.boolean().optional(),
+  lastBootAt: z.string().datetime({ offset: true }).nullable().optional(),
+  queuedOfflinePingCount: z.number().int().min(0).max(500).optional(),
+  permissionDeniedCount: z.number().int().min(0).max(99).optional(),
+  batteryOptimizationIgnored: z.boolean().optional(),
+  notifyPermissionDenied: z.boolean().optional(),
 });
 
 const heartbeatBodySchema = z.object({
@@ -71,6 +77,8 @@ const heartbeatBodySchema = z.object({
   appVersion: z.string().max(32).optional(),
   batteryLevel: z.number().int().min(0).max(100).nullable().optional(),
   networkStatus: z.enum(["online", "offline", "unknown"]).nullable().optional(),
+  lastBootAt: z.string().datetime({ offset: true }).nullable().optional(),
+  queuedOfflinePingCount: z.number().int().min(0).max(500).optional(),
 });
 
 const callLogItemSchema = z.object({
@@ -381,7 +389,15 @@ locationRoutes.post("/device", writeRateLimit, validate("json", deviceBodySchema
     db,
     authUser.id,
     authUser.orgId,
-    { ...body, heartbeat: body.heartbeat !== false },
+    {
+      ...body,
+      lastBootAt: body.lastBootAt ? new Date(body.lastBootAt) : null,
+      queuedOfflinePingCount: body.queuedOfflinePingCount,
+      permissionDeniedCount: body.permissionDeniedCount,
+      batteryOptimizationIgnored: body.batteryOptimizationIgnored,
+      notifyPermissionDenied: body.notifyPermissionDenied,
+      heartbeat: body.heartbeat !== false,
+    },
     config,
   );
 
@@ -411,6 +427,8 @@ locationRoutes.post(
         appVersion: body.appVersion,
         batteryLevel: body.batteryLevel,
         networkStatus: body.networkStatus,
+        lastBootAt: body.lastBootAt ? new Date(body.lastBootAt) : undefined,
+        queuedOfflinePingCount: body.queuedOfflinePingCount,
         heartbeat: true,
       },
       config,
@@ -517,8 +535,9 @@ locationRoutes.get("/live", async (c) => {
     last_seen_at: Date | string | null;
     last_heartbeat_at: Date | string | null;
     last_location_at: Date | string | null;
+    last_boot_at: Date | string | null;
+    queued_offline_ping_count: number | null;
     tracking_policy_enabled: boolean;
-    is_stale: boolean;
   }>(sql`
     SELECT
       u.id AS user_id,
@@ -542,13 +561,8 @@ locationRoutes.get("/live", async (c) => {
       d.last_seen_at AS last_seen_at,
       d.last_heartbeat_at AS last_heartbeat_at,
       d.last_location_at AS last_location_at,
-      CASE
-        WHEN COALESCE(d.last_known_captured_at, loc.captured_at) IS NULL THEN true
-        WHEN COALESCE(d.last_known_captured_at, loc.captured_at)
-          < NOW() - (${config.missingAlertMinutes}::text || ' minutes')::interval
-        THEN true
-        ELSE false
-      END AS is_stale
+      d.last_boot_at AS last_boot_at,
+      d.queued_offline_ping_count AS queued_offline_ping_count
     FROM users u
     LEFT JOIN LATERAL (
       SELECT *
@@ -612,16 +626,36 @@ locationRoutes.get("/live", async (c) => {
         ? row.last_seen_at.toISOString()
         : new Date(row.last_seen_at).toISOString()
       : null;
+    const lastLocationAt = row.last_location_at
+      ? new Date(row.last_location_at)
+      : capturedAt
+        ? new Date(capturedAt)
+        : null;
+    const lastBootAt = row.last_boot_at ? new Date(row.last_boot_at) : null;
     const minutesSince = capturedAt
       ? Math.floor((Date.now() - new Date(capturedAt).getTime()) / 60_000)
       : null;
-    const isStale = Boolean(row.is_stale);
-    const agentStatus =
-      row.tracking_policy_enabled === false
-        ? "offline"
-        : isStale
-          ? "stale"
-          : (row.agent_status ?? "active");
+    const agentStatus = deriveAgentAvailabilityStatus({
+      trackingPolicyEnabled: row.tracking_policy_enabled,
+      trackingEnabledGlobal: config.enabled,
+      clientTrackingEnabled: row.tracking_enabled,
+      lastLocationAt,
+      lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at) : lastLocationAt,
+      lastHeartbeatAt: row.last_heartbeat_at ? new Date(row.last_heartbeat_at) : null,
+      lastBootAt,
+      hasQueuedOfflinePings: (row.queued_offline_ping_count ?? 0) > 0,
+      missingAlertMinutes: config.missingAlertMinutes,
+      possibleUninstallMinutes: config.possibleUninstallMinutes,
+      schedule: config.schedule,
+      withinHours,
+    });
+    const isStale = agentStatus === "stale";
+    const lastKnown = isLastKnownLocation({
+      lastLocationAt,
+      missingAlertMinutes: config.missingAlertMinutes,
+      schedule: config.schedule,
+      withinHours,
+    });
 
     return {
       userId: row.user_id,
@@ -633,7 +667,7 @@ locationRoutes.get("/live", async (c) => {
       capturedAt,
       lastSeenAt,
       lastHeartbeatAt: row.last_heartbeat_at ? new Date(row.last_heartbeat_at).toISOString() : null,
-      lastLocationAt: row.last_location_at ? new Date(row.last_location_at).toISOString() : null,
+      lastLocationAt: lastLocationAt?.toISOString() ?? null,
       batteryLevel: row.battery_level,
       networkStatus: row.network_status,
       trackingStatus: (row.health_status ?? "UNKNOWN").toLowerCase(),
@@ -645,9 +679,9 @@ locationRoutes.get("/live", async (c) => {
       devicePlatform: row.device_platform,
       appVersion: row.app_version,
       minutesSinceLastPing: minutesSince,
-      isLastKnown: isStale,
+      isLastKnown: lastKnown,
       isStale,
-      locationLabel: isStale ? "LAST_KNOWN_LOCATION" : "CURRENT_LOCATION",
+      locationLabel: lastKnown ? "LAST_KNOWN_LOCATION" : "CURRENT_LOCATION",
       trackingPolicyEnabled: row.tracking_policy_enabled,
       withinHours,
     };
@@ -685,6 +719,7 @@ locationRoutes.get("/live", async (c) => {
       retentionDays: config.retentionDays,
       missingAlertMinutes: config.missingAlertMinutes,
       heartbeatThresholdMinutes: config.heartbeatThresholdMinutes,
+      possibleUninstallMinutes: config.possibleUninstallMinutes,
       withinHours,
     },
   });

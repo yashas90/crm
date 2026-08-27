@@ -6,6 +6,7 @@ import {
   requestRequiredWorkPermissions,
   startLocationTracking,
 } from "@/lib/locationTracking";
+import { requestIgnoreBatteryOptimizations } from "@/lib/trackingNative";
 import { colors, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
@@ -18,7 +19,8 @@ type Props = {
 
 /**
  * Hard gate: agents cannot enter the CRM until background location (Allow all the time /
- * Always) and on Android call log are granted. “While using the app” is blocked. No skip.
+ * Always), Android call log, and Android battery-optimization exemption are granted.
+ * “While using the app” is blocked. No skip.
  */
 export function LocationConsentScreen({ onDone }: Props) {
   const [loading, setLoading] = useState(false);
@@ -68,6 +70,9 @@ export function LocationConsentScreen({ onDone }: Props) {
   if (status && !status.callLogGranted && Platform.OS === "android") {
     missing.push("Phone / Call log");
   }
+  if (status && !status.batteryOptimizationIgnored && Platform.OS === "android") {
+    missing.push("Battery optimization — Unrestricted / Don't optimize");
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -77,18 +82,27 @@ export function LocationConsentScreen({ onDone }: Props) {
         </View>
         <Text style={styles.title}>Background location required</Text>
         <Text style={styles.body}>
-          PropNinja needs your location in the background to track your availability. This runs
-          every 30 minutes automatically — including when the app is closed or the phone is locked.
-          You must choose Allow all the time (not “While using the app”). Call log access (Android)
-          syncs permitted call metadata for CRM activity — never call audio. Keep the PropNinja
-          notification on and do not force-stop the app.
+          PropNinja requires background location set to &apos;Allow All The Time&apos; to track your
+          availability. Please update this in your phone settings. Tracking continues after reboot,
+          offline, and when the app is closed. Keep the PropNinja notification on.
         </Text>
+        {status?.lowPowerMode ? (
+          <View style={styles.missingBox}>
+            <Text style={styles.missingTitle}>Low Power Mode may reduce location accuracy</Text>
+            <Text style={styles.missingHint}>
+              iOS Low Power Mode cannot be turned off by the app. Disable it in Settings → Battery
+              for reliable tracking.
+            </Text>
+          </View>
+        ) : null}
         {attempted && missing.length > 0 ? (
           <View style={styles.missingBox}>
-            <Text style={styles.missingTitle}>Background location is required to stay Active.</Text>
+            <Text style={styles.missingTitle}>Required to use PropNinja</Text>
             <Text style={styles.missingHint}>
-              Your status will show as STALE until you grant Allow all the time. Open Settings →
-              Apps → PropNinja → Permissions → Location → Allow all the time, then return here.
+              Open Settings → Apps → PropNinja → Permissions → Location → Allow all the time
+              {Platform.OS === "android"
+                ? ". Battery optimization is preventing location tracking. Please disable it for PropNinja."
+                : "."}
             </Text>
             {missing.map((item) => (
               <Text key={item} style={styles.missingItem}>
@@ -101,15 +115,21 @@ export function LocationConsentScreen({ onDone }: Props) {
           Choose Allow all the time on the system prompt. Any other option keeps the app locked.
         </Text>
         <Button
-          label={attempted ? "Try again" : "Allow Background Location"}
+          label={attempted ? "Check Again" : "Allow Background Location"}
           onPress={() => void handleContinue()}
           loading={loading}
           style={styles.primaryBtn}
         />
-        {attempted ? (
+        <Button
+          label="Open Settings"
+          onPress={() => void openAppPermissionSettings()}
+          variant="secondary"
+          disabled={loading}
+        />
+        {Platform.OS === "android" && status && !status.batteryOptimizationIgnored ? (
           <Button
-            label="Open settings"
-            onPress={() => void openAppPermissionSettings()}
+            label="Disable battery optimization"
+            onPress={() => void requestIgnoreBatteryOptimizations().then(() => refresh())}
             variant="secondary"
             disabled={loading}
           />

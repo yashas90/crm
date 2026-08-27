@@ -25,41 +25,32 @@ function minutesAgo(iso: string): string {
   return `${hours}h ${rem}m ago`;
 }
 
-function resolveAgentStatus(
-  agent: AgentLocationPing,
-  missingAlertMinutes: number,
-): "active" | "stale" | "offline" {
+type AgentUiStatus = "active" | "paused" | "stale" | "offline";
+
+function resolveAgentStatus(agent: AgentLocationPing): AgentUiStatus {
   if (agent.trackingPolicyEnabled === false || agent.agentStatus === "offline") {
     return "offline";
   }
-  if (agent.agentStatus === "stale" || agent.isStale || agent.isLastKnown) return "stale";
-  if (agent.capturedAt) {
-    const mins = Math.floor((Date.now() - new Date(agent.capturedAt).getTime()) / 60_000);
-    if (mins >= missingAlertMinutes) return "stale";
-  } else {
-    return "stale";
-  }
+  if (agent.agentStatus === "stale" || agent.isStale) return "stale";
+  if (agent.agentStatus === "paused" || agent.withinHours === false) return "paused";
   return "active";
 }
 
-function pinColor(status: "active" | "stale" | "offline"): string {
+function pinColor(status: AgentUiStatus): string {
   if (status === "active") return "green";
-  if (status === "stale") return "orange";
+  if (status === "paused") return "yellow";
+  if (status === "stale") return "red";
   return "gray";
 }
 
-function buildStaticMapUrl(
-  agents: AgentLocationPing[],
-  apiKey: string,
-  missingAlertMinutes: number,
-): string {
+function buildStaticMapUrl(agents: AgentLocationPing[], apiKey: string): string {
   const withCoords = agents.filter(
     (a) => a.latitude != null && a.longitude != null && !Number.isNaN(a.latitude),
   );
   if (withCoords.length === 0) return "";
   const markers = withCoords
     .map((a) => {
-      const status = resolveAgentStatus(a, missingAlertMinutes);
+      const status = resolveAgentStatus(a);
       return `markers=color:${pinColor(status)}%7C${a.latitude},${a.longitude}`;
     })
     .join("&");
@@ -68,18 +59,25 @@ function buildStaticMapUrl(
 
 function StaleBadge() {
   return (
-    <span className="ml-2 inline-flex items-center rounded border border-amber-500/60 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+    <span className="ml-2 inline-flex items-center rounded border border-red-500/60 bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-800 dark:bg-red-950 dark:text-red-300">
       Stale
     </span>
   );
 }
 
-function AgentStatusBadge({ status }: { status: "active" | "stale" | "offline" }) {
+function AgentStatusBadge({ status }: { status: AgentUiStatus }) {
   if (status === "stale") return <StaleBadge />;
   if (status === "active") {
     return (
       <span className="ml-2 inline-flex items-center rounded border border-emerald-500/50 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
         Active
+      </span>
+    );
+  }
+  if (status === "paused") {
+    return (
+      <span className="ml-2 inline-flex items-center rounded border border-amber-400/60 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+        Paused
       </span>
     );
   }
@@ -121,29 +119,33 @@ function agentTrackLabel(
   agentId: string,
   agentsById: Map<string, AgentLocationPing>,
   devicesByUser: Map<string, AgentTrackingDevice>,
-  missingAlertMinutes: number,
 ): {
   text: string;
-  tone: "live" | "stale" | "device" | "none";
-  status: "active" | "stale" | "offline";
+  tone: "live" | "stale" | "paused" | "device" | "none";
+  status: AgentUiStatus;
 } {
   const live = agentsById.get(agentId);
   if (live) {
-    const status = resolveAgentStatus(live, missingAlertMinutes);
-    if (status === "stale") return { text: "STALE", tone: "stale", status };
+    const status = resolveAgentStatus(live);
+    if (status === "stale") return { text: "STALE (likely uninstalled)", tone: "stale", status };
     if (status === "offline") return { text: "Offline", tone: "none", status };
-    return { text: "Live", tone: "live", status };
+    if (status === "paused") return { text: "Paused (outside hours)", tone: "paused", status };
+    return { text: live.isLastKnown ? "Active · last known" : "Live", tone: "live", status };
   }
   const device = devicesByUser.get(agentId);
   if (!device) return { text: "Not tracked", tone: "none", status: "offline" };
   const version = device.appVersion ? ` · app ${device.appVersion}` : "";
   if (device.locationPermissionStatus && device.locationPermissionStatus !== "granted") {
-    return { text: `App seen · location denied${version}`, tone: "device", status: "stale" };
+    return {
+      text: `App seen · location denied${version}`,
+      tone: "device",
+      status: "active",
+    };
   }
   return {
     text: `App seen ${minutesAgo(device.lastSeenAt)}${version}`,
     tone: "device",
-    status: "stale",
+    status: "active",
   };
 }
 
@@ -195,8 +197,8 @@ export default function LocationsPage() {
 
   const filteredAgents = useMemo(() => {
     if (!showOnlyStale) return agents;
-    return agents.filter((a) => resolveAgentStatus(a, missingAlertMinutes) === "stale");
-  }, [agents, showOnlyStale, missingAlertMinutes]);
+    return agents.filter((a) => resolveAgentStatus(a) === "stale");
+  }, [agents, showOnlyStale]);
 
   const agentsById = useMemo(() => {
     const map = new Map<string, AgentLocationPing>();
@@ -212,9 +214,9 @@ export default function LocationsPage() {
   }, [devices]);
   const mapUrl = useMemo(() => {
     if (!mapsKey || filteredAgents.length === 0) return null;
-    const url = buildStaticMapUrl(filteredAgents, mapsKey, missingAlertMinutes);
+    const url = buildStaticMapUrl(filteredAgents, mapsKey);
     return url || null;
-  }, [filteredAgents, mapsKey, missingAlertMinutes]);
+  }, [filteredAgents, mapsKey]);
 
   const selected = selectedId
     ? (filteredAgents.find((a) => a.userId === selectedId) ??
@@ -250,10 +252,12 @@ export default function LocationsPage() {
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Live positions from agents&apos; phones. Tracking runs 9:30 AM–8:30 PM IST every ~30
             minutes with Allow all the time location.{" "}
-            <span className="font-medium text-foreground">STALE</span> after {missingAlertMinutes}{" "}
-            minutes without a GPS ping (overrides Active). Pins:{" "}
+            <span className="font-medium text-foreground">STALE</span> means likely uninstalled (no
+            ping for 24+ hours, no boot or queued offline pings). Phone off, no internet,
+            force-stop, and overnight hours are not stale. Pins:{" "}
             <span className="text-emerald-600">green = active</span>,{" "}
-            <span className="text-amber-600">orange = stale</span>,{" "}
+            <span className="text-amber-600">yellow = paused (outside hours)</span>,{" "}
+            <span className="text-red-600">red = stale / uninstalled</span>,{" "}
             <span className="text-muted-foreground">grey = offline</span>.
             {live.data?.config?.withinHours === false ? (
               <span className="mt-1 block text-amber-600 dark:text-amber-400">
@@ -313,7 +317,7 @@ export default function LocationsPage() {
           <CardHeader className="pb-2">
             <CardTitle className="flex flex-wrap items-center text-base">
               {selected.name}
-              <AgentStatusBadge status={resolveAgentStatus(selected, missingAlertMinutes)} />
+              <AgentStatusBadge status={resolveAgentStatus(selected)} />
             </CardTitle>
             <CardDescription>{selected.email}</CardDescription>
           </CardHeader>
@@ -353,7 +357,7 @@ export default function LocationsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredAgents.map((agent) => {
-            const status = resolveAgentStatus(agent, missingAlertMinutes);
+            const status = resolveAgentStatus(agent);
             return (
               <Card
                 key={agent.userId}
@@ -373,7 +377,9 @@ export default function LocationsPage() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {status === "stale" ? "Last known location" : "Current location"}
+                    {agent.isLastKnown || status === "paused" || status === "stale"
+                      ? "Last known location"
+                      : "Current location"}
                   </p>
                   <p className="text-muted-foreground">
                     {agent.capturedAt
@@ -429,8 +435,9 @@ export default function LocationsPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">All agents</CardTitle>
           <CardDescription>
-            Green Live = GPS within {missingAlertMinutes} min. Orange STALE = no ping for{" "}
-            {missingAlertMinutes}+ min. Grey = offline / tracking disabled.
+            Green Live = GPS within {missingAlertMinutes} min during hours. Yellow Paused =
+            overnight (20:30–09:30 IST). Red STALE = likely uninstalled (24h+ no ping). Grey =
+            tracking disabled.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -439,12 +446,7 @@ export default function LocationsPage() {
           ) : (
             <ul className="divide-y divide-border">
               {teamAgents.map((agent) => {
-                const label = agentTrackLabel(
-                  agent.id,
-                  agentsById,
-                  devicesByUser,
-                  missingAlertMinutes,
-                );
+                const label = agentTrackLabel(agent.id, agentsById, devicesByUser);
                 if (showOnlyStale && label.status !== "stale") return null;
                 return (
                   <li
@@ -460,8 +462,8 @@ export default function LocationsPage() {
                             label.tone === "live"
                               ? "ml-2 text-xs font-normal text-emerald-600 dark:text-emerald-400"
                               : label.tone === "stale"
-                                ? "ml-2 text-xs font-normal text-amber-600 dark:text-amber-400"
-                                : label.tone === "device"
+                                ? "ml-2 text-xs font-normal text-red-600 dark:text-red-400"
+                                : label.tone === "paused" || label.tone === "device"
                                   ? "ml-2 text-xs font-normal text-amber-600 dark:text-amber-400"
                                   : "ml-2 text-xs font-normal text-muted-foreground"
                           }

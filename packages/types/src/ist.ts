@@ -25,7 +25,7 @@ export function isIstDailyWindow(hour: number, windowMinutes = 15, date = new Da
   return h === hour && m < windowMinutes;
 }
 
-function addDaysToDateKey(dateKey: string, days: number): string {
+export function addDaysToDateKey(dateKey: string, days: number): string {
   const [year, month, day] = dateKey.split("-").map(Number);
   const utc = new Date(Date.UTC(year, (month ?? 1) - 1, (day ?? 1) + days));
   return utc.toISOString().slice(0, 10);

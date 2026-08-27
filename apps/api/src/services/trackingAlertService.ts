@@ -19,7 +19,7 @@ const STATUS_TO_ALERT: Partial<Record<TrackingHealthStatus, TrackingAlertType>> 
   LOCATION_PERMISSION_REVOKED: "LOCATION_PERMISSION_REVOKED",
   CALL_LOG_PERMISSION_DENIED: "CALL_LOG_PERMISSION_REVOKED",
   OFFLINE: "DEVICE_OFFLINE",
-  STALE: "MISSING_LOCATION",
+  STALE: "POSSIBLE_APP_REMOVAL",
   APP_NOT_COMMUNICATING: "MISSING_LOCATION",
   POSSIBLE_APP_UNINSTALLED: "POSSIBLE_APP_REMOVAL",
   TRACKING_DISABLED: "TRACKING_STOPPED",
@@ -187,11 +187,14 @@ export async function evaluateDeviceHealthAndAlert(
     lastSeenAt: device.lastSeenAt,
     lastLocationAt: device.lastLocationAt,
     lastHeartbeatAt: device.lastHeartbeatAt,
+    lastBootAt: device.lastBootAt,
+    hasQueuedOfflinePings: (device.queuedOfflinePingCount ?? 0) > 0,
     isCurrentDevice: device.isCurrent,
     withinHours,
     heartbeatThresholdMinutes: config.heartbeatThresholdMinutes,
     missingAlertMinutes: config.missingAlertMinutes,
     possibleUninstallMinutes: config.possibleUninstallMinutes,
+    schedule: config.schedule,
   });
 
   const agentStatus = deriveAgentAvailabilityStatus({
@@ -199,7 +202,14 @@ export async function evaluateDeviceHealthAndAlert(
     trackingEnabledGlobal: config.enabled,
     clientTrackingEnabled: device.trackingEnabled,
     lastLocationAt: device.lastLocationAt,
+    lastSeenAt: device.lastSeenAt,
+    lastHeartbeatAt: device.lastHeartbeatAt,
+    lastBootAt: device.lastBootAt,
+    hasQueuedOfflinePings: (device.queuedOfflinePingCount ?? 0) > 0,
     missingAlertMinutes: config.missingAlertMinutes,
+    possibleUninstallMinutes: config.possibleUninstallMinutes,
+    schedule: config.schedule,
+    withinHours,
   });
 
   await db
@@ -208,19 +218,19 @@ export async function evaluateDeviceHealthAndAlert(
       healthStatus: status,
       agentStatus,
       deviceStatus:
-        status === "ACTIVE" || status === "OUTSIDE_HOURS"
+        status === "ACTIVE" || status === "PAUSED" || status === "OUTSIDE_HOURS"
           ? "ONLINE"
           : status === "TRACKING_DISABLED"
             ? "DISABLED"
             : status === "STALE"
-              ? "ONLINE"
+              ? "OFFLINE"
               : "OFFLINE",
       updatedAt: new Date(),
     })
     .where(eq(agentDevices.id, device.id));
 
   const alertType = STATUS_TO_ALERT[status];
-  if (alertType && status !== "OUTSIDE_HOURS" && status !== "ACTIVE") {
+  if (alertType && status !== "PAUSED" && status !== "OUTSIDE_HOURS" && status !== "ACTIVE") {
     const lastSeen = device.lastSeenAt?.toISOString() ?? null;
     const lastLoc = device.lastLocationAt?.toISOString() ?? null;
     await upsertOpenTrackingAlert(db, {
@@ -232,7 +242,7 @@ export async function evaluateDeviceHealthAndAlert(
       message: `Status ${status}. Last seen ${lastSeen ?? "never"}; last location ${lastLoc ?? "never"}.`,
       metadata: { healthStatus: status, agentStatus, lastSeen, lastLoc },
     });
-  } else if (status === "ACTIVE" || status === "OUTSIDE_HOURS") {
+  } else if (status === "ACTIVE" || status === "PAUSED" || status === "OUTSIDE_HOURS") {
     await resolveTrackingAlertsOfTypes(db, device.userId, [
       "DEVICE_OFFLINE",
       "MISSING_LOCATION",

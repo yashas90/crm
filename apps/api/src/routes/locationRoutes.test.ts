@@ -99,7 +99,7 @@ vi.mock("../lib/trackingConfig.js", async () => {
     retentionDays: 14,
     missingAlertMinutes: 45,
     heartbeatThresholdMinutes: 60,
-    possibleUninstallMinutes: 180,
+    possibleUninstallMinutes: 1440,
     activeDays: [0, 1, 2, 3, 4, 5, 6],
     scheduleLabel: "09:30–20:30 IST (Mon–Sun)",
     schedule: {
@@ -320,7 +320,7 @@ describe("locationRoutes", () => {
           latitude: 12.97,
           longitude: 77.59,
           accuracy: 15,
-          captured_at: new Date("2026-08-20T05:00:00.000Z"),
+          captured_at: new Date("2026-08-20T06:25:00.000Z"),
           battery_level: 67,
           network_status: "online",
           name: "Rahul",
@@ -332,11 +332,12 @@ describe("locationRoutes", () => {
           tracking_enabled: true,
           health_status: "ACTIVE",
           device_status: "ONLINE",
-          last_seen_at: new Date("2026-08-20T05:01:00.000Z"),
-          last_heartbeat_at: new Date("2026-08-20T05:01:00.000Z"),
-          last_location_at: new Date("2026-08-20T05:00:00.000Z"),
+          last_seen_at: new Date("2026-08-20T06:25:00.000Z"),
+          last_heartbeat_at: new Date("2026-08-20T06:25:00.000Z"),
+          last_location_at: new Date("2026-08-20T06:25:00.000Z"),
+          last_boot_at: null,
+          queued_offline_ping_count: 0,
           tracking_policy_enabled: true,
-          is_stale: false,
         },
       ])
       .mockResolvedValueOnce([
@@ -355,6 +356,8 @@ describe("locationRoutes", () => {
           email: "r@test.com",
         },
       ]);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-20T06:30:00.000Z"));
     insert.mockImplementation(() => ({
       values: vi.fn().mockResolvedValue(undefined),
     }));
@@ -367,6 +370,7 @@ describe("locationRoutes", () => {
         agents: Array<{
           name: string;
           locationLabel?: string;
+          agentStatus?: string;
           batteryLevel: number | null;
           locationPermissionStatus: string | null;
         }>;
@@ -375,11 +379,13 @@ describe("locationRoutes", () => {
     };
     expect(json.ok).toBe(true);
     expect(json.data.agents[0]?.name).toBe("Rahul");
+    expect(json.data.agents[0]?.agentStatus).toBe("active");
     expect(json.data.agents[0]?.locationLabel).toBe("CURRENT_LOCATION");
     expect(json.data.agents[0]?.batteryLevel).toBe(67);
     expect(json.data.agents[0]?.locationPermissionStatus).toBe("granted");
     expect(json.data.devices).toHaveLength(1);
     expect(json.data.devices[0]?.appVersion).toBe("1.0.10");
+    vi.useRealTimers();
   });
 
   it("lists alerts for admins", async () => {
