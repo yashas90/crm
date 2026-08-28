@@ -8,7 +8,8 @@ export type LeadsScope =
   | "deleted"
   | "duplicate"
   | "re-enquired"
-  | "naleads";
+  | "naleads"
+  | "sla";
 
 export type LeadScopeCounts = Record<LeadsScope, number> & { naleads?: number };
 
@@ -20,6 +21,7 @@ export const LEADS_QUICK_FILTER_TABS: { id: LeadsScope; label: string }[] = [
   { id: "deleted", label: "Deleted" },
   { id: "duplicate", label: "Duplicate" },
   { id: "re-enquired", label: "Re-Enquired" },
+  { id: "sla", label: "SLA" },
 ];
 
 /** @deprecated Use LEADS_QUICK_FILTER_TABS */
@@ -34,6 +36,7 @@ const VALID_SCOPES = new Set<LeadsScope>([
   "duplicate",
   "re-enquired",
   "naleads",
+  "sla",
 ]);
 
 export function scopeFromSearchParams(
@@ -66,7 +69,8 @@ export function scopeUsesStageFilters(scope: LeadsScope): boolean {
     scope === "naleads" ||
     scope === "deleted" ||
     scope === "duplicate" ||
-    scope === "re-enquired"
+    scope === "re-enquired" ||
+    scope === "sla"
   );
 }
 
@@ -82,6 +86,7 @@ export function scopeToQueryParams(
   excludeDuplicates?: string;
   reEnquiredOnly?: string;
   naLeadsOnly?: string;
+  slaOnly?: string;
 } {
   switch (scope) {
     case "my":
@@ -102,6 +107,8 @@ export function scopeToQueryParams(
       return { reEnquiredOnly: "true", excludeDuplicates: "true" };
     case "naleads":
       return { naLeadsOnly: "true", excludeDuplicates: "true" };
+    case "sla":
+      return { slaOnly: "true", excludeDuplicates: "true" };
     default:
       return { excludeDuplicates: "true" };
   }

@@ -28,6 +28,18 @@ describe("listLeadsQuerySchema", () => {
     }
   });
 
+  it("parses SLA inactivity list filters", () => {
+    const parsed = listLeadsQuerySchema.safeParse({
+      slaOnly: "true",
+      slaInactiveDays: "7",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.slaOnly).toBe(true);
+      expect(parsed.data.slaInactiveDays).toBe(7);
+    }
+  });
+
   it("parses activity and tag preset filters", () => {
     const parsed = listLeadsQuerySchema.safeParse({
       tagPresets: "hot,warm",

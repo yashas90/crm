@@ -13,6 +13,7 @@ import { LeadsImportTrackerDialog } from "@/components/leads/leads-import-tracke
 import { LeadsListFilters } from "@/components/leads/leads-list-filters";
 import { LeadsPageHeaderActions } from "@/components/leads/leads-page-header-actions";
 import { LeadsTable } from "@/components/leads/leads-table";
+import { SlaFlaggedBanner, SlaSummaryCards } from "@/components/sla/sla-summary-cards";
 import {
   type LeadRow,
   exportLeadsCsv,
@@ -24,6 +25,7 @@ import {
 } from "@/hooks/use-leads";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSession } from "@/hooks/use-session";
+import { useSlaSummary } from "@/hooks/use-sla";
 import { apiPost } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import { formatLeadSourceDisplay } from "@/lib/lead-sources";
@@ -42,7 +44,6 @@ import {
   type LeadsUrlFilters,
   buildLeadsSearchParams,
   countAdvancedLeadsFilters,
-  defaultLeadsUrlFilters,
   leadsBaseFiltersToQuery,
   leadsFiltersToQuery,
   leadsSharedFiltersToQuery,
@@ -172,6 +173,7 @@ export function LeadsPageView() {
       duplicatesOnly: baseQuery.duplicatesOnly,
       reEnquiredOnly: baseQuery.reEnquiredOnly,
       naLeadsOnly: baseQuery.naLeadsOnly,
+      slaOnly: baseQuery.slaOnly,
       // Advanced filters last so filterAssignTo / team flags match the list query.
       ...advancedFiltersToFlatApiParams(filters),
       excludeDuplicates: baseQuery.excludeDuplicates ?? "true",
@@ -190,6 +192,8 @@ export function LeadsPageView() {
     suppressErrorToast: true,
     errorContext: "lead counts",
   });
+
+  const slaSummary = useSlaSummary({ enabled: listEnabled && scope === "sla" });
 
   const scopeCountsLoading = tabCounts.isLoading && !tabCounts.data;
   const stageCountsLoading = tabCounts.isLoading && !tabCounts.data;
@@ -393,6 +397,24 @@ export function LeadsPageView() {
         </p>
       ) : null}
 
+      {scope === "sla" ? (
+        <div className="space-y-4">
+          <p className="rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-950 dark:text-orange-100">
+            Active pipeline leads with no recent calls, notes, or updates. Select rows and use{" "}
+            <span className="font-semibold">Assign</span> to reassign them to another agent.
+          </p>
+          <SlaFlaggedBanner flagged={slaSummary.data?.flagged} isLoading={slaSummary.isLoading} />
+          <SlaSummaryCards
+            summary={slaSummary.data}
+            isLoading={slaSummary.isLoading}
+            selectedDays={filters.slaInactiveDays}
+            onSelectDays={(days) =>
+              setFilters((current) => ({ ...current, slaInactiveDays: days }))
+            }
+          />
+        </div>
+      ) : null}
+
       {showForm ? (
         <Card className="border-border/60 shadow-sm">
           <CardHeader>
@@ -512,6 +534,8 @@ export function LeadsPageView() {
             onEdit={setEditingLead}
             onAddLead={() => setShowForm(true)}
             highlightQuery={filters.search}
+            showSlaColumn={scope === "sla"}
+            slaInactiveDays={filters.slaInactiveDays}
           />
         </section>
       )}

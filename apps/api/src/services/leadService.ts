@@ -54,6 +54,7 @@ import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/lea
 import { recordLeadAssignment } from "./leadAssignmentService.js";
 import { recordReEnquiryActivity } from "./leadReEnquiry.js";
 import { recalculateLeadScore } from "./leadScoringService.js";
+import { SLA_DEFAULT_INACTIVE_DAYS, lastEngagementAtSql, slaInactiveSql } from "./slaService.js";
 
 type LeadStatus =
   | "new"
@@ -92,6 +93,10 @@ export type ListLeadsParams = {
   excludeDuplicates?: boolean;
   reEnquiredOnly?: boolean;
   naLeadsOnly?: boolean;
+  /** Inactive active-pipeline leads (Lead SLA). */
+  slaOnly?: boolean;
+  /** Inactivity threshold in days when `slaOnly` is set (default 3). */
+  slaInactiveDays?: number;
   activeOnly?: boolean;
   /** Active Leads stage: open pipeline excluding untouched `new` leads. */
   excludeNew?: boolean;
@@ -319,6 +324,10 @@ function buildListWhere(params: ListLeadsParams) {
     whereClauses.push(inArray(leads.leadStatus, NA_STATUSES));
   }
 
+  if (params.slaOnly) {
+    whereClauses.push(slaInactiveSql(params.slaInactiveDays ?? SLA_DEFAULT_INACTIVE_DAYS));
+  }
+
   if (params.activeOnly) {
     whereClauses.push(sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`);
   }
@@ -443,6 +452,7 @@ const EMPTY_SCOPE_COUNTS = {
   duplicate: 0,
   "re-enquired": 0,
   naleads: 0,
+  sla: 0,
 };
 
 function asCount(value: number | null | undefined): number {
@@ -460,6 +470,8 @@ function stripBucketOverrides(params: ListLeadsParams): ListLeadsParams {
     excludeDuplicates: undefined,
     reEnquiredOnly: undefined,
     naLeadsOnly: undefined,
+    slaOnly: undefined,
+    slaInactiveDays: undefined,
     status: undefined,
     activeOnly: undefined,
     excludeNew: undefined,
@@ -579,6 +591,7 @@ export const leadService = {
       ? sql`false`
       : sql`${leads.assignedTo} is null and ${leads.leadStatus} not in ('not_interested', 'dropped')`;
     const naSql = isAgent ? sql`false` : sql`${leads.leadStatus} in ('not_interested', 'dropped')`;
+    const slaSql = slaInactiveSql(SLA_DEFAULT_INACTIVE_DAYS);
 
     const base = stripBucketOverrides(baseParams);
     // Fast path: no correlated phone-dedupe / re-enquiry EXISTS in FILTER clauses.
@@ -614,6 +627,7 @@ export const leadService = {
             teams: sql<number>`count(*) filter (where ${teamsSql})::int`,
             unassigned: sql<number>`count(*) filter (where ${unassignedSql})::int`,
             naleads: sql<number>`count(*) filter (where ${naSql})::int`,
+            sla: sql<number>`count(*) filter (where ${agentBookSql} and ${slaSql})::int`,
           })
           .from(leads)
           .where(activeWhere),
@@ -660,6 +674,7 @@ export const leadService = {
         duplicate: asCount(duplicateRow?.count),
         "re-enquired": asCount(reEnquiredRow?.count),
         naleads: asCount(activeRow?.naleads),
+        sla: asCount(activeRow?.sla),
       };
     } catch (err) {
       logger.error("Lead scope count query failed", {
@@ -676,9 +691,11 @@ export const leadService = {
     // Phone-dedupe via window function (one pass) instead of correlated NOT EXISTS per row.
     if (params.excludeDuplicates && !params.duplicatesOnly) {
       const baseWhere = buildListWhere({ ...params, excludeDuplicates: false });
-      const orderExpr = params.orderByFollowUp
-        ? sql`next_followup_at ASC NULLS LAST, created_at DESC`
-        : sql`created_at DESC`;
+      const orderExpr = params.slaOnly
+        ? sql`coalesce(last_activity_at, last_contacted_at, created_at) ASC, created_at ASC`
+        : params.orderByFollowUp
+          ? sql`next_followup_at ASC NULLS LAST, created_at DESC`
+          : sql`created_at DESC`;
 
       const [idRows, countRows] = await Promise.all([
         db.execute<{ id: string }>(sql`
@@ -687,6 +704,8 @@ export const leadService = {
               ${leads.id} AS id,
               ${leads.createdAt} AS created_at,
               ${leads.nextFollowupAt} AS next_followup_at,
+              ${leads.lastActivityAt} AS last_activity_at,
+              ${leads.lastContactedAt} AS last_contacted_at,
               CASE
                 WHEN LENGTH(${leadPhoneKeySql}) >= 10 THEN ${leadPhoneKeySql}
                 ELSE ${leads.id}::text
@@ -765,7 +784,13 @@ export const leadService = {
         .from(leads)
         .leftJoin(users, eq(leads.assignedTo, users.id))
         .where(whereClause)
-        .orderBy(params.orderByFollowUp ? asc(leads.nextFollowupAt) : desc(leads.createdAt))
+        .orderBy(
+          params.slaOnly
+            ? sql`${lastEngagementAtSql()} asc`
+            : params.orderByFollowUp
+              ? asc(leads.nextFollowupAt)
+              : desc(leads.createdAt),
+        )
         .limit(pageSize)
         .offset(offset),
       db.select({ count: sql<number>`count(*)::int` }).from(leads).where(whereClause),

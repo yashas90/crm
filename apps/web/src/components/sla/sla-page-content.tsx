@@ -10,7 +10,8 @@ import { LEAD_STATUSES } from "@propninja/types/enums";
 import { Button } from "@propninja/ui/button";
 import { Label } from "@propninja/ui/label";
 import { cn } from "@propninja/ui/lib/utils";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw, Users } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 const selectClass =
@@ -66,21 +67,29 @@ export function SlaPageContent() {
             {SLA_DEFAULT_INACTIVE_DAYS} days of inactivity.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={summary.isFetching || breached.isFetching}
-          onClick={handleRefresh}
-        >
-          <RefreshCw
-            className={cn(
-              "mr-2 h-4 w-4",
-              (summary.isFetching || breached.isFetching) && "animate-spin",
-            )}
-          />
-          Refresh
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/leads?scope=sla&inactive_days=${inactiveDays}`}>
+              <Users className="mr-2 h-4 w-4" />
+              Reassign on Leads
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={summary.isFetching || breached.isFetching}
+            onClick={handleRefresh}
+          >
+            <RefreshCw
+              className={cn(
+                "mr-2 h-4 w-4",
+                (summary.isFetching || breached.isFetching) && "animate-spin",
+              )}
+            />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <SlaFlaggedBanner flagged={summary.data?.flagged} isLoading={summary.isLoading} />

@@ -23,6 +23,19 @@ function activeStatusSql() {
   return inArray(leads.leadStatus, SLA_ACTIVE_STATUSES);
 }
 
+export function slaCutoffDate(inactiveDays: number, now = new Date()) {
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - inactiveDays);
+  return cutoff;
+}
+
+/** Active pipeline leads whose last call/note/update is older than `inactiveDays`. */
+export function slaInactiveSql(inactiveDays: number = SLA_DEFAULT_INACTIVE_DAYS, now = new Date()) {
+  const cutoff = slaCutoffDate(inactiveDays, now);
+  return sql`${leads.leadStatus} in ('new', 'contacted', 'qualified', 'negotiation')
+    and ${lastEngagementAtSql()} < ${tstz(cutoff)}`;
+}
+
 export type SlaListParams = {
   inactiveDays?: number;
   status?: string;

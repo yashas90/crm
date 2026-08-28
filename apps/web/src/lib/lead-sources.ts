@@ -42,6 +42,7 @@ export const LEADS_PRIMARY_SCOPES = [
 
 export const LEADS_SECONDARY_SCOPES = [
   { id: "unassigned" as const, label: "Unassigned", adminOnly: false },
+  { id: "sla" as const, label: "SLA", adminOnly: false },
   { id: "naleads" as const, label: "NA Leads", adminOnly: true },
   { id: "deleted" as const, label: "Deleted", adminOnly: false },
   { id: "duplicate" as const, label: "Duplicate", adminOnly: false },
