@@ -61,4 +61,18 @@ describe("LeadsTable", () => {
     expect(screen.getByLabelText("Select Aarav Sharma")).toBeInTheDocument();
     expect(screen.getAllByText("New").length).toBeGreaterThan(0);
   });
+
+  it("shows inactivity column for SLA scope", () => {
+    const stale = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    render(
+      <LeadsTable
+        leads={[{ ...mockLeads[1]!, lastActivityAt: stale, slaBreachedAt: stale }]}
+        onEdit={vi.fn()}
+        showSlaColumn
+      />,
+    );
+
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(screen.getByText(/SLA breach/i)).toBeInTheDocument();
+  });
 });

@@ -75,6 +75,17 @@ describe("leads URL filters", () => {
     expect(apiQuery.activeOnly).toBeUndefined();
   });
 
+  it("parses SLA scope and inactivity threshold from URL", () => {
+    const parsed = parseLeadsPageUrl(new URLSearchParams("scope=sla&inactive_days=7"));
+    expect(parsed.scope).toBe("sla");
+    expect(parsed.filters.slaInactiveDays).toBe(7);
+
+    const apiQuery = leadsFiltersToQuery(parsed.filters, { scope: "sla", stage: "active" });
+    expect(apiQuery.slaOnly).toBe("true");
+    expect(apiQuery.slaInactiveDays).toBe("7");
+    expect(apiQuery.activeOnly).toBeUndefined();
+  });
+
   it("includes active stage filter for unassigned scope (pipeline unassigned)", () => {
     const query = buildLeadsSearchParams(defaultLeadsUrlFilters(), {
       scope: "unassigned",

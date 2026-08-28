@@ -389,6 +389,8 @@ leadsRoute.get("/", async (c) => {
     deletedOnly: query.deletedOnly,
     reEnquiredOnly: query.reEnquiredOnly,
     naLeadsOnly: authUser.role === "admin" ? query.naLeadsOnly : false,
+    slaOnly: query.slaOnly,
+    slaInactiveDays: query.slaInactiveDays,
     ...leadDuplicateFilters(query),
     ...advancedListQueryToServiceParams(query),
   });
@@ -451,6 +453,8 @@ leadsRoute.get("/export", async (c) => {
     deletedOnly: query.deletedOnly,
     reEnquiredOnly: query.reEnquiredOnly,
     naLeadsOnly: authUser.role === "admin" ? query.naLeadsOnly : false,
+    slaOnly: query.slaOnly,
+    slaInactiveDays: query.slaInactiveDays,
     maxRows,
     ...leadDuplicateFilters(query),
     ...advancedListQueryToServiceParams(query),

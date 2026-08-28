@@ -118,6 +118,9 @@ export type LeadsQueryParams = {
   reEnquiredOnly?: string;
   activeOnly?: string;
   deletedOnly?: string;
+  naLeadsOnly?: string;
+  slaOnly?: string;
+  slaInactiveDays?: string;
   followUpDueBefore?: string;
   followUpDueAfter?: string;
   orderByFollowUp?: string;

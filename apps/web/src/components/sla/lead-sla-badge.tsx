@@ -15,6 +15,7 @@ type LeadSlaBadgeProps = {
   };
   className?: string;
   showDetail?: boolean;
+  thresholdDays?: number;
 };
 
 const SEVERITY_STYLES = {
@@ -36,8 +37,13 @@ const SEVERITY_ICONS = {
   na: Clock,
 };
 
-export function LeadSlaBadge({ lead, className, showDetail = false }: LeadSlaBadgeProps) {
-  const state = computeLeadSlaState(lead);
+export function LeadSlaBadge({
+  lead,
+  className,
+  showDetail = false,
+  thresholdDays,
+}: LeadSlaBadgeProps) {
+  const state = computeLeadSlaState(lead, thresholdDays);
   const Icon = SEVERITY_ICONS[state.severity];
 
   if (!state.applies && !showDetail) return null;

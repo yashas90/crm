@@ -70,6 +70,11 @@ export const listLeadsQuerySchema = z
       .enum(["true", "false"])
       .optional()
       .transform((v) => v === "true"),
+    slaOnly: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => v === "true"),
+    slaInactiveDays: z.coerce.number().int().min(1).max(365).optional(),
     tags: z
       .union([z.string(), z.array(z.string())])
       .optional()

@@ -22,6 +22,7 @@ import {
   stageToUrlParams,
 } from "@/lib/leads-stage";
 import { toApiRange } from "@/lib/report-filters";
+import { SLA_DEFAULT_INACTIVE_DAYS } from "@/lib/sla";
 
 export type LeadsUrlFilters = LeadsAdvancedFilters & {
   search: string;
@@ -39,6 +40,8 @@ export type LeadsUrlFilters = LeadsAdvancedFilters & {
   dateTo?: string;
   importBatchId: string;
   importBatchLabel: string;
+  /** Inactivity threshold (days) when scope is SLA. */
+  slaInactiveDays: number;
 };
 
 export const defaultLeadsUrlFilters = (): LeadsUrlFilters => ({
@@ -56,6 +59,7 @@ export const defaultLeadsUrlFilters = (): LeadsUrlFilters => ({
   datePreset: "all",
   importBatchId: "",
   importBatchLabel: "",
+  slaInactiveDays: SLA_DEFAULT_INACTIVE_DAYS,
 });
 
 /** Filters applied after CSV import — show the upload batch, no source/date filters. */
@@ -96,6 +100,14 @@ export function tagsFilterToApiParam(tags: string): string | undefined {
   return normalized || undefined;
 }
 
+function parseSlaInactiveDays(raw: string | null): number {
+  const days = Number(raw);
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    return SLA_DEFAULT_INACTIVE_DAYS;
+  }
+  return days;
+}
+
 export function parseLeadsSearchParams(params: URLSearchParams): LeadsUrlFilters {
   const from = params.get("from") ?? undefined;
   const to = params.get("to") ?? undefined;
@@ -121,6 +133,7 @@ export function parseLeadsSearchParams(params: URLSearchParams): LeadsUrlFilters
     dateTo,
     importBatchId: params.get("import_batch") ?? "",
     importBatchLabel: params.get("import_batch_label") ?? "",
+    slaInactiveDays: parseSlaInactiveDays(params.get("inactive_days")),
   };
 }
 
@@ -180,6 +193,10 @@ export function buildLeadsSearchParams(
     }
   }
 
+  if (scope === "sla") {
+    params.set("inactive_days", String(filters.slaInactiveDays || SLA_DEFAULT_INACTIVE_DAYS));
+  }
+
   appendAdvancedFiltersToParams(params, filters);
 
   return params.toString();
@@ -210,6 +227,7 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
       excludeDuplicates: scopeParams.excludeDuplicates,
       reEnquiredOnly: scopeParams.reEnquiredOnly,
       naLeadsOnly: scopeParams.naLeadsOnly,
+      slaOnly: scopeParams.slaOnly,
     };
   }
 
@@ -222,6 +240,7 @@ function resolveScopeAssignment(filters: LeadsUrlFilters, scope: LeadsScope, use
     excludeDuplicates: scopeParams.excludeDuplicates ?? "true",
     reEnquiredOnly: scopeParams.reEnquiredOnly,
     naLeadsOnly: undefined,
+    slaOnly: undefined,
   };
 }
 
@@ -279,6 +298,8 @@ export function leadsBaseFiltersToQuery(
     excludeDuplicates: assignment.excludeDuplicates,
     reEnquiredOnly: assignment.reEnquiredOnly,
     naLeadsOnly: assignment.naLeadsOnly,
+    slaOnly: assignment.slaOnly,
+    slaInactiveDays: assignment.slaOnly === "true" ? String(filters.slaInactiveDays) : undefined,
     importBatchId: filters.importBatchId || undefined,
     dateFrom: dateRange.dateFrom,
     dateTo: dateRange.dateTo,

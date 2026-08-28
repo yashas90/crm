@@ -115,7 +115,7 @@ const NAV_ITEMS: CommandItem[] = [
     id: "sla",
     label: "Lead SLA",
     href: "/sla",
-    keywords: "inactive breach overdue follow-up",
+    keywords: "inactive breach overdue follow-up reassign sla leads",
     icon: <AlertTriangle className="h-4 w-4" />,
     roles: ["admin", "manager", "agent"],
   },

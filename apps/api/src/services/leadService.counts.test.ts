@@ -77,6 +77,7 @@ describe("leadService count aggregates", () => {
           teams: 3,
           unassigned: 2,
           naleads: 6,
+          sla: 8,
         },
       ],
       [{ count: 7 }],
@@ -99,6 +100,7 @@ describe("leadService count aggregates", () => {
       duplicate: 5,
       "re-enquired": 1,
       naleads: 6,
+      sla: 8,
     });
   });
 
@@ -144,6 +146,7 @@ describe("leadService count aggregates", () => {
       duplicate: 0,
       "re-enquired": 0,
       naleads: 0,
+      sla: 0,
     });
     expect(logger.error).toHaveBeenCalled();
   });
@@ -174,6 +177,7 @@ describe("leadService count aggregates", () => {
           teams: 0,
           unassigned: 0,
           naleads: 9,
+          sla: 4,
         },
       ],
       [{ count: 0 }],
@@ -202,6 +206,7 @@ describe("leadService count aggregates", () => {
     );
 
     expect(data.scope.naleads).toBeUndefined();
+    expect(data.scope.sla).toBe(4);
     expect(data.stage.new).toBe(1);
   });
 });

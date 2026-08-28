@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { LeadNoteModal } from "@/components/leads/lead-note-modal";
 import { LeadScoreBadge } from "@/components/leads/lead-score-badge";
 import { LeadsTablePagination } from "@/components/leads/leads-table-pagination";
+import { LeadSlaBadge } from "@/components/sla/lead-sla-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -55,6 +56,8 @@ type LeadsTableProps = {
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
   highlightQuery?: string;
+  showSlaColumn?: boolean;
+  slaInactiveDays?: number;
 };
 
 type ActionIconButtonProps = {
@@ -90,11 +93,13 @@ function ActionIconButton({ icon, label, className, onClick, disabled }: ActionI
 function LeadsTableBodySkeleton({
   rows,
   columnsToShow,
+  showSlaColumn,
 }: {
   rows: number;
   columnsToShow: LeadsColumnVisibility;
+  showSlaColumn?: boolean;
 }) {
-  const colCount = 1 + visibleLeadsColumnCount(columnsToShow);
+  const colCount = 1 + visibleLeadsColumnCount(columnsToShow) + (showSlaColumn ? 1 : 0);
 
   return (
     <>
@@ -121,6 +126,8 @@ type LeadsTableRowProps = {
   onView: (leadId: string) => void;
   onNotes: (lead: LeadRow) => void;
   highlightQuery?: string;
+  showSlaColumn?: boolean;
+  slaInactiveDays?: number;
 };
 
 const LeadsTableRow = memo(function LeadsTableRow({
@@ -133,6 +140,8 @@ const LeadsTableRow = memo(function LeadsTableRow({
   onView,
   onNotes,
   highlightQuery,
+  showSlaColumn,
+  slaInactiveDays,
 }: LeadsTableRowProps) {
   const status = getLeadStatusDisplay(lead);
   const fullName = `${lead.firstName} ${lead.lastName}`.trim();
@@ -213,6 +222,12 @@ const LeadsTableRow = memo(function LeadsTableRow({
         </TableCell>
       ) : null}
 
+      {showSlaColumn ? (
+        <TableCell>
+          <LeadSlaBadge lead={lead} thresholdDays={slaInactiveDays} />
+        </TableCell>
+      ) : null}
+
       {columnsToShow.score ? (
         <TableCell>
           {typeof lead.score === "number" ? (
@@ -283,10 +298,12 @@ function LeadsTableHeader({
   columnsToShow,
   allOnPageSelected,
   onToggleAll,
+  showSlaColumn,
 }: {
   columnsToShow: LeadsColumnVisibility;
   allOnPageSelected: boolean;
   onToggleAll: () => void;
+  showSlaColumn?: boolean;
 }) {
   return (
     <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
@@ -307,6 +324,7 @@ function LeadsTableHeader({
         ) : null}
         {columnsToShow.source ? <TableHead className="bg-muted/95">Source</TableHead> : null}
         {columnsToShow.status ? <TableHead className="bg-muted/95">Status</TableHead> : null}
+        {showSlaColumn ? <TableHead className="bg-muted/95">Inactive</TableHead> : null}
         {columnsToShow.score ? <TableHead className="bg-muted/95">Score</TableHead> : null}
         {columnsToShow.project ? <TableHead className="bg-muted/95">Project(s)</TableHead> : null}
         {columnsToShow.actions ? (
@@ -332,6 +350,8 @@ export const LeadsTable = memo(function LeadsTable({
   selectedIds,
   onSelectionChange,
   highlightQuery,
+  showSlaColumn = false,
+  slaInactiveDays,
 }: LeadsTableProps) {
   const router = useRouter();
   const [internalSelected, setInternalSelected] = useState<string[]>([]);
@@ -375,10 +395,14 @@ export const LeadsTable = memo(function LeadsTable({
   if (showEmpty) {
     return (
       <EmptyState
-        title="No matching leads"
-        description="Try clearing filters or the CSV upload chip, or add a new lead to get started."
-        actionLabel="Add Lead"
-        onActionClick={onAddLead}
+        title={showSlaColumn ? "No SLA breaches" : "No matching leads"}
+        description={
+          showSlaColumn
+            ? "All active pipeline leads have recent engagement within the selected inactivity threshold."
+            : "Try clearing filters or the CSV upload chip, or add a new lead to get started."
+        }
+        actionLabel={showSlaColumn ? undefined : "Add Lead"}
+        onActionClick={showSlaColumn ? undefined : onAddLead}
         icon={<Users className="h-7 w-7" />}
       />
     );
@@ -393,10 +417,15 @@ export const LeadsTable = memo(function LeadsTable({
               columnsToShow={columnsToShow}
               allOnPageSelected={allOnPageSelected}
               onToggleAll={toggleAllOnPage}
+              showSlaColumn={showSlaColumn}
             />
             <TableBody>
               {isLoading ? (
-                <LeadsTableBodySkeleton rows={pageSize} columnsToShow={columnsToShow} />
+                <LeadsTableBodySkeleton
+                  rows={pageSize}
+                  columnsToShow={columnsToShow}
+                  showSlaColumn={showSlaColumn}
+                />
               ) : (
                 leads.map((lead, index) => (
                   <LeadsTableRow
@@ -410,6 +439,8 @@ export const LeadsTable = memo(function LeadsTable({
                     onView={handleView}
                     onNotes={handleNotes}
                     highlightQuery={highlightQuery}
+                    showSlaColumn={showSlaColumn}
+                    slaInactiveDays={slaInactiveDays}
                   />
                 ))
               )}
