@@ -16,10 +16,11 @@ import {
   tcfConsents,
   whatsappMessages,
 } from "@propninja/db";
-import { and, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 import { db } from "./db.js";
 import { logger } from "./logger.js";
+import { sqlTimestamptz } from "./sqlTimestamp.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -57,9 +58,19 @@ function legacyNaStatusSinceSql() {
   )`;
 }
 
-/** When the lead entered NA — prefers persisted na_since_at. */
-function naEnteredAtSql() {
-  return sql`COALESCE(${leads.naSinceAt}, ${legacyNaStatusSinceSql()})`;
+/**
+ * NA leads due for hard-delete: `na_since_at` past cutoff (indexed), or legacy
+ * rows with a null column whose status-change/created age is past cutoff.
+ *
+ * The legacy comparison MUST use `sqlTimestamptz` — interpolating a JS Date
+ * into raw SQL becomes Date.toString() ("Fri Aug 21...") which Postgres rejects,
+ * so the whole NA fetch throws and no NA leads are deleted.
+ */
+export function naLeadExpiredSql(cutoff: Date) {
+  return or(
+    lte(leads.naSinceAt, cutoff),
+    and(isNull(leads.naSinceAt), sql`${legacyNaStatusSinceSql()} <= ${sqlTimestamptz(cutoff)}`),
+  );
 }
 
 /**
@@ -135,18 +146,20 @@ async function fetchSoftDeletedBatch(cutoff: Date) {
     .limit(BATCH_SIZE);
 }
 
-async function fetchNaBatch(cutoff: Date) {
+async function fetchNaBatch(cutoff: Date, excludeIds: string[] = []) {
+  const filters = [
+    eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+    isNull(leads.deletedAt),
+    inArray(leads.leadStatus, [...NA_STATUSES]),
+    naLeadExpiredSql(cutoff),
+  ];
+  if (excludeIds.length > 0) {
+    filters.push(notInArray(leads.id, excludeIds));
+  }
   return db
     .select({ id: leads.id })
     .from(leads)
-    .where(
-      and(
-        eq(leads.orgId, SINGLE_TENANT_ORG_ID),
-        isNull(leads.deletedAt),
-        inArray(leads.leadStatus, [...NA_STATUSES]),
-        sql`${naEnteredAtSql()} <= ${cutoff}`,
-      ),
-    )
+    .where(and(...filters))
     .limit(BATCH_SIZE);
 }
 
@@ -187,16 +200,23 @@ export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeEx
     if (batch.length < BATCH_SIZE) break;
   }
 
+  const failedNaIds: string[] = [];
   while (naPurged + failed < MAX_NA_PURGE_PER_RUN) {
-    const batch = await fetchNaBatch(naCutoff);
+    const batch = await fetchNaBatch(naCutoff, failedNaIds);
     if (batch.length === 0) break;
     checked += batch.length;
 
     for (const row of batch) {
       try {
-        if (await hardDeleteLead(row.id)) naPurged += 1;
+        if (await hardDeleteLead(row.id)) {
+          naPurged += 1;
+        } else {
+          failed += 1;
+          failedNaIds.push(row.id);
+        }
       } catch (err) {
         failed += 1;
+        failedNaIds.push(row.id);
         logger.warn("Failed to purge NA lead", {
           leadId: row.id,
           err: err instanceof Error ? err.message : String(err),
@@ -207,16 +227,14 @@ export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeEx
     if (batch.length < BATCH_SIZE) break;
   }
 
-  if (softDeletedPurged > 0 || naPurged > 0 || failed > 0) {
-    logger.info("Purged expired leads", {
-      softDeletedPurged,
-      naPurged,
-      checked,
-      failed,
-      naCutoff: naCutoff.toISOString(),
-      softDeletedCutoff: softDeletedCutoff.toISOString(),
-    });
-  }
+  logger.info("Purged expired leads", {
+    softDeletedPurged,
+    naPurged,
+    checked,
+    failed,
+    naCutoff: naCutoff.toISOString(),
+    softDeletedCutoff: softDeletedCutoff.toISOString(),
+  });
 
   return { naPurged, softDeletedPurged, checked, failed };
 }
