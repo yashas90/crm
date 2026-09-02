@@ -175,6 +175,28 @@ function mapRecord(headers: string[], values: string[]) {
   return record;
 }
 
+function recoverExcelPhone(raw: string): string {
+  const trimmed = raw.replace(/\s+/g, "");
+  if (/^\d+\.0+$/.test(trimmed)) {
+    return trimmed.replace(/\.0+$/, "");
+  }
+
+  const sci = trimmed.match(/^(\d+(?:\.\d+)?)[eE]\+(\d+)$/);
+  if (!sci) return trimmed;
+
+  const coefficient = sci[1] ?? "";
+  const exponent = Number(sci[2]);
+  const significant = coefficient.replace(".", "");
+  if (significant.length < 10 || !Number.isFinite(exponent) || exponent > 15) {
+    return trimmed;
+  }
+
+  const decimalPlaces = coefficient.includes(".") ? (coefficient.split(".")[1]?.length ?? 0) : 0;
+  const zeros = exponent - decimalPlaces;
+  if (zeros < 0) return trimmed;
+  return `${significant}${"0".repeat(zeros)}`;
+}
+
 function recordToLeadRow(record: Record<string, string>): BulkLeadImportRow | null {
   let firstName = record.firstName;
   let lastName: string | undefined = record.lastName;
@@ -185,7 +207,7 @@ function recordToLeadRow(record: Record<string, string>): BulkLeadImportRow | nu
     lastName = parts.slice(1).join(" ") || undefined;
   }
 
-  const phone = record.phone?.replace(/\s+/g, "") ?? "";
+  const phone = recoverExcelPhone(record.phone ?? "");
   if (!firstName || !phone) return null;
 
   const leadSource = record.leadSource
@@ -209,7 +231,7 @@ function recordToLeadRow(record: Record<string, string>): BulkLeadImportRow | nu
 }
 
 export function parseLeadsCsv(text: string): ParseLeadsCsvResult {
-  const grid = parseCsvText(text);
+  const grid = parseCsvText(text.replace(/^\uFEFF/, ""));
   if (grid.length === 0) {
     return { rows: [], parseErrors: [{ row: 1, message: "CSV file is empty" }] };
   }

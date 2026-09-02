@@ -94,7 +94,7 @@ export type BulkImportLeadsResult = {
   created: { row: number; id: string; phone: string }[];
   updated: { row: number; id: string; phone: string }[];
   skipped: { row: number; phone: string; reason: string }[];
-  failed: { row: number; message: string }[];
+  failed: { row: number; phone?: string; message: string }[];
 };
 
 export type LeadImportBatchRow = {

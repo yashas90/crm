@@ -39,11 +39,11 @@ import {
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { toCsv } from "../lib/csv.js";
 import { db } from "../lib/db.js";
-import { notFound } from "../lib/errors.js";
+import { AppError, notFound } from "../lib/errors.js";
 import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.js";
 import { inferFollowupType } from "../lib/followupType.js";
 import type { LeadAdvancedListQuery } from "../lib/leadAdvancedListQuery.js";
-import { allocateNextLeadCode } from "../lib/leadCode.js";
+import { isLeadCodeUniqueViolation, withAllocatedLeadCode } from "../lib/leadCode.js";
 import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
 import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
@@ -201,6 +201,16 @@ export class LeadDuplicatePhoneError extends Error {
     super("Lead with this phone already exists");
     this.name = "LeadDuplicatePhoneError";
   }
+}
+
+function bulkImportFailureMessage(err: unknown): string {
+  if (err instanceof LeadDuplicatePhoneError || err instanceof AppError) {
+    return err.message;
+  }
+  if (isLeadCodeUniqueViolation(err)) {
+    return "Could not allocate a unique lead ID. Retry the import.";
+  }
+  return err instanceof Error ? err.message : "Import failed";
 }
 
 async function resolveProjectFields(input: {
@@ -840,35 +850,36 @@ export const leadService = {
     const resolvedStatus = leadStatus ?? "new";
     const now = new Date();
     const isNaStatus = (NA_STATUSES as string[]).includes(resolvedStatus);
-    const leadCode = await allocateNextLeadCode();
 
-    const [created] = await db
-      .insert(leads)
-      .values({
-        orgId: SINGLE_TENANT_ORG_ID,
-        leadCode,
-        assignedTo: options?.assignedTo ?? null,
-        firstName,
-        lastName: lastName ?? "",
-        email: email ?? null,
-        phone: storedPhone,
-        secondaryPhone: secondaryPhone ?? null,
-        city: city ?? null,
-        state: state ?? null,
-        leadSource: canonicalizeLeadSource(leadSource) ?? null,
-        leadStatus: resolvedStatus,
-        temperature: temperature ?? null,
-        notes: notes ?? null,
-        tags: tags ?? null,
-        nextFollowupAt: nextFollowupAt ? new Date(nextFollowupAt) : null,
-        estimatedValue: estimatedValue != null ? String(estimatedValue) : null,
-        projectName: resolvedProject.projectName,
-        projectId: resolvedProject.projectId,
-        naSinceAt: isNaStatus ? now : null,
-      })
-      .returning();
+    return withAllocatedLeadCode(async (leadCode) => {
+      const [created] = await db
+        .insert(leads)
+        .values({
+          orgId: SINGLE_TENANT_ORG_ID,
+          leadCode,
+          assignedTo: options?.assignedTo ?? null,
+          firstName,
+          lastName: lastName ?? "",
+          email: email ?? null,
+          phone: storedPhone,
+          secondaryPhone: secondaryPhone ?? null,
+          city: city ?? null,
+          state: state ?? null,
+          leadSource: canonicalizeLeadSource(leadSource) ?? null,
+          leadStatus: resolvedStatus,
+          temperature: temperature ?? null,
+          notes: notes ?? null,
+          tags: tags ?? null,
+          nextFollowupAt: nextFollowupAt ? new Date(nextFollowupAt) : null,
+          estimatedValue: estimatedValue != null ? String(estimatedValue) : null,
+          projectName: resolvedProject.projectName,
+          projectId: resolvedProject.projectId,
+          naSinceAt: isNaStatus ? now : null,
+        })
+        .returning();
 
-    return created!;
+      return created!;
+    });
   },
 
   async bulkCreateLeads(input: {
@@ -887,7 +898,7 @@ export const leadService = {
     const created: { row: number; id: string; phone: string }[] = [];
     const updated: { row: number; id: string; phone: string }[] = [];
     const skipped: { row: number; phone: string; reason: string }[] = [];
-    const failed: { row: number; message: string }[] = [];
+    const failed: { row: number; phone?: string; message: string }[] = [];
     const batchItems: {
       rowNumber: number;
       outcome: "created" | "updated" | "skipped" | "failed";
@@ -908,84 +919,86 @@ export const leadService = {
     for (let index = 0; index < input.rows.length; index++) {
       const rowNumber = index + 1;
       const parsed = createLeadBodySchema.safeParse(input.rows[index]);
+      const rawPhone = input.rows[index]?.phone;
+      const rawPhoneText = typeof rawPhone === "string" ? rawPhone : undefined;
 
       if (!parsed.success) {
         const firstIssue = parsed.error.issues[0];
         const message = firstIssue?.message ?? "Invalid row";
         failed.push({
           row: rowNumber,
+          phone: rawPhoneText,
           message,
         });
-        const rawPhone = input.rows[index]?.phone;
         batchItems.push({
           rowNumber,
           outcome: "failed",
-          phone: typeof rawPhone === "string" ? rawPhone : null,
+          phone: rawPhoneText ?? null,
           message,
         });
         continue;
       }
 
-      const storedPhone = normalizeStoredPhone(parsed.data.phone);
-      const existing = await findLeadByPhone(storedPhone);
-
       const assignedTo = input.assignedToAgents[index % input.assignedToAgents.length]!;
 
-      if (existing) {
-        const previousAssignee = existing.assignedTo;
-        const merged = await this.mergeImportRow({
-          leadId: existing.id,
-          data: parsed.data,
-          storedPhone,
-          assignedTo,
-          onDuplicate: input.onDuplicate ?? "keep_assignee",
-          assignWithHistory,
-          applyNewStatus,
-          actingUserId: input.actingUserId,
-          source: "bulk_import",
-        });
-
-        if (merged) {
-          if (
-            (input.onDuplicate ?? "keep_assignee") === "reassign" &&
-            assignedTo &&
-            assignedTo !== previousAssignee
-          ) {
-            trackAssignment(assignedTo);
-          }
-          updated.push({ row: rowNumber, id: merged.id, phone: merged.phone ?? storedPhone });
-          batchItems.push({
-            rowNumber,
-            outcome: "updated",
-            leadId: merged.id,
-            phone: merged.phone ?? storedPhone,
-          });
-        } else if (input.skipDuplicates) {
-          skipped.push({
-            row: rowNumber,
-            phone: parsed.data.phone,
-            reason: "duplicate_phone",
-          });
-          batchItems.push({
-            rowNumber,
-            outcome: "skipped",
-            phone: parsed.data.phone,
-            message: "duplicate_phone",
-          });
-        } else {
-          const message = "Phone number already exists for this org";
-          failed.push({ row: rowNumber, message });
-          batchItems.push({
-            rowNumber,
-            outcome: "failed",
-            phone: parsed.data.phone,
-            message,
-          });
-        }
-        continue;
-      }
-
       try {
+        const storedPhone = normalizeStoredPhone(parsed.data.phone);
+        const existing = await findLeadByPhone(storedPhone);
+
+        if (existing) {
+          const previousAssignee = existing.assignedTo;
+          const merged = await this.mergeImportRow({
+            leadId: existing.id,
+            data: parsed.data,
+            storedPhone,
+            assignedTo,
+            onDuplicate: input.onDuplicate ?? "keep_assignee",
+            assignWithHistory,
+            applyNewStatus,
+            actingUserId: input.actingUserId,
+            source: "bulk_import",
+          });
+
+          if (merged) {
+            if (
+              (input.onDuplicate ?? "keep_assignee") === "reassign" &&
+              assignedTo &&
+              assignedTo !== previousAssignee
+            ) {
+              trackAssignment(assignedTo);
+            }
+            updated.push({ row: rowNumber, id: merged.id, phone: merged.phone ?? storedPhone });
+            batchItems.push({
+              rowNumber,
+              outcome: "updated",
+              leadId: merged.id,
+              phone: merged.phone ?? storedPhone,
+            });
+          } else if (input.skipDuplicates) {
+            skipped.push({
+              row: rowNumber,
+              phone: parsed.data.phone,
+              reason: "duplicate_phone",
+            });
+            batchItems.push({
+              rowNumber,
+              outcome: "skipped",
+              phone: parsed.data.phone,
+              message: "duplicate_phone",
+            });
+          } else {
+            const message = "Phone number already exists for this org";
+            failed.push({ row: rowNumber, phone: parsed.data.phone, message });
+            batchItems.push({
+              rowNumber,
+              outcome: "failed",
+              phone: parsed.data.phone,
+              message,
+            });
+          }
+          continue;
+        }
+
         const lead = await this.createLead(parsed.data, { assignedTo });
         trackAssignment(assignedTo);
         created.push({ row: rowNumber, id: lead.id, phone: lead.phone ?? "" });
@@ -996,9 +1009,10 @@ export const leadService = {
           phone: lead.phone ?? storedPhone,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Import failed";
+        const message = bulkImportFailureMessage(err);
         failed.push({
           row: rowNumber,
+          phone: parsed.data.phone,
           message,
         });
         batchItems.push({

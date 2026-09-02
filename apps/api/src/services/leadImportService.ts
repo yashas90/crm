@@ -11,7 +11,7 @@ export type LeadImportBatchReport = {
   created: { row: number; id: string; phone: string }[];
   updated: { row: number; id: string; phone: string }[];
   skipped: { row: number; phone: string; reason: string }[];
-  failed: { row: number; message: string }[];
+  failed: { row: number; phone?: string; message: string }[];
   parseErrors?: { row: number; message: string }[];
 };
 
@@ -138,13 +138,20 @@ function escapeCsvCell(value: string | number) {
   return text;
 }
 
+/** Keep phones/IDs as text when Excel opens the report (avoids 9.19E+11). */
+function excelTextCell(value: string) {
+  if (!value) return "";
+  const escaped = value.replace(/"/g, '""');
+  return `"=""${escaped}"""`;
+}
+
 function buildImportReportCsv(
   batch: ReturnType<typeof mapBatchRow>,
   report: LeadImportBatchReport,
   options?: { maskPhones?: boolean },
 ) {
   const mask = options?.maskPhones === true;
-  const phoneCell = (phone: string) => escapeCsvCell(mask ? maskPhone(phone) : phone);
+  const phoneCell = (phone: string) => excelTextCell(mask ? maskPhone(phone) : phone);
 
   const lines = [
     [
@@ -162,16 +169,18 @@ function buildImportReportCsv(
   ];
 
   for (const row of report.created) {
-    lines.push([row.row, "created", phoneCell(row.phone), row.id, ""].join(","));
+    lines.push([row.row, "created", phoneCell(row.phone), excelTextCell(row.id), ""].join(","));
   }
   for (const row of report.updated) {
-    lines.push([row.row, "updated", phoneCell(row.phone), row.id, ""].join(","));
+    lines.push([row.row, "updated", phoneCell(row.phone), excelTextCell(row.id), ""].join(","));
   }
   for (const row of report.skipped) {
     lines.push([row.row, "skipped", phoneCell(row.phone), "", escapeCsvCell(row.reason)].join(","));
   }
   for (const row of report.failed) {
-    lines.push([row.row, "failed", "", "", escapeCsvCell(row.message)].join(","));
+    lines.push(
+      [row.row, "failed", phoneCell(row.phone ?? ""), "", escapeCsvCell(row.message)].join(","),
+    );
   }
   for (const row of report.parseErrors ?? []) {
     lines.push([row.row, "invalid", "", "", escapeCsvCell(row.message)].join(","));
