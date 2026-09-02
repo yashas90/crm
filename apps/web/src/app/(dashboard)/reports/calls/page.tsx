@@ -397,7 +397,7 @@ export default function CallsReportPage() {
             <CallLogsReportPanel dateFrom={apiRange.dateFrom} dateTo={apiRange.dateTo} />
           </TabsContent>
         </Tabs>
-      )}
+      ) : null}
 
       <div ref={detailsRef}>
         <Card className={selectedDate ? "ring-2 ring-primary" : undefined}>

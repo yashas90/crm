@@ -67,7 +67,12 @@ const navItems: NavItem[] = [
     roles: ["admin", "manager", "agent"],
   },
   { href: "/documents", label: "Documents", icon: FileText, roles: ["admin", "manager", "agent"] },
-  { href: "/reports/calls", label: "Call report", icon: Phone, roles: ["admin", "manager", "agent"] },
+  {
+    href: "/reports/calls",
+    label: "Call report",
+    icon: Phone,
+    roles: ["admin", "manager", "agent"],
+  },
   {
     href: "/performance",
     label: "Performance",

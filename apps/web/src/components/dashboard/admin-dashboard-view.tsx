@@ -288,7 +288,10 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
                   <h3 className="text-lg font-semibold text-foreground">Team snapshot</h3>
                   <p className="text-sm text-slate-600 dark:text-slate-300">
                     Leads owned, calls, and deals won in the selected period. See{" "}
-                    <Link href="/reports/calls" className="font-medium text-primary hover:underline">
+                    <Link
+                      href="/reports/calls"
+                      className="font-medium text-primary hover:underline"
+                    >
                       Call report
                     </Link>{" "}
                     and{" "}

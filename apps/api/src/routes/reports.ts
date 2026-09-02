@@ -208,10 +208,7 @@ function callsReportParseFailure(
   }
 
   if ("forbidden" in result) {
-    return c.json(
-      { ok: false, error: { code: "FORBIDDEN", message: result.forbidden } },
-      403,
-    );
+    return c.json({ ok: false, error: { code: "FORBIDDEN", message: result.forbidden } }, 403);
   }
 
   return null;
