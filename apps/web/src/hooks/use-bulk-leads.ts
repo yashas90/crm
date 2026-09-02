@@ -90,6 +90,7 @@ export function useBulkImportLeads() {
     }) => bulkImportLeads(input),
     onSuccess: async (result) => {
       await refetchAllLeadQueries(queryClient);
+      const failedCount = result.failedCount ?? 0;
       const changedCount = result.createdCount + (result.updatedCount ?? 0);
       if (result.createdCount > 0 && (result.updatedCount ?? 0) > 0) {
         toast.success(
@@ -99,10 +100,15 @@ export function useBulkImportLeads() {
         toast.success(`Imported ${result.createdCount} lead(s)`);
       } else if ((result.updatedCount ?? 0) > 0) {
         toast.success(`Updated ${result.updatedCount} existing lead(s) from your CSV`);
-      } else if (result.failedCount === 0 && result.skippedCount > 0) {
+      } else if (failedCount === 0 && result.skippedCount > 0) {
         toast.info("All rows were skipped (duplicate phone numbers)");
       } else if (changedCount === 0) {
         toast.error("No leads were imported");
+      }
+      if (failedCount > 0) {
+        toast.error(
+          `${failedCount} row(s) failed. Download the CSV upload report for the exact reason.`,
+        );
       }
       await queryClient.invalidateQueries({ queryKey: ["leads", "import-batches"] });
     },
