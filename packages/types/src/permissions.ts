@@ -267,6 +267,7 @@ export const MANAGER_PERMISSIONS: Permission[] = [
   PERMISSIONS.listing.bulkUpload,
   PERMISSIONS.listing.viewAssigned,
   PERMISSIONS.listing.assign,
+  PERMISSIONS.reports.view,
   PERMISSIONS.reports.viewReportees,
   PERMISSIONS.reports.exportReportees,
 ];
