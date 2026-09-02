@@ -30,7 +30,7 @@ export default function ReportsPage() {
             <Link href="/reports/leads">Leads analytics →</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/reports/calls">Calls report →</Link>
+            <Link href="/reports/calls">Call report →</Link>
           </Button>
           <Button variant="outline" asChild>
             <Link href="/reports/team">Team performance →</Link>

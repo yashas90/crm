@@ -106,6 +106,9 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
               {overview.isFetching && overviewData ? (
                 <span className="ml-2 text-xs">Updating…</span>
               ) : null}{" "}
+              <Link href="/reports/calls" className="font-medium text-primary hover:underline">
+                Call report →
+              </Link>{" "}
               <Link href="/analytics" className="font-medium text-primary hover:underline">
                 Full analytics →
               </Link>
@@ -285,6 +288,13 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
                   <h3 className="text-lg font-semibold text-foreground">Team snapshot</h3>
                   <p className="text-sm text-slate-600 dark:text-slate-300">
                     Leads owned, calls, and deals won in the selected period. See{" "}
+                    <Link
+                      href="/reports/calls"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Call report
+                    </Link>{" "}
+                    and{" "}
                     <Link href="/reports/team" className="font-medium text-primary hover:underline">
                       Team performance
                     </Link>{" "}

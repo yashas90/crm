@@ -153,5 +153,9 @@ describe("@propninja/types exports", () => {
     expect(roleHasPermission("admin", "org_profile:update")).toBe(true);
     expect(roleHasPermission("manager", "org_profile:update")).toBe(true);
     expect(roleHasPermission("agent", "org_profile:update")).toBe(false);
+    expect(roleHasPermission("manager", "reports:view")).toBe(true);
+    expect(roleHasPermission("manager", "reports:view_reportees")).toBe(true);
+    expect(roleHasPermission("manager", "reports:view_all")).toBe(false);
+    expect(roleHasPermission("agent", "reports:view")).toBe(false);
   });
 });

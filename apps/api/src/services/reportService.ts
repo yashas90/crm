@@ -309,6 +309,25 @@ async function resolveCallsReportQuery(query: CallsReportQuery) {
   return expandCallsReportUserScope(query);
 }
 
+/** Self + users who report to this manager or list them as general manager. */
+async function listManagerTeamUserIds(managerId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(
+        eq(users.orgId, SINGLE_TENANT_ORG_ID),
+        or(
+          eq(users.id, managerId),
+          eq(users.reportingToId, managerId),
+          eq(users.generalManagerId, managerId),
+        ),
+      ),
+    );
+
+  return rows.map((row) => row.id);
+}
+
 function buildActivityOnLeadsOverTime(
   callsRows: { date: string; count: number }[],
   meetingRows: { date: string; count: number }[],
@@ -713,6 +732,8 @@ async function fetchCallsReportPerUserPaginated(query: CallsReportQuery) {
 }
 
 export const reportService = {
+  listManagerTeamUserIds,
+
   async getDashboard(query: DashboardReportQuery) {
     const leadWhere = scopedLeadCreated({
       dateFrom: query.dateFrom,

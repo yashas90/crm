@@ -12,6 +12,7 @@ import { LineAreaChart } from "@/components/reports/line-area-chart";
 import { PieChart } from "@/components/reports/pie-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCalls } from "@/hooks/use-leads";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   CALLS_REPORT_PAGE_SIZES,
   type CallsReportPageSize,
@@ -52,6 +53,7 @@ const USER_STATUS_TABS: { id: CallsUserStatusFilter; label: string }[] = [
 const USER_NAME_SEARCH_DEBOUNCE_MS = 300;
 
 export default function CallsReportPage() {
+  const { canViewReports, isManager, ready } = usePermissions();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [userReportPage, setUserReportPage] = useState(1);
   const [userReportPageSize, setUserReportPageSize] = useState<CallsReportPageSize>(50);
@@ -93,12 +95,15 @@ export default function CallsReportPage() {
     ],
   );
 
-  const userReport = useCallsUserReport(reportQueryParams);
-  const analyticsReport = useCallsReport({
-    dateFrom: apiRange.dateFrom,
-    dateTo: apiRange.dateTo,
-    ...callsReportFiltersToQueryParams(appliedFilters),
-  });
+  const userReport = useCallsUserReport(reportQueryParams, { enabled: ready && canViewReports });
+  const analyticsReport = useCallsReport(
+    {
+      dateFrom: apiRange.dateFrom,
+      dateTo: apiRange.dateTo,
+      ...callsReportFiltersToQueryParams(appliedFilters),
+    },
+    { enabled: ready && canViewReports },
+  );
 
   const detailRange = selectedDate
     ? toApiRange(selectedDate, selectedDate)
@@ -159,27 +164,41 @@ export default function CallsReportPage() {
     }
   }, [selectedDate]);
 
-  const reportForbidden = userReport.isError && isForbiddenError(userReport.error);
-  const showUserReport = !reportForbidden && userReport.data;
-  const showAnalytics = !reportForbidden && analyticsReport.data;
-  const reportTitle = reportForbidden ? "My calls" : "Leads – Call Report";
+  const showTeamReport = ready && canViewReports;
+  const showUserReport = showTeamReport && userReport.data;
+  const showAnalytics = showTeamReport && analyticsReport.data;
+  const reportTitle = !ready
+    ? "Call report"
+    : showTeamReport
+      ? isManager
+        ? "Team call report"
+        : "Leads – Call Report"
+      : "My calls";
 
   return (
     <div className="space-y-4">
       <div>
-        {!reportForbidden ? (
+        {!showTeamReport ? null : (
           <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
             <Link href="/reports" className="hover:text-foreground hover:underline">
               Reports
             </Link>
             <span className="mx-2 text-muted-foreground/70">/</span>
-            <span className="text-foreground">Leads – Call Report</span>
+            <span className="text-foreground">
+              {isManager ? "Team call report" : "Leads – Call Report"}
+            </span>
           </nav>
-        ) : null}
+        )}
         <h1 className="mt-1 text-2xl font-bold tracking-tight">{reportTitle}</h1>
         <p className="text-sm text-muted-foreground">
           {labelRange.from} → {labelRange.to}
-          {reportForbidden ? " · Your call history from the mobile app" : null}
+          {showTeamReport
+            ? isManager
+              ? " · Calls for you and your reportees"
+              : null
+            : ready
+              ? " · Your call history from the mobile app"
+              : null}
         </p>
       </div>
 
@@ -190,7 +209,7 @@ export default function CallsReportPage() {
         onApply={setAppliedFilters}
       />
 
-      {reportForbidden ? null : (
+      {showTeamReport ? (
         <Tabs defaultValue="report">
           <TabsList>
             <TabsTrigger value="report">Call report</TabsTrigger>
@@ -269,7 +288,7 @@ export default function CallsReportPage() {
               </div>
             </div>
 
-            {userReport.isError && !reportForbidden ? (
+            {userReport.isError && showTeamReport ? (
               <EmptyState
                 title="Unable to load call report"
                 description="The report could not be loaded. Check your connection and try again."
@@ -378,7 +397,7 @@ export default function CallsReportPage() {
             <CallLogsReportPanel dateFrom={apiRange.dateFrom} dateTo={apiRange.dateTo} />
           </TabsContent>
         </Tabs>
-      )}
+      ) : null}
 
       <div ref={detailsRef}>
         <Card className={selectedDate ? "ring-2 ring-primary" : undefined}>
