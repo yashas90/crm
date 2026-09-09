@@ -24,7 +24,7 @@ import {
 const RECENT_NOTE_DAYS = 3;
 
 function activeLeadStatusFilter() {
-  // Exclude terminal + NA pool — scoring must not refresh those rows (blocks NA 1-week purge).
+  // Exclude terminal + NA pool — scoring must not refresh those rows (blocks NA 45-day purge).
   return sql`${leads.leadStatus} not in ('lost', 'won', 'not_interested', 'dropped')`;
 }
 

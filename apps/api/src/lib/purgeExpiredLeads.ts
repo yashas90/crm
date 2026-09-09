@@ -24,8 +24,9 @@ import { sqlTimestamptz } from "./sqlTimestamp.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** NA leads (`not_interested` / `dropped`) are hard-deleted after 1 week in the NA pool. */
-export const NA_LEAD_PURGE_AFTER_MS = 7 * DAY_MS;
+/** NA leads (`not_interested` / `dropped`) are hard-deleted after 45 days in the NA pool. */
+export const NA_LEAD_PURGE_AFTER_DAYS = 45;
+export const NA_LEAD_PURGE_AFTER_MS = NA_LEAD_PURGE_AFTER_DAYS * DAY_MS;
 
 /** Soft-deleted (Deleted tab) leads are hard-deleted after 48 hours. */
 export const SOFT_DELETED_LEAD_PURGE_AFTER_MS = 48 * 60 * 60 * 1000;
@@ -165,11 +166,11 @@ async function fetchNaBatch(cutoff: Date, excludeIds: string[] = []) {
 
 /**
  * Hard-delete from the server database:
- * - NA leads (`not_interested` / `dropped`) that have been NA for ≥1 week
+ * - NA leads (`not_interested` / `dropped`) that have been NA for ≥45 days
  * - Soft-deleted (Deleted) leads whose `deletedAt` is ≥48 hours ago
  *
  * Drains batches until empty or per-run caps. On API startup the job runs
- * immediately so NA leads already past 1 week are removed without waiting.
+ * immediately so NA leads already past 45 days are removed without waiting.
  */
 export async function purgeExpiredLeads(now: Date = new Date()): Promise<PurgeExpiredLeadsResult> {
   const naCutoff = new Date(now.getTime() - NA_LEAD_PURGE_AFTER_MS);
