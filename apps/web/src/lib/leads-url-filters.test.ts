@@ -104,6 +104,17 @@ describe("leads URL filters", () => {
     expect(apiQuery.excludeNew).toBeUndefined();
   });
 
+  it("drops Active stage filters when searching so phone lookup can find New/NA/won/lost", () => {
+    const apiQuery = leadsFiltersToQuery(
+      { ...defaultLeadsUrlFilters(), search: "9480008899" },
+      { scope: "all", stage: "active" },
+    );
+    expect(apiQuery.search).toBe("9480008899");
+    expect(apiQuery.activeOnly).toBeUndefined();
+    expect(apiQuery.excludeNew).toBeUndefined();
+    expect(apiQuery.excludeDuplicates).toBeUndefined();
+  });
+
   it("keeps excludeNew on Active for all/my/teams scopes", () => {
     for (const scope of ["all", "my", "teams"] as const) {
       const apiQuery = leadsFiltersToQuery(defaultLeadsUrlFilters(), {

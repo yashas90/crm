@@ -1,4 +1,9 @@
-import { MOBILE_LEAD_STAGES, defaultMobileLeadsStage, stageToLeadQuery } from "../leads-stage";
+import {
+  MOBILE_LEAD_STAGES,
+  defaultMobileLeadsStage,
+  stageQueryForLeadSearch,
+  stageToLeadQuery,
+} from "../leads-stage";
 
 describe("leads-stage", () => {
   it("defaults to active", () => {
@@ -33,6 +38,14 @@ describe("leads-stage", () => {
 
   it("maps hot to hot temperature", () => {
     expect(stageToLeadQuery("hot")).toEqual({ temperature: "hot" });
+  });
+
+  it("omits Active filters when the user is searching a phone", () => {
+    expect(stageQueryForLeadSearch("active", "9480008899")).toEqual({});
+    expect(stageQueryForLeadSearch("active", "")).toEqual({
+      activeOnly: "true",
+      excludeNew: "true",
+    });
   });
 
   it("maps overdue / follow_up to follow-up date windows", () => {

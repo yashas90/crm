@@ -125,7 +125,7 @@ export const leads = pgTable(
     closeReason: text("close_reason"),
     closeReasonNote: text("close_reason_note"),
     lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
-    /** When the lead entered NA (not_interested / dropped). Used for 1-week hard-delete. */
+    /** When the lead entered NA (not_interested / dropped). Used for 45-day hard-delete. */
     naSinceAt: timestamp("na_since_at", { withTimezone: true }),
     slaBreachedAt: timestamp("sla_breached_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

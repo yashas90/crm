@@ -269,7 +269,7 @@ adminRoutes.post("/portal-webhooks/:id/test", async (c) => {
   return jsonOk(c, { preview, mockPayload: payload });
 });
 
-/** Hard-delete NA leads past 1 week and soft-deleted leads past 48h (admin manual run). */
+/** Hard-delete NA leads past 45 days and soft-deleted leads past 48h (admin manual run). */
 adminRoutes.post("/leads/purge-expired", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
 

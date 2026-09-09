@@ -32,8 +32,8 @@ function collectSqlText(value: unknown, out: string[] = []): string[] {
 }
 
 describe("lead purge retention", () => {
-  it("hard-deletes NA leads after 1 week in not_interested or dropped", () => {
-    expect(NA_LEAD_PURGE_AFTER_MS).toBe(7 * 24 * 60 * 60 * 1000);
+  it("hard-deletes NA leads after 45 days in not_interested or dropped", () => {
+    expect(NA_LEAD_PURGE_AFTER_MS).toBe(45 * 24 * 60 * 60 * 1000);
     expect(LEAD_PURGE_AFTER_MS).toBe(NA_LEAD_PURGE_AFTER_MS);
   });
 

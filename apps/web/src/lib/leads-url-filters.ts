@@ -322,10 +322,15 @@ export function leadsFiltersToQuery(
 ) {
   const scope = options?.scope ?? "all";
   const stage = options?.stage ?? defaultLeadsStage();
-  const stageParams = scopeUsesStageFilters(scope) ? stageToQueryParams(stage, scope) : {};
+  const hasSearch = Boolean(filters.search.trim());
+  // Phone / name lookup must not stay trapped on Active (excludes New, NA, won, lost).
+  const stageParams =
+    !hasSearch && scopeUsesStageFilters(scope) ? stageToQueryParams(stage, scope) : {};
+  const base = leadsBaseFiltersToQuery(filters, options);
 
   return {
-    ...leadsBaseFiltersToQuery(filters, options),
+    ...base,
+    ...(hasSearch ? { excludeDuplicates: undefined } : {}),
     status: stageParams.status,
     activeOnly: stageParams.activeOnly,
     excludeNew: stageParams.excludeNew,
