@@ -3,6 +3,13 @@ export function phoneDigits(phone: string) {
   return phone.replace(/\D/g, "");
 }
 
+/** Last 10 digits for Indian mobile equality (`+91…` vs local 10-digit). */
+export function phoneLast10Digits(phone: string) {
+  const digits = phoneDigits(phone);
+  if (digits.length < 10) return null;
+  return digits.slice(-10);
+}
+
 /** Common stored/query variants for the same Indian mobile number. */
 export function phoneMatchVariants(phone: string) {
   const digits = phoneDigits(phone);

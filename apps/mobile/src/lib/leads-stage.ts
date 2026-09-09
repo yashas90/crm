@@ -47,3 +47,12 @@ export function stageToLeadQuery(stage: MobileLeadsStage): Record<string, string
       return { activeOnly: "true", excludeNew: "true" };
   }
 }
+
+/** Skip pipeline stage chips while searching — same as web phone lookup. */
+export function stageQueryForLeadSearch(
+  stage: MobileLeadsStage,
+  search: string,
+): Record<string, string> {
+  if (search.trim()) return {};
+  return stageToLeadQuery(stage);
+}

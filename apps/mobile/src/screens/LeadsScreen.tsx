@@ -22,7 +22,7 @@ import {
   MOBILE_LEAD_STAGES,
   type MobileLeadsStage,
   defaultMobileLeadsStage,
-  stageToLeadQuery,
+  stageQueryForLeadSearch,
 } from "@/lib/leads-stage";
 import { queryErrorMessage } from "@/lib/query-errors";
 import type { LeadsStackParamList } from "@/navigation/types";
@@ -77,7 +77,7 @@ export function LeadsScreen({ navigation }: Props) {
   const queryParams = useMemo(() => {
     const params: Omit<LeadsQuery, "page"> = {
       ...mobileFiltersToApiParams(leadFilters),
-      ...stageToLeadQuery(stage),
+      ...stageQueryForLeadSearch(stage, debouncedSearch),
     };
     if (debouncedSearch) params.search = debouncedSearch;
     if (isAgent) {
@@ -110,12 +110,12 @@ export function LeadsScreen({ navigation }: Props) {
     for (const page of pages) {
       if (!Array.isArray(page?.items)) continue;
       for (const lead of page.items) {
-        if (isAgent && isNaLeadStatus(lead.leadStatus)) continue;
+        if (!debouncedSearch && isAgent && isNaLeadStatus(lead.leadStatus)) continue;
         flat.push(lead);
       }
     }
     return flat;
-  }, [data?.pages, isAgent]);
+  }, [data?.pages, isAgent, debouncedSearch]);
 
   const total = data?.pages[0]?.total ?? visibleLeads.length;
   const showInitialLoading = (isPending || isLoading) && !data;

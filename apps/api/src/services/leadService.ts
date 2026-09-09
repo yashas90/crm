@@ -44,7 +44,7 @@ import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.j
 import { inferFollowupType } from "../lib/followupType.js";
 import type { LeadAdvancedListQuery } from "../lib/leadAdvancedListQuery.js";
 import { isLeadCodeUniqueViolation, withAllocatedLeadCode } from "../lib/leadCode.js";
-import { normalizeStoredPhone, phoneMatchVariants } from "../lib/leadPhone.js";
+import { normalizeStoredPhone, phoneLast10Digits, phoneMatchVariants } from "../lib/leadPhone.js";
 import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
@@ -413,7 +413,18 @@ function buildListWhere(params: ListLeadsParams) {
       phoneTerms.add(`%${variant}%`);
     }
 
-    const phoneClauses = [...phoneTerms].map((phoneTerm) => ilike(leads.phone, phoneTerm));
+    const phoneClauses = [...phoneTerms].flatMap((phoneTerm) => [
+      ilike(leads.phone, phoneTerm),
+      ilike(leads.secondaryPhone, phoneTerm),
+    ]);
+    const last10 = phoneLast10Digits(trimmed);
+    const digitClauses = last10
+      ? [
+          sql`RIGHT(regexp_replace(COALESCE(${leads.phone}, ''), '[^0-9]', '', 'g'), 10) = ${last10}`,
+          sql`RIGHT(regexp_replace(COALESCE(${leads.secondaryPhone}, ''), '[^0-9]', '', 'g'), 10) = ${last10}`,
+        ]
+      : [];
+
     whereClauses.push(
       or(
         ilike(leads.firstName, term),
@@ -421,6 +432,7 @@ function buildListWhere(params: ListLeadsParams) {
         ilike(leads.email, term),
         ilike(leads.leadCode, term),
         ...phoneClauses,
+        ...digitClauses,
       )!,
     );
   }
