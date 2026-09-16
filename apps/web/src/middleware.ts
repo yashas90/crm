@@ -22,6 +22,7 @@ const DASHBOARD_PREFIXES = [
   "/bookings",
   "/tasks",
   "/sla",
+  "/whatsapp",
 ];
 
 function isPublicPath(pathname: string) {

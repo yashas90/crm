@@ -48,7 +48,7 @@ const navItems: NavItem[] = [
     href: "/whatsapp",
     label: "WhatsApp",
     icon: MessageCircle,
-    roles: ["admin", "manager", "agent"],
+    roles: ["admin"],
   },
   { href: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "manager", "agent"] },
   { href: "/tasks", label: "Tasks", icon: CheckSquare, roles: ["admin", "manager", "agent"] },
@@ -155,9 +155,9 @@ type SidebarProps = {
 export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { session, ready } = useSession();
-  const unread = useWhatsAppUnreadCount();
-  const unreadCount = unread.data?.count ?? 0;
   const role = roleFromSession(session?.role);
+  const unread = useWhatsAppUnreadCount(ready && role === "admin");
+  const unreadCount = unread.data?.count ?? 0;
 
   const visibleItems =
     ready && role ? navItems.filter((item) => item.roles.includes(role)) : DEFAULT_NAV;

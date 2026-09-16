@@ -44,6 +44,7 @@ const NAV_ITEMS: CommandItem[] = [
     href: "/whatsapp",
     keywords: "blast inbox campaigns templates leads",
     icon: <Users className="h-4 w-4" />,
+    roles: ["admin"],
   },
   {
     id: "pipeline",

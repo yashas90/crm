@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { useIsAdmin } from "@/hooks/use-role";
 import { useParseWhatsAppFile, useWhatsAppCampaigns } from "@/hooks/use-whatsapp-blaster";
 import { colors, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -24,8 +25,9 @@ async function uriToBase64(uri: string) {
 
 export function WhatsAppBlasterScreen() {
   const insets = useSafeAreaInsets();
+  const isAdmin = useIsAdmin();
   const parse = useParseWhatsAppFile();
-  const campaigns = useWhatsAppCampaigns();
+  const campaigns = useWhatsAppCampaigns(isAdmin);
   const [summary, setSummary] = useState<string | null>(null);
 
   async function pickContacts() {
@@ -50,6 +52,21 @@ export function WhatsAppBlasterScreen() {
     } catch (err) {
       Alert.alert("Parse failed", err instanceof Error ? err.message : "Try a CSV or Excel file");
     }
+  }
+
+  if (!isAdmin) {
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{
+          padding: spacing.md,
+          paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom,
+        }}
+      >
+        <Text style={styles.title}>WhatsApp Blaster</Text>
+        <Text style={styles.sub}>Only admins can access WhatsApp Blaster.</Text>
+      </ScrollView>
+    );
   }
 
   return (

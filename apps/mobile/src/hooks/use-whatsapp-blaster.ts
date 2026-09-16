@@ -2,23 +2,25 @@ import { apiGet, apiPost } from "@/lib/apiClient";
 import { enqueueRequest } from "@/lib/offlineQueue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export function useWhatsAppUnreadCount() {
+export function useWhatsAppUnreadCount(enabled = true) {
   return useQuery({
     queryKey: ["wa-blaster", "unread"],
     queryFn: () => apiGet<{ count: number }>("/api/whatsapp/blaster/unread-count"),
     refetchInterval: 15_000,
+    enabled,
   });
 }
 
-export function useWhatsAppCampaigns() {
+export function useWhatsAppCampaigns(enabled = true) {
   return useQuery({
     queryKey: ["wa-blaster", "campaigns"],
     queryFn: () =>
       apiGet<{ items: Array<Record<string, unknown>> }>("/api/whatsapp/blaster/campaigns"),
+    enabled,
   });
 }
 
-export function useWhatsAppInbox() {
+export function useWhatsAppInbox(enabled = true) {
   return useQuery({
     queryKey: ["wa-blaster", "inbox"],
     queryFn: () =>
@@ -33,10 +35,11 @@ export function useWhatsAppInbox() {
         }>;
       }>("/api/whatsapp/blaster/inbox"),
     refetchInterval: 8_000,
+    enabled,
   });
 }
 
-export function useWhatsAppLeads() {
+export function useWhatsAppLeads(enabled = true) {
   return useQuery({
     queryKey: ["wa-blaster", "leads"],
     queryFn: () =>
@@ -54,6 +57,7 @@ export function useWhatsAppLeads() {
           assignedAgentName?: string | null;
         }>;
       }>("/api/whatsapp/blaster/leads"),
+    enabled,
   });
 }
 

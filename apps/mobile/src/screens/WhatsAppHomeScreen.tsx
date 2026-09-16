@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { useIsAdmin } from "@/hooks/use-role";
 import {
   useReplyWhatsApp,
   useWhatsAppInbox,
@@ -30,10 +31,11 @@ type Tab = "blaster" | "inbox" | "leads" | "campaigns";
 export function WhatsAppHomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<ProfileStackParamList>>();
   const insets = useSafeAreaInsets();
+  const isAdmin = useIsAdmin();
   const [tab, setTab] = useState<Tab>("inbox");
-  const unread = useWhatsAppUnreadCount();
-  const inbox = useWhatsAppInbox();
-  const leads = useWhatsAppLeads();
+  const unread = useWhatsAppUnreadCount(isAdmin);
+  const inbox = useWhatsAppInbox(isAdmin);
+  const leads = useWhatsAppLeads(isAdmin);
   const reply = useReplyWhatsApp();
   const [selected, setSelected] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -47,6 +49,15 @@ export function WhatsAppHomeScreen() {
       `/api/whatsapp/blaster/inbox/${id}`,
     );
     setThread(data.items);
+  }
+
+  if (!isAdmin) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
+        <Text style={styles.title}>WhatsApp</Text>
+        <Text style={styles.meta}>Only admins can access WhatsApp Blaster.</Text>
+      </View>
+    );
   }
 
   return (

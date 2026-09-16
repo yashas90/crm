@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { forbiddenResponse, isAdmin } from "../lib/permissions.js";
 import { jsonOk } from "../lib/response.js";
 import { validate } from "../lib/validate.js";
 import {
@@ -14,6 +15,14 @@ import type { AuthUser } from "../middleware/auth.js";
 import { whatsappBlasterService } from "../services/whatsappBlasterService.js";
 
 export const whatsappBlasterRoute = new Hono();
+
+whatsappBlasterRoute.use("*", async (c, next) => {
+  const authUser = c.get("authUser") as AuthUser | undefined;
+  if (!authUser || !isAdmin(authUser)) {
+    return c.json(forbiddenResponse(), 403);
+  }
+  await next();
+});
 
 whatsappBlasterRoute.get("/provider", (c) => {
   return jsonOk(c, whatsappBlasterService.providerInfo());

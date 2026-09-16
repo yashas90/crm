@@ -128,7 +128,7 @@ export function ProfileScreen({
 
       <Text style={screenStyles.sectionTitle}>Workspace</Text>
       <Card>
-        {onOpenWhatsApp ? (
+        {isAdmin && onOpenWhatsApp ? (
           <Button
             label="WhatsApp Blaster"
             variant="secondary"

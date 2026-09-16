@@ -112,11 +112,12 @@ export function useWhatsAppProvider() {
   });
 }
 
-export function useWhatsAppUnreadCount() {
+export function useWhatsAppUnreadCount(enabled = true) {
   return useQuery({
     queryKey: [...KEY, "unread"],
     queryFn: () => apiGet<{ count: number }>("/api/whatsapp/blaster/unread-count"),
     refetchInterval: 5_000,
+    enabled,
   });
 }
 

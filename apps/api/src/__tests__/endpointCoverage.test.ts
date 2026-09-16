@@ -548,12 +548,20 @@ describe("API endpoint coverage", () => {
       expect((await app.request("/api/whatsapp/blaster/provider")).status).toBe(401);
     });
 
-    it("GET /api/whatsapp/blaster/campaigns — agent", async ({ skip }) => {
+    it("GET /api/whatsapp/blaster/campaigns — agent → 403", async ({ skip }) => {
       if (!hasDb) skip();
       const res = await app.request("/api/whatsapp/blaster/campaigns", {
         headers: { Authorization: `Bearer ${tokens.agent}` },
       });
-      expect([200, 502, 503]).toContain(res.status);
+      expect(res.status).toBe(403);
+    });
+
+    it("GET /api/whatsapp/blaster/campaigns — manager → 403", async ({ skip }) => {
+      if (!hasDb) skip();
+      const res = await app.request("/api/whatsapp/blaster/campaigns", {
+        headers: { Authorization: `Bearer ${tokens.manager}` },
+      });
+      expect(res.status).toBe(403);
     });
   });
 
