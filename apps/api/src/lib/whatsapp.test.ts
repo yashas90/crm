@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTemplateComponents,
   extractTemplateVariables,
+  extractWhatsAppInboundMessages,
   extractWhatsAppStatusUpdates,
   normalizeTemplateCategory,
   toWhatsAppRecipient,
@@ -80,6 +81,45 @@ describe("extractWhatsAppStatusUpdates", () => {
       waMessageId: "wamid.abc123",
       status: "delivered",
       timestamp: 1710000000,
+    });
+  });
+});
+
+describe("extractWhatsAppInboundMessages", () => {
+  it("parses button replies and text", () => {
+    const inbound = extractWhatsAppInboundMessages({
+      object: "whatsapp_business_account",
+      entry: [
+        {
+          changes: [
+            {
+              field: "messages",
+              value: {
+                contacts: [{ wa_id: "919876543210", profile: { name: "Priya" } }],
+                messages: [
+                  {
+                    from: "919876543210",
+                    id: "wamid.in.1",
+                    timestamp: "1710000000",
+                    type: "interactive",
+                    interactive: {
+                      type: "button_reply",
+                      button_reply: { id: "interested", title: "I'm Interested" },
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(inbound).toHaveLength(1);
+    expect(inbound[0]).toMatchObject({
+      from: "919876543210",
+      buttonId: "interested",
+      text: "I'm Interested",
+      contactName: "Priya",
     });
   });
 });

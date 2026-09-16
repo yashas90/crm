@@ -66,6 +66,7 @@ import { tcfRoutes } from "./routes/tcf.js";
 import { userRolesRoutes } from "./routes/userRoles.js";
 import { usersRoutes } from "./routes/users.js";
 import { whatsappRoute } from "./routes/whatsapp.js";
+import { whatsappBlasterRoute } from "./routes/whatsappBlaster.js";
 
 const app = new Hono();
 
@@ -105,6 +106,7 @@ app.route("/api/public/site-visits", publicSiteVisitsRoutes);
 app.route("/api/integrations/meta", metaIntegrationsRoute);
 app.route("/api/integrations/portal", portalIntegrationsRoute);
 app.route("/api/integrations/whatsapp", whatsappIntegrationsRoute);
+app.route("/webhook/whatsapp", whatsappIntegrationsRoute);
 app.route("/api/documents", documentViewRoutes);
 
 app.use("/api/*", ipBlocklistMiddleware);
@@ -138,6 +140,7 @@ app.route("/api/tasks", tasksRoutes);
 app.route("/api/admin", adminRoutes);
 app.route("/api/site-visits", siteVisitsRoutes);
 app.route("/api/documents", documentsRoutes);
+app.route("/api/whatsapp/blaster", whatsappBlasterRoute);
 app.route("/api/whatsapp", whatsappRoute);
 app.route("/api/sms", smsRoutes);
 app.route("/api/message-templates", messageTemplatesRoutes);

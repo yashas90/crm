@@ -543,6 +543,18 @@ describe("API endpoint coverage", () => {
       });
       expect([200, 502, 503]).toContain(res.status);
     });
+
+    it("GET /api/whatsapp/blaster/provider — auth required", async () => {
+      expect((await app.request("/api/whatsapp/blaster/provider")).status).toBe(401);
+    });
+
+    it("GET /api/whatsapp/blaster/campaigns — agent", async ({ skip }) => {
+      if (!hasDb) skip();
+      const res = await app.request("/api/whatsapp/blaster/campaigns", {
+        headers: { Authorization: `Bearer ${tokens.agent}` },
+      });
+      expect([200, 502, 503]).toContain(res.status);
+    });
   });
 
   describe("Pagination caps", () => {

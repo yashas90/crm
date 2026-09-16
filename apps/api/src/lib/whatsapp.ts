@@ -139,8 +139,8 @@ export type SendWhatsAppTemplateResult = {
   waMessageId: string;
 };
 
-export async function sendWhatsAppTemplate(
-  input: SendWhatsAppTemplateInput,
+async function postWhatsAppMessage(
+  body: Record<string, unknown>,
 ): Promise<SendWhatsAppTemplateResult> {
   const token = env.WHATSAPP_API_TOKEN?.trim();
   const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID?.trim();
@@ -150,30 +150,18 @@ export async function sendWhatsAppTemplate(
   }
 
   const url = `https://graph.facebook.com/${WHATSAPP_GRAPH_API_VERSION}/${phoneNumberId}/messages`;
-
-  const body = {
-    messaging_product: "whatsapp",
-    to: toWhatsAppRecipient(input.to),
-    type: "template",
-    template: {
-      name: input.templateName,
-      language: { code: input.language },
-      ...(input.components.length > 0 ? { components: input.components } : {}),
-    },
-  };
-
   const response = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ messaging_product: "whatsapp", ...body }),
   });
 
   const json = (await response.json()) as {
     messages?: Array<{ id?: string }>;
-    error?: { message?: string };
+    error?: { message?: string; code?: number };
   };
 
   if (!response.ok) {
@@ -188,6 +176,95 @@ export async function sendWhatsAppTemplate(
   return { waMessageId };
 }
 
+export async function sendWhatsAppTemplate(
+  input: SendWhatsAppTemplateInput,
+): Promise<SendWhatsAppTemplateResult> {
+  return postWhatsAppMessage({
+    to: toWhatsAppRecipient(input.to),
+    type: "template",
+    template: {
+      name: input.templateName,
+      language: { code: input.language },
+      ...(input.components.length > 0 ? { components: input.components } : {}),
+    },
+  });
+}
+
+export type WhatsAppInteractiveButton = { id: string; title: string };
+
+export async function sendWhatsAppText(
+  to: string,
+  text: string,
+): Promise<SendWhatsAppTemplateResult> {
+  return postWhatsAppMessage({
+    to: toWhatsAppRecipient(to),
+    type: "text",
+    text: { body: text, preview_url: false },
+  });
+}
+
+export async function sendWhatsAppInteractiveButtons(input: {
+  to: string;
+  body: string;
+  buttons: WhatsAppInteractiveButton[];
+}): Promise<SendWhatsAppTemplateResult> {
+  if (input.buttons.length > 3) {
+    return postWhatsAppMessage({
+      to: toWhatsAppRecipient(input.to),
+      type: "interactive",
+      interactive: {
+        type: "list",
+        body: { text: input.body.slice(0, 1024) },
+        action: {
+          button: "Choose",
+          sections: [
+            {
+              title: "Options",
+              rows: input.buttons.slice(0, 10).map((button) => ({
+                id: button.id.slice(0, 200),
+                title: button.title.slice(0, 24),
+              })),
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  const buttons = input.buttons.slice(0, 3).map((button) => ({
+    type: "reply",
+    reply: { id: button.id.slice(0, 256), title: button.title.slice(0, 20) },
+  }));
+
+  return postWhatsAppMessage({
+    to: toWhatsAppRecipient(input.to),
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: input.body.slice(0, 1024) },
+      action: { buttons },
+    },
+  });
+}
+
+export async function sendWhatsAppMedia(input: {
+  to: string;
+  mediaType: "image" | "document" | "video";
+  link: string;
+  caption?: string;
+  filename?: string;
+}): Promise<SendWhatsAppTemplateResult> {
+  const payload: Record<string, unknown> = { link: input.link };
+  if (input.caption) payload.caption = input.caption;
+  if (input.mediaType === "document" && input.filename) payload.filename = input.filename;
+
+  return postWhatsAppMessage({
+    to: toWhatsAppRecipient(input.to),
+    type: input.mediaType,
+    [input.mediaType]: payload,
+  });
+}
+
 export type WhatsAppStatusUpdate = {
   waMessageId: string;
   status: "sent" | "delivered" | "read" | "failed";
@@ -195,12 +272,36 @@ export type WhatsAppStatusUpdate = {
   failedReason?: string;
 };
 
-export function extractWhatsAppStatusUpdates(body: {
+export type WhatsAppInboundMessage = {
+  waMessageId: string;
+  from: string;
+  timestamp?: number;
+  type: "text" | "button" | "interactive" | "other";
+  text: string;
+  buttonId?: string;
+  contactName?: string;
+};
+
+export type WhatsAppWebhookPayload = {
   object?: string;
   entry?: Array<{
     changes?: Array<{
       field?: string;
       value?: {
+        contacts?: Array<{ profile?: { name?: string }; wa_id?: string }>;
+        messages?: Array<{
+          from?: string;
+          id?: string;
+          timestamp?: string;
+          type?: string;
+          text?: { body?: string };
+          button?: { text?: string; payload?: string };
+          interactive?: {
+            type?: string;
+            button_reply?: { id?: string; title?: string };
+            list_reply?: { id?: string; title?: string };
+          };
+        }>;
         statuses?: Array<{
           id?: string;
           status?: string;
@@ -210,7 +311,62 @@ export function extractWhatsAppStatusUpdates(body: {
       };
     }>;
   }>;
-}): WhatsAppStatusUpdate[] {
+};
+
+export function extractWhatsAppInboundMessages(
+  body: WhatsAppWebhookPayload,
+): WhatsAppInboundMessage[] {
+  if (body.object !== "whatsapp_business_account") return [];
+
+  const inbound: WhatsAppInboundMessage[] = [];
+
+  for (const entry of body.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      if (change.field !== "messages") continue;
+      const contacts = new Map(
+        (change.value?.contacts ?? []).map((c) => [c.wa_id ?? "", c.profile?.name ?? ""]),
+      );
+
+      for (const message of change.value?.messages ?? []) {
+        if (!message.id || !message.from) continue;
+        let text = "";
+        let type: WhatsAppInboundMessage["type"] = "other";
+        let buttonId: string | undefined;
+
+        if (message.text?.body) {
+          type = "text";
+          text = message.text.body;
+        } else if (message.button) {
+          type = "button";
+          text = message.button.text ?? message.button.payload ?? "";
+          buttonId = message.button.payload ?? message.button.text;
+        } else if (message.interactive?.button_reply) {
+          type = "interactive";
+          text = message.interactive.button_reply.title ?? "";
+          buttonId = message.interactive.button_reply.id;
+        } else if (message.interactive?.list_reply) {
+          type = "interactive";
+          text = message.interactive.list_reply.title ?? "";
+          buttonId = message.interactive.list_reply.id;
+        }
+
+        inbound.push({
+          waMessageId: message.id,
+          from: message.from,
+          timestamp: message.timestamp ? Number(message.timestamp) : undefined,
+          type,
+          text,
+          buttonId,
+          contactName: contacts.get(message.from) || undefined,
+        });
+      }
+    }
+  }
+
+  return inbound;
+}
+
+export function extractWhatsAppStatusUpdates(body: WhatsAppWebhookPayload): WhatsAppStatusUpdate[] {
   if (body.object !== "whatsapp_business_account") return [];
 
   const updates: WhatsAppStatusUpdate[] = [];

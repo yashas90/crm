@@ -435,6 +435,13 @@
       "when": 1780632546749,
       "tag": "0061_bulletproof_tracking_status",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1780632546750,
+      "tag": "0062_whatsapp_blaster",
+      "breakpoints": true
     }
   ]
 }

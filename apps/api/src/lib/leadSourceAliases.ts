@@ -24,6 +24,7 @@ const SOURCE_ALIAS_GROUPS: Record<string, readonly string[]> = {
   "99 Acres": ["99 Acres", "99acres", "99Acres"],
   "Housing.com": ["Housing.com", "Housing", "housing.com", "housing"],
   WhatsApp: ["WhatsApp", "Whatsapp", "whatsapp", "WHATSAPP"],
+  "WhatsApp Blaster": ["WhatsApp Blaster", "whatsapp blaster"],
 };
 
 /** Expand a filter value to every stored variant (canonical + legacy slugs). */

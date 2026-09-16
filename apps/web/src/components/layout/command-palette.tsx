@@ -39,10 +39,10 @@ const NAV_ITEMS: CommandItem[] = [
     icon: <LayoutDashboard className="h-4 w-4" />,
   },
   {
-    id: "leads",
-    label: "Leads",
-    href: "/leads",
-    keywords: "contacts prospects",
+    id: "whatsapp",
+    label: "WhatsApp",
+    href: "/whatsapp",
+    keywords: "blast inbox campaigns templates leads",
     icon: <Users className="h-4 w-4" />,
   },
   {

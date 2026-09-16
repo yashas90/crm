@@ -2,6 +2,7 @@
 
 import { AppLogo } from "@/components/layout/app-logo";
 import { useSession } from "@/hooks/use-session";
+import { useWhatsAppUnreadCount } from "@/hooks/use-whatsapp-blaster";
 import { cn } from "@propninja/ui/lib/utils";
 import {
   Activity,
@@ -18,6 +19,7 @@ import {
   LineChart,
   MapPin,
   Megaphone,
+  MessageCircle,
   Phone,
   Radio,
   Settings,
@@ -42,6 +44,12 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager", "agent"] },
   { href: "/leads", label: "Leads", icon: Users, roles: ["admin", "manager", "agent"] },
+  {
+    href: "/whatsapp",
+    label: "WhatsApp",
+    icon: MessageCircle,
+    roles: ["admin", "manager", "agent"],
+  },
   { href: "/pipeline", label: "Pipeline", icon: Kanban, roles: ["admin", "manager", "agent"] },
   { href: "/tasks", label: "Tasks", icon: CheckSquare, roles: ["admin", "manager", "agent"] },
   {
@@ -147,6 +155,8 @@ type SidebarProps = {
 export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { session, ready } = useSession();
+  const unread = useWhatsAppUnreadCount();
+  const unreadCount = unread.data?.count ?? 0;
   const role = roleFromSession(session?.role);
 
   const visibleItems =
@@ -205,6 +215,11 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                     )}
                   />
                   <span className="truncate">{label}</span>
+                  {href === "/whatsapp" && unreadCount > 0 ? (
+                    <span className="ml-auto rounded-full bg-[#C02020] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}

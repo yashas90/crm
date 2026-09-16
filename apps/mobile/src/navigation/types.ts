@@ -40,6 +40,8 @@ export type ProfileStackParamList = {
   BookingsScreen: undefined;
   DocumentsLibraryScreen: undefined;
   SlaScreen: undefined;
+  WhatsAppHomeScreen: undefined;
+  WhatsAppBlasterScreen: undefined;
 };
 
 export type VisitsStackParamList = {
