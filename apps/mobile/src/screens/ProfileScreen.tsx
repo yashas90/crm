@@ -39,6 +39,7 @@ type ProfileScreenProps = {
   onOpenTrackingStatus?: () => void;
   onOpenSla?: () => void;
   onOpenSiteVisits?: () => void;
+  onOpenWhatsApp?: () => void;
 };
 
 export function ProfileScreen({
@@ -51,6 +52,7 @@ export function ProfileScreen({
   onOpenTrackingStatus,
   onOpenSla,
   onOpenSiteVisits,
+  onOpenWhatsApp,
 }: ProfileScreenProps) {
   const isAdmin = useIsAdmin();
   const isAgent = useIsAgent();
@@ -126,6 +128,14 @@ export function ProfileScreen({
 
       <Text style={screenStyles.sectionTitle}>Workspace</Text>
       <Card>
+        {isAdmin && onOpenWhatsApp ? (
+          <Button
+            label="WhatsApp Blaster"
+            variant="secondary"
+            onPress={onOpenWhatsApp}
+            style={styles.linkBtn}
+          />
+        ) : null}
         {onOpenProjects ? (
           <Button label="Projects & inventory" variant="secondary" onPress={onOpenProjects} />
         ) : null}

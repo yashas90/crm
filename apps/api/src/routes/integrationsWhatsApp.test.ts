@@ -9,6 +9,13 @@ vi.mock("../services/whatsappService.js", () => ({
   },
 }));
 
+vi.mock("../services/whatsappBlasterService.js", () => ({
+  whatsappBlasterService: {
+    applyStatusUpdates: vi.fn().mockResolvedValue(0),
+    handleInbound: vi.fn().mockResolvedValue(0),
+  },
+}));
+
 describe("POST /api/integrations/whatsapp/webhook", () => {
   it("acknowledges status updates", async () => {
     applyStatusUpdates.mockResolvedValue(1);

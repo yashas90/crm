@@ -1881,6 +1881,203 @@ export const facebookRateLimits = pgTable(
   ],
 );
 
+/**
+ * Campaign templates for the WhatsApp Blaster.
+ * Distinct from `whatsapp_templates` (Meta-approved 1:1 lead templates).
+ */
+export const whatsappBlastTemplates = pgTable(
+  "whatsapp_blast_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    body: text("body").notNull(),
+    mediaUrl: text("media_url"),
+    mediaType: text("media_type"),
+    buttons: jsonb("buttons").$type<unknown[]>().notNull().default([]),
+    questionFlow: jsonb("question_flow").$type<Record<string, unknown>>().notNull().default({}),
+    thankYouMessage: text("thank_you_message"),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("whatsapp_blast_templates_org_id_idx").on(table.orgId)],
+);
+
+export const whatsappCampaigns = pgTable(
+  "whatsapp_campaigns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    campaignCode: text("campaign_code").notNull(),
+    name: text("name").notNull(),
+    propertyId: uuid("property_id").references(() => projects.id),
+    propertyName: text("property_name"),
+    templateId: uuid("template_id").references(() => whatsappBlastTemplates.id),
+    status: text("status").notNull().default("draft"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    assignedAgentId: uuid("assigned_agent_id").references(() => users.id),
+    sendingSpeed: text("sending_speed").notNull().default("safe"),
+    dailyLimit: integer("daily_limit").notNull().default(500),
+    sentToday: integer("sent_today").notNull().default(0),
+    sentTodayDate: date("sent_today_date"),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    totalContacts: integer("total_contacts").notNull().default(0),
+    sentCount: integer("sent_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    deliveredCount: integer("delivered_count").notNull().default(0),
+    readCount: integer("read_count").notNull().default(0),
+    repliedCount: integer("replied_count").notNull().default(0),
+    interestedCount: integer("interested_count").notNull().default(0),
+    notInterestedCount: integer("not_interested_count").notNull().default(0),
+    leadsGenerated: integer("leads_generated").notNull().default(0),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("whatsapp_campaigns_org_code_uidx").on(table.orgId, table.campaignCode),
+    index("whatsapp_campaigns_org_status_idx").on(table.orgId, table.status),
+    check(
+      "whatsapp_campaigns_status_check",
+      sql`${table.status} in ('draft', 'scheduled', 'running', 'paused', 'completed')`,
+    ),
+    check(
+      "whatsapp_campaigns_speed_check",
+      sql`${table.sendingSpeed} in ('safe', 'normal', 'fast')`,
+    ),
+  ],
+);
+
+export const whatsappContacts = pgTable(
+  "whatsapp_contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => whatsappCampaigns.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    city: text("city"),
+    budget: text("budget"),
+    status: text("status").notNull().default("pending"),
+    isValid: boolean("is_valid").notNull().default(true),
+    invalidReason: text("invalid_reason"),
+    interestClickedAt: timestamp("interest_clicked_at", { withTimezone: true }),
+    questionAnswers: jsonb("question_answers")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    currentQuestionId: text("current_question_id"),
+    flowCompletedAt: timestamp("flow_completed_at", { withTimezone: true }),
+    leadId: uuid("lead_id"),
+    unreadCount: integer("unread_count").notNull().default(0),
+    lastInboundAt: timestamp("last_inbound_at", { withTimezone: true }),
+    lastOutboundAt: timestamp("last_outbound_at", { withTimezone: true }),
+    lastWaMessageId: text("last_wa_message_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("whatsapp_contacts_campaign_idx").on(table.campaignId),
+    index("whatsapp_contacts_phone_idx").on(table.orgId, table.phone),
+    index("whatsapp_contacts_campaign_status_idx").on(table.campaignId, table.status),
+    uniqueIndex("whatsapp_contacts_campaign_phone_uidx").on(table.campaignId, table.phone),
+    check(
+      "whatsapp_contacts_status_check",
+      sql`${table.status} in ('pending', 'queued', 'sent', 'delivered', 'read', 'replied', 'interested', 'not_interested', 'invalid')`,
+    ),
+  ],
+);
+
+/**
+ * Full chat history for blaster campaigns.
+ * Distinct from `whatsapp_messages` (1:1 Meta template sends to CRM leads).
+ */
+export const whatsappBlastMessages = pgTable(
+  "whatsapp_blast_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    campaignId: uuid("campaign_id").references(() => whatsappCampaigns.id, { onDelete: "cascade" }),
+    contactId: uuid("contact_id").references(() => whatsappContacts.id, { onDelete: "cascade" }),
+    waMessageId: text("wa_message_id"),
+    direction: text("direction").notNull(),
+    type: text("type").notNull(),
+    content: text("content").notNull().default(""),
+    status: text("status").notNull().default("queued"),
+    failedReason: text("failed_reason"),
+    leadId: uuid("lead_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("whatsapp_blast_messages_contact_idx").on(table.contactId, table.createdAt),
+    index("whatsapp_blast_messages_wa_id_idx").on(table.waMessageId),
+    index("whatsapp_blast_messages_campaign_idx").on(table.campaignId),
+    check(
+      "whatsapp_blast_messages_direction_check",
+      sql`${table.direction} in ('outbound', 'inbound')`,
+    ),
+    check(
+      "whatsapp_blast_messages_type_check",
+      sql`${table.type} in ('template', 'text', 'button_reply', 'media')`,
+    ),
+    check(
+      "whatsapp_blast_messages_status_check",
+      sql`${table.status} in ('queued', 'sent', 'delivered', 'read', 'failed')`,
+    ),
+  ],
+);
+
+export const whatsappLeads = pgTable(
+  "whatsapp_leads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    leadCode: text("lead_code").notNull(),
+    campaignId: uuid("campaign_id").references(() => whatsappCampaigns.id, {
+      onDelete: "set null",
+    }),
+    contactId: uuid("contact_id").references(() => whatsappContacts.id, { onDelete: "set null" }),
+    contactPhone: text("contact_phone").notNull(),
+    name: text("name").notNull(),
+    budgetAnswer: text("budget_answer"),
+    locationAnswer: text("location_answer"),
+    timelineAnswer: text("timeline_answer"),
+    allAnswers: jsonb("all_answers").$type<Record<string, unknown>>().notNull().default({}),
+    sourceCampaign: text("source_campaign"),
+    propertyName: text("property_name"),
+    assignedAgentId: uuid("assigned_agent_id").references(() => users.id),
+    status: text("status").notNull().default("new"),
+    convertedToLeadId: uuid("converted_to_lead_id").references(() => leads.id),
+    interestAt: timestamp("interest_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("whatsapp_leads_org_code_uidx").on(table.orgId, table.leadCode),
+    index("whatsapp_leads_org_status_idx").on(table.orgId, table.status),
+    index("whatsapp_leads_campaign_idx").on(table.campaignId),
+    index("whatsapp_leads_phone_idx").on(table.orgId, table.contactPhone),
+    check(
+      "whatsapp_leads_status_check",
+      sql`${table.status} in ('new', 'contacted', 'converted', 'lost')`,
+    ),
+  ],
+);
+
 export const facebookTokensRelations = relations(facebookTokens, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [facebookTokens.orgId],

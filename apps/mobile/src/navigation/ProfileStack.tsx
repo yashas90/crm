@@ -27,6 +27,14 @@ const ProjectDetailScreen = lazyNamed(
 );
 const BookingsScreen = lazyNamed(() => import("@/screens/BookingsScreen"), "BookingsScreen");
 const SlaScreen = lazyNamed(() => import("@/screens/SlaScreen"), "SlaScreen");
+const WhatsAppHomeScreen = lazyNamed(
+  () => import("@/screens/WhatsAppHomeScreen"),
+  "WhatsAppHomeScreen",
+);
+const WhatsAppBlasterScreen = lazyNamed(
+  () => import("@/screens/WhatsAppBlasterScreen"),
+  "WhatsAppBlasterScreen",
+);
 const ProjectUnitScreen = lazyNamed(
   () => import("@/screens/ProjectUnitScreen"),
   "ProjectUnitScreen",
@@ -63,6 +71,7 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
               onOpenTrackingStatus={() => navigation.navigate("TrackingStatusScreen")}
               onOpenSla={() => navigation.navigate("SlaScreen")}
               onOpenSiteVisits={() => navigation.getParent()?.navigate("VisitsTab")}
+              onOpenWhatsApp={() => navigation.navigate("WhatsAppHomeScreen")}
             />
           )}
         </Stack.Screen>
@@ -105,6 +114,16 @@ export function ProfileStack({ onLogout }: ProfileStackProps) {
           name="SlaScreen"
           component={SlaScreen}
           options={{ title: "Lead SLA", ...detailScreenOptions }}
+        />
+        <Stack.Screen
+          name="WhatsAppHomeScreen"
+          component={WhatsAppHomeScreen}
+          options={{ title: "WhatsApp", headerShown: false }}
+        />
+        <Stack.Screen
+          name="WhatsAppBlasterScreen"
+          component={WhatsAppBlasterScreen}
+          options={{ title: "WhatsApp Blaster", ...detailScreenOptions }}
         />
         <Stack.Screen
           name="ProjectUnitScreen"

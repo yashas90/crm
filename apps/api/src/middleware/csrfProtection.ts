@@ -25,6 +25,7 @@ export async function csrfProtectionMiddleware(c: Context, next: Next) {
     path.startsWith("/api/integrations/meta/") ||
     path.startsWith("/api/integrations/portal/") ||
     path.startsWith("/api/integrations/whatsapp/") ||
+    path.startsWith("/webhook/whatsapp") ||
     path === "/api/google-calendar/callback"
   ) {
     await next();

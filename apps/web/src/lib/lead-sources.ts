@@ -27,6 +27,7 @@ export const LEADS_SOURCE_FILTER_CHIPS = [
   { value: "99 Acres", label: "99 Acres" },
   { value: "Housing.com", label: "Housing" },
   { value: "WhatsApp", label: "WhatsApp" },
+  { value: "WhatsApp Blaster", label: "WhatsApp Blaster" },
   { value: "Website", label: "Website" },
   { value: "Referral", label: "Referral" },
   { value: "Walk In", label: "Walk In" },

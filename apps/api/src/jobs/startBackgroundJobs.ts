@@ -20,6 +20,7 @@ import { startSiteVisitReminderJob } from "./siteVisitReminderJob.js";
 import { startSlaBreachJob } from "./slaBreachJob.js";
 import { startTaskDueNotificationJob } from "./taskDueNotificationJob.js";
 import { startTrackingHealthJob } from "./trackingHealthJob.js";
+import { startWhatsAppBlasterJob } from "./whatsappBlasterJob.js";
 
 /** Use BullMQ when Redis is configured; otherwise fall back to in-process timers. */
 export async function startBackgroundJobs() {
@@ -54,6 +55,7 @@ export async function startBackgroundJobs() {
     startTrackingHealthJob();
     startSlaBreachJob();
     startTaskDueNotificationJob();
+    startWhatsAppBlasterJob();
     return;
   }
 
@@ -68,6 +70,7 @@ export async function startBackgroundJobs() {
   startPurgeExpiredTrackingJob();
   startTrackingHealthJob();
   startTaskDueNotificationJob();
+  startWhatsAppBlasterJob();
   setInterval(
     () => {
       void syncPagesFormsAndSubscribe().catch((err) => {

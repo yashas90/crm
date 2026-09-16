@@ -14,7 +14,11 @@ import { useEffect, useRef, useState } from "react";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Overview",
-  "/leads": "Leads",
+  "/whatsapp": "WhatsApp",
+  "/whatsapp/inbox": "WhatsApp Inbox",
+  "/whatsapp/leads": "WhatsApp Leads",
+  "/whatsapp/campaigns": "WhatsApp Campaigns",
+  "/whatsapp/templates": "WhatsApp Templates",
   "/pipeline": "Pipeline",
   "/tasks": "Tasks",
   "/projects": "Projects",

@@ -19,6 +19,7 @@ export const NOTIFICATION_TYPES = {
   NEW_AD_LEAD: "new_ad_lead",
   SITE_VISIT_CONFIRMED_BY_CLIENT: "site_visit_confirmed_by_client",
   CALLBACK_REQUESTED: "callback_requested",
+  WHATSAPP_LEAD: "whatsapp_lead",
   SLA_BREACH: "sla_breach",
   TRACKING_ALERT: "tracking_alert",
 } as const;
@@ -105,6 +106,14 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
           typeof payload.message === "string"
             ? payload.message
             : `Reminder set: Call back ${leadName}`,
+      };
+    case NOTIFICATION_TYPES.CALLBACK_REQUESTED:
+      return {
+        title: "Call me back",
+        body:
+          typeof payload.message === "string"
+            ? payload.message
+            : `${leadName} requested a callback on WhatsApp`,
       };
     default:
       return {
