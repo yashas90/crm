@@ -64,6 +64,21 @@ describe("apiGet / apiPost success path", () => {
     await expect(apiGet("/api/missing")).rejects.toThrow(ApiRequestError);
   });
 
+  it("does not crash on Railway application-not-found JSON", async () => {
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        makeResponse(
+          { status: "error", code: 404, message: "Application not found", request_id: "abc" },
+          404,
+        ),
+      );
+    const err = await apiGet("/api/leads").catch((e) => e);
+    expect(err).toBeInstanceOf(ApiRequestError);
+    expect((err as ApiRequestError).code).toBe("API_UNAVAILABLE");
+    expect((err as ApiRequestError).message).toMatch(/API server is unreachable/i);
+  });
+
   it("thrown error carries code and status", async () => {
     jest
       .spyOn(globalThis, "fetch")

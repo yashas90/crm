@@ -26,7 +26,7 @@ function formatValidationDetails(details: unknown): string | null {
 /** User-facing message for API, network, and unknown errors. */
 export function getErrorMessage(error: unknown, fallback = "Something went wrong"): string {
   if (error instanceof ApiRequestError) {
-    if (error.code === "NETWORK_ERROR") {
+    if (error.code === "NETWORK_ERROR" || error.code === "API_UNAVAILABLE") {
       return error.message;
     }
     if (error.code === "UNAUTHORIZED") {
