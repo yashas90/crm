@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import { getMobileClientHeaders } from "@/lib/appVersion";
 import { clearAuth, getRefreshToken, getToken, updateTokens } from "@/lib/auth";
+import { resolveApiErrorFields } from "@propninja/types/api";
 
 export type ApiSuccess<T> = { ok: true; data: T };
 export type ApiError = {
@@ -228,13 +229,8 @@ async function apiFetchOnce<T>(path: string, init: RequestInit & ApiRequestOptio
   }
 
   if (!response.ok || !json.ok) {
-    const error = json.ok ? { code: "HTTP_ERROR", message: response.statusText } : json.error;
-    const apiError = new ApiRequestError(
-      error.code,
-      error.message,
-      "details" in error ? error.details : undefined,
-      response.status,
-    );
+    const error = resolveApiErrorFields(json, response);
+    const apiError = new ApiRequestError(error.code, error.message, error.details, response.status);
 
     if (apiError.code === "APP_UPDATE_REQUIRED" || response.status === 426) {
       appUpdateRequiredHandler?.();

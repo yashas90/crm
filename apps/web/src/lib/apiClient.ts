@@ -1,4 +1,5 @@
 import { clearSession, getToken } from "@/lib/auth";
+import { resolveApiErrorFields } from "@propninja/types/api";
 
 let cachedApiUrl: string | undefined;
 let refreshPromise: Promise<boolean> | null = null;
@@ -57,6 +58,11 @@ export class ApiRequestError extends Error {
     super(message);
     this.name = "ApiRequestError";
   }
+}
+
+function throwApiFailure(json: unknown, response: Response): never {
+  const error = resolveApiErrorFields(json, response);
+  throw new ApiRequestError(error.code, error.message, error.details);
 }
 
 async function tryRefreshSession(): Promise<boolean> {
@@ -154,12 +160,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   if (!response.ok || !json.ok) {
-    const error = json.ok ? { code: "HTTP_ERROR", message: response.statusText } : json.error;
-    throw new ApiRequestError(
-      error.code,
-      error.message,
-      "details" in error ? error.details : undefined,
-    );
+    throwApiFailure(json, response);
   }
 
   return json.data;
@@ -212,10 +213,8 @@ export async function apiDownload(path: string, filename: string) {
   if (!response.ok) {
     const raw = await response.text();
     try {
-      const json = JSON.parse(raw) as ApiError;
-      if (!json.ok) {
-        throw new ApiRequestError(json.error.code, json.error.message, json.error.details);
-      }
+      const json = JSON.parse(raw) as unknown;
+      throwApiFailure(json, response);
     } catch (error) {
       if (error instanceof ApiRequestError) throw error;
       throw new ApiRequestError("HTTP_ERROR", `Download failed (${response.status})`);
@@ -269,12 +268,7 @@ async function parseApiResponse<T>(response: Response): Promise<T> {
   }
 
   if (!response.ok || !json.ok) {
-    const error = json.ok ? { code: "HTTP_ERROR", message: response.statusText } : json.error;
-    throw new ApiRequestError(
-      error.code,
-      error.message,
-      "details" in error ? error.details : undefined,
-    );
+    throwApiFailure(json, response);
   }
 
   return json.data;
