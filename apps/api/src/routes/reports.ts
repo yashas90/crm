@@ -4,6 +4,7 @@ import { resolveCallsReportUserScope } from "../lib/callsReportScope.js";
 import { maskPhone } from "../lib/leadMasking.js";
 import { canExportReports, canViewReports, hasPermission } from "../lib/permissions.js";
 import {
+  type CallsReportQuery,
   callsReportQuerySchema,
   dashboardReportQuerySchema,
   leadsReportQuerySchema,
@@ -153,10 +154,14 @@ reportsRoutes.get("/dashboard", async (c) => {
 async function parseCallsReportRequest(
   authUser: AuthUser,
   query: Record<string, string | string[] | undefined>,
-) {
+): Promise<
+  | { ok: true; scopedQuery: CallsReportQuery; parsed: CallsReportQuery }
+  | { ok: false; error: unknown }
+  | { ok: false; forbidden: string }
+> {
   const parsed = callsReportQuerySchema.safeParse(query);
   if (!parsed.success) {
-    return { error: parsed.error.flatten() as unknown };
+    return { ok: false, error: parsed.error.flatten() as unknown };
   }
 
   const canViewAllReports = hasPermission(authUser, "reports:view_all");
@@ -174,10 +179,10 @@ async function parseCallsReportRequest(
   });
 
   if ("forbidden" in scopedUsers) {
-    return { forbidden: scopedUsers.forbidden };
+    return { ok: false, forbidden: scopedUsers.forbidden };
   }
 
-  const scopedQuery = {
+  const scopedQuery: CallsReportQuery = {
     ...parsed.data,
     userId: scopedUsers.userIds
       ? undefined
@@ -186,32 +191,30 @@ async function parseCallsReportRequest(
     status: parsed.data.status,
   };
 
-  return { scopedQuery, parsed: parsed.data };
+  return { ok: true, scopedQuery, parsed: parsed.data };
 }
 
 function callsReportParseFailure(
   result: Awaited<ReturnType<typeof parseCallsReportRequest>>,
   c: { json: (body: unknown, status?: number) => Response },
-) {
-  if ("error" in result) {
-    return c.json(
-      {
-        ok: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Invalid query",
-          details: result.error,
-        },
-      },
-      400,
-    );
-  }
+): Response | undefined {
+  if (result.ok) return undefined;
 
   if ("forbidden" in result) {
     return c.json({ ok: false, error: { code: "FORBIDDEN", message: result.forbidden } }, 403);
   }
 
-  return null;
+  return c.json(
+    {
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Invalid query",
+        details: result.error,
+      },
+    },
+    400,
+  );
 }
 
 /**
@@ -245,7 +248,12 @@ reportsRoutes.get("/calls/export", async (c) => {
   const result = await parseCallsReportRequest(authUser, c.req.query());
   const parseError = callsReportParseFailure(result, c);
   if (parseError) return parseError;
-  if (!("scopedQuery" in result)) return parseError;
+  if (!result.ok) {
+    return c.json(
+      { ok: false, error: { code: "INTERNAL_ERROR", message: "Invalid report request" } },
+      500,
+    );
+  }
 
   if (result.parsed.groupBy !== "user") {
     return c.json(
@@ -278,7 +286,12 @@ reportsRoutes.get("/calls", async (c) => {
   const result = await parseCallsReportRequest(authUser, c.req.query());
   const parseError = callsReportParseFailure(result, c);
   if (parseError) return parseError;
-  if (!("scopedQuery" in result)) return parseError;
+  if (!result.ok) {
+    return c.json(
+      { ok: false, error: { code: "INTERNAL_ERROR", message: "Invalid report request" } },
+      500,
+    );
+  }
 
   if (result.parsed.groupBy === "user") {
     const data = await reportService.getCallsReportPerUser(result.scopedQuery);
@@ -453,7 +466,12 @@ reportsRoutes.get("/calls/analytics/export", async (c) => {
   const result = await parseCallsReportRequest(authUser, c.req.query());
   const parseError = callsReportParseFailure(result, c);
   if (parseError) return parseError;
-  if (!("scopedQuery" in result)) return parseError;
+  if (!result.ok) {
+    return c.json(
+      { ok: false, error: { code: "INTERNAL_ERROR", message: "Invalid report request" } },
+      500,
+    );
+  }
 
   if (result.parsed.groupBy === "user") {
     return c.json(
