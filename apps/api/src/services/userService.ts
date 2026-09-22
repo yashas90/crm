@@ -103,13 +103,9 @@ function buildUserListFilters(
   applyUserStatusFilter(filters, query.status ?? "all", query.isActive);
 
   if (viewer?.role === "manager") {
-    filters.push(
-      or(
-        eq(users.reportingToId, viewer.id),
-        eq(users.generalManagerId, viewer.id),
-        eq(users.id, viewer.id),
-      )!,
-    );
+    // Field staff directory for filters and calling reports. Do not require
+    // reporting_to — it is often unset, which hid every employee from managers.
+    filters.push(inArray(users.role, ["agent", "manager"]));
   }
 
   return and(...filters);

@@ -60,4 +60,14 @@ describe("resolveCallsReportUserScope", () => {
       }),
     ).toEqual({ userId: undefined, userIds: undefined });
   });
+
+  it("does not restrict managers when org-wide report access is granted", () => {
+    expect(
+      resolveCallsReportUserScope({
+        viewer: manager,
+        canViewAllReports: true,
+        teamUserIds: [],
+      }),
+    ).toEqual({ userId: undefined, userIds: undefined });
+  });
 });

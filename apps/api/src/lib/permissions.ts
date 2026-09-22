@@ -47,6 +47,17 @@ export function canViewReports(user: AuthUser): boolean {
   );
 }
 
+/**
+ * Org-wide call/report numbers. Admins have `reports:view_all`.
+ * Managers only have `reports:view_reportees`, but this CRM is single-tenant and
+ * `reporting_to` / `general_manager` is often unset — they still need every
+ * employee's calling report (same as leads and /reports/team).
+ */
+export function canViewOrgWideReports(user: AuthUser): boolean {
+  if (hasPermission(user, "reports:view_all")) return true;
+  return user.role === "manager" && hasPermission(user, "reports:view_reportees");
+}
+
 export function canExportReports(user: AuthUser): boolean {
   return hasPermission(user, "reports:export") || hasPermission(user, "reports:export_reportees");
 }

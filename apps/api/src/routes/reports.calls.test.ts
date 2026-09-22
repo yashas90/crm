@@ -34,8 +34,7 @@ const adminUser = {
   name: "Admin",
 };
 
-const agentOnTeam = "00000000-0000-4000-8000-000000000010";
-const agentOffTeam = "00000000-0000-4000-8000-000000000099";
+const agentId = "00000000-0000-4000-8000-000000000010";
 
 function buildApp(user: typeof managerUser) {
   const app = new Hono();
@@ -49,7 +48,7 @@ function buildApp(user: typeof managerUser) {
 describe("GET /api/reports/calls manager scope", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    listManagerTeamUserIds.mockResolvedValue([managerUser.id, agentOnTeam]);
+    listManagerTeamUserIds.mockResolvedValue([managerUser.id]);
     getCallsReportPerUser.mockResolvedValue({
       items: [],
       total: 0,
@@ -65,29 +64,33 @@ describe("GET /api/reports/calls manager scope", () => {
     });
   });
 
-  it("allows managers to load the per-user call report for their team", async () => {
+  it("lets managers load every employee's per-user call report", async () => {
     const { reportsRoutes } = await import("./reports.js");
     const app = buildApp(managerUser);
     app.route("/api/reports", reportsRoutes);
 
     const res = await app.request("/api/reports/calls?group_by=user");
     expect(res.status).toBe(200);
-    expect(listManagerTeamUserIds).toHaveBeenCalledWith(managerUser.id);
+    expect(listManagerTeamUserIds).not.toHaveBeenCalled();
     expect(getCallsReportPerUser).toHaveBeenCalledWith(
       expect.objectContaining({
-        userIds: [managerUser.id, agentOnTeam],
+        userIds: undefined,
       }),
     );
   });
 
-  it("rejects a manager filter for an agent outside their team", async () => {
+  it("lets managers filter the call report by any employee", async () => {
     const { reportsRoutes } = await import("./reports.js");
     const app = buildApp(managerUser);
     app.route("/api/reports", reportsRoutes);
 
-    const res = await app.request(`/api/reports/calls?group_by=user&user_ids=${agentOffTeam}`);
-    expect(res.status).toBe(403);
-    expect(getCallsReportPerUser).not.toHaveBeenCalled();
+    const res = await app.request(`/api/reports/calls?group_by=user&user_ids=${agentId}`);
+    expect(res.status).toBe(200);
+    expect(getCallsReportPerUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userIds: [agentId],
+      }),
+    );
   });
 
   it("does not team-scope admins", async () => {

@@ -17,7 +17,8 @@ export type ResolveCallsReportUserScopeInput = CallsReportUserScope & {
 /**
  * Agents always see themselves. Managers without org-wide report access are limited
  * to themselves plus users who report to them (or list them as general manager).
- * Admins / view_all keep the requested user filter (or org-wide when omitted).
+ * Admins and managers with reportee/org report access keep the requested user
+ * filter (or org-wide when omitted).
  */
 export function resolveCallsReportUserScope(
   input: ResolveCallsReportUserScopeInput,
