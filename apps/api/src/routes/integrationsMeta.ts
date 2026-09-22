@@ -9,6 +9,7 @@ import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { env } from "../lib/env.js";
 import {
   type MetaLeadgenWebhookBody,
+  coerceMetaWebhookNumericIds,
   extractLeadgenChanges,
   verifyMetaWebhookSignature,
 } from "../lib/facebook.js";
@@ -118,7 +119,7 @@ metaIntegrationsRoute.post("/webhook", metaWebhookRateLimit, async (c) => {
   let body: MetaLeadgenWebhookBody;
 
   try {
-    body = JSON.parse(rawBody) as MetaLeadgenWebhookBody;
+    body = JSON.parse(coerceMetaWebhookNumericIds(rawBody)) as MetaLeadgenWebhookBody;
   } catch (error) {
     logger.warn("Meta webhook received invalid JSON", {
       error: error instanceof Error ? error.message : String(error),

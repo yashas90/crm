@@ -8,7 +8,7 @@ import { facebookForms, facebookPages } from "@propninja/db";
 import { and, count, eq } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 import { db } from "./db.js";
-import type { MetaLeadgenWebhookValue } from "./facebook.js";
+import { type MetaLeadgenWebhookValue, asMetaId } from "./facebook.js";
 
 export type MetaLeadgenScopeResult = {
   allowed: boolean;
@@ -39,7 +39,8 @@ export async function isMetaLeadgenAllowed(
   change: MetaLeadgenWebhookValue,
   orgId: string = SINGLE_TENANT_ORG_ID,
 ): Promise<MetaLeadgenScopeResult> {
-  if (!change.page_id?.trim()) {
+  const pageId = asMetaId(change.page_id);
+  if (!pageId) {
     return { allowed: false, reason: "missing_page_id" };
   }
 
@@ -51,7 +52,7 @@ export async function isMetaLeadgenAllowed(
       hasToken: facebookPages.accessTokenEncrypted,
     })
     .from(facebookPages)
-    .where(and(eq(facebookPages.orgId, orgId), eq(facebookPages.pageId, change.page_id)))
+    .where(and(eq(facebookPages.orgId, orgId), eq(facebookPages.pageId, pageId)))
     .limit(1);
 
   if (!page) {
@@ -64,7 +65,8 @@ export async function isMetaLeadgenAllowed(
     return { allowed: false, reason: "page_token_missing" };
   }
 
-  if (!change.form_id?.trim()) {
+  const formId = asMetaId(change.form_id);
+  if (!formId) {
     return { allowed: true, pageRowId: page.id };
   }
 
@@ -75,7 +77,7 @@ export async function isMetaLeadgenAllowed(
       isSelected: facebookForms.isSelected,
     })
     .from(facebookForms)
-    .where(and(eq(facebookForms.orgId, orgId), eq(facebookForms.formId, change.form_id)))
+    .where(and(eq(facebookForms.orgId, orgId), eq(facebookForms.formId, formId)))
     .limit(1);
 
   // Unknown form on a known page: allow (new form before next sync) but still ingest.

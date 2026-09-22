@@ -111,13 +111,15 @@ async function runJob(name: string, data?: Record<string, unknown>) {
         });
       });
     case JOB_NAMES.META_LEAD_BACKFILL:
-    case JOB_NAMES.META_RECONCILIATION:
-      // Backup only — webhooks remain primary. Narrow window reduces Graph load.
-      return backfillMetaLeads(undefined, { sinceDays: 1 }).catch((error) => {
+    case JOB_NAMES.META_RECONCILIATION: {
+      const sinceDays = typeof data?.sinceDays === "number" ? data.sinceDays : 1;
+      const includeUnselected = data?.includeUnselected === true;
+      return backfillMetaLeads(undefined, { sinceDays, includeUnselected }).catch((error) => {
         logger.warn("Scheduled Meta lead reconciliation failed", {
           error: error instanceof Error ? error.message : String(error),
         });
       });
+    }
     case JOB_NAMES.META_TOKEN_REFRESH:
       return refreshLongLivedUserToken().catch((error) => {
         logger.warn("Scheduled Meta token refresh failed", {

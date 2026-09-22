@@ -56,6 +56,11 @@ export async function startBackgroundJobs() {
     startSlaBreachJob();
     startTaskDueNotificationJob();
     startWhatsAppBlasterJob();
+    void backfillMetaLeads(undefined, { sinceDays: 2, includeUnselected: true }).catch((err) => {
+      logger.warn("Startup Meta lead catch-up failed", {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    });
     return;
   }
 
@@ -71,6 +76,11 @@ export async function startBackgroundJobs() {
   startTrackingHealthJob();
   startTaskDueNotificationJob();
   startWhatsAppBlasterJob();
+  void backfillMetaLeads(undefined, { sinceDays: 2, includeUnselected: true }).catch((err) => {
+    logger.warn("Startup Meta lead catch-up failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  });
   setInterval(
     () => {
       void syncPagesFormsAndSubscribe().catch((err) => {

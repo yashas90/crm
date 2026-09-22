@@ -30,6 +30,43 @@ export type MetaLeadgenWebhookValue = {
   created_time?: number;
 };
 
+/** Meta Graph/webhook IDs may arrive as JSON numbers; DB columns and Graph paths need strings. */
+export function asMetaId(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  const text = String(value).trim();
+  return text.length > 0 && text !== "undefined" && text !== "null" ? text : undefined;
+}
+
+/**
+ * Quote long numeric IDs in raw webhook JSON so JSON.parse does not lose precision
+ * (leadgen IDs are often 15–17 digits). Must run after HMAC verification.
+ */
+export function coerceMetaWebhookNumericIds(rawBody: string): string {
+  return rawBody.replace(
+    /"(leadgen_id|page_id|form_id|ad_id|adgroup_id|campaign_id|adset_id)"\s*:\s*(\d{10,})/g,
+    '"$1":"$2"',
+  );
+}
+
+export function normalizeMetaLeadgenChange(
+  value: MetaLeadgenWebhookValue,
+  entryPageId?: unknown,
+): MetaLeadgenWebhookValue | null {
+  const leadgenId = asMetaId(value.leadgen_id);
+  const pageId = asMetaId(value.page_id) ?? asMetaId(entryPageId);
+  if (!leadgenId || !pageId) return null;
+
+  return {
+    leadgen_id: leadgenId,
+    page_id: pageId,
+    form_id: asMetaId(value.form_id),
+    ad_id: asMetaId(value.ad_id),
+    adgroup_id: asMetaId(value.adgroup_id),
+    campaign_id: asMetaId(value.campaign_id),
+    created_time: value.created_time,
+  };
+}
+
 export type MetaLeadgenWebhookBody = {
   object?: string;
   entry?: Array<{
@@ -165,7 +202,10 @@ export function extractLeadgenChanges(body: MetaLeadgenWebhookBody): MetaLeadgen
       if (change.field !== "leadgen" || !change.value?.leadgen_id) {
         continue;
       }
-      changes.push(change.value);
+      const normalized = normalizeMetaLeadgenChange(change.value, entry.id);
+      if (normalized) {
+        changes.push(normalized);
+      }
     }
   }
 
