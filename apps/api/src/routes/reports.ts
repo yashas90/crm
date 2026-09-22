@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { resolveCallsReportUserScope } from "../lib/callsReportScope.js";
 import { maskPhone } from "../lib/leadMasking.js";
-import { canExportReports, canViewReports, hasPermission } from "../lib/permissions.js";
+import { canExportReports, canViewOrgWideReports, canViewReports } from "../lib/permissions.js";
 import {
   type CallsReportQuery,
   callsReportQuerySchema,
@@ -164,7 +164,7 @@ async function parseCallsReportRequest(
     return { ok: false, error: parsed.error.flatten() as unknown };
   }
 
-  const canViewAllReports = hasPermission(authUser, "reports:view_all");
+  const canViewAllReports = canViewOrgWideReports(authUser);
   const teamUserIds =
     authUser.role === "manager" && !canViewAllReports
       ? await reportService.listManagerTeamUserIds(authUser.id)
@@ -236,8 +236,8 @@ function callsReportParseFailure(
  * - `with_team=true` — include direct reports of selected user(s) via `users.reporting_to_id`
  * - `page`, `page_size` — pagination (default page 1, size 50)
  *
- * Managers without `reports:view_all` are limited to themselves and their team
- * (reporting_to_id / general_manager_id). Admins see the full org unless filtered.
+ * Managers see all employees' calling reports (single-tenant). Admins see the
+ * full org unless a user filter is applied.
  *
  * CSV export: GET /api/reports/calls/export?group_by=user&… (same filters, no pagination).
  */

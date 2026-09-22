@@ -294,7 +294,12 @@ async function expandCallsReportUserScope(query: CallsReportQuery): Promise<Call
   const directReports = await db
     .select({ id: users.id })
     .from(users)
-    .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), inArray(users.reportingToId, managerIds)));
+    .where(
+      and(
+        eq(users.orgId, SINGLE_TENANT_ORG_ID),
+        or(inArray(users.reportingToId, managerIds), inArray(users.generalManagerId, managerIds)),
+      ),
+    );
 
   const userIds = [...new Set([...managerIds, ...directReports.map((row) => row.id)])];
 
@@ -309,7 +314,7 @@ async function resolveCallsReportQuery(query: CallsReportQuery) {
   return expandCallsReportUserScope(query);
 }
 
-/** Self + users who report to this manager or list them as general manager. */
+/** Self + field staff (agents/managers). Reporting tree is a fallback, not a gate. */
 async function listManagerTeamUserIds(managerId: string): Promise<string[]> {
   const rows = await db
     .select({ id: users.id })
@@ -319,6 +324,8 @@ async function listManagerTeamUserIds(managerId: string): Promise<string[]> {
         eq(users.orgId, SINGLE_TENANT_ORG_ID),
         or(
           eq(users.id, managerId),
+          eq(users.role, "agent"),
+          eq(users.role, "manager"),
           eq(users.reportingToId, managerId),
           eq(users.generalManagerId, managerId),
         ),
