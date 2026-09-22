@@ -11,6 +11,8 @@ type AgentMultiSelectProps = {
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   hint?: string;
+  emptyHint?: string;
+  compact?: boolean;
   className?: string;
   isLoading?: boolean;
   errorMessage?: string;
@@ -30,6 +32,8 @@ export function AgentMultiSelect({
   selectedIds,
   onChange,
   hint,
+  emptyHint = "Select at least one agent.",
+  compact = false,
   className,
   isLoading = false,
   errorMessage,
@@ -78,7 +82,10 @@ export function AgentMultiSelect({
 
       <fieldset
         id={id}
-        className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-input bg-background p-2"
+        className={cn(
+          "space-y-1 overflow-y-auto rounded-xl border border-input bg-background p-2",
+          compact ? "max-h-40" : "max-h-48",
+        )}
       >
         <legend className="sr-only">{label}</legend>
         {isLoading ? (
@@ -106,7 +113,8 @@ export function AgentMultiSelect({
               <label
                 key={user.id}
                 className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted/60",
+                  "flex cursor-pointer items-center text-sm transition-colors hover:bg-muted/60",
+                  compact ? "gap-2 rounded-md px-2 py-1.5" : "gap-3 rounded-lg px-2 py-2",
                   checked && "bg-primary/5",
                 )}
               >
@@ -126,7 +134,7 @@ export function AgentMultiSelect({
 
       <p className="text-xs text-muted-foreground">
         {selectedIds.length === 0
-          ? "Select at least one agent."
+          ? emptyHint
           : `${selectedIds.length} agent${selectedIds.length === 1 ? "" : "s"} selected`}
         {hint ? ` — ${hint}` : ""}
       </p>

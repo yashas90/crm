@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentMultiSelect } from "@/components/leads/agent-multi-select";
 import { LeadsScopeTabs } from "@/components/leads/leads-scope-tabs";
 import { ProjectSelect } from "@/components/projects/project-select";
 import { useSession } from "@/hooks/use-session";
@@ -241,20 +242,16 @@ export function LeadFilterDialog({
           <section className="space-y-3">
             <SectionTitle>Assign</SectionTitle>
             <FilterGrid>
-              <div className="space-y-1">
-                <Label>Assign To</Label>
-                <select
-                  className={selectClass}
-                  value={draft.filterAssignTo}
-                  onChange={(e) => patch({ filterAssignTo: e.target.value })}
-                >
-                  <option value="">Any agent</option>
-                  {agentOptions.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-1 sm:col-span-2">
+                <AgentMultiSelect
+                  id="filter-assign-to"
+                  label="Assign To"
+                  users={agentOptions}
+                  selectedIds={draft.filterAssignTo}
+                  onChange={(ids) => patch({ filterAssignTo: ids })}
+                  emptyHint="Leave empty for any agent."
+                  compact
+                />
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"

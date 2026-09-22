@@ -9,6 +9,23 @@ import {
 } from "./leads-url-filters";
 
 describe("leads URL filters", () => {
+  it("round-trips multiple Assign To agents", () => {
+    const agentA = "550e8400-e29b-41d4-a716-446655440001";
+    const agentB = "550e8400-e29b-41d4-a716-446655440002";
+    const params = new URLSearchParams(`filter_assign_to=${agentA},${agentB}`);
+    const parsed = parseLeadsPageUrl(params);
+    expect(parsed.filters.filterAssignTo).toEqual([agentA, agentB]);
+
+    const serialized = buildLeadsSearchParams(parsed.filters, {
+      scope: parsed.scope,
+      stage: parsed.stage,
+    });
+    expect(serialized).toContain(`filter_assign_to=${agentA}%2C${agentB}`);
+
+    const query = leadsFiltersToQuery(parsed.filters, { scope: "all" });
+    expect(query.assignedTo).toBe(`${agentA},${agentB}`);
+  });
+
   it("round-trips ad leads filter", () => {
     const params = new URLSearchParams("ad_leads=true&scope=all&active=true");
     const parsed = parseLeadsPageUrl(params);

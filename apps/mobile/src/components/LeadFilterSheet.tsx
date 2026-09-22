@@ -102,6 +102,68 @@ function AgentPicker({
   );
 }
 
+function AgentMultiPicker({
+  label,
+  selectedIds,
+  options,
+  onChange,
+}: {
+  label: string;
+  selectedIds: string[];
+  options: { id: string; name: string }[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedSet = new Set(selectedIds);
+  const selectedNames = options.filter((o) => selectedSet.has(o.id)).map((o) => o.name);
+  const summary =
+    selectedNames.length === 0
+      ? "Any agent"
+      : selectedNames.length <= 2
+        ? selectedNames.join(", ")
+        : `${selectedNames.length} agents selected`;
+
+  function toggle(id: string) {
+    if (selectedSet.has(id)) {
+      onChange(selectedIds.filter((current) => current !== id));
+      return;
+    }
+    onChange([...selectedIds, id]);
+  }
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Pressable style={styles.select} onPress={() => setOpen((v) => !v)}>
+        <Text style={styles.selectText}>{summary}</Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.optionList}>
+          <Pressable
+            style={styles.optionRow}
+            onPress={() => {
+              onChange([]);
+            }}
+          >
+            <Text style={styles.optionText}>Any agent</Text>
+          </Pressable>
+          {options.map((opt) => {
+            const checked = selectedSet.has(opt.id);
+            return (
+              <Pressable key={opt.id} style={styles.optionRow} onPress={() => toggle(opt.id)}>
+                <Text style={[styles.optionText, checked && styles.optionTextActive]}>
+                  {checked ? "✓ " : ""}
+                  {opt.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function LeadFilterSheet({ visible, filters, onClose, onApply }: LeadFilterSheetProps) {
   const { data: teamMembers } = useTeamMembers();
   const role = normalizeRole(getUser()?.role ?? "agent");
@@ -162,11 +224,11 @@ export function LeadFilterSheet({ visible, filters, onClose, onApply }: LeadFilt
             <SectionTitle title="Assign" />
             {isManager ? (
               <>
-                <AgentPicker
+                <AgentMultiPicker
                   label="Assign To"
-                  value={draft.filterAssignTo}
+                  selectedIds={draft.filterAssignTo}
                   options={agents}
-                  onChange={(id) => patch({ filterAssignTo: id })}
+                  onChange={(ids) => patch({ filterAssignTo: ids })}
                 />
                 <View style={styles.switchRow}>
                   <Text style={styles.switchLabel}>Include assignment history</Text>

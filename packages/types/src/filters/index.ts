@@ -57,5 +57,6 @@ export {
   advancedFiltersToApiQuery,
   countActiveAdvancedFilters,
   defaultLeadsAdvancedFilters,
+  normalizeFilterAssignTo,
   tagPresetsToApiParam,
 } from "./leads-advanced.js";

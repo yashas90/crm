@@ -4,6 +4,7 @@ import {
   advancedFiltersToApiQuery,
   countActiveAdvancedFilters,
   defaultLeadsAdvancedFilters,
+  normalizeFilterAssignTo,
   tagPresetsToApiParam,
 } from "@propninja/types/filters";
 
@@ -13,6 +14,7 @@ export {
   advancedFiltersToApiQuery,
   countActiveAdvancedFilters,
   defaultLeadsAdvancedFilters,
+  normalizeFilterAssignTo,
   tagPresetsToApiParam,
 };
 
@@ -31,7 +33,14 @@ export function loadSavedLeadFilters(): SavedLeadFilter[] {
     const raw = localStorage.getItem(SAVED_FILTERS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as SavedLeadFilter[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((preset) => ({
+      ...preset,
+      filters: {
+        ...preset.filters,
+        filterAssignTo: normalizeFilterAssignTo(preset.filters?.filterAssignTo),
+      },
+    }));
   } catch {
     return [];
   }
@@ -66,7 +75,9 @@ export function appendAdvancedFiltersToParams(
 
   set("assign_with_history", filters.assignWithHistory);
   set("assign_with_team", filters.assignWithTeam);
-  set("filter_assign_to", filters.filterAssignTo);
+  if (filters.filterAssignTo.length > 0) {
+    params.set("filter_assign_to", filters.filterAssignTo.join(","));
+  }
   set("assigned_from", filters.assignedFrom);
   set("assigned_by", filters.assignedBy);
   set("original_owner", filters.originalOwner);
@@ -126,7 +137,7 @@ export function parseAdvancedFiltersFromParams(params: URLSearchParams): LeadsAd
     ...defaultLeadsAdvancedFilters(),
     assignWithHistory: boolParam(params, "assign_with_history"),
     assignWithTeam: boolParam(params, "assign_with_team"),
-    filterAssignTo: params.get("filter_assign_to") ?? "",
+    filterAssignTo: normalizeFilterAssignTo(params.get("filter_assign_to")),
     assignedFrom: params.get("assigned_from") ?? "",
     assignedBy: params.get("assigned_by") ?? "",
     originalOwner: params.get("original_owner") ?? "",
@@ -227,7 +238,7 @@ export function advancedFiltersToFlatApiParams(
   setNum("builtUpAreaFrom", api.builtUpAreaFrom);
   setNum("builtUpAreaTo", api.builtUpAreaTo);
 
-  if (filters.filterAssignTo) out.assignedTo = filters.filterAssignTo;
+  if (filters.filterAssignTo.length > 0) out.assignedTo = filters.filterAssignTo.join(",");
   if (filters.assignWithTeam) out.teamLeads = "true";
 
   return out;

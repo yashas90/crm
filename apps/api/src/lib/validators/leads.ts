@@ -17,7 +17,26 @@ export const listLeadsQuerySchema = z
       .int()
       .transform((value) => Math.min(Math.max(1, value), 200))
       .default(25),
-    assignedTo: z.string().uuid().optional(),
+    assignedTo: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .transform((value) => {
+        if (value === undefined) return undefined;
+        const ids = [
+          ...new Set(
+            (Array.isArray(value) ? value : value.split(","))
+              .map((part) => part.trim())
+              .filter(Boolean),
+          ),
+        ];
+        return ids.length > 0 ? ids : undefined;
+      })
+      .refine(
+        (ids) => ids === undefined || ids.every((id) => z.string().uuid().safeParse(id).success),
+        {
+          message: "assignedTo must be one or more UUIDs",
+        },
+      ),
     projectId: z.string().uuid().optional(),
     importBatchId: z.string().uuid().optional(),
     temperature: temperatureSchema.optional(),

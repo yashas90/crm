@@ -1,23 +1,32 @@
 import { leadAssignments, leads, projects, siteVisits, tasks } from "@propninja/db";
-import { type SQL, eq, gte, ilike, isNotNull, lte, or, sql } from "drizzle-orm";
+import { type SQL, eq, gte, ilike, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
 import { type LeadAdvancedListQuery, TAG_PRESET_FILTER_SQL } from "./leadAdvancedListQuery.js";
 
 export type AdvancedLeadFilterParams = Partial<LeadAdvancedListQuery> & {
-  assignedTo?: string;
+  assignedTo?: string | string[];
 };
+
+export function assignedToFilterIds(assignedTo?: string | string[]): string[] {
+  if (!assignedTo) return [];
+  return (Array.isArray(assignedTo) ? assignedTo : [assignedTo]).filter(Boolean);
+}
 
 export function applyAdvancedLeadFilters(
   params: AdvancedLeadFilterParams,
   whereClauses: SQL[],
 ): void {
-  if (params.assignedTo && params.assignWithHistory) {
+  const assigneeIds = assignedToFilterIds(params.assignedTo);
+  if (assigneeIds.length > 0 && params.assignWithHistory) {
     whereClauses.push(
       or(
-        eq(leads.assignedTo, params.assignedTo),
+        inArray(leads.assignedTo, assigneeIds),
         sql`EXISTS (
           SELECT 1 FROM ${leadAssignments} la
           WHERE la.lead_id = ${leads.id}
-            AND la.to_agent_id = ${params.assignedTo}
+            AND la.to_agent_id IN (${sql.join(
+              assigneeIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})
         )`,
       )!,
     );
