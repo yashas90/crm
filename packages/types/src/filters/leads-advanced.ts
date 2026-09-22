@@ -2,7 +2,8 @@
 export type LeadsAdvancedFilters = {
   assignWithHistory: boolean;
   assignWithTeam: boolean;
-  filterAssignTo: string;
+  /** Selected agent ids. Empty means any agent. Legacy saved filters may still be a string. */
+  filterAssignTo: string[];
   assignedFrom: string;
   assignedBy: string;
   originalOwner: string;
@@ -59,7 +60,7 @@ export function defaultLeadsAdvancedFilters(): LeadsAdvancedFilters {
   return {
     assignWithHistory: false,
     assignWithTeam: false,
-    filterAssignTo: "",
+    filterAssignTo: [],
     assignedFrom: "",
     assignedBy: "",
     originalOwner: "",
@@ -100,6 +101,12 @@ export function defaultLeadsAdvancedFilters(): LeadsAdvancedFilters {
     builtUpAreaFrom: "",
     builtUpAreaTo: "",
   };
+}
+
+/** Accepts a UUID, comma-separated list, or string[] from saved/legacy filters. */
+export function normalizeFilterAssignTo(value: unknown): string[] {
+  const parts = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  return [...new Set(parts.map((part) => String(part).trim()).filter(Boolean))];
 }
 
 /** Maps preset chips to API `tagPresets` query param. */
@@ -208,7 +215,7 @@ export function advancedFiltersToApiQuery(filters: LeadsAdvancedFilters): LeadLi
 
 export function countActiveAdvancedFilters(filters: LeadsAdvancedFilters): number {
   let count = 0;
-  if (filters.filterAssignTo) count += 1;
+  if (filters.filterAssignTo.length > 0) count += 1;
   if (filters.assignWithHistory) count += 1;
   if (filters.assignWithTeam) count += 1;
   if (filters.assignedFrom) count += 1;

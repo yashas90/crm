@@ -31,7 +31,7 @@ import {
   newLeadFreshnessCutoff,
   pendingLeadWhere,
 } from "../lib/ageOutNewLeads.js";
-import { applyAdvancedLeadFilters } from "../lib/applyAdvancedLeadFilters.js";
+import { applyAdvancedLeadFilters, assignedToFilterIds } from "../lib/applyAdvancedLeadFilters.js";
 import {
   buildApplyNewStatusFields,
   shouldApplyNewStatusOnAssign,
@@ -77,7 +77,7 @@ export type ListLeadsParams = {
   search?: string;
   page?: number;
   pageSize?: number;
-  assignedTo?: string;
+  assignedTo?: string | string[];
   projectId?: string;
   importBatchId?: string;
   temperature?: Temperature;
@@ -317,8 +317,9 @@ function buildListWhere(params: ListLeadsParams) {
     whereClauses.push(eq(leads.leadStatus, params.status));
   }
 
-  if (params.assignedTo && !params.assignWithHistory) {
-    whereClauses.push(eq(leads.assignedTo, params.assignedTo));
+  const assigneeIds = assignedToFilterIds(params.assignedTo);
+  if (assigneeIds.length > 0 && !params.assignWithHistory) {
+    whereClauses.push(inArray(leads.assignedTo, assigneeIds));
   } else if (params.unassigned) {
     // Pipeline unassigned only — NA pool lives under naLeadsOnly (often also unassigned).
     whereClauses.push(isNull(leads.assignedTo));

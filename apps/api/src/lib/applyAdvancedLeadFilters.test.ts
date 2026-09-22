@@ -12,6 +12,15 @@ describe("applyAdvancedLeadFilters", () => {
     expect(clauses).toHaveLength(1);
   });
 
+  it("adds assignment history clause for multiple assignedTo agents", () => {
+    const clauses: unknown[] = [];
+    applyAdvancedLeadFilters(
+      { assignedTo: [AGENT_A, AGENT_B], assignWithHistory: true },
+      clauses as never,
+    );
+    expect(clauses).toHaveLength(1);
+  });
+
   it("does not add assignment history clause without assignWithHistory", () => {
     const clauses: unknown[] = [];
     applyAdvancedLeadFilters({ assignedTo: AGENT_A }, clauses as never);

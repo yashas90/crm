@@ -21,11 +21,30 @@ describe("listLeadsQuerySchema", () => {
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) {
+      expect(parsed.data.assignedTo).toEqual([agentId]);
       expect(parsed.data.assignWithHistory).toBe(true);
       expect(parsed.data.assignedFrom).toBe(agentId);
       expect(parsed.data.assignedBy).toBe(agentId);
       expect(parsed.data.originalOwner).toBe(agentId);
     }
+  });
+
+  it("parses comma-separated assignedTo agent ids", () => {
+    const agentB = "550e8400-e29b-41d4-a716-446655440001";
+    const parsed = listLeadsQuerySchema.safeParse({
+      assignedTo: `${agentId},${agentB}`,
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.assignedTo).toEqual([agentId, agentB]);
+    }
+  });
+
+  it("rejects invalid assignedTo UUIDs in a list", () => {
+    const parsed = listLeadsQuerySchema.safeParse({
+      assignedTo: `${agentId},not-a-uuid`,
+    });
+    expect(parsed.success).toBe(false);
   });
 
   it("parses SLA inactivity list filters", () => {

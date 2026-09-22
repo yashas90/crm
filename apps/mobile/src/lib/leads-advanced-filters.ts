@@ -61,10 +61,10 @@ export function mobileFiltersToApiParams(filters: MobileLeadFilters): Record<str
   const api = advancedFiltersToApiQuery(filters);
   const userId = getCurrentUserId();
 
-  if (filters.scope === "my" && userId && !filters.filterAssignTo) {
+  if (filters.scope === "my" && userId && filters.filterAssignTo.length === 0) {
     out.assignedTo = userId;
-  } else if (filters.filterAssignTo) {
-    out.assignedTo = filters.filterAssignTo;
+  } else if (filters.filterAssignTo.length > 0) {
+    out.assignedTo = filters.filterAssignTo.join(",");
   }
   if (filters.scope === "unassigned") out.unassigned = "true";
   if (filters.scope === "teams" || filters.assignWithTeam) out.teamLeads = "true";
