@@ -10,7 +10,9 @@ export async function pickMetaFormAssignee(
   orgId: string,
   metaFormId: string | undefined | null,
 ): Promise<string | null> {
-  if (!metaFormId?.trim()) return null;
+  if (!metaFormId) return null;
+  const formId = String(metaFormId).trim();
+  if (!formId) return null;
 
   const [form] = await db
     .select({
@@ -20,7 +22,7 @@ export async function pickMetaFormAssignee(
       lastAssignedIndex: facebookForms.lastAssignedIndex,
     })
     .from(facebookForms)
-    .where(and(eq(facebookForms.orgId, orgId), eq(facebookForms.formId, metaFormId)))
+    .where(and(eq(facebookForms.orgId, orgId), eq(facebookForms.formId, formId)))
     .limit(1);
 
   const assignees = (form?.assigneeIds ?? []).filter(Boolean);

@@ -550,30 +550,59 @@ export type GraphFormLeadSummary = {
   form_id?: string;
 };
 
+export function leadCreatedTimeUnix(createdTime: string | undefined): number | null {
+  if (!createdTime) return null;
+  const ms = Date.parse(createdTime);
+  return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+}
+
+/** Keep leads on/after `sinceUnix`. Rows without a parseable timestamp are kept. */
+export function filterGraphLeadsSince<T extends { created_time?: string }>(
+  leads: T[],
+  sinceUnix?: number,
+): T[] {
+  if (!sinceUnix) return leads;
+  return leads.filter((lead) => {
+    const created = leadCreatedTimeUnix(lead.created_time);
+    return created == null || created >= sinceUnix;
+  });
+}
+
+function stringifyGraphId(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
+}
+
 /**
  * Lists leads for a Lead Form (backfill / catch-up when webhooks were missed).
+ * Date-filters client-side — Graph `filtering=time_created` on `/{form-id}/leads`
+ * often returns an empty `data` array even when Ads Manager has leads.
  * @see https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving
  */
-export function getFormLeads(
+export async function getFormLeads(
   formId: string,
   accessToken: string,
   options: { sinceUnix?: number; maxPages?: number } = {},
-) {
+): Promise<GraphFormLeadSummary[]> {
   const params: Record<string, string | number | boolean | undefined> = {
     fields: "id,created_time,ad_id,adset_id,campaign_id,form_id",
     limit: 100,
   };
-  if (options.sinceUnix) {
-    params.filtering = JSON.stringify([
-      { field: "time_created", operator: "GREATER_THAN", value: options.sinceUnix },
-    ]);
-  }
-  return graphGetAllPages<GraphFormLeadSummary>(
+  const raw = await graphGetAllPages<GraphFormLeadSummary>(
     `${formId}/leads`,
     accessToken,
     params,
     options.maxPages ?? 20,
   );
+  return filterGraphLeadsSince(raw, options.sinceUnix).map((lead) => ({
+    ...lead,
+    id: stringifyGraphId(lead.id) ?? lead.id,
+    ad_id: stringifyGraphId(lead.ad_id) ?? lead.ad_id,
+    adset_id: stringifyGraphId(lead.adset_id) ?? lead.adset_id,
+    campaign_id: stringifyGraphId(lead.campaign_id) ?? lead.campaign_id,
+    form_id: stringifyGraphId(lead.form_id) ?? lead.form_id,
+  }));
 }
 
 /* ─── OAuth token exchange ───────────────────────────────────────────────── */

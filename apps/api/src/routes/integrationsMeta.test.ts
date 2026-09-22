@@ -174,4 +174,48 @@ describe("Meta integrations webhook", () => {
     expect(res.status).toBe(403);
     expect(processLeadgenWebhook).not.toHaveBeenCalled();
   });
+
+  it("normalizes numeric leadgen IDs from Meta JSON", async () => {
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: 111222333,
+          changes: [
+            {
+              field: "leadgen",
+              value: {
+                leadgen_id: 999888777666555,
+                page_id: 111222333,
+                form_id: 444555666,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const res = await app.request("/api/integrations/meta/webhook", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": signBody(body, "test-app-secret"),
+      },
+      body,
+    });
+
+    expect(res.status).toBe(200);
+    await vi.waitFor(() => {
+      expect(processLeadgenWebhook).toHaveBeenCalled();
+    });
+
+    const change = processLeadgenWebhook.mock.calls.at(0)?.at(0) as
+      | { leadgen_id: string; page_id: string; form_id: string }
+      | undefined;
+    expect(change).toMatchObject({
+      leadgen_id: "999888777666555",
+      page_id: "111222333",
+      form_id: "444555666",
+    });
+  });
 });

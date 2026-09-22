@@ -64,4 +64,16 @@ describe("metaWebhookScope (DB)", () => {
       isMetaLeadgenAllowed({ leadgen_id: "1", page_id: "page-1", form_id: "new-form" }),
     ).resolves.toMatchObject({ allowed: true, reason: "form_not_synced_yet" });
   });
+
+  it("accepts numeric page_id and form_id from Meta JSON", async () => {
+    limitResults.push([{ id: "p1", isActive: true, isSelected: true, hasToken: "enc" }], []);
+    const { isMetaLeadgenAllowed } = await import("./metaWebhookScope.js");
+    await expect(
+      isMetaLeadgenAllowed({
+        leadgen_id: 9876543210 as unknown as string,
+        page_id: 111222333 as unknown as string,
+        form_id: 444555666 as unknown as string,
+      }),
+    ).resolves.toMatchObject({ allowed: true, reason: "form_not_synced_yet" });
+  });
 });

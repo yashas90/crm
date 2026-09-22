@@ -19,8 +19,11 @@ import { and, eq, sql } from "drizzle-orm";
 import { notifyNewAdLeadReceived } from "../lib/adLeadNotifications.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
-import type { MetaLeadgenWebhookValue } from "../lib/facebook.js";
-import { mapFacebookLeadToNormalizedAdLead } from "../lib/facebook.js";
+import {
+  type MetaLeadgenWebhookValue,
+  mapFacebookLeadToNormalizedAdLead,
+  normalizeMetaLeadgenChange,
+} from "../lib/facebook.js";
 import { logger } from "../lib/logger.js";
 import { type GraphLeadDetails, getLeadDetails } from "../lib/metaGraphClient.js";
 import { publishMetaLiveLead } from "../lib/metaRealtimeBus.js";
@@ -164,9 +167,13 @@ export type MetaLeadIngestJobPayload = {
  * an initial "Lead" CAPI conversion event.
  */
 export async function processLeadgenWebhook(
-  change: MetaLeadgenWebhookValue,
+  changeInput: MetaLeadgenWebhookValue,
   options: ProcessLeadgenOptions = {},
 ): Promise<void> {
+  const change = normalizeMetaLeadgenChange(changeInput);
+  if (!change) {
+    throw new Error("Meta leadgen payload missing leadgen_id or page_id");
+  }
   const orgId = options.orgId ?? SINGLE_TENANT_ORG_ID;
   const via = options.via ?? "webhook";
   const record = options.webhookId
