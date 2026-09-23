@@ -5,13 +5,13 @@ import { logger } from "../lib/logger.js";
 import { clearAllLoginRateLimits } from "../lib/loginBruteForce.js";
 import { clearAllRateLimits, pruneExpiredRateLimitBuckets } from "../lib/rateLimitStore.js";
 import { pruneSecurityWindows } from "../middleware/securityMonitoring.js";
-import { backfillMetaLeads } from "../services/metaLeadBackfillService.js";
 import { syncPagesFormsAndSubscribe } from "../services/metaPageSyncService.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { startAgeOutNewLeadsJob } from "./ageOutNewLeadsJob.js";
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
 import { startLeadScoringJob } from "./leadScoringJob.js";
+import { startMetaLeadContinuity } from "./metaLeadContinuityJob.js";
 import { startNaPoolJob } from "./naPoolJob.js";
 import { startPurgeExpiredLeadsJob } from "./purgeExpiredLeadsJob.js";
 import { startPurgeExpiredTrackingJob } from "./purgeExpiredTrackingJob.js";
@@ -44,6 +44,11 @@ export async function startBackgroundJobs() {
     });
   });
 
+  // Meta lead intake must not depend on Redis. When BullMQ is up, the old
+  // code returned here and never started the in-process pull — a stalled
+  // worker left the webhook looking offline and stopped grabbing leads.
+  startMetaLeadContinuity();
+
   const durable = await startDurableJobQueue();
   if (durable) {
     logger.info("Background jobs running via BullMQ + Redis");
@@ -56,11 +61,6 @@ export async function startBackgroundJobs() {
     startSlaBreachJob();
     startTaskDueNotificationJob();
     startWhatsAppBlasterJob();
-    void backfillMetaLeads(undefined, { sinceDays: 2, includeUnselected: true }).catch((err) => {
-      logger.warn("Startup Meta lead catch-up failed", {
-        err: err instanceof Error ? err.message : String(err),
-      });
-    });
     return;
   }
 
@@ -76,25 +76,10 @@ export async function startBackgroundJobs() {
   startTrackingHealthJob();
   startTaskDueNotificationJob();
   startWhatsAppBlasterJob();
-  void backfillMetaLeads(undefined, { sinceDays: 2, includeUnselected: true }).catch((err) => {
-    logger.warn("Startup Meta lead catch-up failed", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-  });
   setInterval(
     () => {
       void syncPagesFormsAndSubscribe().catch((err) => {
         logger.warn("In-process Meta asset sync failed", {
-          err: err instanceof Error ? err.message : String(err),
-        });
-      });
-    },
-    5 * 60 * 1000,
-  ).unref();
-  setInterval(
-    () => {
-      void backfillMetaLeads(undefined, { sinceDays: 1 }).catch((err) => {
-        logger.warn("In-process Meta lead reconciliation failed", {
           err: err instanceof Error ? err.message : String(err),
         });
       });

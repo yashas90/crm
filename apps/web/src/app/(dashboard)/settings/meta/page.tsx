@@ -554,10 +554,13 @@ function MetaDashboardInner() {
                       ? "bg-amber-500 text-white"
                       : "bg-rose-600 text-white"
                 }
+                title={webhookHealth.data.label}
               >
                 Webhook{" "}
                 {webhookHealth.data.status === "healthy"
-                  ? "Healthy"
+                  ? webhookHealth.data.intake === "polling"
+                    ? "Syncing"
+                    : "Healthy"
                   : webhookHealth.data.status === "delayed"
                     ? "Delayed"
                     : "Offline"}
@@ -569,6 +572,9 @@ function MetaDashboardInner() {
               >
                 Webhook status unavailable
               </Badge>
+            ) : null}
+            {webhookHealth.data?.label ? (
+              <span className="text-sm text-muted-foreground">{webhookHealth.data.label}</span>
             ) : null}
             <Button asChild variant="outline" size="sm">
               <Link href="/settings/meta/live">Live lead dashboard</Link>

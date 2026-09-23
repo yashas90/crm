@@ -158,6 +158,7 @@ export async function startDurableJobQueue(): Promise<boolean> {
 
   try {
     queue = new Queue(JOB_QUEUE_NAME, { connection: connectionOptions() });
+    await removeLegacyMetaReconciliationSchedule(queue);
 
     await queue.add(
       JOB_NAMES.LEAD_SCORING,
@@ -230,16 +231,12 @@ export async function startDurableJobQueue(): Promise<boolean> {
       {},
       { repeat: { every: 6 * 60 * 60 * 1000 }, jobId: JOB_NAMES.META_INSIGHTS_SYNC },
     );
-    // Primary real-time path is webhooks; these are backups / hygiene.
+    // Asset sync stays on the queue. Lead pulling + leadgen resubscribe run
+    // in-process (see metaLeadContinuityJob) so a stalled worker cannot stop intake.
     await queue.add(
       JOB_NAMES.META_SYNC,
       {},
       { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.META_SYNC },
-    );
-    await queue.add(
-      JOB_NAMES.META_RECONCILIATION,
-      {},
-      { repeat: { every: 5 * 60 * 1000 }, jobId: JOB_NAMES.META_RECONCILIATION },
     );
     await queue.add(
       JOB_NAMES.META_TOKEN_REFRESH,
@@ -256,7 +253,12 @@ export async function startDurableJobQueue(): Promise<boolean> {
       async (job: { name: string; data?: Record<string, unknown> }) => {
         await runJob(job.name, job.data);
       },
-      { connection: connectionOptions() },
+      {
+        connection: connectionOptions(),
+        // Graph asset sync can run for minutes. The 30s default lock marks the
+        // job stalled and wedges the single worker, which also stops every other repeatable.
+        lockDuration: 10 * 60 * 1000,
+      },
     );
 
     worker.on("failed", (job: { name?: string } | undefined, error: Error) => {
@@ -279,6 +281,30 @@ export async function startDurableJobQueue(): Promise<boolean> {
       error: error instanceof Error ? error.message : String(error),
     });
     return false;
+  }
+}
+
+/** Drop the old 5-minute BullMQ lead scan so it cannot double-hit Graph next to the in-process loop. */
+async function removeLegacyMetaReconciliationSchedule(activeQueue: Queue) {
+  try {
+    const repeatable = await activeQueue.getRepeatableJobs();
+    for (const job of repeatable) {
+      if (job.name !== JOB_NAMES.META_RECONCILIATION) continue;
+      await activeQueue.removeRepeatableByKey(job.key);
+      logger.info("Removed legacy Meta reconciliation schedule", { key: job.key });
+    }
+  } catch (error) {
+    logger.warn("Failed to list legacy Meta reconciliation schedules", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    await activeQueue.removeJobScheduler(JOB_NAMES.META_RECONCILIATION);
+  } catch (error) {
+    logger.warn("Failed to remove Meta reconciliation job scheduler", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
