@@ -73,6 +73,9 @@ export function PipelineLeadCard({
       <Text style={styles.phone} numberOfLines={1}>
         {lead.phone ?? "No phone"}
       </Text>
+      <Text style={styles.project} numberOfLines={1}>
+        {lead.projectName?.trim() || "No project"}
+      </Text>
 
       {lead.leadSource ? (
         <Badge
@@ -139,6 +142,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   name: { color: colors.text, fontSize: 15, fontWeight: "700", flex: 1 },
   phone: { color: colors.textMuted, fontSize: 13 },
+  project: { color: colors.primary, fontSize: 13, fontWeight: "700" },
   activity: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
   followUp: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
   followUpOverdue: { color: colors.danger, fontWeight: "700" },

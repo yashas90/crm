@@ -487,6 +487,7 @@ export type HotLead = {
   firstName: string;
   lastName: string;
   phone: string | null;
+  projectName?: string | null;
   score: number;
   temperature: string | null;
   nextFollowupAt: string | null;

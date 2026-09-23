@@ -135,7 +135,8 @@ export function SlaScreen({ navigation }: Props) {
                 </Text>
               </View>
               <Text style={styles.rowMeta}>
-                {item.leadStatus} · {item.assignedUser?.name ?? "Unassigned"}
+                {item.projectName?.trim() || "No project"} · {item.leadStatus} ·{" "}
+                {item.assignedUser?.name ?? "Unassigned"}
               </Text>
               {item.phone ? <Text style={styles.rowPhone}>{item.phone}</Text> : null}
             </Pressable>

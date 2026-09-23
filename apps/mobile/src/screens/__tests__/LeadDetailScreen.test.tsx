@@ -147,6 +147,7 @@ describe("LeadDetailScreen consent section", () => {
         city: null,
         state: null,
         leadSource: "website",
+        projectName: "Lake View Residency",
         notes: null,
         nextFollowupAt: null,
         lastContactedAt: null,
@@ -204,6 +205,8 @@ describe("LeadDetailScreen consent section", () => {
     );
 
     expect(screen.getByText("Jane Doe")).toBeTruthy();
+    expect(screen.getByText("Project enquired")).toBeTruthy();
+    expect(screen.getByText("Lake View Residency")).toBeTruthy();
     expect(screen.getByText("Consent")).toBeTruthy();
     expect(screen.getAllByText("OK to call").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Do not call")).toBeTruthy();
