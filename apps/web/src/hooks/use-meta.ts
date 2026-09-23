@@ -387,6 +387,8 @@ export function useMetaFlushConversions() {
 
 export type MetaWebhookHealth = {
   status: "healthy" | "delayed" | "offline";
+  /** `polling` means Graph catch-up is live even if Meta has not pushed a webhook recently. */
+  intake?: "webhook" | "polling" | "stale";
   label: string;
   durableJobsEnabled: boolean;
   lastReceivedAt: string | null;

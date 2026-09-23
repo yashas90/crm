@@ -1,16 +1,22 @@
 /**
  * Webhook / queue health for Meta Lead Ads (Healthy / Delayed / Offline).
+ *
+ * Meta only pushes a webhook when a lead is created, so a quiet hour is not an
+ * outage. The always-on Graph pull is the other half of "healthy".
  */
 import { facebookSyncHistory, facebookTokens, facebookWebhooks } from "@propninja/db";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { isDurableJobsEnabled } from "../lib/jobQueue.js";
 
 export type MetaWebhookHealthStatus = "healthy" | "delayed" | "offline";
+export type MetaLeadIntake = "webhook" | "polling" | "stale";
 
 export type MetaWebhookHealth = {
   status: MetaWebhookHealthStatus;
+  /** How leads are arriving right now. `polling` means the Graph pull is the live path. */
+  intake: MetaLeadIntake;
   label: string;
   durableJobsEnabled: boolean;
   lastReceivedAt: string | null;
@@ -28,8 +34,100 @@ export type MetaWebhookHealth = {
   tokenExpiringSoon: boolean;
 };
 
-const HEALTHY_MAX_AGE_MS = 15 * 60 * 1000;
-const DELAYED_MAX_AGE_MS = 60 * 60 * 1000;
+/** A processed webhook this fresh counts as real-time delivery. */
+export const META_WEBHOOK_HEALTHY_MS = 15 * 60 * 1000;
+/** Webhook deliveries older than this, with no fresh pull, are delayed rather than offline. */
+export const META_WEBHOOK_DELAYED_MS = 60 * 60 * 1000;
+/**
+ * Continuous pull interval is 2 minutes. Allow a few missed ticks (deploys,
+ * a long form scan) before the badge leaves Healthy.
+ */
+export const META_POLL_HEALTHY_MS = 8 * 60 * 1000;
+export const META_POLL_DELAYED_MS = 30 * 60 * 1000;
+
+const LEAD_PULL_SYNC_TYPES = ["leads_backfill", "leads_continuity"] as const;
+
+export type MetaWebhookHealthSignals = {
+  successAgeMs: number | null;
+  receivedAgeMs: number | null;
+  receivedLast15m: number;
+  reconciliationAgeMs: number | null;
+  /** A finished pull that actually scanned forms (or ingested leads). */
+  reconciliationUseful: boolean;
+  /** The latest pull finished as failed (Graph/token errors, nothing ingested). */
+  reconciliationFailed: boolean;
+  hasAnySignal: boolean;
+};
+
+export function classifyMetaWebhookHealth(input: MetaWebhookHealthSignals): {
+  status: MetaWebhookHealthStatus;
+  intake: MetaLeadIntake;
+  label: string;
+} {
+  const webhookFresh = input.successAgeMs !== null && input.successAgeMs <= META_WEBHOOK_HEALTHY_MS;
+  const webhookDelayed =
+    (input.successAgeMs !== null && input.successAgeMs <= META_WEBHOOK_DELAYED_MS) ||
+    (input.receivedAgeMs !== null && input.receivedAgeMs <= META_WEBHOOK_DELAYED_MS) ||
+    input.receivedLast15m > 0;
+  const pollFresh =
+    input.reconciliationAgeMs !== null && input.reconciliationAgeMs <= META_POLL_HEALTHY_MS;
+  const pollDelayed =
+    input.reconciliationAgeMs !== null && input.reconciliationAgeMs <= META_POLL_DELAYED_MS;
+
+  if (webhookFresh) {
+    return {
+      status: "healthy",
+      intake: "webhook",
+      label: "Healthy — webhooks processing in real time",
+    };
+  }
+
+  if (pollFresh && input.reconciliationUseful) {
+    return {
+      status: "healthy",
+      intake: "polling",
+      label: "Healthy — continuous Graph pull is grabbing Meta leads",
+    };
+  }
+
+  if ((pollFresh || pollDelayed) && input.reconciliationFailed) {
+    return {
+      status: "delayed",
+      intake: "polling",
+      label: "Delayed — latest Meta lead pull failed; retrying automatically",
+    };
+  }
+
+  if (webhookDelayed || (pollDelayed && input.reconciliationUseful)) {
+    return {
+      status: "delayed",
+      intake: pollDelayed ? "polling" : "webhook",
+      label:
+        pollDelayed && !webhookDelayed
+          ? "Delayed — Meta lead pull is behind schedule"
+          : "Delayed — reconciliation will catch missed leads",
+    };
+  }
+
+  if (input.hasAnySignal) {
+    return {
+      status: "offline",
+      intake: "stale",
+      label: "Offline — no recent webhooks or lead pulls",
+    };
+  }
+
+  return {
+    status: "offline",
+    intake: "stale",
+    label: "Offline — no webhook activity yet. Continuous pull starts after Meta is connected.",
+  };
+}
+
+function formsScannedFrom(metadata: Record<string, unknown> | null | undefined): number {
+  const value = metadata?.formsScanned;
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
 
 export async function getMetaWebhookHealth(
   orgId: string = SINGLE_TENANT_ORG_ID,
@@ -84,12 +182,17 @@ export async function getMetaWebhookHealth(
         .orderBy(desc(facebookTokens.updatedAt))
         .limit(1),
       db
-        .select({ finishedAt: facebookSyncHistory.finishedAt })
+        .select({
+          finishedAt: facebookSyncHistory.finishedAt,
+          status: facebookSyncHistory.status,
+          metadata: facebookSyncHistory.metadata,
+          recordsProcessed: facebookSyncHistory.recordsProcessed,
+        })
         .from(facebookSyncHistory)
         .where(
           and(
             eq(facebookSyncHistory.orgId, orgId),
-            eq(facebookSyncHistory.syncType, "leads_backfill"),
+            inArray(facebookSyncHistory.syncType, [...LEAD_PULL_SYNC_TYPES]),
           ),
         )
         .orderBy(desc(facebookSyncHistory.finishedAt))
@@ -102,7 +205,7 @@ export async function getMetaWebhookHealth(
         .where(
           and(
             eq(facebookSyncHistory.orgId, orgId),
-            eq(facebookSyncHistory.syncType, "leads_backfill"),
+            inArray(facebookSyncHistory.syncType, [...LEAD_PULL_SYNC_TYPES]),
             gte(facebookSyncHistory.startedAt, since24h),
           ),
         ),
@@ -111,29 +214,31 @@ export async function getMetaWebhookHealth(
   const lastSuccessAt = lastOk?.processedAt?.toISOString() ?? null;
   const lastReceivedAt = lastAny?.createdAt?.toISOString() ?? null;
   const lastFailureAt = lastFail?.createdAt?.toISOString() ?? null;
+  const lastReconciliationAt = lastRecon?.finishedAt?.toISOString() ?? null;
   const successAgeMs = lastOk?.processedAt ? Date.now() - lastOk.processedAt.getTime() : null;
   const receivedAgeMs = lastAny?.createdAt ? Date.now() - lastAny.createdAt.getTime() : null;
+  const reconciliationAgeMs = lastRecon?.finishedAt
+    ? Date.now() - lastRecon.finishedAt.getTime()
+    : null;
+  const formsScanned = formsScannedFrom(lastRecon?.metadata);
+  const reconciliationUseful =
+    (lastRecon?.status === "success" || lastRecon?.status === "partial") &&
+    (formsScanned > 0 || (lastRecon?.recordsProcessed ?? 0) > 0);
+  const reconciliationFailed = lastRecon?.status === "failed";
 
-  let status: MetaWebhookHealthStatus = "offline";
-  let label = "Offline — no webhook activity yet. Use Pull leads / wait for Meta delivery.";
-
-  if (successAgeMs !== null && successAgeMs <= HEALTHY_MAX_AGE_MS) {
-    status = "healthy";
-    label = "Healthy — webhooks processing in real time";
-  } else if (
-    (successAgeMs !== null && successAgeMs <= DELAYED_MAX_AGE_MS) ||
-    (receivedAgeMs !== null && receivedAgeMs <= DELAYED_MAX_AGE_MS) ||
-    (counts15?.received ?? 0) > 0
-  ) {
-    status = "delayed";
-    label = "Delayed — reconciliation will catch missed leads every 5 minutes";
-  } else if (lastSuccessAt || lastReceivedAt) {
-    status = "offline";
-    label = "Offline — no recent webhooks; 5‑minute reconciliation is the safety net";
-  }
+  const classified = classifyMetaWebhookHealth({
+    successAgeMs,
+    receivedAgeMs,
+    receivedLast15m: counts15?.received ?? 0,
+    reconciliationAgeMs,
+    reconciliationUseful,
+    reconciliationFailed,
+    hasAnySignal: Boolean(lastSuccessAt || lastReceivedAt || lastReconciliationAt),
+  });
 
   const durableJobsEnabled = isDurableJobsEnabled();
-  if (!durableJobsEnabled && status === "healthy") {
+  let { label } = classified;
+  if (!durableJobsEnabled && classified.status === "healthy" && classified.intake === "webhook") {
     label = "Healthy (in-process fallback — set REDIS_URL for durable queues)";
   }
 
@@ -143,7 +248,8 @@ export async function getMetaWebhookHealth(
   );
 
   return {
-    status,
+    status: classified.status,
+    intake: classified.intake,
     label,
     durableJobsEnabled,
     lastReceivedAt,
@@ -155,8 +261,8 @@ export async function getMetaWebhookHealth(
     failedLast15m: counts15?.failed ?? 0,
     queuedOrProcessing: queued?.value ?? 0,
     recoveredLeadsLast24h: recovered?.value ?? 0,
-    lastReconciliationAt: lastRecon?.finishedAt?.toISOString() ?? null,
-    nextReconciliationHint: "Every 5 minutes (backup only)",
+    lastReconciliationAt,
+    nextReconciliationHint: "Every 2 minutes (continuous Graph pull)",
     tokenExpiresAt,
     tokenExpiringSoon,
   };

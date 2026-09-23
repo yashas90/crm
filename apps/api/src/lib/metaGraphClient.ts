@@ -575,9 +575,42 @@ function stringifyGraphId(value: unknown): string | undefined {
 }
 
 /**
+ * Trims one Graph leads page. Lead Ads returns newest first, so the first lead
+ * older than `sinceUnix` means later rows (and later pages) are older too.
+ * If a newer lead appears after that row, order is not trustworthy and paging continues.
+ */
+export function collectGraphLeadPage<T extends { created_time?: string }>(
+  page: T[],
+  sinceUnix?: number,
+): { leads: T[]; reachedCutoff: boolean } {
+  if (!sinceUnix) return { leads: page, reachedCutoff: false };
+
+  const times = page.map((lead) => leadCreatedTimeUnix(lead.created_time));
+  const firstOldIndex = times.findIndex((time) => time != null && time < sinceUnix);
+  if (firstOldIndex === -1) return { leads: page, reachedCutoff: false };
+
+  const newerAfter = times
+    .slice(firstOldIndex + 1)
+    .some((time) => time != null && time >= sinceUnix);
+  if (newerAfter) {
+    return {
+      leads: page.filter((_, index) => {
+        const time = times[index];
+        return time == null || time >= sinceUnix;
+      }),
+      reachedCutoff: false,
+    };
+  }
+
+  return { leads: page.slice(0, firstOldIndex), reachedCutoff: true };
+}
+
+/**
  * Lists leads for a Lead Form (backfill / catch-up when webhooks were missed).
  * Date-filters client-side — Graph `filtering=time_created` on `/{form-id}/leads`
  * often returns an empty `data` array even when Ads Manager has leads.
+ * Stops paging once a newest-first page crosses `sinceUnix` so the continuous
+ * pull does not download a form's full history every cycle.
  * @see https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving
  */
 export async function getFormLeads(
@@ -589,12 +622,35 @@ export async function getFormLeads(
     fields: "id,created_time,ad_id,adset_id,campaign_id,form_id",
     limit: 100,
   };
-  const raw = await graphGetAllPages<GraphFormLeadSummary>(
-    `${formId}/leads`,
-    accessToken,
-    params,
-    options.maxPages ?? 20,
-  );
+  const maxPages = options.maxPages ?? 20;
+  const raw: GraphFormLeadSummary[] = [];
+  let nextUrl: string | undefined;
+  let page = 0;
+
+  while (page < maxPages) {
+    page += 1;
+    let json: GraphPagedResponse<GraphFormLeadSummary>;
+
+    if (nextUrl) {
+      const response = await fetch(nextUrl);
+      if (!response.ok) throw await parseGraphError(response);
+      json = (await response.json()) as GraphPagedResponse<GraphFormLeadSummary>;
+    } else {
+      const { data } = await graphGet<GraphPagedResponse<GraphFormLeadSummary>>(
+        `${formId}/leads`,
+        accessToken,
+        params,
+      );
+      json = data;
+    }
+
+    const batch = json.data ?? [];
+    const collected = collectGraphLeadPage(batch, options.sinceUnix);
+    raw.push(...collected.leads);
+    nextUrl = json.paging?.next;
+    if (!nextUrl || collected.reachedCutoff) break;
+  }
+
   return filterGraphLeadsSince(raw, options.sinceUnix).map((lead) => ({
     ...lead,
     id: stringifyGraphId(lead.id) ?? lead.id,
