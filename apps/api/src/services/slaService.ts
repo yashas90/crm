@@ -1,4 +1,4 @@
-import { leads, users } from "@propninja/db";
+import { leads, projects, users } from "@propninja/db";
 import type { LeadStatus } from "@propninja/types/enums";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
@@ -94,11 +94,14 @@ export const slaService = {
         daysSinceActivity: sql<number>`
           extract(day from now() - ${lastEngagement})::int
         `,
+        projectName: leads.projectName,
+        linkedProjectName: projects.name,
         assigneeName: users.name,
         assigneeId: users.id,
       })
       .from(leads)
       .leftJoin(users, eq(leads.assignedTo, users.id))
+      .leftJoin(projects, eq(leads.projectId, projects.id))
       .where(and(...conditions))
       .orderBy(sql`${lastEngagement} asc`)
       .limit(pageSize)
@@ -123,6 +126,7 @@ export const slaService = {
         createdAt: row.createdAt,
         inactiveSince: row.inactiveSince,
         daysSinceActivity: row.daysSinceActivity,
+        projectName: row.projectName?.trim() || row.linkedProjectName || null,
         assignedUser: row.assigneeId
           ? { id: row.assigneeId, name: row.assigneeName ?? "Unknown" }
           : null,

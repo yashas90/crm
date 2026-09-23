@@ -17,6 +17,7 @@ export type SlaBreachedLead = {
   lastName: string;
   phone: string | null;
   leadStatus: string;
+  projectName?: string | null;
   daysSinceActivity: number;
   inactiveSince: string;
   assignedUser: { id: string; name: string } | null;

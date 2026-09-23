@@ -367,6 +367,12 @@ export function LeadDetailScreen({ route, navigation }: Props) {
                   <Text style={styles.changeStatusBtnText}>Change status</Text>
                 </Pressable>
               </View>
+              <View style={styles.projectEnquiry}>
+                <Text style={styles.projectEnquiryLabel}>Project enquired</Text>
+                <Text style={styles.projectEnquiryValue}>
+                  {lead.projectName?.trim() || "No project"}
+                </Text>
+              </View>
               <ComplianceChip callConsent={callConsent} />
               {scoreStyle ? (
                 <View style={[styles.scoreChip, { backgroundColor: scoreStyle.bg }]}>
@@ -1003,6 +1009,23 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   title: { ...typography.subheading, color: colors.text, flexShrink: 1 },
+  projectEnquiry: {
+    marginTop: 4,
+    marginBottom: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: "#E7F0FF",
+  },
+  projectEnquiryLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  projectEnquiryValue: { color: colors.text, fontSize: 16, fontWeight: "800", marginTop: 2 },
   statusChip: {
     backgroundColor: "#dbeafe",
     borderWidth: 2,

@@ -240,6 +240,9 @@ function HotLeadRow({ lead, onPress }: { lead: HotLead; onPress: () => void }) {
         <Text style={styles.hotName} numberOfLines={1}>
           {lead.firstName} {lead.lastName}
         </Text>
+        <Text style={styles.hotProject} numberOfLines={1}>
+          {lead.projectName?.trim() || "No project"}
+        </Text>
         <Text style={styles.hotPhone} numberOfLines={1}>
           {lead.phone ?? "No phone"}
         </Text>
@@ -355,5 +358,6 @@ const styles = StyleSheet.create({
   hotScoreText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   hotMeta: { flex: 1 },
   hotName: { color: colors.text, fontWeight: "700", fontSize: 14 },
+  hotProject: { color: colors.primary, fontSize: 12, fontWeight: "700", marginTop: 2 },
   hotPhone: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
 });

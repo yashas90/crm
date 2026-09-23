@@ -213,6 +213,17 @@ function bulkImportFailureMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Import failed";
 }
 
+/** Prefer the stored label, then the linked project name, so Meta leads that only have projectId still display. */
+export function enquiryProjectName(
+  storedName: string | null | undefined,
+  linkedName: string | null | undefined,
+): string | null {
+  const stored = storedName?.trim();
+  if (stored) return stored;
+  const linked = linkedName?.trim();
+  return linked || null;
+}
+
 async function resolveProjectFields(input: {
   projectId?: string | null;
   projectName?: string;
@@ -777,6 +788,7 @@ export const leadService = {
         .select()
         .from(leads)
         .leftJoin(users, eq(leads.assignedTo, users.id))
+        .leftJoin(projects, eq(leads.projectId, projects.id))
         .where(inArray(leads.id, ids));
 
       const byId = new Map(
@@ -784,6 +796,7 @@ export const leadService = {
           row.leads.id,
           {
             ...row.leads,
+            projectName: enquiryProjectName(row.leads.projectName, row.projects?.name),
             assignedUser: row.users
               ? { id: row.users.id, name: row.users.name, email: row.users.email }
               : null,
@@ -806,6 +819,7 @@ export const leadService = {
         .select()
         .from(leads)
         .leftJoin(users, eq(leads.assignedTo, users.id))
+        .leftJoin(projects, eq(leads.projectId, projects.id))
         .where(whereClause)
         .orderBy(
           params.slaOnly
@@ -822,6 +836,7 @@ export const leadService = {
     return {
       items: rows.map((row) => ({
         ...row.leads,
+        projectName: enquiryProjectName(row.leads.projectName, row.projects?.name),
         assignedUser: row.users
           ? { id: row.users.id, name: row.users.name, email: row.users.email }
           : null,
@@ -1212,6 +1227,7 @@ export const leadService = {
       .select()
       .from(leads)
       .leftJoin(users, eq(leads.assignedTo, users.id))
+      .leftJoin(projects, eq(leads.projectId, projects.id))
       .where(
         and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), eq(leads.id, leadId), isNull(leads.deletedAt)),
       )
@@ -1269,6 +1285,7 @@ export const leadService = {
 
     return {
       ...lead,
+      projectName: enquiryProjectName(lead.projectName, leadRow.projects?.name),
       assignedUser: leadRow.users
         ? { id: leadRow.users.id, name: leadRow.users.name, email: leadRow.users.email }
         : null,

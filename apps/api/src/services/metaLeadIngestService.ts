@@ -13,9 +13,10 @@ import {
   facebookPages,
   facebookWebhooks,
   leads,
+  projects,
   users,
 } from "@propninja/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { notifyNewAdLeadReceived } from "../lib/adLeadNotifications.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
@@ -206,8 +207,28 @@ export async function processLeadgenWebhook(
 
     const lead = await adLeadService.ingestAdLead(normalized, { skipNotification: true });
 
-    if (projectId && !lead.projectId) {
-      await db.update(leads).set({ projectId }).where(eq(leads.id, lead.id));
+    if (projectId && (!lead.projectId || !lead.projectName?.trim())) {
+      const [project] = await db
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(
+          and(eq(projects.id, projectId), eq(projects.orgId, orgId), isNull(projects.deletedAt)),
+        )
+        .limit(1);
+
+      const setProjectId = !lead.projectId;
+      const setProjectName = !lead.projectName?.trim() && Boolean(project?.name);
+      if (setProjectId || setProjectName) {
+        await db
+          .update(leads)
+          .set({
+            ...(setProjectId ? { projectId } : {}),
+            ...(setProjectName ? { projectName: project!.name } : {}),
+          })
+          .where(eq(leads.id, lead.id));
+        if (setProjectId) lead.projectId = projectId;
+        if (setProjectName && project?.name) lead.projectName = project.name;
+      }
     }
 
     await upsertFacebookLeadMirror(orgId, change, leadDetails, lead.id);

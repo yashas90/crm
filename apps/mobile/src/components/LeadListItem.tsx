@@ -86,6 +86,7 @@ function leadRowEqual(a: LeadRow, b: LeadRow) {
     a.temperature === b.temperature &&
     a.leadSource === b.leadSource &&
     a.leadCode === b.leadCode &&
+    a.projectName === b.projectName &&
     a.lastContactedAt === b.lastContactedAt &&
     a.nextFollowupAt === b.nextFollowupAt
   );
@@ -125,6 +126,9 @@ function LeadListItemComponent({ lead, onPress, highlightQuery }: LeadListItemPr
           />
           <Badge label={display.primary} backgroundColor={status.bg} color={status.text} />
         </View>
+        <Text style={styles.projectLine} numberOfLines={1}>
+          {lead.projectName?.trim() || "No project"}
+        </Text>
         <Text style={styles.subline} numberOfLines={1}>
           {subline}
         </Text>
@@ -187,6 +191,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   name: { color: colors.text, fontSize: 16, fontWeight: "700", flex: 1 },
   nameHighlight: { backgroundColor: "#fef08a" },
+  projectLine: { color: colors.primary, fontSize: 13, fontWeight: "700", marginBottom: 2 },
   subline: { color: colors.textMuted, fontSize: 13, marginBottom: 6 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   contactLine: { color: colors.textMuted, fontSize: 12 },

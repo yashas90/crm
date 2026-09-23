@@ -427,8 +427,10 @@ export function TodayScreen({ route, navigation }: Props) {
                   {item.firstName} {item.lastName}
                 </Text>
                 <Text style={styles.subline}>
+                  {item.projectName?.trim() || "No project"}
+                  {" · "}
                   {item.phone ?? "No phone"}
-                  {item.projectName ? ` · ${item.projectName}` : item.city ? ` · ${item.city}` : ""}
+                  {item.city ? ` · ${item.city}` : ""}
                 </Text>
                 <Text
                   style={[

@@ -3,6 +3,7 @@ import {
   leadActivities,
   leads,
   organizations,
+  projects,
   siteVisits,
   tcfConsents,
 } from "@propninja/db";
@@ -536,13 +537,17 @@ export async function listHotLeads(assignedTo?: string, limit = 50) {
   }
 
   const rows = await db
-    .select()
+    .select({ lead: leads, linkedProjectName: projects.name })
     .from(leads)
+    .leftJoin(projects, eq(leads.projectId, projects.id))
     .where(and(...filters))
     .orderBy(desc(leads.score), desc(leads.updatedAt))
     .limit(limit);
 
-  return rows;
+  return rows.map((row) => ({
+    ...row.lead,
+    projectName: row.lead.projectName?.trim() || row.linkedProjectName || null,
+  }));
 }
 
 export async function getLeadScoreBreakdown(leadId: string, now = new Date()) {
