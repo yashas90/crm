@@ -59,7 +59,7 @@ export default function CallsReportPage() {
   const [userReportPageSize, setUserReportPageSize] = useState<CallsReportPageSize>(50);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingAnalytics, setIsExportingAnalytics] = useState(false);
-  const [userStatus, setUserStatus] = useState<CallsUserStatusFilter>("all");
+  const [userStatus, setUserStatus] = useState<CallsUserStatusFilter>("active");
   const [userNameDraft, setUserNameDraft] = useState("");
   const [userNameSearch, setUserNameSearch] = useState("");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
@@ -194,7 +194,7 @@ export default function CallsReportPage() {
           {labelRange.from} → {labelRange.to}
           {showTeamReport
             ? isManager
-              ? " · Calls for you and your reportees"
+              ? " · Every associate's calls, including phone calls synced from the field app"
               : null
             : ready
               ? " · Your call history from the mobile app"

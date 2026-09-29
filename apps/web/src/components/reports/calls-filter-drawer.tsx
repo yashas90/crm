@@ -1,19 +1,22 @@
 "use client";
 
 import { useProjects } from "@/hooks/use-projects";
-import { useUsers } from "@/hooks/use-users";
+import { useUsersList } from "@/hooks/use-users";
 import {
   CALLS_LEAD_SOURCE_OPTIONS,
   type CallsReportDatePreset,
   type CallsReportFilterState,
   defaultCallsReportFilters,
 } from "@/lib/calls-report-filters";
+import { getUserRoleLabel } from "@/lib/user-display";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
 import { cn } from "@propninja/ui/lib/utils";
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const USER_PICKER_PAGE_SIZE = 100;
 
 const selectClass =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -40,7 +43,25 @@ export function CallsFilterDrawer({
   onApply,
 }: CallsFilterDrawerProps) {
   const [draft, setDraft] = useState<CallsReportFilterState>(applied);
-  const { data: users } = useUsers();
+  const userListParams = { status: "all" as const, pageSize: USER_PICKER_PAGE_SIZE };
+  const usersPage1 = useUsersList({ ...userListParams, page: 1 }, { enabled: open });
+  const userTotal = usersPage1.data?.total ?? 0;
+  const usersPage2 = useUsersList(
+    { ...userListParams, page: 2 },
+    { enabled: open && userTotal > USER_PICKER_PAGE_SIZE },
+  );
+  const usersPage3 = useUsersList(
+    { ...userListParams, page: 3 },
+    { enabled: open && userTotal > USER_PICKER_PAGE_SIZE * 2 },
+  );
+  const users = useMemo(
+    () => [
+      ...(usersPage1.data?.items ?? []),
+      ...(usersPage2.data?.items ?? []),
+      ...(usersPage3.data?.items ?? []),
+    ],
+    [usersPage1.data?.items, usersPage2.data?.items, usersPage3.data?.items],
+  );
   const { data: projects } = useProjects();
 
   useEffect(() => {
@@ -121,7 +142,7 @@ export function CallsFilterDrawer({
               <div className="space-y-2 sm:col-span-2 lg:col-span-1">
                 <Label>User</Label>
                 <div className="max-h-36 overflow-y-auto rounded-md border border-input bg-background p-2">
-                  {users?.length ? (
+                  {users.length ? (
                     users.map((user) => {
                       const checked = draft.userIds.includes(user.id);
                       return (
@@ -136,6 +157,9 @@ export function CallsFilterDrawer({
                             onChange={() => toggleUser(user.id)}
                           />
                           <span className="truncate">{user.name}</span>
+                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                            {getUserRoleLabel(user)}
+                          </span>
                         </label>
                       );
                     })
@@ -156,7 +180,8 @@ export function CallsFilterDrawer({
                   <span>With Team</span>
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  Include direct reports of the selected user(s). Select at least one user first.
+                  Include direct reports of the selected user(s). If nobody is linked as reporting
+                  to them, every associate is included.
                 </p>
               </div>
 

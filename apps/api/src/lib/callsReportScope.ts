@@ -57,3 +57,16 @@ export function resolveCallsReportUserScope(
 function uniqueIds(ids: string[]) {
   return [...new Set(ids)];
 }
+
+/**
+ * With Team adds direct reports when the reporting tree is filled in.
+ * When nobody is linked to the selected users, include every associate and manager.
+ */
+export function expandTeamUserIds(
+  selectedIds: string[],
+  directReportIds: string[],
+  allStaffIds: string[],
+) {
+  const extras = directReportIds.length > 0 ? directReportIds : allStaffIds;
+  return uniqueIds([...selectedIds, ...extras]);
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveCallsReportUserScope } from "./callsReportScope.js";
+import { expandTeamUserIds, resolveCallsReportUserScope } from "./callsReportScope.js";
 
 const manager = { id: "manager-1", role: "manager" as const };
 const agent = { id: "agent-1", role: "agent" as const };
@@ -69,5 +69,21 @@ describe("resolveCallsReportUserScope", () => {
         teamUserIds: [],
       }),
     ).toEqual({ userId: undefined, userIds: undefined });
+  });
+});
+
+describe("expandTeamUserIds", () => {
+  it("unions the selection with direct reports", () => {
+    expect(
+      expandTeamUserIds(["manager-1"], ["agent-a", "agent-b"], ["agent-a", "agent-c"]),
+    ).toEqual(["manager-1", "agent-a", "agent-b"]);
+  });
+
+  it("includes every associate when the reporting tree is empty", () => {
+    expect(expandTeamUserIds(["manager-1"], [], ["agent-a", "manager-2"])).toEqual([
+      "manager-1",
+      "agent-a",
+      "manager-2",
+    ]);
   });
 });
