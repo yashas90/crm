@@ -1,4 +1,5 @@
 import {
+  agentCallLogs,
   callRecords,
   leadActivities,
   leads,
@@ -8,8 +9,23 @@ import {
   users,
 } from "@propninja/db";
 import { getIstDateKey, getIstDayBounds, getIstMonthBounds } from "@propninja/types/ist";
-import { and, eq, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import {
+  type SQL,
+  and,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { answeredCallFilter, connectedTalkTimeFilter } from "../lib/callTalkTime.js";
+import { expandTeamUserIds } from "../lib/callsReportScope.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
@@ -283,7 +299,7 @@ function leadActivityFilter(range: DateRange, userId?: string, userIds?: string[
   return and(...filters);
 }
 
-/** Expand selected manager(s) to include users who report to them (direct reports only). */
+/** Expand selected users to their direct reports, or every associate when none are linked. */
 async function expandCallsReportUserScope(query: CallsReportQuery): Promise<CallsReportQuery> {
   if (!query.withTeam) return query;
 
@@ -301,12 +317,28 @@ async function expandCallsReportUserScope(query: CallsReportQuery): Promise<Call
       ),
     );
 
-  const userIds = [...new Set([...managerIds, ...directReports.map((row) => row.id)])];
+  let staffIds: string[] = [];
+  if (directReports.length === 0) {
+    const staff = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.orgId, SINGLE_TENANT_ORG_ID),
+          or(eq(users.role, "agent"), eq(users.role, "manager")),
+        ),
+      );
+    staffIds = staff.map((row) => row.id);
+  }
 
   return {
     ...query,
     userId: undefined,
-    userIds,
+    userIds: expandTeamUserIds(
+      managerIds,
+      directReports.map((row) => row.id),
+      staffIds,
+    ),
   };
 }
 
@@ -445,9 +477,154 @@ function siteVisitsConductedExpr(query: CallsReportQuery) {
   return siteVisitsCountExpr(query, "conducted");
 }
 
+function reportUsesLeadFilter(query: CallsReportQuery) {
+  return Boolean(
+    query.source ||
+      query.subSource ||
+      query.projectName ||
+      query.campaignName ||
+      query.projectStatus,
+  );
+}
+
+type DeviceCallBucket =
+  | "incoming_answered"
+  | "incoming_missed"
+  | "outgoing_answered"
+  | "outgoing_not_connected"
+  | "connected"
+  | "all";
+
+type DeviceCallTotals = {
+  incomingAnswered: number;
+  incomingMissed: number;
+  outgoingAnswered: number;
+  outgoingNotConnected: number;
+  totalTalkTimeSeconds: number;
+  connectedCalls: number;
+  minTalkTimeSeconds: number | null;
+  maxTalkTimeSeconds: number | null;
+  totalCalls: number;
+};
+
+function deviceBucketCondition(callType: SQL, durationSeconds: SQL, bucket: DeviceCallBucket) {
+  const duration = sql`coalesce(${durationSeconds}, 0)`;
+  switch (bucket) {
+    case "incoming_answered":
+      return sql`${callType} = 'INCOMING' and ${duration} > 0`;
+    case "incoming_missed":
+      return sql`(
+        ${callType} in ('MISSED', 'REJECTED')
+        or (${callType} = 'INCOMING' and ${duration} = 0)
+      )`;
+    case "outgoing_answered":
+      return sql`${callType} not in ('INCOMING', 'MISSED', 'REJECTED') and ${duration} > 0`;
+    case "outgoing_not_connected":
+      return sql`${callType} not in ('INCOMING', 'MISSED', 'REJECTED') and ${duration} = 0`;
+    case "connected":
+      return sql`${callType} in ('INCOMING', 'OUTGOING', 'UNKNOWN') and ${duration} > 0`;
+    case "all":
+      return sql`true`;
+  }
+}
+
+/** OS call logs that are not already represented by a CRM call within two minutes. */
+function unmatchedDeviceLogWhere(fromIso: string, toIso: string) {
+  return sql`
+    acl.user_id = ${users.id}
+    and acl.call_start_time >= ${fromIso}
+    and acl.call_start_time <= ${toIso}
+    and not exists (
+      select 1 from ${callRecords} cr
+      where cr.user_id = acl.user_id
+        and cr.org_id = ${SINGLE_TENANT_ORG_ID}
+        and cr.started_at >= acl.call_start_time - interval '2 minutes'
+        and cr.started_at <= acl.call_start_time + interval '2 minutes'
+    )
+  `;
+}
+
+function unmatchedDeviceCallExistsSql() {
+  return sql`not exists (
+    select 1 from ${callRecords} cr
+    where cr.user_id = ${agentCallLogs.userId}
+      and cr.org_id = ${SINGLE_TENANT_ORG_ID}
+      and cr.started_at >= ${agentCallLogs.callStartTime} - interval '2 minutes'
+      and cr.started_at <= ${agentCallLogs.callStartTime} + interval '2 minutes'
+  )`;
+}
+
+function deviceCallCountExpr(query: CallsReportQuery, bucket: DeviceCallBucket) {
+  if (reportUsesLeadFilter(query)) return sql<number>`0`;
+  const scope = leadScopeFromQuery(query);
+  const bucketSql = deviceBucketCondition(sql`acl.call_type`, sql`acl.duration_seconds`, bucket);
+  return sql<number>`coalesce((
+    select count(*)::int from ${agentCallLogs} acl
+    where ${unmatchedDeviceLogWhere(scope.dateFrom.toISOString(), scope.dateTo.toISOString())}
+      and ${bucketSql}
+  ), 0)::int`;
+}
+
+function deviceCallTalkSumExpr(query: CallsReportQuery) {
+  if (reportUsesLeadFilter(query)) return sql<number>`0`;
+  const scope = leadScopeFromQuery(query);
+  const connected = deviceBucketCondition(
+    sql`acl.call_type`,
+    sql`acl.duration_seconds`,
+    "connected",
+  );
+  return sql<number>`coalesce((
+    select coalesce(sum(coalesce(acl.duration_seconds, 0)), 0)::int
+    from ${agentCallLogs} acl
+    where ${unmatchedDeviceLogWhere(scope.dateFrom.toISOString(), scope.dateTo.toISOString())}
+      and ${connected}
+  ), 0)::int`;
+}
+
+function deviceCallTalkBoundExpr(query: CallsReportQuery, bound: "min" | "max") {
+  if (reportUsesLeadFilter(query)) return sql`null`;
+  const scope = leadScopeFromQuery(query);
+  const connected = deviceBucketCondition(
+    sql`acl.call_type`,
+    sql`acl.duration_seconds`,
+    "connected",
+  );
+  const agg = bound === "min" ? sql`min` : sql`max`;
+  return sql`(
+    select ${agg}(acl.duration_seconds)
+    from ${agentCallLogs} acl
+    where ${unmatchedDeviceLogWhere(scope.dateFrom.toISOString(), scope.dateTo.toISOString())}
+      and ${connected}
+  )`;
+}
+
 function callsPerUserMetricsSelectFor(query: CallsReportQuery) {
+  const crm = callsPerUserMetricsSelect;
+  const osIncomingAnswered = deviceCallCountExpr(query, "incoming_answered");
+  const osIncomingMissed = deviceCallCountExpr(query, "incoming_missed");
+  const osOutgoingAnswered = deviceCallCountExpr(query, "outgoing_answered");
+  const osOutgoingNotConnected = deviceCallCountExpr(query, "outgoing_not_connected");
+  const osTotal = deviceCallCountExpr(query, "all");
+  const osTalk = deviceCallTalkSumExpr(query);
+  const osConnected = deviceCallCountExpr(query, "connected");
+  const osMin = deviceCallTalkBoundExpr(query, "min");
+  const osMax = deviceCallTalkBoundExpr(query, "max");
+  const crmConnected = sql`count(${callRecords.id}) filter (where ${answeredCall})`;
+
   return {
-    ...callsPerUserMetricsSelect,
+    userId: crm.userId,
+    userName: crm.userName,
+    incomingAnswered: sql<number>`(${crm.incomingAnswered} + ${osIncomingAnswered})::int`,
+    incomingMissed: sql<number>`(${crm.incomingMissed} + ${osIncomingMissed})::int`,
+    incomingTotal: sql<number>`(${crm.incomingTotal} + ${osIncomingAnswered} + ${osIncomingMissed})::int`,
+    outgoingAnswered: sql<number>`(${crm.outgoingAnswered} + ${osOutgoingAnswered})::int`,
+    outgoingNotConnected: sql<number>`(${crm.outgoingNotConnected} + ${osOutgoingNotConnected})::int`,
+    outgoingTotal: sql<number>`(${crm.outgoingTotal} + ${osOutgoingAnswered} + ${osOutgoingNotConnected})::int`,
+    totalTalkTimeSeconds: sql<number>`(${crm.totalTalkTimeSeconds} + ${osTalk})::int`,
+    avgTalkTimeSeconds: sql<number>`coalesce(round((${crm.totalTalkTimeSeconds} + ${osTalk})::numeric / nullif(${crmConnected} + ${osConnected}, 0)), 0)::int`,
+    minTalkTimeSeconds: sql<number>`coalesce(least(nullif(${crm.minTalkTimeSeconds}, 0), ${osMin}), 0)::int`,
+    maxTalkTimeSeconds: sql<number>`coalesce(greatest(nullif(${crm.maxTalkTimeSeconds}, 0), ${osMax}), 0)::int`,
+    totalCalls: sql<number>`(${crm.totalCalls} + ${osTotal})::int`,
     siteVisitsBooked: siteVisitsBookedExpr(query),
     siteVisitsConducted: siteVisitsConductedExpr(query),
   };
@@ -624,7 +801,7 @@ async function fetchCallsPerUserRows(
     .leftJoin(callRecords, callJoinOn)
     .where(userWhere)
     .groupBy(users.id, users.name)
-    .orderBy(users.name);
+    .orderBy(sql`${metrics.totalCalls} desc`, users.name);
 
   const rows = pagination
     ? await baseQuery.limit(pagination.limit).offset(pagination.offset)
@@ -678,10 +855,125 @@ async function fetchSiteVisitsCountGrandTotal(
   return row?.count ?? 0;
 }
 
+function emptyDeviceCallTotals(): DeviceCallTotals {
+  return {
+    incomingAnswered: 0,
+    incomingMissed: 0,
+    outgoingAnswered: 0,
+    outgoingNotConnected: 0,
+    totalTalkTimeSeconds: 0,
+    connectedCalls: 0,
+    minTalkTimeSeconds: null,
+    maxTalkTimeSeconds: null,
+    totalCalls: 0,
+  };
+}
+
+function positiveTalkSeconds(value: number | null | undefined) {
+  if (value == null) return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return numeric;
+}
+
+function mergeTalkBound(crmSeconds: number, deviceSeconds: number | null, mode: "min" | "max") {
+  const values = [positiveTalkSeconds(crmSeconds), positiveTalkSeconds(deviceSeconds)].filter(
+    (value): value is number => value != null,
+  );
+  if (values.length === 0) return 0;
+  return mode === "min" ? Math.min(...values) : Math.max(...values);
+}
+
+function mergeCallsPerUserTotals(crm: CallsPerUserTotalsRow, device: DeviceCallTotals) {
+  const crmConnected = Number(crm.incomingAnswered) + Number(crm.outgoingAnswered);
+  const connected = crmConnected + device.connectedCalls;
+  const talk = Number(crm.totalTalkTimeSeconds) + device.totalTalkTimeSeconds;
+
+  return mapCallsPerUserTotalsRow({
+    incomingAnswered: Number(crm.incomingAnswered) + device.incomingAnswered,
+    incomingMissed: Number(crm.incomingMissed) + device.incomingMissed,
+    incomingTotal: Number(crm.incomingTotal) + device.incomingAnswered + device.incomingMissed,
+    outgoingAnswered: Number(crm.outgoingAnswered) + device.outgoingAnswered,
+    outgoingNotConnected: Number(crm.outgoingNotConnected) + device.outgoingNotConnected,
+    outgoingTotal:
+      Number(crm.outgoingTotal) + device.outgoingAnswered + device.outgoingNotConnected,
+    totalTalkTimeSeconds: talk,
+    avgTalkTimeSeconds: connected > 0 ? Math.round(talk / connected) : 0,
+    minTalkTimeSeconds: mergeTalkBound(
+      Number(crm.minTalkTimeSeconds),
+      device.minTalkTimeSeconds,
+      "min",
+    ),
+    maxTalkTimeSeconds: mergeTalkBound(
+      Number(crm.maxTalkTimeSeconds),
+      device.maxTalkTimeSeconds,
+      "max",
+    ),
+    totalCalls: Number(crm.totalCalls) + device.totalCalls,
+    siteVisitsBooked: crm.siteVisitsBooked,
+    siteVisitsConducted: crm.siteVisitsConducted,
+  });
+}
+
+async function fetchDeviceCallGrandTotals(query: CallsReportQuery): Promise<DeviceCallTotals> {
+  if (reportUsesLeadFilter(query)) return emptyDeviceCallTotals();
+
+  const scope = leadScopeFromQuery(query);
+  const userWhere = buildCallsPerUserUserWhere(query);
+  const duration = sql`coalesce(${agentCallLogs.durationSeconds}, 0)`;
+  const bucket = (name: DeviceCallBucket) =>
+    deviceBucketCondition(
+      sql`${agentCallLogs.callType}`,
+      sql`${agentCallLogs.durationSeconds}`,
+      name,
+    );
+
+  const [row] = await db
+    .select({
+      incomingAnswered: sql<number>`count(*) filter (where ${bucket("incoming_answered")})::int`,
+      incomingMissed: sql<number>`count(*) filter (where ${bucket("incoming_missed")})::int`,
+      outgoingAnswered: sql<number>`count(*) filter (where ${bucket("outgoing_answered")})::int`,
+      outgoingNotConnected: sql<number>`count(*) filter (where ${bucket("outgoing_not_connected")})::int`,
+      totalTalkTimeSeconds: sql<number>`coalesce(sum(${duration}) filter (where ${bucket("connected")}), 0)::int`,
+      connectedCalls: sql<number>`count(*) filter (where ${bucket("connected")})::int`,
+      minTalkTimeSeconds: sql<
+        number | null
+      >`min(${agentCallLogs.durationSeconds}) filter (where ${bucket("connected")})`,
+      maxTalkTimeSeconds: sql<
+        number | null
+      >`max(${agentCallLogs.durationSeconds}) filter (where ${bucket("connected")})`,
+      totalCalls: sql<number>`count(*)::int`,
+    })
+    .from(agentCallLogs)
+    .innerJoin(users, eq(agentCallLogs.userId, users.id))
+    .where(
+      and(
+        userWhere,
+        gte(agentCallLogs.callStartTime, scope.dateFrom),
+        lte(agentCallLogs.callStartTime, scope.dateTo),
+        unmatchedDeviceCallExistsSql(),
+      ),
+    );
+
+  if (!row) return emptyDeviceCallTotals();
+
+  return {
+    incomingAnswered: Number(row.incomingAnswered ?? 0),
+    incomingMissed: Number(row.incomingMissed ?? 0),
+    outgoingAnswered: Number(row.outgoingAnswered ?? 0),
+    outgoingNotConnected: Number(row.outgoingNotConnected ?? 0),
+    totalTalkTimeSeconds: Number(row.totalTalkTimeSeconds ?? 0),
+    connectedCalls: Number(row.connectedCalls ?? 0),
+    minTalkTimeSeconds: row.minTalkTimeSeconds == null ? null : Number(row.minTalkTimeSeconds),
+    maxTalkTimeSeconds: row.maxTalkTimeSeconds == null ? null : Number(row.maxTalkTimeSeconds),
+    totalCalls: Number(row.totalCalls ?? 0),
+  };
+}
+
 async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
   const callWhere = buildCallsPerUserCallWhere(query);
   const userWhere = buildCallsPerUserUserWhere(query);
-  const [row, siteVisitsBooked, siteVisitsConducted] = await Promise.all([
+  const [row, siteVisitsBooked, siteVisitsConducted, device] = await Promise.all([
     db
       .select({
         incomingAnswered: callsPerUserMetricsSelect.incomingAnswered,
@@ -702,25 +994,29 @@ async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
       .then((rows) => rows[0]),
     fetchSiteVisitsCountGrandTotal(query, "booked"),
     fetchSiteVisitsCountGrandTotal(query, "conducted"),
+    fetchDeviceCallGrandTotals(query),
   ]);
 
-  return mapCallsPerUserTotalsRow({
-    ...(row ?? {
-      incomingAnswered: 0,
-      incomingMissed: 0,
-      incomingTotal: 0,
-      outgoingAnswered: 0,
-      outgoingNotConnected: 0,
-      outgoingTotal: 0,
-      totalTalkTimeSeconds: 0,
-      avgTalkTimeSeconds: 0,
-      minTalkTimeSeconds: 0,
-      maxTalkTimeSeconds: 0,
-      totalCalls: 0,
-    }),
-    siteVisitsBooked,
-    siteVisitsConducted,
-  });
+  return mergeCallsPerUserTotals(
+    {
+      ...(row ?? {
+        incomingAnswered: 0,
+        incomingMissed: 0,
+        incomingTotal: 0,
+        outgoingAnswered: 0,
+        outgoingNotConnected: 0,
+        outgoingTotal: 0,
+        totalTalkTimeSeconds: 0,
+        avgTalkTimeSeconds: 0,
+        minTalkTimeSeconds: 0,
+        maxTalkTimeSeconds: 0,
+        totalCalls: 0,
+      }),
+      siteVisitsBooked,
+      siteVisitsConducted,
+    },
+    device,
+  );
 }
 
 async function fetchCallsReportPerUserPaginated(query: CallsReportQuery) {
@@ -1163,7 +1459,7 @@ export const reportService = {
       lte(tasks.completedAt, dateTo),
     );
 
-    const [orgUsers, callsMade, leadsAssigned, tasksCompleted] = await Promise.all([
+    const [orgUsers, callsMade, deviceCalls, leadsAssigned, tasksCompleted] = await Promise.all([
       db
         .select({ id: users.id, name: users.name, email: users.email })
         .from(users)
@@ -1177,6 +1473,20 @@ export const reportService = {
         .from(callRecords)
         .where(callWhere)
         .groupBy(callRecords.userId),
+      db
+        .select({
+          userId: agentCallLogs.userId,
+          callsMade: sql<number>`count(*)::int`,
+        })
+        .from(agentCallLogs)
+        .where(
+          and(
+            gte(agentCallLogs.callStartTime, dateFrom),
+            lte(agentCallLogs.callStartTime, dateTo),
+            unmatchedDeviceCallExistsSql(),
+          ),
+        )
+        .groupBy(agentCallLogs.userId),
       db
         .select({
           userId: leads.assignedTo,
@@ -1196,6 +1506,7 @@ export const reportService = {
     ]);
 
     const callsMap = new Map(callsMade.map((r) => [r.userId, r]));
+    const deviceCallsMap = new Map(deviceCalls.map((r) => [r.userId, Number(r.callsMade)]));
     const leadsMap = new Map(leadsAssigned.map((r) => [r.userId, r]));
     const tasksMap = new Map(tasksCompleted.map((r) => [r.userId, r]));
 
@@ -1205,7 +1516,7 @@ export const reportService = {
         const leadsAssignedRow = leadsMap.get(user.id);
         const tasksCompletedRow = tasksMap.get(user.id);
 
-        const callsMadeCount = calls?.callsMade ?? 0;
+        const callsMadeCount = (calls?.callsMade ?? 0) + (deviceCallsMap.get(user.id) ?? 0);
         const leadsAssignedCount = leadsAssignedRow?.leadsAssigned ?? 0;
         const tasksCompletedCount = tasksCompletedRow?.tasksCompleted ?? 0;
 
