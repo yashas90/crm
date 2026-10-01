@@ -1,11 +1,12 @@
 import { ErrorState } from "@/components/ui/ErrorState";
 import { type BookingListItem, currentMonthIsoRange, useBookingsList } from "@/hooks/use-projects";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -58,6 +59,7 @@ export function BookingsScreen({ navigation }: Props) {
       style={styles.container}
       data={items}
       keyExtractor={(item) => item.id}
+      {...FLAT_LIST_PERF}
       contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}
       refreshControl={
         <RefreshControl
@@ -94,7 +96,10 @@ export function BookingsScreen({ navigation }: Props) {
   );
 }
 
-function BookingRow({ item, onPress }: { item: BookingListItem; onPress: () => void }) {
+const BookingRow = memo(function BookingRow({
+  item,
+  onPress,
+}: { item: BookingListItem; onPress: () => void }) {
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -121,7 +126,7 @@ function BookingRow({ item, onPress }: { item: BookingListItem; onPress: () => v
       </Text>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

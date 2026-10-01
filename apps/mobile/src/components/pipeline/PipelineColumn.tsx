@@ -1,5 +1,6 @@
 import { PipelineLeadCard } from "@/components/pipeline/PipelineLeadCard";
 import type { LeadRow } from "@/hooks/use-leads";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import {
   type PipelineStage,
   formatPipelineValue,
@@ -10,6 +11,7 @@ import {
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import type { LeadStatus } from "@propninja/types/enums";
+import { memo } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 const COLUMN_WIDTH = 272;
@@ -26,7 +28,7 @@ type PipelineColumnProps = {
   onQuickMove?: (leadId: string, stage: LeadStatus) => void;
 };
 
-export function PipelineColumn({
+export const PipelineColumn = memo(function PipelineColumn({
   stage,
   leads,
   allStages,
@@ -67,6 +69,7 @@ export function PipelineColumn({
         <FlatList
           data={leads}
           keyExtractor={(item) => item.id}
+          {...FLAT_LIST_PERF}
           renderItem={({ item }) => (
             <PipelineLeadCard
               lead={item}
@@ -92,7 +95,7 @@ export function PipelineColumn({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   column: {

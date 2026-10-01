@@ -11,6 +11,7 @@ import {
   type CallDateFilter,
   type CallOutcomeFilter,
 } from "@/lib/callLogFilters";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { isForbiddenError } from "@/lib/query-errors";
 import type { TeamStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
@@ -153,6 +154,7 @@ function TeamCallLogsContent({ navigation }: Props) {
         ]}
         data={items}
         keyExtractor={(item) => item.id}
+        {...FLAT_LIST_PERF}
         renderItem={({ item }: { item: TeamCallLogItem }) => (
           <TeamCallLogListItem
             item={item}
@@ -180,7 +182,6 @@ function TeamCallLogsContent({ navigation }: Props) {
         onEndReached={() => {
           if (logs.hasNextPage && !logs.isFetchingNextPage) void logs.fetchNextPage();
         }}
-        onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
             refreshing={logs.isRefetching && !logs.isFetchingNextPage}

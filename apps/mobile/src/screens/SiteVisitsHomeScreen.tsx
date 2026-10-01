@@ -6,6 +6,7 @@ import { useIsManager } from "@/hooks/use-role";
 import { type SiteVisit, useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { VisitsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -89,6 +90,7 @@ export function SiteVisitsHomeScreen({ navigation }: Props) {
       <FlatList
         data={visits}
         keyExtractor={(item) => item.id}
+        {...FLAT_LIST_PERF}
         contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}
         refreshControl={
           <RefreshControl

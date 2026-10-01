@@ -16,6 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: "portrait",
   scheme: "propninja",
   userInterfaceStyle: "light",
+  jsEngine: "hermes",
   newArchEnabled: false,
   icon: "./assets/icon.png",
   splash: {

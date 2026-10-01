@@ -28,7 +28,7 @@ type CallLogsPage = {
   limit: number;
 };
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 function useAuthReady() {
   const { status } = useAuth();

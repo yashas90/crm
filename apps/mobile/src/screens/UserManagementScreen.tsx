@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { type OrgUser, useUpdateUser, useUsers } from "@/hooks/use-users";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { isForbiddenError } from "@/lib/query-errors";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
@@ -72,6 +73,7 @@ function UserManagementContent({ navigation: _navigation }: Props) {
         contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}
         data={users.data?.items ?? []}
         keyExtractor={(item) => item.id}
+        {...FLAT_LIST_PERF}
         refreshControl={
           <RefreshControl
             refreshing={users.isRefetching}

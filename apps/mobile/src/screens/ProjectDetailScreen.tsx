@@ -1,11 +1,20 @@
 import { ErrorState } from "@/components/ui/ErrorState";
 import { type ProjectUnitRow, useProjectUnits } from "@/hooks/use-projects";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useLayoutEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { memo, useLayoutEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<ProfileStackParamList, "ProjectDetailScreen">;
@@ -69,10 +78,14 @@ export function ProjectDetailScreen({ route, navigation }: Props) {
         ))}
       </ScrollView>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}>
-        {(units ?? []).map((unit) => (
+      <FlatList
+        data={units ?? []}
+        keyExtractor={(item) => item.id}
+        {...FLAT_LIST_PERF}
+        contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}
+        ListEmptyComponent={<Text style={styles.empty}>No units match this filter.</Text>}
+        renderItem={({ item: unit }) => (
           <UnitRow
-            key={unit.id}
             unit={unit}
             onPress={() =>
               navigation.navigate("ProjectUnitScreen", {
@@ -82,16 +95,16 @@ export function ProjectDetailScreen({ route, navigation }: Props) {
               })
             }
           />
-        ))}
-        {(units ?? []).length === 0 ? (
-          <Text style={styles.empty}>No units match this filter.</Text>
-        ) : null}
-      </ScrollView>
+        )}
+      />
     </View>
   );
 }
 
-function UnitRow({ unit, onPress }: { unit: ProjectUnitRow; onPress: () => void }) {
+const UnitRow = memo(function UnitRow({
+  unit,
+  onPress,
+}: { unit: ProjectUnitRow; onPress: () => void }) {
   return (
     <Pressable
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
@@ -109,7 +122,7 @@ function UnitRow({ unit, onPress }: { unit: ProjectUnitRow; onPress: () => void 
       </View>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

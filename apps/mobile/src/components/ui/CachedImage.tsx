@@ -17,6 +17,8 @@ export function CachedImage({
   authenticated = false,
   cachePolicy = "memory-disk",
   contentFit = "cover",
+  recyclingKey,
+  transition = 150,
   ...rest
 }: CachedImageProps) {
   const token = authenticated ? getToken() : null;
@@ -31,6 +33,9 @@ export function CachedImage({
       style={style}
       cachePolicy={cachePolicy}
       contentFit={contentFit}
+      recyclingKey={recyclingKey ?? uri}
+      transition={transition}
+      placeholder={{ blurhash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4" }}
     />
   );
 }

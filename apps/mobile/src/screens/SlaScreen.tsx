@@ -2,6 +2,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { useSlaBreached, useSlaSummary } from "@/hooks/use-sla";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -55,6 +56,7 @@ export function SlaScreen({ navigation }: Props) {
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
+        {...FLAT_LIST_PERF}
         contentContainerStyle={{
           padding: spacing.md,
           paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom,

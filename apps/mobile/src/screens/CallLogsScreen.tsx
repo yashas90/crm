@@ -15,6 +15,7 @@ import {
   type CallDateFilter,
   type CallOutcomeFilter,
 } from "@/lib/callLogFilters";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -213,6 +214,7 @@ function CallLogsScreenContent({ navigation, route }: Props) {
       ]}
       data={items}
       keyExtractor={(item) => item.id}
+      {...FLAT_LIST_PERF}
       renderItem={renderItem}
       ListHeaderComponent={listHeader}
       ListEmptyComponent={
@@ -236,7 +238,6 @@ function CallLogsScreenContent({ navigation, route }: Props) {
           void logs.fetchNextPage();
         }
       }}
-      onEndReachedThreshold={0.4}
       refreshControl={
         <RefreshControl
           refreshing={logs.isRefetching && !logs.isFetchingNextPage}

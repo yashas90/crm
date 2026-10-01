@@ -1,5 +1,6 @@
 import { ErrorState } from "@/components/ui/ErrorState";
 import { type UnitSummary, useProjectsList } from "@/hooks/use-projects";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
@@ -7,9 +8,9 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -40,9 +41,12 @@ export function ProjectsScreen({ navigation }: Props) {
   }
 
   return (
-    <ScrollView
+    <FlatList
       style={styles.container}
       contentContainerStyle={{ paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom }}
+      data={projects ?? []}
+      keyExtractor={(item) => item.id}
+      {...FLAT_LIST_PERF}
       refreshControl={
         <RefreshControl
           refreshing={isRefetching}
@@ -50,10 +54,8 @@ export function ProjectsScreen({ navigation }: Props) {
           tintColor={colors.primary}
         />
       }
-    >
-      {(projects ?? []).map((project) => (
+      renderItem={({ item: project }) => (
         <Pressable
-          key={project.id}
           style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
           onPress={() =>
             navigation.navigate("ProjectDetailScreen", {
@@ -66,13 +68,10 @@ export function ProjectsScreen({ navigation }: Props) {
             <Text style={styles.projectName}>{project.name}</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
           </View>
-          <Text style={styles.summary}>{summaryLine(project.unitSummary)}</Text>
+          <Text style={styles.summary}>{summaryLine(project.unitSummary ?? undefined)}</Text>
         </Pressable>
-      ))}
-      {isRefetching ? (
-        <ActivityIndicator style={{ marginTop: spacing.md }} color={colors.primary} />
-      ) : null}
-    </ScrollView>
+      )}
+    />
   );
 }
 

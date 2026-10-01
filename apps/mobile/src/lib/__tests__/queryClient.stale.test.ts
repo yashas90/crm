@@ -18,7 +18,7 @@ describe("mobile queryClient stale-data handling", () => {
     });
     query.setState({ data: { items: [] }, dataUpdateCount: 1, status: "success" });
 
-    cache.config.onError?.(new Error("offline"), query);
+    cache.config.onError?.(new Error("offline"), query as never);
 
     expect(alertSpy).not.toHaveBeenCalled();
   });
@@ -40,7 +40,7 @@ describe("mobile queryClient stale-data handling", () => {
       },
     });
 
-    cache.config.onError?.(new Error("boom"), query);
+    cache.config.onError?.(new Error("boom"), query as never);
 
     expect(alertSpy).toHaveBeenCalledWith("Could not load data", "boom");
   });

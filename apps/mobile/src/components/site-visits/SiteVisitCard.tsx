@@ -8,6 +8,7 @@ import {
 } from "@/hooks/use-site-visits";
 import { colors, radii, spacing } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 type SiteVisitCardProps = {
@@ -17,7 +18,12 @@ type SiteVisitCardProps = {
   accentColor?: string;
 };
 
-export function SiteVisitCard({ visit, onPress, showAgent, accentColor }: SiteVisitCardProps) {
+export const SiteVisitCard = memo(function SiteVisitCard({
+  visit,
+  onPress,
+  showAgent,
+  accentColor,
+}: SiteVisitCardProps) {
   const statusColor = visitStatusColor(visit.status);
   const borderColor = accentColor ?? statusColor;
 
@@ -43,7 +49,7 @@ export function SiteVisitCard({ visit, onPress, showAgent, accentColor }: SiteVi
       ) : null}
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

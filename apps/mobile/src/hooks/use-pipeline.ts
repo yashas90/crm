@@ -45,6 +45,7 @@ export function usePipelineLeads(filter: PipelineFilter) {
         `/api/leads?${buildPipelineParams(effectiveFilter)}`,
       ),
     enabled: ready,
+    staleTime: 2 * 60_000,
   });
 }
 

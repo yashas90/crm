@@ -15,7 +15,7 @@ export type TeamCallLogItem = CallLogItem & {
   agentName: string | null;
 };
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 function useAuthReady() {
   const { status } = useAuth();

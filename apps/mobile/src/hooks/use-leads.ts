@@ -3,20 +3,15 @@ import { getCurrentUserId, getUser, normalizeRole } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
 import { cancelFollowUpReminder, scheduleFollowUpReminder } from "@/lib/followUpLocalReminders";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
+import { LIST_PAGE_SIZE, QUERY_STALE } from "@/lib/queryStale";
 import { useAuth } from "@/providers/auth-provider";
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-const LEAD_STALE_MS = 30_000;
+const LEAD_STALE_MS = QUERY_STALE.leads;
 /** Lead detail must not be always-stale — dialer return marks RQ focused and would refetch mid post-call UI. */
-const LEAD_DETAIL_STALE_MS = 30_000;
+const LEAD_DETAIL_STALE_MS = QUERY_STALE.leadDetail;
 
-const LEADS_PAGE_SIZE = "50";
+const LEADS_PAGE_SIZE = String(LIST_PAGE_SIZE);
 
 export type LeadRow = {
   id: string;

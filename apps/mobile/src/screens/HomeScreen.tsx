@@ -12,7 +12,7 @@ import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { neuSticky } from "@/theme/neubrutal";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -184,7 +184,7 @@ export function HomeScreen({ navigation }: Props) {
   );
 }
 
-function StatCard({
+const StatCard = memo(function StatCard({
   icon,
   value,
   label,
@@ -207,9 +207,9 @@ function StatCard({
       <Text style={styles.statLabel}>{label}</Text>
     </Pressable>
   );
-}
+});
 
-function ActionTile({
+const ActionTile = memo(function ActionTile({
   icon,
   label,
   onPress,
@@ -225,9 +225,12 @@ function ActionTile({
       <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </Card>
   );
-}
+});
 
-function HotLeadRow({ lead, onPress }: { lead: HotLead; onPress: () => void }) {
+const HotLeadRow = memo(function HotLeadRow({
+  lead,
+  onPress,
+}: { lead: HotLead; onPress: () => void }) {
   return (
     <Pressable
       style={({ pressed }) => [styles.hotRow, pressed && styles.pressed]}
@@ -250,7 +253,7 @@ function HotLeadRow({ lead, onPress }: { lead: HotLead; onPress: () => void }) {
       <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },

@@ -5,6 +5,7 @@ import { type PipelineStage, isClosedPipelineStageKey } from "@/lib/pipeline";
 import { colors, radii, spacing } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import type { LeadStatus } from "@propninja/types/enums";
+import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 type PipelineLeadCardProps = {
@@ -37,7 +38,7 @@ function formatEstimatedValue(value: string | null | undefined): string | null {
   return `₹${num.toLocaleString("en-IN")}`;
 }
 
-export function PipelineLeadCard({
+export const PipelineLeadCard = memo(function PipelineLeadCard({
   lead,
   stage,
   stages,
@@ -118,7 +119,7 @@ export function PipelineLeadCard({
       ) : null}
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

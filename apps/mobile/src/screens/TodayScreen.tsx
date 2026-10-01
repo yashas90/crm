@@ -23,6 +23,7 @@ import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId, getUser } from "@/lib/auth";
 import { formatDuration } from "@/lib/dates";
 import { feedbackCallSaved } from "@/lib/feedback";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { buildLeadBrowserParams } from "@/lib/lead-browser";
 import { buildLeadStatusPatch, isNaLeadStatus } from "@/lib/lead-status-options";
 import { dialLeadPhone } from "@/lib/leadDialPhone";
@@ -381,6 +382,7 @@ export function TodayScreen({ route, navigation }: Props) {
       <FlatList
         data={queueItems}
         keyExtractor={(item) => item.id}
+        {...FLAT_LIST_PERF}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}

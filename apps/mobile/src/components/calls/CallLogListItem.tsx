@@ -5,6 +5,7 @@ import { displayCallOutcome, formatCallLogDuration } from "@/lib/callLogDisplay"
 import { formatDateTime } from "@/lib/dates";
 import { colors, radii, spacing } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 const OUTCOME_STYLES: Record<string, { label: string; backgroundColor: string; color: string }> = {
@@ -50,7 +51,12 @@ type CallLogListItemProps = {
   onViewLead: (leadId: string) => void;
 };
 
-export function CallLogListItem({ item, expanded, onToggle, onViewLead }: CallLogListItemProps) {
+export const CallLogListItem = memo(function CallLogListItem({
+  item,
+  expanded,
+  onToggle,
+  onViewLead,
+}: CallLogListItemProps) {
   const seconds = item.durationSeconds ?? item.duration * 60;
   const badge = outcomeStyle(displayCallOutcome(item.outcome, seconds));
   const displayName = item.leadName?.trim() || "Unknown lead";
@@ -107,7 +113,7 @@ export function CallLogListItem({ item, expanded, onToggle, onViewLead }: CallLo
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

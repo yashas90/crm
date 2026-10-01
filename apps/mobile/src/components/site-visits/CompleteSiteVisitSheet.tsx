@@ -1,5 +1,6 @@
 import { useProjectsList } from "@/hooks/use-projects";
 import { type SiteVisit, formatVisitTime, useUpdateSiteVisit } from "@/hooks/use-site-visits";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { colors, radii, spacing, typography } from "@/theme";
 import { useEffect, useState } from "react";
 import {
@@ -95,6 +96,7 @@ export function CompleteSiteVisitSheet({
             <FlatList
               data={projects.data ?? []}
               keyExtractor={(item) => item.id}
+              {...FLAT_LIST_PERF}
               style={styles.list}
               renderItem={({ item }) => {
                 const selected = selectedProjectId === item.id;

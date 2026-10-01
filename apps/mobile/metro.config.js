@@ -32,6 +32,10 @@ function resolveUseSync(moduleName) {
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(projectRoot);
+config.transformer = {
+  ...config.transformer,
+  inlineRequires: true,
+};
 
 // Must include monorepo root so Metro can read hoisted node_modules (@babel/runtime, etc.).
 config.watchFolders = [monorepoRoot];

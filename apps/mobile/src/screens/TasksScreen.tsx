@@ -3,6 +3,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { type Task, useMyOpenTasks } from "@/hooks/use-tasks";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { LeadsStackParamList, MainTabParamList } from "@/navigation/types";
 import { colors, spacing, typography } from "@/theme";
 import { TAB_BAR_HEIGHT } from "@/theme/layout";
@@ -11,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { CommonActions, type CompositeScreenProps } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,7 +21,13 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<LeadsStackParamList>
 >;
 
-function TaskListRow({ task, onPress }: { task: Task; onPress: () => void }) {
+const TaskListRow = memo(function TaskListRow({
+  task,
+  onPress,
+}: {
+  task: Task;
+  onPress: () => void;
+}) {
   const overdue = isTaskOverdue(task);
 
   return (
@@ -46,7 +53,7 @@ function TaskListRow({ task, onPress }: { task: Task; onPress: () => void }) {
       />
     </Pressable>
   );
-}
+});
 
 export function TasksScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -99,6 +106,7 @@ export function TasksScreen({ navigation }: Props) {
         <FlatList
           data={tasks}
           keyExtractor={(item) => item.id}
+          {...FLAT_LIST_PERF}
           renderItem={({ item }) => (
             <TaskListRow task={item} onPress={() => setSelectedTaskId(item.id)} />
           )}

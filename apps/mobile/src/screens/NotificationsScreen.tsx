@@ -11,13 +11,14 @@ import {
 } from "@/hooks/use-notifications";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { formatDateTime } from "@/lib/dates";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { screenStyles } from "@/theme/screen";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { useCallback } from "react";
+import { memo, useCallback } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -46,7 +47,7 @@ function notificationIcon(type: string): keyof typeof Ionicons.glyphMap {
   }
 }
 
-function NotificationItem({
+const NotificationItem = memo(function NotificationItem({
   item,
   onPress,
 }: {
@@ -84,7 +85,7 @@ function NotificationItem({
       <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </Pressable>
   );
-}
+});
 
 export function NotificationsScreen({ navigation }: Props) {
   const notifications = useNotifications();
@@ -140,6 +141,7 @@ export function NotificationsScreen({ navigation }: Props) {
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
+          {...FLAT_LIST_PERF}
           contentContainerStyle={[
             styles.listContent,
             items.length === 0 && styles.listEmpty,

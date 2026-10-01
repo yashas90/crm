@@ -7,6 +7,7 @@ import {
 } from "@/hooks/use-documents";
 import { useIsManager } from "@/hooks/use-role";
 import { getApiUrl } from "@/lib/apiClient";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -110,6 +111,7 @@ export function DocumentsLibraryScreen() {
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
+          {...FLAT_LIST_PERF}
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />

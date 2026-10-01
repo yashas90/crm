@@ -3,7 +3,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-const TASK_STALE_MS = 30_000;
+const TASK_STALE_MS = 60_000;
 const MY_OPEN_TASKS_KEY = ["tasks", "mine", "open"] as const;
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -77,7 +77,7 @@ function removeTaskFromOpenLists(queryClient: QueryClient, taskId: string) {
 }
 
 async function fetchMyOpenTasks() {
-  const data = await apiGet<OpenTasksList>("/api/tasks?assigneeId=me&status=open&pageSize=500");
+  const data = await apiGet<OpenTasksList>("/api/tasks?assigneeId=me&status=open&pageSize=50");
   const items = [...data.items]
     .filter((task) => isOpenTaskStatus(task.status))
     .sort((a, b) => {

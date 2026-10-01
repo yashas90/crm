@@ -5,6 +5,7 @@ import {
   useDocuments,
   useShareDocument,
 } from "@/hooks/use-documents";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { colors, radii, spacing, typography } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
@@ -71,6 +72,7 @@ export function ShareDocumentSheet({
             <FlatList
               data={items}
               keyExtractor={(item) => item.id}
+              {...FLAT_LIST_PERF}
               contentContainerStyle={{ paddingBottom: spacing.xl }}
               renderItem={({ item }) => (
                 <Pressable style={styles.row} onPress={() => onSelectDocument(item)}>

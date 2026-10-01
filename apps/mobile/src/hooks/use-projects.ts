@@ -69,6 +69,7 @@ export function useProjectsList() {
       );
       return res.items ?? [];
     },
+    staleTime: 10 * 60_000,
   });
 }
 
@@ -86,6 +87,7 @@ export function useProjectUnits(projectId: string, status?: string) {
       return res ?? [];
     },
     enabled: Boolean(projectId),
+    staleTime: 10 * 60_000,
   });
 }
 
@@ -115,6 +117,7 @@ export function useBookingsList(filters?: {
       }>(`/api/bookings${qs ? `?${qs}` : ""}`);
       return res;
     },
+    staleTime: 10 * 60_000,
   });
 }
 
