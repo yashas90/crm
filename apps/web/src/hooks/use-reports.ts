@@ -392,8 +392,38 @@ export function useOverviewKpiStrip(params: DashboardReportParams & { enabled?: 
   };
 }
 
+export type SourceMatrixCount = {
+  count: number;
+  unique: number;
+};
+
+export type SourceMatrixRow = {
+  source: string;
+  allLeads: SourceMatrixCount;
+  newLeads: SourceMatrixCount;
+  pending: SourceMatrixCount;
+  callback: SourceMatrixCount;
+  qualified: SourceMatrixCount;
+  duplicate: SourceMatrixCount;
+  meetingScheduled: SourceMatrixCount;
+  meetingDone: SourceMatrixCount;
+  meetingNotDone: SourceMatrixCount;
+  siteVisitScheduled: SourceMatrixCount;
+  siteVisitDone: SourceMatrixCount;
+  siteVisitNotDone: SourceMatrixCount;
+  booked: SourceMatrixCount;
+  bookingCancel: SourceMatrixCount;
+  notInterested: SourceMatrixCount;
+  dropped: SourceMatrixCount;
+  expressionOfInterest: SourceMatrixCount;
+};
+
 export type SourcesReport = {
   leads_from_source: SourceGroupReport[];
+  matrix?: {
+    rows: SourceMatrixRow[];
+    totals: SourceMatrixRow;
+  };
 };
 
 /** Lead counts grouped by source bucket from /api/reports/sources. */

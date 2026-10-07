@@ -24,12 +24,17 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { newLeadFreshnessCutoff } from "../lib/ageOutNewLeads.js";
 import { answeredCallFilter, connectedTalkTimeFilter } from "../lib/callTalkTime.js";
 import { expandTeamUserIds } from "../lib/callsReportScope.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
-import { buildLeadsOverTimeReport, buildSourceGroupReport } from "../lib/leadSourceGroups.js";
+import {
+  buildLeadsOverTimeReport,
+  buildSourceGroupReport,
+  formatSourceName,
+} from "../lib/leadSourceGroups.js";
 import {
   type ReportScope,
   priorPeriod,
@@ -143,6 +148,294 @@ async function queryLeadsBySource(scope: ReportScope) {
     .groupBy(leads.leadSource);
 
   return buildSourceGroupReport(rows.map((row) => ({ source: row.source, count: row.count })));
+}
+
+export type SourceMatrixCount = { count: number; unique: number };
+
+export type SourceMatrixRow = {
+  source: string;
+  allLeads: SourceMatrixCount;
+  newLeads: SourceMatrixCount;
+  pending: SourceMatrixCount;
+  callback: SourceMatrixCount;
+  qualified: SourceMatrixCount;
+  duplicate: SourceMatrixCount;
+  meetingScheduled: SourceMatrixCount;
+  meetingDone: SourceMatrixCount;
+  meetingNotDone: SourceMatrixCount;
+  siteVisitScheduled: SourceMatrixCount;
+  siteVisitDone: SourceMatrixCount;
+  siteVisitNotDone: SourceMatrixCount;
+  booked: SourceMatrixCount;
+  bookingCancel: SourceMatrixCount;
+  notInterested: SourceMatrixCount;
+  dropped: SourceMatrixCount;
+  expressionOfInterest: SourceMatrixCount;
+};
+
+const SOURCE_MATRIX_COLUMNS = [
+  { key: "allLeads", label: "All Leads" },
+  { key: "newLeads", label: "New" },
+  { key: "pending", label: "Pending" },
+  { key: "callback", label: "Callback" },
+  { key: "qualified", label: "Qualified" },
+  { key: "duplicate", label: "Duplicate" },
+  { key: "meetingScheduled", label: "Meeting Scheduled" },
+  { key: "meetingDone", label: "Meeting Done" },
+  { key: "meetingNotDone", label: "Meeting Not Done" },
+  { key: "siteVisitScheduled", label: "Site Visit Scheduled" },
+  { key: "siteVisitDone", label: "Site Visit Done" },
+  { key: "siteVisitNotDone", label: "Site Visit Not Done" },
+  { key: "booked", label: "Booked" },
+  { key: "bookingCancel", label: "Booking Cancel" },
+  { key: "notInterested", label: "Not Interested" },
+  { key: "dropped", label: "Dropped" },
+  { key: "expressionOfInterest", label: "Expression Of Interest" },
+] as const;
+
+const SOURCE_MATRIX_KEYS = SOURCE_MATRIX_COLUMNS.map((column) => column.key);
+
+const phoneKeySql = sql`RIGHT(regexp_replace(COALESCE(${leads.phone}, ''), '[^0-9]', '', 'g'), 10)`;
+
+function matrixCountExprs(filter?: SQL) {
+  const whereCount = filter ? sql`filter (where ${filter})` : sql``;
+  const whereUniquePhone = filter
+    ? sql`${filter} AND length(${phoneKeySql}) >= 10`
+    : sql`length(${phoneKeySql}) >= 10`;
+  const whereUniqueBlank = filter
+    ? sql`${filter} AND length(${phoneKeySql}) < 10`
+    : sql`length(${phoneKeySql}) < 10`;
+  return {
+    count: sql<number>`count(*) ${whereCount}::int`,
+    unique: sql<number>`(
+      count(distinct case when ${whereUniquePhone} then ${phoneKeySql} end)
+      + count(*) filter (where ${whereUniqueBlank})
+    )::int`,
+  };
+}
+
+function taskExistsSql(taskType: string, statuses: string[]) {
+  const statusList = sql.join(
+    statuses.map((status) => sql`${status}`),
+    sql`, `,
+  );
+  return sql`EXISTS (
+    SELECT 1 FROM ${tasks} t
+    WHERE t.lead_id = ${leads.id}
+      AND t.org_id = ${leads.orgId}
+      AND t.task_type = ${taskType}
+      AND t.status IN (${statusList})
+  )`;
+}
+
+function siteVisitExistsSql(statuses: string[]) {
+  const statusList = sql.join(
+    statuses.map((status) => sql`${status}`),
+    sql`, `,
+  );
+  return sql`EXISTS (
+    SELECT 1 FROM ${siteVisits} sv
+    WHERE sv.lead_id = ${leads.id}
+      AND sv.org_id = ${leads.orgId}
+      AND sv.status IN (${statusList})
+  )`;
+}
+
+function duplicateLeadSql() {
+  return sql`EXISTS (
+    SELECT 1 FROM ${leads} l2
+    WHERE l2.org_id = ${leads.orgId}
+      AND l2.id <> ${leads.id}
+      AND l2.deleted_at IS NULL
+      AND length(RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10)) >= 10
+      AND RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10) = ${phoneKeySql}
+      AND (
+        l2.created_at < ${leads.createdAt}
+        OR (l2.created_at = ${leads.createdAt} AND l2.id::text < ${leads.id}::text)
+      )
+  )`;
+}
+
+function sourceMatrixSelect() {
+  const pendingCutoff = newLeadFreshnessCutoff().toISOString();
+  const pending = sql`(
+    (
+      ${leads.leadStatus} = 'contacted'
+      OR (${leads.leadStatus} = 'new' AND ${leads.createdAt} < ${pendingCutoff}::timestamptz)
+    )
+    AND ${leads.nextFollowupAt} IS NULL
+  )`;
+  const callback = sql`(
+    ${leads.nextFollowupAt} IS NOT NULL
+    AND ${leads.leadStatus} NOT IN ('won', 'lost', 'dropped', 'not_interested')
+  )`;
+  const specs = {
+    allLeads: matrixCountExprs(),
+    newLeads: matrixCountExprs(sql`${leads.leadStatus} = 'new'`),
+    pending: matrixCountExprs(pending),
+    callback: matrixCountExprs(callback),
+    qualified: matrixCountExprs(sql`${leads.leadStatus} = 'qualified'`),
+    duplicate: matrixCountExprs(duplicateLeadSql()),
+    meetingScheduled: matrixCountExprs(taskExistsSql("meeting", ["pending", "in_progress"])),
+    meetingDone: matrixCountExprs(taskExistsSql("meeting", ["completed"])),
+    meetingNotDone: matrixCountExprs(taskExistsSql("meeting", ["cancelled"])),
+    siteVisitScheduled: matrixCountExprs(siteVisitExistsSql(["scheduled"])),
+    siteVisitDone: matrixCountExprs(siteVisitExistsSql(["completed"])),
+    siteVisitNotDone: matrixCountExprs(siteVisitExistsSql(["cancelled", "no_show"])),
+    booked: matrixCountExprs(sql`${leads.leadStatus} = 'won'`),
+    bookingCancel: matrixCountExprs(sql`${leads.leadStatus} = 'lost'`),
+    notInterested: matrixCountExprs(sql`${leads.leadStatus} = 'not_interested'`),
+    dropped: matrixCountExprs(sql`${leads.leadStatus} = 'dropped'`),
+    expressionOfInterest: matrixCountExprs(sql`${leads.leadStatus} = 'negotiation'`),
+  };
+
+  return {
+    allLeadsCount: specs.allLeads.count,
+    allLeadsUnique: specs.allLeads.unique,
+    newLeadsCount: specs.newLeads.count,
+    newLeadsUnique: specs.newLeads.unique,
+    pendingCount: specs.pending.count,
+    pendingUnique: specs.pending.unique,
+    callbackCount: specs.callback.count,
+    callbackUnique: specs.callback.unique,
+    qualifiedCount: specs.qualified.count,
+    qualifiedUnique: specs.qualified.unique,
+    duplicateCount: specs.duplicate.count,
+    duplicateUnique: specs.duplicate.unique,
+    meetingScheduledCount: specs.meetingScheduled.count,
+    meetingScheduledUnique: specs.meetingScheduled.unique,
+    meetingDoneCount: specs.meetingDone.count,
+    meetingDoneUnique: specs.meetingDone.unique,
+    meetingNotDoneCount: specs.meetingNotDone.count,
+    meetingNotDoneUnique: specs.meetingNotDone.unique,
+    siteVisitScheduledCount: specs.siteVisitScheduled.count,
+    siteVisitScheduledUnique: specs.siteVisitScheduled.unique,
+    siteVisitDoneCount: specs.siteVisitDone.count,
+    siteVisitDoneUnique: specs.siteVisitDone.unique,
+    siteVisitNotDoneCount: specs.siteVisitNotDone.count,
+    siteVisitNotDoneUnique: specs.siteVisitNotDone.unique,
+    bookedCount: specs.booked.count,
+    bookedUnique: specs.booked.unique,
+    bookingCancelCount: specs.bookingCancel.count,
+    bookingCancelUnique: specs.bookingCancel.unique,
+    notInterestedCount: specs.notInterested.count,
+    notInterestedUnique: specs.notInterested.unique,
+    droppedCount: specs.dropped.count,
+    droppedUnique: specs.dropped.unique,
+    expressionOfInterestCount: specs.expressionOfInterest.count,
+    expressionOfInterestUnique: specs.expressionOfInterest.unique,
+  };
+}
+
+type SourceMatrixSqlRow = {
+  source: string | null;
+  allLeadsCount: number;
+  allLeadsUnique: number;
+  newLeadsCount: number;
+  newLeadsUnique: number;
+  pendingCount: number;
+  pendingUnique: number;
+  callbackCount: number;
+  callbackUnique: number;
+  qualifiedCount: number;
+  qualifiedUnique: number;
+  duplicateCount: number;
+  duplicateUnique: number;
+  meetingScheduledCount: number;
+  meetingScheduledUnique: number;
+  meetingDoneCount: number;
+  meetingDoneUnique: number;
+  meetingNotDoneCount: number;
+  meetingNotDoneUnique: number;
+  siteVisitScheduledCount: number;
+  siteVisitScheduledUnique: number;
+  siteVisitDoneCount: number;
+  siteVisitDoneUnique: number;
+  siteVisitNotDoneCount: number;
+  siteVisitNotDoneUnique: number;
+  bookedCount: number;
+  bookedUnique: number;
+  bookingCancelCount: number;
+  bookingCancelUnique: number;
+  notInterestedCount: number;
+  notInterestedUnique: number;
+  droppedCount: number;
+  droppedUnique: number;
+  expressionOfInterestCount: number;
+  expressionOfInterestUnique: number;
+};
+
+function matrixRowFromSql(source: string, row: SourceMatrixSqlRow): SourceMatrixRow {
+  const pair = (count: number, unique: number): SourceMatrixCount => ({
+    count: Number(count ?? 0),
+    unique: Number(unique ?? 0),
+  });
+  return {
+    source,
+    allLeads: pair(row.allLeadsCount, row.allLeadsUnique),
+    newLeads: pair(row.newLeadsCount, row.newLeadsUnique),
+    pending: pair(row.pendingCount, row.pendingUnique),
+    callback: pair(row.callbackCount, row.callbackUnique),
+    qualified: pair(row.qualifiedCount, row.qualifiedUnique),
+    duplicate: pair(row.duplicateCount, row.duplicateUnique),
+    meetingScheduled: pair(row.meetingScheduledCount, row.meetingScheduledUnique),
+    meetingDone: pair(row.meetingDoneCount, row.meetingDoneUnique),
+    meetingNotDone: pair(row.meetingNotDoneCount, row.meetingNotDoneUnique),
+    siteVisitScheduled: pair(row.siteVisitScheduledCount, row.siteVisitScheduledUnique),
+    siteVisitDone: pair(row.siteVisitDoneCount, row.siteVisitDoneUnique),
+    siteVisitNotDone: pair(row.siteVisitNotDoneCount, row.siteVisitNotDoneUnique),
+    booked: pair(row.bookedCount, row.bookedUnique),
+    bookingCancel: pair(row.bookingCancelCount, row.bookingCancelUnique),
+    notInterested: pair(row.notInterestedCount, row.notInterestedUnique),
+    dropped: pair(row.droppedCount, row.droppedUnique),
+    expressionOfInterest: pair(row.expressionOfInterestCount, row.expressionOfInterestUnique),
+  };
+}
+
+function addMatrixRows(left: SourceMatrixRow, right: SourceMatrixRow): SourceMatrixRow {
+  const next = { ...left, source: left.source };
+  for (const key of SOURCE_MATRIX_KEYS) {
+    next[key] = {
+      count: left[key].count + right[key].count,
+      unique: left[key].unique + right[key].unique,
+    };
+  }
+  return next;
+}
+
+async function querySourceStatusMatrix(scope: ReportScope): Promise<{
+  rows: SourceMatrixRow[];
+  totals: SourceMatrixRow;
+}> {
+  const sourceKey = sql<string>`COALESCE(NULLIF(btrim(${leads.leadSource}), ''), 'Manual')`;
+  const where = scopedLeadCreated(scope);
+  const metrics = sourceMatrixSelect();
+
+  const [grouped, ungrouped] = await Promise.all([
+    db
+      .select({ source: sourceKey, ...metrics })
+      .from(leads)
+      .where(where)
+      .groupBy(sourceKey)
+      .orderBy(sql`count(*) desc`),
+    db.select(metrics).from(leads).where(where),
+  ]);
+
+  const merged = new Map<string, SourceMatrixRow>();
+  for (const row of grouped) {
+    const label = row.source?.trim() ? formatSourceName(row.source) : "Manual";
+    const mapped = matrixRowFromSql(label, row);
+    const existing = merged.get(label);
+    merged.set(label, existing ? addMatrixRows(existing, mapped) : mapped);
+  }
+
+  const rows = [...merged.values()].sort((a, b) => b.allLeads.count - a.allLeads.count);
+  const totals = matrixRowFromSql(
+    "Total",
+    (ungrouped[0] ?? { source: "Total" }) as SourceMatrixSqlRow,
+  );
+
+  return { rows, totals };
 }
 
 function leadScopeFromQuery(query: {
@@ -1972,73 +2265,33 @@ export const reportService = {
 
   async getSourcesReport(query: SourcesReportQuery) {
     const scope = leadScopeFromQuery(query);
-    const leads_from_source = await queryLeadsBySource(scope);
-    return { leads_from_source };
+    const [leads_from_source, matrix] = await Promise.all([
+      queryLeadsBySource(scope),
+      querySourceStatusMatrix(scope),
+    ]);
+    return { leads_from_source, matrix };
   },
 
   async exportSourcesReportCsvStream(query: SourcesReportQuery) {
     const scope = leadScopeFromQuery(query);
-    const leads_from_source = await queryLeadsBySource(scope);
-
-    const flatSources = leads_from_source.flatMap((group) =>
-      group.sources.map((s) => ({
-        name: s.name,
-        count: s.count,
-      })),
-    );
-
-    const normalize = (value: string) => value.trim().toLowerCase();
-
-    const categoryOf = (
-      sourceName: string,
-    ): "Meta Ads" | "Google Ads" | "Manual" | "CSV Import" => {
-      const n = normalize(sourceName);
-
-      if (n.includes("google")) return "Google Ads";
-      if (
-        n.includes("facebook") ||
-        n.includes("instagram") ||
-        n.includes("whatsapp") ||
-        n.includes("meta")
-      ) {
-        return "Meta Ads";
-      }
-
-      if (
-        n.includes("bulk_import") ||
-        (n.includes("csv") && n.includes("import")) ||
-        (n.includes("bulk") && n.includes("import"))
-      ) {
-        return "CSV Import";
-      }
-
-      return "Manual";
-    };
-
-    const totals: Record<"Meta Ads" | "Google Ads" | "Manual" | "CSV Import", number> = {
-      "Meta Ads": 0,
-      "Google Ads": 0,
-      Manual: 0,
-      "CSV Import": 0,
-    };
-
-    for (const row of flatSources) {
-      totals[categoryOf(row.name)] += row.count;
-    }
-
-    const headers = ["Source", "Lead Count"];
+    const matrix = await querySourceStatusMatrix(scope);
+    const headers = [
+      "Source Name",
+      ...SOURCE_MATRIX_COLUMNS.flatMap((column) => [column.label, `${column.label} unique`]),
+    ];
+    const cells = (row: SourceMatrixRow) => [
+      escapeCsvCell(row.source),
+      ...SOURCE_MATRIX_COLUMNS.flatMap((column) => [
+        String(row[column.key].count),
+        String(row[column.key].unique),
+      ]),
+    ];
     const lines = async function* () {
-      yield headers.join(",");
-
-      const ordered: Array<keyof typeof totals> = [
-        "Meta Ads",
-        "Google Ads",
-        "Manual",
-        "CSV Import",
-      ];
-      for (const name of ordered) {
-        yield [escapeCsvCell(name), totals[name]].join(",");
+      yield headers.map((header) => escapeCsvCell(header)).join(",");
+      for (const row of matrix.rows) {
+        yield cells(row).join(",");
       }
+      yield cells(matrix.totals).join(",");
     };
 
     return asyncLinesToCsvStream(lines());

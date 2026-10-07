@@ -95,7 +95,12 @@ const navItems: NavItem[] = [
     icon: LineChart,
     roles: ["admin", "manager"],
   },
-  { href: "/reports/sources", label: "Sources", icon: LayoutGrid, roles: ["admin", "manager"] },
+  {
+    href: "/reports/sources",
+    label: "Source report",
+    icon: LayoutGrid,
+    roles: ["admin", "manager"],
+  },
   { href: "/users", label: "Users", icon: UserCircle, roles: ["admin", "manager"] },
   { href: "/settings/meta", label: "Meta", icon: Megaphone, roles: ["admin", "manager"] },
   {
