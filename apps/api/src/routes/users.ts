@@ -193,7 +193,6 @@ usersRoutes.delete("/:id", writeRateLimit, validate("param", uuidParamSchema), a
     entityType: "user",
     entityId: id,
     metadata: {
-      email: result.user.email,
       role: result.user.role,
       reassignedLeadCount: result.reassignedLeadCount,
       reassignToUserIds: body.reassignToUserIds,

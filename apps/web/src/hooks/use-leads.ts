@@ -72,9 +72,9 @@ export type LeadAssignment = {
   fromAgentId: string | null;
   fromAgentName: string | null;
   toAgentId: string;
-  toAgentName: string;
+  toAgentName: string | null;
   assignedBy: string;
-  assignedByName: string;
+  assignedByName: string | null;
   reason: string | null;
   assignedAt: string;
 };

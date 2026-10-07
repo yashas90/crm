@@ -1,4 +1,16 @@
-import { leads, userRoles, users } from "@propninja/db";
+import {
+  auditLogs,
+  facebookForms,
+  leadAssignmentRules,
+  leads,
+  projects,
+  siteVisits,
+  tasks,
+  userRoles,
+  users,
+  whatsappCampaigns,
+  whatsappLeads,
+} from "@propninja/db";
 import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { toCsv } from "../lib/csv.js";
@@ -54,6 +66,186 @@ function trimOptional(value: string | null | undefined) {
   if (value === null) return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function isForeignKeyError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  if ("code" in err && (err as { code?: string }).code === "23503") return true;
+  if ("cause" in err) return isForeignKeyError((err as { cause?: unknown }).cause);
+  return false;
+}
+
+async function moveOwnedRows(
+  ids: string[],
+  targetIds: string[],
+  apply: (targetId: string, bucket: string[]) => Promise<unknown>,
+) {
+  if (ids.length === 0 || targetIds.length === 0) return;
+  const buckets = new Map<string, string[]>();
+  ids.forEach((rowId, index) => {
+    const targetId = targetIds[index % targetIds.length]!;
+    const bucket = buckets.get(targetId) ?? [];
+    bucket.push(rowId);
+    buckets.set(targetId, bucket);
+  });
+  for (const [targetId, bucket] of buckets) {
+    await apply(targetId, bucket);
+  }
+}
+
+/**
+ * Move work still pointing at the user, then drop their name from assignee pools
+ * and audit labels. Called immediately before the user row is deleted.
+ */
+async function detachUserBeforeDelete(
+  db: Database,
+  userId: string,
+  targetIds: string[],
+  actingUserId: string,
+) {
+  const now = new Date();
+
+  await db
+    .update(leads)
+    .set({ assignedTo: null, updatedAt: now })
+    .where(eq(leads.assignedTo, userId));
+
+  const taskRows = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(eq(tasks.assignedTo, userId));
+  if (targetIds.length === 0) {
+    await db
+      .update(tasks)
+      .set({ assignedTo: null, updatedAt: now })
+      .where(eq(tasks.assignedTo, userId));
+  } else {
+    await moveOwnedRows(
+      taskRows.map((row) => row.id),
+      targetIds,
+      async (targetId, bucket) => {
+        await db
+          .update(tasks)
+          .set({ assignedTo: targetId, updatedAt: now })
+          .where(inArray(tasks.id, bucket));
+      },
+    );
+  }
+
+  const projectRows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.assignedTo, userId));
+  if (targetIds.length === 0) {
+    await db
+      .update(projects)
+      .set({ assignedTo: null, updatedAt: now })
+      .where(eq(projects.assignedTo, userId));
+  } else {
+    await moveOwnedRows(
+      projectRows.map((row) => row.id),
+      targetIds,
+      async (targetId, bucket) => {
+        await db
+          .update(projects)
+          .set({ assignedTo: targetId, updatedAt: now })
+          .where(inArray(projects.id, bucket));
+      },
+    );
+  }
+
+  const visitTargets = targetIds.length > 0 ? targetIds : [actingUserId];
+  const visitRows = await db
+    .select({ id: siteVisits.id })
+    .from(siteVisits)
+    .where(eq(siteVisits.agentId, userId));
+  await moveOwnedRows(
+    visitRows.map((row) => row.id),
+    visitTargets,
+    async (targetId, bucket) => {
+      await db
+        .update(siteVisits)
+        .set({ agentId: targetId, updatedAt: now })
+        .where(inArray(siteVisits.id, bucket));
+    },
+  );
+
+  const campaignRows = await db
+    .select({ id: whatsappCampaigns.id })
+    .from(whatsappCampaigns)
+    .where(eq(whatsappCampaigns.assignedAgentId, userId));
+  if (targetIds.length === 0) {
+    await db
+      .update(whatsappCampaigns)
+      .set({ assignedAgentId: null, updatedAt: now })
+      .where(eq(whatsappCampaigns.assignedAgentId, userId));
+  } else {
+    await moveOwnedRows(
+      campaignRows.map((row) => row.id),
+      targetIds,
+      async (targetId, bucket) => {
+        await db
+          .update(whatsappCampaigns)
+          .set({ assignedAgentId: targetId, updatedAt: now })
+          .where(inArray(whatsappCampaigns.id, bucket));
+      },
+    );
+  }
+
+  const whatsappLeadRows = await db
+    .select({ id: whatsappLeads.id })
+    .from(whatsappLeads)
+    .where(eq(whatsappLeads.assignedAgentId, userId));
+  if (targetIds.length === 0) {
+    await db
+      .update(whatsappLeads)
+      .set({ assignedAgentId: null, updatedAt: now })
+      .where(eq(whatsappLeads.assignedAgentId, userId));
+  } else {
+    await moveOwnedRows(
+      whatsappLeadRows.map((row) => row.id),
+      targetIds,
+      async (targetId, bucket) => {
+        await db
+          .update(whatsappLeads)
+          .set({ assignedAgentId: targetId, updatedAt: now })
+          .where(inArray(whatsappLeads.id, bucket));
+      },
+    );
+  }
+
+  await db
+    .update(leadAssignmentRules)
+    .set({
+      assigneeIds: sql`array_remove(${leadAssignmentRules.assigneeIds}, ${userId}::text)`,
+      updatedAt: now,
+    })
+    .where(sql`${userId}::text = ANY(${leadAssignmentRules.assigneeIds})`);
+
+  await db
+    .update(facebookForms)
+    .set({
+      assigneeIds: sql`array_remove(${facebookForms.assigneeIds}, ${userId}::text)`,
+      updatedAt: now,
+    })
+    .where(sql`${userId}::text = ANY(${facebookForms.assigneeIds})`);
+
+  await db
+    .update(users)
+    .set({ reportingToId: null })
+    .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), eq(users.reportingToId, userId)));
+  await db
+    .update(users)
+    .set({ generalManagerId: null })
+    .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), eq(users.generalManagerId, userId)));
+
+  await db
+    .update(auditLogs)
+    .set({
+      entityName: null,
+      metadata: sql`${auditLogs.metadata} - 'email' - 'name' - 'userName'`,
+    })
+    .where(and(eq(auditLogs.entityType, "user"), eq(auditLogs.entityId, userId)));
 }
 
 function buildUserSearchFilters(search?: string) {
@@ -436,8 +628,8 @@ export function createUserService(db: Database) {
     },
 
     /**
-     * Soft-delete: reassign open leads to selected agents (round-robin), then deactivate.
-     * Hard delete is unsafe because leads/tasks/audit FKs reference users without cascade.
+     * Reassign open leads, then delete the user row so their name cannot appear
+     * on leads, history, or assignee lists.
      */
     async deleteWithLeadReassignment(id: string, payload: DeleteUserInput, actingUserId: string) {
       const [existing] = await db
@@ -518,28 +710,27 @@ export function createUserService(db: Database) {
         assignmentCounts = result.assignmentCounts;
       }
 
-      // Drop hierarchy pointers so deleted users are not left as GM / reporting managers.
+      await detachUserBeforeDelete(db, id, reassignToUserIds, actingUserId);
       await db
         .update(users)
-        .set({ reportingToId: null })
-        .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), eq(users.reportingToId, id)));
-      await db
-        .update(users)
-        .set({ generalManagerId: null })
-        .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), eq(users.generalManagerId, id)));
+        .set({ isActive: false })
+        .where(and(eq(users.id, id), eq(users.orgId, SINGLE_TENANT_ORG_ID)));
+      await revokeAllUserSessions(id);
 
-      if (existing.isActive) {
-        await db
-          .update(users)
-          .set({ isActive: false })
-          .where(and(eq(users.id, id), eq(users.orgId, SINGLE_TENANT_ORG_ID)));
-        await revokeAllUserSessions(id);
+      try {
+        await db.delete(users).where(and(eq(users.id, id), eq(users.orgId, SINGLE_TENANT_ORG_ID)));
+      } catch (err) {
+        if (isForeignKeyError(err)) {
+          throw conflict(
+            "Could not remove this user because other records still reference them.",
+            "USER_DELETE_BLOCKED",
+          );
+        }
+        throw err;
       }
 
-      const user = await this.getById(id);
-
       return {
-        user,
+        user: toPublicUser(existing),
         reassignedLeadCount: leadIds.length,
         assignmentCounts,
       };

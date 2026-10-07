@@ -14,8 +14,13 @@ function formatAssignmentDate(iso: string) {
 
 export function formatOwnershipEntry(assignment: LeadAssignment) {
   const date = formatAssignmentDate(assignment.assignedAt);
-  const verb = assignment.fromAgentId ? "Reassigned to" : "Assigned to";
-  return `${verb} ${assignment.toAgentName} by ${assignment.assignedByName} on ${date}`;
+  const toName = assignment.toAgentName?.trim() || null;
+  const byName = assignment.assignedByName?.trim() || null;
+  const verb = assignment.fromAgentId ? "Reassigned" : "Assigned";
+  if (toName && byName) return `${verb} to ${toName} by ${byName} on ${date}`;
+  if (toName) return `${verb} to ${toName} on ${date}`;
+  if (byName) return `${verb} by ${byName} on ${date}`;
+  return `${verb} on ${date}`;
 }
 
 type LeadOwnershipHistoryProps = {
@@ -49,7 +54,8 @@ export function LeadOwnershipHistory({ assignments, isLoading }: LeadOwnershipHi
       <div className="relative space-y-0">
         <div className="absolute bottom-2 left-[18px] top-2 w-px bg-border" />
         {assignments.map((assignment, index) => {
-          const fromLabel = assignment.fromAgentName ?? "Unassigned";
+          const fromLabel = assignment.fromAgentName?.trim() || "Unassigned";
+          const toLabel = assignment.toAgentName?.trim() || "Unassigned";
           return (
             <div key={assignment.id} className="relative flex gap-4 pb-6 last:pb-0">
               <div
@@ -62,7 +68,7 @@ export function LeadOwnershipHistory({ assignments, isLoading }: LeadOwnershipHi
               <div className="min-w-0 flex-1 rounded-lg border border-slate-200/80 bg-muted/20 p-3 dark:border-white/10">
                 <p className="text-sm font-semibold">{formatOwnershipEntry(assignment)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {fromLabel} → {assignment.toAgentName}
+                  {fromLabel} → {toLabel}
                 </p>
                 {assignment.reason?.trim() ? (
                   <p className="mt-2 text-sm text-foreground/90">{assignment.reason.trim()}</p>

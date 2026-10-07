@@ -87,8 +87,9 @@ export function UserDeleteDialog({ user, open, onOpenChange }: UserDeleteDialogP
         <DialogHeader>
           <DialogTitle>Delete {fullName}?</DialogTitle>
           <DialogDescription>
-            This deactivates the account and signs them out. Their assigned leads will be moved to
-            the agents you select (split evenly if you pick more than one).
+            This permanently removes the account. Their name will no longer appear on leads,
+            assignment history, or agent lists. Open leads move to the agents you select (split
+            evenly if you pick more than one).
           </DialogDescription>
         </DialogHeader>
 

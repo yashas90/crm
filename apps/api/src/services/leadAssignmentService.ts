@@ -8,9 +8,9 @@ export type LeadAssignmentHistoryItem = {
   fromAgentId: string | null;
   fromAgentName: string | null;
   toAgentId: string;
-  toAgentName: string;
+  toAgentName: string | null;
   assignedBy: string;
-  assignedByName: string;
+  assignedByName: string | null;
   reason: string | null;
   assignedAt: string;
 };
@@ -55,29 +55,36 @@ export async function getAssignmentHistory(leadId: string): Promise<LeadAssignme
   const userIds = new Set<string>();
   for (const row of rows) {
     if (row.fromAgentId) userIds.add(row.fromAgentId);
-    userIds.add(row.toAgentId);
-    userIds.add(row.assignedBy);
+    if (row.toAgentId) userIds.add(row.toAgentId);
+    if (row.assignedBy) userIds.add(row.assignedBy);
   }
 
   const nameRows =
     userIds.size > 0
       ? await db
-          .select({ id: users.id, name: users.name })
+          .select({ id: users.id, name: users.name, isActive: users.isActive })
           .from(users)
           .where(inArray(users.id, [...userIds]))
       : [];
 
-  const nameById = new Map(nameRows.map((row) => [row.id, row.name]));
+  const nameById = new Map(
+    nameRows.filter((row) => row.isActive !== false).map((row) => [row.id, row.name]),
+  );
+
+  const visibleName = (userId: string | null) => {
+    if (!userId) return null;
+    return nameById.get(userId) ?? null;
+  };
 
   return rows.map((row) => ({
     id: row.id,
     leadId: row.leadId,
     fromAgentId: row.fromAgentId,
-    fromAgentName: row.fromAgentId ? (nameById.get(row.fromAgentId) ?? null) : null,
+    fromAgentName: visibleName(row.fromAgentId),
     toAgentId: row.toAgentId,
-    toAgentName: nameById.get(row.toAgentId) ?? "Unknown",
+    toAgentName: visibleName(row.toAgentId),
     assignedBy: row.assignedBy,
-    assignedByName: nameById.get(row.assignedBy) ?? "Unknown",
+    assignedByName: visibleName(row.assignedBy),
     reason: row.reason,
     assignedAt: row.assignedAt.toISOString(),
   }));

@@ -352,17 +352,34 @@ describe("User management (direct admin creation)", () => {
     });
     expect(deleteRes.status).toBe(200);
     const deleted = (await deleteRes.json()) as {
-      data: { user: { isActive: boolean }; reassignedLeadCount: number };
+      data: { reassignedLeadCount: number };
     };
-    expect(deleted.data.user.isActive).toBe(false);
     expect(deleted.data.reassignedLeadCount).toBe(1);
+
+    const gone = await app.request(`/api/users/${source.data.id}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(gone.status).toBe(404);
 
     const leadRes = await app.request(`/api/leads/${lead.data.id}`, {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
     expect(leadRes.status).toBe(200);
-    const leadJson = (await leadRes.json()) as { data: { assignedTo: string | null } };
+    const leadJson = (await leadRes.json()) as {
+      data: { assignedTo: string | null; assignedUser: { name: string } | null };
+    };
     expect(leadJson.data.assignedTo).toBe(target.data.id);
+    expect(leadJson.data.assignedUser?.name).toBe("Delete Target Agent");
+
+    const historyRes = await app.request(`/api/leads/${lead.data.id}/assignments`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(historyRes.status).toBe(200);
+    const history = (await historyRes.json()) as {
+      data: { items: Array<{ fromAgentName: string | null; toAgentName: string | null }> };
+    };
+    const names = history.data.items.flatMap((item) => [item.fromAgentName, item.toAgentName]);
+    expect(names).not.toContain("Delete Source Agent");
   });
 
   it("DELETE /api/users/:id — agent forbidden", async ({ skip }) => {

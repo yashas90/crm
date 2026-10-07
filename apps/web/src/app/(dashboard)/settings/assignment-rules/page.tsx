@@ -261,7 +261,10 @@ export default function AssignmentRulesPage() {
                 </div>
                 <CardDescription className="text-xs">
                   Priority {rule.priority} · Assignees:{" "}
-                  {rule.assigneeIds.map((id) => agentMap.get(id) ?? id).join(", ")}
+                  {rule.assigneeIds
+                    .map((id) => agentMap.get(id))
+                    .filter(Boolean)
+                    .join(", ") || "—"}
                   {rule.conditions.cities?.length
                     ? ` · Cities: ${rule.conditions.cities.join(", ")}`
                     : ""}
