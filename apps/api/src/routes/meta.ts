@@ -735,7 +735,10 @@ metaRoutes.post("/conversion/flush", writeRateLimit, async (c) => {
   const denied = requireManage(c);
   if (denied) return denied;
 
-  const result = await sendPendingConversionEvents({ orgId: SINGLE_TENANT_ORG_ID });
+  const result = await sendPendingConversionEvents({
+    orgId: SINGLE_TENANT_ORG_ID,
+    limit: 200,
+  });
   return jsonOk(c, result);
 });
 

@@ -316,6 +316,14 @@ export function apiPatch<T>(path: string, body: unknown, options?: ApiRequestOpt
   });
 }
 
+export function apiPut<T>(path: string, body: unknown, options?: ApiRequestOptions) {
+  return apiFetch<T>(path, {
+    method: "PUT",
+    body: JSON.stringify(body),
+    ...options,
+  });
+}
+
 export function apiDelete<T>(path: string, options?: ApiRequestOptions) {
   return apiFetch<T>(path, { method: "DELETE", ...options });
 }

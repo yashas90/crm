@@ -381,7 +381,11 @@ export function useMetaPatchPixel() {
 
 export function useMetaFlushConversions() {
   return useMutation({
-    mutationFn: () => apiPost<{ sent: number; failed: number }>("/api/meta/conversion/flush", {}),
+    mutationFn: () =>
+      apiPost<{ sent: number; failed: number; skipped?: number; error?: string }>(
+        "/api/meta/conversion/flush",
+        {},
+      ),
   });
 }
 

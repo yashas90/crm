@@ -3,6 +3,7 @@ import {
   type UpdateLeadStatusPayload,
   UpdateLeadStatusSheet,
 } from "@/components/UpdateLeadStatusSheet";
+import { CallingTodayStrip } from "@/components/calling/CallingTodayStrip";
 import { CompleteSiteVisitSheet } from "@/components/site-visits/CompleteSiteVisitSheet";
 import { VisitDetailSheet } from "@/components/site-visits/VisitDetailSheet";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -411,6 +412,7 @@ export function TodayScreen({ route, navigation }: Props) {
                 </View>
               </View>
             </View>
+            <CallingTodayStrip />
 
             <Text style={[styles.sectionTitle, focusQueue && styles.sectionTitleFocused]}>
               Call queue ({queue.data?.total ?? queueItems.length})

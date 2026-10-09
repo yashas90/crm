@@ -5,7 +5,7 @@
  * @see https://developers.facebook.com/docs/marketing-api/conversions-api
  */
 import { createHash, randomUUID } from "node:crypto";
-import { GRAPH_API_VERSION, graphPost } from "./metaGraphClient.js";
+import { GRAPH_API_VERSION, MetaGraphApiError, graphPost } from "./metaGraphClient.js";
 import type { CapiEventName } from "./metaStatusMap.js";
 
 function sha256Hex(value: string): string {
@@ -182,6 +182,8 @@ export type CapiSendResult = {
   fbtraceId?: string;
   messages?: unknown[];
   error?: string;
+  code?: number;
+  errorSubcode?: number;
 };
 
 /** Sends a batch of CAPI events to `/{pixel_id}/events`. Requires `META_CAPI_ENABLED` at the call site. */
@@ -213,11 +215,14 @@ export async function sendCapiEvents(
       messages: data.messages,
     };
   } catch (error) {
-    const status = (error as { status?: number })?.status ?? 502;
+    const graph = error instanceof MetaGraphApiError ? error : null;
+    const status = graph?.status ?? (error as { status?: number })?.status ?? 502;
     return {
       ok: false,
       status,
       error: error instanceof Error ? error.message : String(error),
+      code: graph?.code,
+      errorSubcode: graph?.errorSubcode,
     };
   }
 }

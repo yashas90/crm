@@ -49,6 +49,11 @@ export type VisitsStackParamList = {
   SiteVisitsCalendarScreen: undefined;
 };
 
+export type MyLeadsStackParamList = {
+  MyLeadsHome: undefined;
+  MyLeadDetail: { leadId: string; logActivity?: boolean };
+};
+
 export type MainTabParamList = {
   LeadsTab: NavigatorScreenParams<LeadsStackParamList> | undefined;
   TodayTab: { focusQueue?: boolean } | undefined;
@@ -59,4 +64,6 @@ export type MainTabParamList = {
   ProfileTab: undefined;
   PipelineTab: undefined;
   DialPadTab: undefined;
+  CallingTab: undefined;
+  MyLeadsTab: NavigatorScreenParams<MyLeadsStackParamList> | undefined;
 };

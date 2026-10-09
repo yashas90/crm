@@ -1,8 +1,9 @@
 import { useDeferredStartupReady } from "@/hooks/use-deferred-startup";
 import { useUnreadNotificationCount } from "@/hooks/use-notifications";
-import { useIsManager } from "@/hooks/use-role";
+import { useIsAgent, useIsManager } from "@/hooks/use-role";
 import { useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useOpenTaskCount } from "@/hooks/use-tasks";
+import { apiGet } from "@/lib/apiClient";
 import { LeadsStack } from "@/navigation/LeadsStack";
 import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
 import type { MainTabParamList } from "@/navigation/types";
@@ -10,6 +11,7 @@ import { colors, navigationTheme } from "@/theme";
 import { TAB_BAR_HEIGHT } from "@/theme/layout";
 import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useQuery } from "@tanstack/react-query";
 import type { ComponentProps } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,6 +25,11 @@ const PipelineScreen = lazyNamed(() => import("@/screens/PipelineScreen"), "Pipe
 const TodayScreen = lazyNamed(() => import("@/screens/TodayScreen"), "TodayScreen");
 const TasksScreen = lazyNamed(() => import("@/screens/TasksScreen"), "TasksScreen");
 const DialPadScreen = lazyNamed(() => import("@/screens/DialPadScreen"), "DialPadScreen");
+const CallingDataScreen = lazyNamed(
+  () => import("@/screens/CallingDataScreen"),
+  "CallingDataScreen",
+);
+const MyLeadsStack = lazyNamed(() => import("@/navigation/MyLeadsStack"), "MyLeadsStack");
 const NotificationsScreen = lazyNamed(
   () => import("@/screens/NotificationsScreen"),
   "NotificationsScreen",
@@ -64,7 +71,20 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   const insets = useSafeAreaInsets();
   const tabBarHeight = TAB_BAR_HEIGHT + insets.bottom;
   const isManager = useIsManager();
+  const isAgent = useIsAgent();
   const { visitsBadge, notificationBadge, tasksBadge } = useDeferredTabBadges();
+  const callingBadgeQuery = useQuery({
+    queryKey: ["calling-stats"],
+    queryFn: () => apiGet<{ badge: number }>("/api/agent/calling-data/stats"),
+    enabled: isAgent,
+  });
+  const leadsBadgeQuery = useQuery({
+    queryKey: ["my-leads-stats"],
+    queryFn: () => apiGet<{ hot: number }>("/api/agent/leads/stats"),
+    enabled: isAgent,
+  });
+  const callingBadge = callingBadgeQuery.data?.badge || undefined;
+  const hotBadge = leadsBadgeQuery.data?.hot || undefined;
 
   return (
     <ScreenSuspense>
@@ -140,6 +160,30 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             headerShown: false,
           }}
         />
+        {isAgent ? (
+          <Tab.Screen
+            name="CallingTab"
+            component={CallingDataScreen}
+            options={{
+              title: "Calling",
+              tabBarIcon: ({ focused }) => tabIcon("call-outline", focused),
+              tabBarBadge: callingBadge,
+              headerShown: false,
+            }}
+          />
+        ) : null}
+        {isAgent ? (
+          <Tab.Screen
+            name="MyLeadsTab"
+            component={MyLeadsStack}
+            options={{
+              title: "My Leads",
+              tabBarIcon: ({ focused }) => tabIcon("ribbon-outline", focused),
+              tabBarBadge: hotBadge,
+              headerShown: false,
+            }}
+          />
+        ) : null}
         <Tab.Screen
           name="VisitsTab"
           component={VisitsStack}

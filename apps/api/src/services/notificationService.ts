@@ -22,6 +22,11 @@ export const NOTIFICATION_TYPES = {
   WHATSAPP_LEAD: "whatsapp_lead",
   SLA_BREACH: "sla_breach",
   TRACKING_ALERT: "tracking_alert",
+  CONTACTS_ASSIGNED: "contacts_assigned",
+  PENDING_CONTACTS: "pending_contacts_reminder",
+  POOL_LOW: "pool_low",
+  CALLBACK_DUE: "callback_due",
+  CALLING_SUMMARY: "calling_daily_summary",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -92,6 +97,15 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
               : `${leadName} breached inactivity SLA`,
       };
     }
+    case NOTIFICATION_TYPES.CONTACTS_ASSIGNED:
+    case NOTIFICATION_TYPES.PENDING_CONTACTS:
+    case NOTIFICATION_TYPES.POOL_LOW:
+    case NOTIFICATION_TYPES.CALLBACK_DUE:
+    case NOTIFICATION_TYPES.CALLING_SUMMARY:
+      return {
+        title: typeof payload.title === "string" ? payload.title : "PropNinja",
+        body: typeof payload.message === "string" ? payload.message : "You have a new notification",
+      };
     case NOTIFICATION_TYPES.TRACKING_ALERT: {
       const agentName = typeof payload.agentName === "string" ? payload.agentName : "Agent";
       const title = typeof payload.title === "string" ? payload.title : "Tracking alert";

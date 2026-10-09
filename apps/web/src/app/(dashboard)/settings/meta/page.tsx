@@ -629,11 +629,18 @@ function MetaDashboardInner() {
                   onClick={async () => {
                     try {
                       const result = await flushConversions.mutateAsync();
-                      setBanner(`CAPI flush: ${result.sent} sent, ${result.failed} failed.`);
-                      void dashboard.refetch();
-                    } catch {
+                      const skipped =
+                        result.skipped && result.skipped > 0 ? `, ${result.skipped} skipped` : "";
+                      const detail = result.error ? ` ${result.error}` : "";
                       setBanner(
-                        "CAPI flush failed. Confirm a pixel is enabled and Meta is connected.",
+                        `CAPI flush: ${result.sent} sent, ${result.failed} failed${skipped}.${detail}`,
+                      );
+                      void dashboard.refetch();
+                    } catch (error) {
+                      setBanner(
+                        error instanceof Error
+                          ? error.message
+                          : "CAPI flush failed. Confirm a pixel is enabled and Meta is connected.",
                       );
                     }
                   }}

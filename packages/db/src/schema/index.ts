@@ -132,6 +132,13 @@ export const leads = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     projectId: uuid("project_id").references(() => projects.id),
+    /** Pool contact this lead was qualified from. Null for every other source. */
+    sourceContactPoolId: uuid("source_contact_pool_id"),
+    /** Agent who qualified the calling-data contact into this lead. */
+    sourceAgentId: uuid("source_agent_id").references(() => users.id),
+    qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
+    /** Spec pipeline: new, contacted, site_visit_scheduled, site_visit_done, negotiation, closed_won, closed_lost. */
+    pipelineStage: text("pipeline_stage"),
   },
   (table) => [
     check(
@@ -146,6 +153,8 @@ export const leads = pgTable(
     index("leads_project_id_idx").on(table.projectId),
     uniqueIndex("leads_org_lead_code_uidx").on(table.orgId, table.leadCode),
     index("leads_lead_code_idx").on(table.leadCode),
+    index("leads_source_contact_pool_id_idx").on(table.sourceContactPoolId),
+    index("leads_pipeline_stage_idx").on(table.pipelineStage),
   ],
 );
 
@@ -2149,3 +2158,259 @@ export const facebookConversionEventsRelations = relations(facebookConversionEve
     references: [leads.id],
   }),
 }));
+
+/** Central unassigned contact pool. Phones are unique per org and access-controlled. */
+export const contactPool = pgTable(
+  "contact_pool",
+  {
+    contactId: uuid("contact_id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    uploadBatchId: uuid("upload_batch_id"),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    phoneHash: text("phone_hash").notNull(),
+    alternatePhone: text("alternate_phone"),
+    email: text("email"),
+    city: text("city"),
+    locality: text("locality"),
+    budget: numeric("budget", { precision: 14, scale: 2 }),
+    budgetLabel: text("budget_label"),
+    propertyType: text("property_type"),
+    bedrooms: text("bedrooms"),
+    source: text("source"),
+    notes: text("notes"),
+    status: text("status").notNull().default("unassigned"),
+    assignedToAgentId: uuid("assigned_to_agent_id").references(() => users.id),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
+    calledAt: timestamp("called_at", { withTimezone: true }),
+    callOutcome: text("call_outcome"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    uploadedByAdminId: uuid("uploaded_by_admin_id").references(() => users.id),
+  },
+  (table) => [
+    uniqueIndex("contact_pool_org_phone_uidx").on(table.orgId, table.phone),
+    index("contact_pool_org_status_created_idx").on(table.orgId, table.status, table.createdAt),
+    index("contact_pool_batch_idx").on(table.uploadBatchId),
+    index("contact_pool_assigned_agent_idx").on(table.assignedToAgentId),
+    check(
+      "contact_pool_status_check",
+      sql`${table.status} in ('unassigned','assigned','called','interested','not_interested','callback','dnc','invalid')`,
+    ),
+    check(
+      "contact_pool_property_type_check",
+      sql`${table.propertyType} is null or ${table.propertyType} in ('apartment','villa','plot')`,
+    ),
+  ],
+);
+
+export const uploadBatches = pgTable(
+  "upload_batches",
+  {
+    batchId: uuid("batch_id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    batchName: text("batch_name").notNull(),
+    uploadedBy: uuid("uploaded_by").references(() => users.id),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+    fileName: text("file_name").notNull(),
+    totalRecords: integer("total_records").notNull().default(0),
+    processedRecords: integer("processed_records").notNull().default(0),
+    validRecords: integer("valid_records").notNull().default(0),
+    duplicateRecords: integer("duplicate_records").notNull().default(0),
+    invalidRecords: integer("invalid_records").notNull().default(0),
+    status: text("status").notNull().default("processing"),
+    priority: integer("priority").notNull().default(0),
+    errorMessage: text("error_message"),
+  },
+  (table) => [
+    index("upload_batches_org_uploaded_idx").on(table.orgId, table.uploadedAt.desc()),
+    check(
+      "upload_batches_status_check",
+      sql`${table.status} in ('processing','completed','failed')`,
+    ),
+  ],
+);
+
+export const uploadInvalidRows = pgTable(
+  "upload_invalid_rows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    batchId: uuid("batch_id")
+      .notNull()
+      .references(() => uploadBatches.batchId, { onDelete: "cascade" }),
+    rowNumber: integer("row_number").notNull(),
+    raw: jsonb("raw").$type<Record<string, unknown>>().notNull().default({}),
+    reason: text("reason").notNull(),
+  },
+  (table) => [index("upload_invalid_rows_batch_idx").on(table.batchId)],
+);
+
+export const agentDataRequests = pgTable(
+  "agent_data_requests",
+  {
+    requestId: uuid("request_id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => users.id),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    contactsRequested: integer("contacts_requested").notNull(),
+    contactsAssigned: integer("contacts_assigned").notNull().default(0),
+    status: text("status").notNull(),
+    denialReason: text("denial_reason"),
+    filtersApplied: jsonb("filters_applied").$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (table) => [
+    index("agent_data_requests_agent_requested_idx").on(table.agentId, table.requestedAt.desc()),
+    check(
+      "agent_data_requests_status_check",
+      sql`${table.status} in ('pending','fulfilled','partial','denied')`,
+    ),
+  ],
+);
+
+export const agentCallingLimits = pgTable("agent_calling_limits", {
+  agentId: uuid("agent_id")
+    .primaryKey()
+    .references(() => users.id),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id),
+  maxDailyLimit: integer("max_daily_limit").notNull().default(100),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const agentDailyLimits = pgTable(
+  "agent_daily_limits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => users.id),
+    date: date("date", { mode: "string" }).notNull(),
+    contactsRequestedToday: integer("contacts_requested_today").notNull().default(0),
+    contactsCalledToday: integer("contacts_called_today").notNull().default(0),
+    maxDailyLimit: integer("max_daily_limit").notNull().default(100),
+    lastRequestAt: timestamp("last_request_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("agent_daily_limits_agent_date_uidx").on(table.agentId, table.date),
+    index("agent_daily_limits_date_idx").on(table.date),
+  ],
+);
+
+/** Bucket 1 — temporary calling list. Soft-deleted rows stay for audit and are hidden from every list. */
+export const agentCallingData = pgTable(
+  "agent_calling_data",
+  {
+    recordId: uuid("record_id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    contactPoolId: uuid("contact_pool_id")
+      .notNull()
+      .references(() => contactPool.contactId),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => users.id),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    city: text("city"),
+    budget: text("budget"),
+    propertyType: text("property_type"),
+    bedrooms: text("bedrooms"),
+    status: text("status").notNull().default("pending"),
+    callAttempts: integer("call_attempts").notNull().default(0),
+    lastCalledAt: timestamp("last_called_at", { withTimezone: true }),
+    callbackScheduledAt: timestamp("callback_scheduled_at", { withTimezone: true }),
+    callbackNotifiedAt: timestamp("callback_notified_at", { withTimezone: true }),
+    callNotes: text("call_notes"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedReason: text("deleted_reason"),
+  },
+  (table) => [
+    index("agent_calling_data_agent_active_idx").on(table.agentId, table.status),
+    index("agent_calling_data_callback_idx").on(table.callbackScheduledAt),
+    check(
+      "agent_calling_data_status_check",
+      sql`${table.status} in ('pending','callback','retry','interested','not_interested','invalid','dnc')`,
+    ),
+    check(
+      "agent_calling_data_attempts_check",
+      sql`${table.callAttempts} >= 0 and ${table.callAttempts} <= 3`,
+    ),
+  ],
+);
+
+export const contactCallLogs = pgTable(
+  "contact_call_logs",
+  {
+    logId: uuid("log_id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contactPool.contactId),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => users.id),
+    recordId: uuid("record_id").references(() => agentCallingData.recordId),
+    calledAt: timestamp("called_at", { withTimezone: true }).notNull().defaultNow(),
+    durationSeconds: integer("duration_seconds").notNull().default(0),
+    outcome: text("outcome").notNull(),
+    callbackScheduledAt: timestamp("callback_scheduled_at", { withTimezone: true }),
+    notes: text("notes"),
+    leadCreated: boolean("lead_created").notNull().default(false),
+    leadId: uuid("lead_id").references(() => leads.id),
+  },
+  (table) => [
+    index("contact_call_logs_agent_called_idx").on(table.agentId, table.calledAt.desc()),
+    index("contact_call_logs_contact_idx").on(table.contactId),
+    check(
+      "contact_call_logs_outcome_check",
+      sql`${table.outcome} in ('interested','not_interested','callback','no_answer','busy','invalid','dnc')`,
+    ),
+  ],
+);
+
+export const dncPhones = pgTable(
+  "dnc_phones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    phone: text("phone").notNull(),
+    phoneHash: text("phone_hash").notNull(),
+    reason: text("reason"),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("dnc_phones_org_phone_uidx").on(table.orgId, table.phone)],
+);
+
+export const contactPoolSettings = pgTable("contact_pool_settings", {
+  orgId: uuid("org_id")
+    .primaryKey()
+    .references(() => organizations.id),
+  requestsPaused: boolean("requests_paused").notNull().default(false),
+  pausedAt: timestamp("paused_at", { withTimezone: true }),
+  pausedBy: uuid("paused_by").references(() => users.id),
+  lowPoolThreshold: integer("low_pool_threshold").notNull().default(500),
+  costPerContact: numeric("cost_per_contact", { precision: 14, scale: 2 }),
+  lastLowPoolAlertAt: timestamp("last_low_pool_alert_at", { withTimezone: true }),
+  lastLimitResetDate: date("last_limit_reset_date", { mode: "string" }),
+  lastMorningReminderDate: date("last_morning_reminder_date", { mode: "string" }),
+  lastEveningSummaryDate: date("last_evening_summary_date", { mode: "string" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -3,14 +3,21 @@
  * `facebook_conversion_events` row per CRM lifecycle transition and sends
  * pending events to Meta in batches (grouped by pixel).
  */
-import { facebookConversionEvents, facebookLeads, facebookPixels, leads } from "@propninja/db";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import {
+  facebookConversionEvents,
+  facebookLeads,
+  facebookPages,
+  facebookPixels,
+  leads,
+} from "@propninja/db";
+import { and, desc, eq, gte, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { env } from "../lib/env.js";
 import { logger } from "../lib/logger.js";
 import {
   type CapiEvent,
+  type CapiSendResult,
   buildCapiUserData,
   buildCrmCapiCustomData,
   generateEventId,
@@ -18,7 +25,95 @@ import {
 } from "../lib/metaCapi.js";
 import { mapLeadStatusToCapiEvent } from "../lib/metaStatusMap.js";
 import { decryptSecret } from "../lib/tokenEncryption.js";
-import { getActiveAccessToken } from "./metaTokenService.js";
+import { getActiveAccessToken, getActiveSystemAccessToken } from "./metaTokenService.js";
+
+/** Meta rejects Conversions API events older than 7 days. */
+export const CAPI_MAX_EVENT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Stop retrying a single event after this many non-auth Graph failures. */
+const MAX_CAPI_EVENT_RETRIES = 5;
+
+export const CAPI_PAGE_TOKEN_ERROR =
+  "This Page access token belongs to a Page that is not accessible.";
+
+export const CAPI_NO_TOKEN_ERROR = [
+  "No usable Conversions API token.",
+  `Page access tokens cannot send CAPI events (${CAPI_PAGE_TOKEN_ERROR}).`,
+  "Use a system-user or Events Manager pixel token with ads_management, or set META_CAPI_ACCESS_TOKEN.",
+].join(" ");
+
+export const CAPI_STALE_EVENT_ERROR =
+  "Meta only accepts Conversions API events from the last 7 days. This event is older and was not sent.";
+
+export type SendPendingConversionResult = {
+  sent: number;
+  failed: number;
+  skipped: number;
+  error?: string;
+};
+
+type ConversionEventRow = typeof facebookConversionEvents.$inferSelect;
+
+/** Page tokens are rejected by `/{pixel-id}/events` with this Graph message. */
+export function isMetaPageTokenError(error?: string, code?: number): boolean {
+  const text = error ?? "";
+  if (text.includes("Page access token belongs to a Page that is not accessible")) return true;
+  return code === 190 && /page access token/i.test(text);
+}
+
+/** Token/permission failures. These must not permanently fail the event batch. */
+export function isMetaAuthError(result: {
+  error?: string;
+  status?: number;
+  code?: number;
+}): boolean {
+  if (isMetaPageTokenError(result.error, result.code)) return true;
+  if (result.status === 401 || result.status === 403) return true;
+  if (result.code === 190 || result.code === 102) return true;
+  const text = result.error?.toLowerCase() ?? "";
+  return (
+    text.includes("error validating access token") ||
+    text.includes("invalid oauth") ||
+    text.includes("session has been invalidated") ||
+    text.includes("(#200)") ||
+    text.includes("permission")
+  );
+}
+
+export function isStaleCapiEventTime(
+  eventTime: Date | string | number | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (eventTime == null) return true;
+  const instant = eventTime instanceof Date ? eventTime.getTime() : new Date(eventTime).getTime();
+  if (Number.isNaN(instant)) return true;
+  return now - instant > CAPI_MAX_EVENT_AGE_MS;
+}
+
+/**
+ * Ordered CAPI tokens: dedicated env token, pixel token, system-user token, user token.
+ * Any value that matches a stored Page access token is dropped — Meta rejects those
+ * on the Conversions API with "This Page access token belongs to a Page that is not accessible."
+ */
+export function capiAccessTokenCandidates(
+  tokens: {
+    envToken?: string | null;
+    pixelToken?: string | null;
+    systemToken?: string | null;
+    userToken?: string | null;
+  },
+  pageTokens: Iterable<string>,
+): string[] {
+  const blocked = new Set(pageTokens);
+  const ordered = [tokens.envToken, tokens.pixelToken, tokens.systemToken, tokens.userToken];
+  const out: string[] = [];
+  for (const candidate of ordered) {
+    const token = candidate?.trim();
+    if (!token || blocked.has(token) || out.includes(token)) continue;
+    out.push(token);
+  }
+  return out;
+}
 
 export type EnqueueConversionResult =
   | { sent: false; skipped: true; reason: string }
@@ -261,38 +356,251 @@ async function enqueueWithPixel(
   return { sent: true, eventId, recordId };
 }
 
-function toCapiEventPayload(row: typeof facebookConversionEvents.$inferSelect): CapiEvent {
+function eventInstant(value: Date | string | number | null | undefined): number {
+  if (value == null) return Number.NaN;
+  const instant = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return instant;
+}
+
+function toCapiEventPayload(row: ConversionEventRow): CapiEvent {
+  const instant = eventInstant(row.eventTime);
   return {
     event_name: row.eventName,
-    event_time: Math.floor(row.eventTime.getTime() / 1000),
+    event_time: Math.floor(instant / 1000),
     event_id: row.eventId,
     action_source: (row.actionSource as CapiEvent["action_source"]) ?? "system_generated",
     event_source_url: row.eventSourceUrl ?? undefined,
-    user_data: row.userData as CapiEvent["user_data"],
-    custom_data: row.customData,
+    user_data: (row.userData ?? {}) as CapiEvent["user_data"],
+    custom_data: row.customData ?? undefined,
   };
 }
 
-async function resolvePixelAccessToken(orgId: string, pixelId: string): Promise<string | null> {
+function safeDecrypt(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const token = decryptSecret(value).trim();
+    return token || null;
+  } catch (error) {
+    logger.warn("Failed to decrypt Meta token for CAPI", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+async function loadPageAccessTokens(orgId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ accessTokenEncrypted: facebookPages.accessTokenEncrypted })
+    .from(facebookPages)
+    .where(and(eq(facebookPages.orgId, orgId), isNotNull(facebookPages.accessTokenEncrypted)));
+
+  const tokens = new Set<string>();
+  for (const row of rows) {
+    const token = safeDecrypt(row.accessTokenEncrypted);
+    if (token) tokens.add(token);
+  }
+  return tokens;
+}
+
+async function loadPixelAccessToken(orgId: string, pixelId: string): Promise<string | null> {
   const [pixel] = await db
     .select({ accessTokenEncrypted: facebookPixels.accessTokenEncrypted })
     .from(facebookPixels)
     .where(and(eq(facebookPixels.orgId, orgId), eq(facebookPixels.pixelId, pixelId)))
     .limit(1);
-
-  if (pixel?.accessTokenEncrypted) {
-    return decryptSecret(pixel.accessTokenEncrypted);
-  }
-
-  return getActiveAccessToken(orgId);
+  return safeDecrypt(pixel?.accessTokenEncrypted);
 }
 
-/** Sends up to `limit` pending conversion events to Meta, grouped by pixel. */
+function isTestEventCodeError(result: CapiSendResult): boolean {
+  const text = result.error?.toLowerCase() ?? "";
+  return text.includes("test_event_code") || text.includes("test event code");
+}
+
+async function markSent(rows: ConversionEventRow[], result: CapiSendResult) {
+  if (rows.length === 0) return;
+  await db
+    .update(facebookConversionEvents)
+    .set({
+      status: "sent",
+      httpStatus: result.status,
+      responsePayload: { eventsReceived: result.eventsReceived, fbtraceId: result.fbtraceId },
+      errorMessage: null,
+      sentAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      inArray(
+        facebookConversionEvents.id,
+        rows.map((row) => row.id),
+      ),
+    );
+}
+
+async function markFailed(rows: ConversionEventRow[], errorMessage: string, httpStatus?: number) {
+  if (rows.length === 0) return;
+  await db
+    .update(facebookConversionEvents)
+    .set({
+      status: "failed",
+      httpStatus: httpStatus ?? null,
+      errorMessage,
+      retryCount: sql`${facebookConversionEvents.retryCount} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(
+      inArray(
+        facebookConversionEvents.id,
+        rows.map((row) => row.id),
+      ),
+    );
+}
+
+async function markSkipped(ids: string[], errorMessage: string) {
+  if (ids.length === 0) return;
+  await db
+    .update(facebookConversionEvents)
+    .set({
+      status: "skipped",
+      errorMessage,
+      updatedAt: new Date(),
+    })
+    .where(inArray(facebookConversionEvents.id, ids));
+}
+
+async function requeuePending(rows: ConversionEventRow[], errorMessage: string) {
+  if (rows.length === 0) return;
+  await db
+    .update(facebookConversionEvents)
+    .set({
+      status: "pending",
+      errorMessage,
+      updatedAt: new Date(),
+    })
+    .where(
+      inArray(
+        facebookConversionEvents.id,
+        rows.map((row) => row.id),
+      ),
+    );
+}
+
+type Delivery = {
+  sent: number;
+  failed: number;
+  error?: string;
+  authError?: string;
+  unsent: ConversionEventRow[];
+};
+
+async function deliverRows(
+  pixelId: string,
+  accessToken: string,
+  rows: ConversionEventRow[],
+  testEventCode: string | undefined,
+): Promise<Delivery> {
+  if (rows.length === 0) return { sent: 0, failed: 0, unsent: [] };
+
+  let payloads: CapiEvent[];
+  try {
+    payloads = rows.map(toCapiEventPayload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (rows.length === 1) {
+      await markFailed(rows, message);
+      return { sent: 0, failed: 1, error: message, unsent: [] };
+    }
+    const mid = Math.floor(rows.length / 2);
+    const left = await deliverRows(pixelId, accessToken, rows.slice(0, mid), testEventCode);
+    if (left.authError) {
+      return { ...left, unsent: [...left.unsent, ...rows.slice(mid)] };
+    }
+    const right = await deliverRows(pixelId, accessToken, rows.slice(mid), testEventCode);
+    return mergeDelivery(left, right);
+  }
+
+  const result = await sendCapiEvents(pixelId, accessToken, payloads, { testEventCode });
+  if (result.ok) {
+    await markSent(rows, result);
+    return { sent: rows.length, failed: 0, unsent: [] };
+  }
+
+  if (testEventCode && isTestEventCodeError(result)) {
+    logger.warn("Meta CAPI test_event_code rejected; retrying without it", { pixelId });
+    return deliverRows(pixelId, accessToken, rows, undefined);
+  }
+
+  if (isMetaAuthError(result)) {
+    return {
+      sent: 0,
+      failed: 0,
+      authError: result.error || CAPI_PAGE_TOKEN_ERROR,
+      unsent: rows,
+    };
+  }
+
+  if (rows.length > 1) {
+    const mid = Math.floor(rows.length / 2);
+    const left = await deliverRows(pixelId, accessToken, rows.slice(0, mid), testEventCode);
+    if (left.authError) {
+      return { ...left, unsent: [...left.unsent, ...rows.slice(mid)] };
+    }
+    const right = await deliverRows(pixelId, accessToken, rows.slice(mid), testEventCode);
+    return mergeDelivery(left, right);
+  }
+
+  const message = result.error || "Meta CAPI send failed";
+  await markFailed(rows, message, result.status);
+  logger.error("Meta CAPI send failed", { pixelId, error: message, eventId: rows[0]?.eventId });
+  return { sent: 0, failed: 1, error: message, unsent: [] };
+}
+
+function mergeDelivery(left: Delivery, right: Delivery): Delivery {
+  return {
+    sent: left.sent + right.sent,
+    failed: left.failed + right.failed,
+    error: left.error ?? right.error,
+    authError: right.authError,
+    unsent: [...left.unsent, ...right.unsent],
+  };
+}
+
+/**
+ * Sends up to `limit` conversion events to Meta, grouped by pixel.
+ * Retries recent `failed` rows (the flush button and the 2-minute job both
+ * call this) and never uses a Page access token for `/{pixel-id}/events`.
+ */
 export async function sendPendingConversionEvents(
   options: { orgId?: string; limit?: number } = {},
-): Promise<{ sent: number; failed: number }> {
+): Promise<SendPendingConversionResult> {
   const orgId = options.orgId ?? SINGLE_TENANT_ORG_ID;
   const limit = options.limit ?? 50;
+  const cutoff = new Date(Date.now() - CAPI_MAX_EVENT_AGE_MS);
+  const retryableStatus = or(
+    eq(facebookConversionEvents.status, "pending"),
+    and(
+      eq(facebookConversionEvents.status, "failed"),
+      lt(facebookConversionEvents.retryCount, MAX_CAPI_EVENT_RETRIES),
+    ),
+  );
+
+  const skippedStale = await db
+    .update(facebookConversionEvents)
+    .set({
+      status: "skipped",
+      errorMessage: CAPI_STALE_EVENT_ERROR,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(facebookConversionEvents.orgId, orgId),
+        or(
+          eq(facebookConversionEvents.status, "pending"),
+          eq(facebookConversionEvents.status, "failed"),
+        ),
+        lt(facebookConversionEvents.eventTime, cutoff),
+      ),
+    )
+    .returning({ id: facebookConversionEvents.id });
 
   const pending = await db
     .select()
@@ -300,71 +608,102 @@ export async function sendPendingConversionEvents(
     .where(
       and(
         eq(facebookConversionEvents.orgId, orgId),
-        eq(facebookConversionEvents.status, "pending"),
+        retryableStatus,
+        gte(facebookConversionEvents.eventTime, cutoff),
       ),
     )
     .orderBy(facebookConversionEvents.createdAt)
     .limit(limit);
 
+  let skipped = skippedStale.length;
+
   if (pending.length === 0) {
-    return { sent: 0, failed: 0 };
+    return {
+      sent: 0,
+      failed: 0,
+      skipped,
+      ...(skipped > 0 ? { error: CAPI_STALE_EVENT_ERROR } : {}),
+    };
   }
 
-  const byPixel = new Map<string, typeof pending>();
+  const fresh: ConversionEventRow[] = [];
+  const staleIds: string[] = [];
   for (const row of pending) {
+    if (isStaleCapiEventTime(row.eventTime)) staleIds.push(row.id);
+    else fresh.push(row);
+  }
+  await markSkipped(staleIds, CAPI_STALE_EVENT_ERROR);
+  skipped += staleIds.length;
+
+  const byPixel = new Map<string, ConversionEventRow[]>();
+  for (const row of fresh) {
     byPixel.set(row.pixelId, [...(byPixel.get(row.pixelId) ?? []), row]);
   }
 
+  const pageTokens = await loadPageAccessTokens(orgId);
+  const systemToken = await getActiveSystemAccessToken(orgId).catch((error) => {
+    logger.warn("Failed to load Meta system-user token for CAPI", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  });
+  const userToken = await getActiveAccessToken(orgId).catch((error) => {
+    logger.warn("Failed to load Meta user token for CAPI", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  });
+  const envToken = process.env.META_CAPI_ACCESS_TOKEN?.trim() || null;
+  const testEventCode = process.env.META_CAPI_TEST_EVENT_CODE?.trim() || undefined;
+
   let sent = 0;
   let failed = 0;
+  let error: string | undefined;
 
   for (const [pixelId, rows] of byPixel.entries()) {
-    const accessToken = await resolvePixelAccessToken(orgId, pixelId);
-    const ids = rows.map((r) => r.id);
+    const pixelToken = await loadPixelAccessToken(orgId, pixelId);
+    const tokens = capiAccessTokenCandidates(
+      { envToken, pixelToken, systemToken, userToken },
+      pageTokens,
+    );
+    let remaining = rows;
 
-    if (!accessToken) {
-      failed += rows.length;
-      await db
-        .update(facebookConversionEvents)
-        .set({
-          status: "failed",
-          errorMessage: "No Meta access token available",
-          updatedAt: new Date(),
-        })
-        .where(inArray(facebookConversionEvents.id, ids));
+    if (tokens.length === 0) {
+      error = error ?? CAPI_NO_TOKEN_ERROR;
+      await requeuePending(remaining, CAPI_NO_TOKEN_ERROR);
       continue;
     }
 
-    const result = await sendCapiEvents(pixelId, accessToken, rows.map(toCapiEventPayload), {
-      testEventCode: process.env.META_CAPI_TEST_EVENT_CODE,
-    });
+    let authError: string | undefined;
+    for (const accessToken of tokens) {
+      const outcome = await deliverRows(pixelId, accessToken, remaining, testEventCode);
+      sent += outcome.sent;
+      failed += outcome.failed;
+      if (outcome.error) error = error ?? outcome.error;
+      remaining = outcome.unsent;
+      if (outcome.authError && remaining.length > 0) {
+        authError = outcome.authError;
+        continue;
+      }
+      authError = outcome.authError;
+      break;
+    }
 
-    if (result.ok) {
-      sent += rows.length;
-      await db
-        .update(facebookConversionEvents)
-        .set({
-          status: "sent",
-          httpStatus: result.status,
-          responsePayload: { eventsReceived: result.eventsReceived, fbtraceId: result.fbtraceId },
-          sentAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(inArray(facebookConversionEvents.id, ids));
-    } else {
-      failed += rows.length;
-      await db
-        .update(facebookConversionEvents)
-        .set({
-          status: "failed",
-          httpStatus: result.status,
-          errorMessage: result.error,
-          updatedAt: new Date(),
-        })
-        .where(inArray(facebookConversionEvents.id, ids));
-      logger.error("Meta CAPI send failed", { pixelId, error: result.error });
+    if (authError && remaining.length > 0) {
+      error = authError;
+      await requeuePending(remaining, authError);
+      logger.error("Meta CAPI send rejected the access token", { pixelId, error: authError });
     }
   }
 
-  return { sent, failed };
+  if (!error && skipped > 0 && sent === 0 && failed === 0) {
+    error = CAPI_STALE_EVENT_ERROR;
+  }
+
+  return {
+    sent,
+    failed,
+    skipped,
+    ...(error ? { error } : {}),
+  };
 }

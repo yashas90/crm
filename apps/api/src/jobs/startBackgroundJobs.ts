@@ -8,6 +8,7 @@ import { pruneSecurityWindows } from "../middleware/securityMonitoring.js";
 import { syncPagesFormsAndSubscribe } from "../services/metaPageSyncService.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { startAgeOutNewLeadsJob } from "./ageOutNewLeadsJob.js";
+import { startContactPoolJob } from "./contactPoolJob.js";
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
 import { startLeadScoringJob } from "./leadScoringJob.js";
@@ -61,6 +62,7 @@ export async function startBackgroundJobs() {
     startSlaBreachJob();
     startTaskDueNotificationJob();
     startWhatsAppBlasterJob();
+    startContactPoolJob();
     return;
   }
 
@@ -76,6 +78,7 @@ export async function startBackgroundJobs() {
   startTrackingHealthJob();
   startTaskDueNotificationJob();
   startWhatsAppBlasterJob();
+  startContactPoolJob();
   setInterval(
     () => {
       void syncPagesFormsAndSubscribe().catch((err) => {

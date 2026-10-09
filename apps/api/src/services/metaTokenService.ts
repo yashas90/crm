@@ -133,6 +133,30 @@ export async function refreshLongLivedUserToken(
   }
 }
 
+/**
+ * Active system-user token, when one has been stored for Conversions API.
+ * System-user tokens are not exchanged through the user-token refresh flow.
+ */
+export async function getActiveSystemAccessToken(
+  orgId: string = SINGLE_TENANT_ORG_ID,
+): Promise<string | null> {
+  const [row] = await db
+    .select()
+    .from(facebookTokens)
+    .where(
+      and(
+        eq(facebookTokens.orgId, orgId),
+        eq(facebookTokens.tokenType, "system"),
+        eq(facebookTokens.status, "active"),
+      ),
+    )
+    .orderBy(desc(facebookTokens.updatedAt))
+    .limit(1);
+
+  if (!row) return null;
+  return decryptSecret(row.accessTokenEncrypted);
+}
+
 /** Returns a valid decrypted access token for the org, refreshing it first if it's nearing expiry. */
 export async function getActiveAccessToken(
   orgId: string = SINGLE_TENANT_ORG_ID,
