@@ -91,7 +91,9 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   return (
     <ScreenSuspense>
       <Tab.Navigator
-        tabBar={ScrollableTabBar}
+        // React Navigation calls `tabBar` inside SafeAreaInsetsContext.Consumer.
+        // Passing the component function directly runs its hooks outside a component.
+        tabBar={(props) => <ScrollableTabBar {...props} />}
         screenOptions={{
           headerShown: false,
           lazy: true,
