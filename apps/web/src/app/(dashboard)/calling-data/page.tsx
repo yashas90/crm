@@ -16,10 +16,63 @@ type PoolStats = {
   assigned: number;
   called: number;
   interested: number;
+  notInterested: number;
+  callback: number;
   dncOrInvalid: number;
   consumed: number;
   cities: string[];
 };
+
+type CallingOverview = {
+  totals: {
+    attempts: number;
+    calledContacts: number;
+    pending: number;
+    callbacks: number;
+    active: number;
+    removed: number;
+    interested: number;
+    qualified: number;
+    outcomes: Record<string, number>;
+  };
+  agents: {
+    agentId: string;
+    agentName: string;
+    active: number;
+    pending: number;
+    callbacks: number;
+    removed: number;
+    attempts: number;
+    calledContacts: number;
+    interested: number;
+    qualified: number;
+  }[];
+  deletionReasons: { reason: string; label: string; count: number }[];
+};
+
+type QualifiedOverview = {
+  leads: number;
+  hot: number;
+  conversionPercent: number;
+  stages: { stage: string; count: number }[];
+  items: {
+    leadCode: string;
+    name: string;
+    phone: string | null;
+    agentName: string | null;
+    qualifiedAt: string | null;
+  }[];
+};
+
+const OUTCOME_LABELS: { key: string; label: string }[] = [
+  { key: "interested", label: "Interested" },
+  { key: "not_interested", label: "Not interested" },
+  { key: "callback", label: "Callback" },
+  { key: "no_answer", label: "No answer" },
+  { key: "busy", label: "Busy" },
+  { key: "invalid", label: "Invalid" },
+  { key: "dnc", label: "DNC" },
+];
 
 type Batch = {
   batchId: string;
@@ -96,94 +149,200 @@ export default function CallingDataPage() {
 }
 
 function Overview() {
+  const [range, setRange] = useState<"day" | "week" | "month">("day");
   const stats = useQuery({
     queryKey: ["pool-stats"],
     queryFn: () => apiGet<PoolStats>("/api/admin/pool-stats"),
   });
   const calling = useQuery({
     queryKey: ["calling-overview"],
-    queryFn: () =>
-      apiGet<{
-        agents: { agent_name: string; active: number; pending: number; deleted: number }[];
-        deletionReasons: { reason: string; count: number }[];
-      }>("/api/admin/calling-overview"),
+    queryFn: () => apiGet<CallingOverview>("/api/admin/calling-overview"),
   });
   const leads = useQuery({
     queryKey: ["leads-overview"],
+    queryFn: () => apiGet<QualifiedOverview>("/api/admin/leads-overview"),
+  });
+  const activity = useQuery({
+    queryKey: ["overall-report", range],
     queryFn: () =>
       apiGet<{
-        leads: number;
-        hot: number;
-        conversionPercent: number;
-        stages: { stage: string; count: number }[];
-      }>("/api/admin/leads-overview"),
+        totalCalls: number;
+        totalInterested: number;
+        averageDurationSeconds: number;
+        costPerLead: number | null;
+      }>(`/api/admin/overall-report?range=${range}`),
+  });
+  const pool = useQuery({
+    queryKey: ["pool-report"],
+    queryFn: () =>
+      apiGet<{
+        assignedLast7Days: number;
+        unassigned: number;
+        daysUntilEmpty: number | null;
+      }>("/api/admin/pool-report"),
   });
   const data = stats.data;
+  const totals = calling.data?.totals;
+  const qualified = leads.data?.items ?? [];
   const pct = data && data.total > 0 ? Math.round((data.consumed / data.total) * 100) : 0;
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Total" value={data?.total} />
-        <Stat label="Unassigned" value={data?.unassigned} />
+        <Stat label="Pool remaining" value={data?.unassigned} />
         <Stat label="Assigned" value={data?.assigned} />
-        <Stat label="Called" value={data?.called} />
+        <Stat label="Called" value={totals?.calledContacts} />
         <Stat label="Interested" value={data?.interested} />
         <Stat label="DNC / Invalid" value={data?.dncOrInvalid} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Stat label="Call attempts" value={totals?.attempts} />
+        <Stat label="Active" value={totals?.active} />
+        <Stat label="Pending" value={totals?.pending} />
+        <Stat label="Callbacks" value={totals?.callbacks} />
+        <Stat label="Qualified leads" value={leads.data?.leads ?? totals?.qualified} />
+        <Stat label="Removed" value={totals?.removed} />
       </div>
       <div>
         <div className="mb-1 text-sm text-slate-600">Pool consumed {pct}%</div>
         <div className="h-3 overflow-hidden rounded-full bg-slate-200">
           <div className="h-full bg-[#204060]" style={{ width: `${pct}%` }} />
         </div>
+        <p className="mt-2 text-sm text-slate-600">
+          Pool remaining {pool.data?.unassigned ?? data?.unassigned ?? 0}. Assigned in the last 7
+          days {pool.data?.assignedLast7Days ?? 0}.
+          {pool.data?.daysUntilEmpty == null
+            ? " Not enough assignment pace to estimate when the pool runs out."
+            : ` About ${pool.data.daysUntilEmpty} days until the pool is empty.`}
+        </p>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 p-4">
-          <h2 className="font-semibold">Calling data by agent</h2>
-          <p className="mb-3 text-xs text-slate-500">Deleted rows stay in the audit log only.</p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-500">
-                <th>Agent</th>
-                <th>Active</th>
-                <th>Pending</th>
-                <th>Removed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(calling.data?.agents ?? []).map((agent) => (
-                <tr key={agent.agent_name} className="border-t">
-                  <td className="py-1">{agent.agent_name}</td>
-                  <td>{agent.active}</td>
-                  <td>{agent.pending}</td>
-                  <td>{agent.deleted}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <h3 className="mt-4 text-sm font-semibold">Deletion reasons</h3>
-          <ul className="text-sm">
-            {(calling.data?.deletionReasons ?? []).map((reason) => (
-              <li key={reason.reason}>
-                {reason.reason}: {reason.count}
-              </li>
+      <section className="rounded-xl border border-slate-200 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Calls</h2>
+          <div className="flex gap-2">
+            {(["day", "week", "month"] as const).map((item) => (
+              <Button
+                key={item}
+                size="sm"
+                variant={range === item ? "default" : "outline"}
+                onClick={() => setRange(item)}
+              >
+                {item}
+              </Button>
             ))}
-          </ul>
-        </section>
-        <section className="rounded-xl border border-slate-200 p-4">
-          <h2 className="font-semibold">Qualified leads</h2>
-          <p className="text-sm text-slate-600">
-            {leads.data?.leads ?? 0} leads · {leads.data?.hot ?? 0} hot ·{" "}
-            {leads.data?.conversionPercent ?? 0}% of assigned contacts converted
-          </p>
+          </div>
+        </div>
+        <p className="text-sm text-slate-600">
+          {totals?.attempts ?? 0} call attempts logged in total, across{" "}
+          {totals?.calledContacts ?? 0} contacts. This {range}: {activity.data?.totalCalls ?? 0}{" "}
+          calls, {activity.data?.totalInterested ?? 0} interested, average duration{" "}
+          {activity.data?.averageDurationSeconds ?? 0}s
+          {activity.data?.costPerLead != null ? `, cost per lead ${activity.data.costPerLead}` : ""}
+          .
+        </p>
+        <ul className="mt-3 grid gap-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {OUTCOME_LABELS.map((item) => (
+            <li key={item.key}>
+              {item.label}: {totals?.outcomes?.[item.key] ?? 0}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-xs text-slate-500">
+          Not interested (pool) {data?.notInterested ?? 0} · Callbacks still in the pool{" "}
+          {data?.callback ?? 0}
+        </p>
+      </section>
+      <section className="overflow-x-auto rounded-xl border border-slate-200 p-4">
+        <h2 className="font-semibold">Calling data by agent</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Removed rows stay in the audit log. Called counts are logged attempts, including contacts
+          that have left the list.
+        </p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-500">
+              <th>Agent</th>
+              <th>Active</th>
+              <th>Pending</th>
+              <th>Callbacks</th>
+              <th>Attempts</th>
+              <th>Called</th>
+              <th>Interested</th>
+              <th>Qualified</th>
+              <th>Removed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(calling.data?.agents ?? []).map((agent) => (
+              <tr key={agent.agentId} className="border-t">
+                <td className="py-1">{agent.agentName}</td>
+                <td>{agent.active}</td>
+                <td>{agent.pending}</td>
+                <td>{agent.callbacks}</td>
+                <td>{agent.attempts}</td>
+                <td>{agent.calledContacts}</td>
+                <td>{agent.interested}</td>
+                <td>{agent.qualified}</td>
+                <td>{agent.removed}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <h3 className="mt-4 text-sm font-semibold">Deletion reasons</h3>
+        <ul className="text-sm">
+          {(calling.data?.deletionReasons ?? []).map((reason) => (
+            <li key={reason.reason}>
+              {reason.label}: {reason.count}
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="rounded-xl border border-slate-200 p-4">
+        <h2 className="font-semibold">Qualified leads</h2>
+        <p className="text-sm text-slate-600">
+          {leads.data?.leads ?? 0} qualified · {leads.data?.hot ?? 0} hot ·{" "}
+          {leads.data?.conversionPercent ?? 0}% of assigned contacts converted
+        </p>
+        {(leads.data?.stages ?? []).length > 0 ? (
           <ul className="mt-3 text-sm">
-            {(leads.data?.stages ?? []).map((stage) => (
+            {leads.data?.stages.map((stage) => (
               <li key={stage.stage}>
                 {stage.stage}: {stage.count}
               </li>
             ))}
           </ul>
-        </section>
-      </div>
+        ) : null}
+        {(leads.data?.leads ?? 0) === 0 ? (
+          <p className="mt-3 text-sm text-slate-600">
+            No leads yet. None of the assigned contacts converted.
+          </p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-500">
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Agent</th>
+                  <th>Qualified</th>
+                </tr>
+              </thead>
+              <tbody>
+                {qualified.map((lead) => (
+                  <tr key={lead.leadCode} className="border-t">
+                    <td className="py-1">{lead.leadCode}</td>
+                    <td>{lead.name}</td>
+                    <td>{lead.phone ?? "—"}</td>
+                    <td>{lead.agentName ?? "—"}</td>
+                    <td>{lead.qualifiedAt ? new Date(lead.qualifiedAt).toLocaleString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -260,6 +419,9 @@ function UploadPanel() {
         accept=".csv,.xlsx"
         onChange={(event) => setFile(event.target.files?.[0] ?? null)}
       />
+      <p className="text-sm text-slate-600">
+        Include a name column, or first name and last name. Phone is required.
+      </p>
       {file ? (
         <p className="text-sm text-slate-600">
           {file.name}
@@ -569,6 +731,8 @@ function LeadsPanel() {
           pipelineStage: string;
           priority: string;
           assignedTo: string | null;
+          agentName: string | null;
+          qualifiedAt: string | null;
         }[]
       >("/api/admin/qualified-leads"),
   });
@@ -608,20 +772,32 @@ function LeadsPanel() {
             <th>Code</th>
             <th>Name</th>
             <th>Phone</th>
+            <th>Agent</th>
+            <th>Qualified</th>
             <th>Stage</th>
             <th>Priority</th>
           </tr>
         </thead>
         <tbody>
-          {(leads.data ?? []).map((lead) => (
-            <tr key={lead.id} className="border-t">
-              <td className="py-1">{lead.leadCode}</td>
-              <td>{lead.name}</td>
-              <td>{lead.phone}</td>
-              <td>{lead.pipelineStage}</td>
-              <td>{lead.priority}</td>
+          {(leads.data ?? []).length === 0 ? (
+            <tr>
+              <td className="py-2 text-slate-600" colSpan={7}>
+                No leads yet. None of the assigned contacts converted.
+              </td>
             </tr>
-          ))}
+          ) : (
+            (leads.data ?? []).map((lead) => (
+              <tr key={lead.id} className="border-t">
+                <td className="py-1">{lead.leadCode}</td>
+                <td>{lead.name}</td>
+                <td>{lead.phone}</td>
+                <td>{lead.agentName ?? "—"}</td>
+                <td>{lead.qualifiedAt ? new Date(lead.qualifiedAt).toLocaleString() : "—"}</td>
+                <td>{lead.pipelineStage}</td>
+                <td>{lead.priority}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

@@ -438,11 +438,12 @@ export async function listAgentLeads(input: {
     if (search) filters.push(search);
   }
   const rows = await db
-    .select()
+    .select({ lead: leads, agentName: users.name })
     .from(leads)
+    .leftJoin(users, eq(leads.assignedTo, users.id))
     .where(and(...filters))
     .orderBy(desc(leads.qualifiedAt));
-  return rows.map(mapLead);
+  return rows.map((row) => ({ ...mapLead(row.lead), agentName: row.agentName }));
 }
 
 export async function getAgentLead(agentId: string, leadId: string, asAdmin = false) {
@@ -570,32 +571,143 @@ export async function agentLeadStats(agentId: string) {
   return { total, hot, byStage };
 }
 
+const DELETION_REASON_LABELS: { reason: string; label: string }[] = [
+  { reason: "not_interested", label: "Not interested" },
+  { reason: "invalid_number", label: "Invalid" },
+  { reason: "dnc", label: "DNC" },
+  { reason: "max_attempts_reached", label: "Max attempts reached" },
+  { reason: "converted_to_lead", label: "Converted to lead" },
+];
+
+function countOf(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export async function adminCallingOverview() {
   const db = getDb();
+  const callingLead = sql.raw(
+    "(lead_source = 'calling_data' OR source_contact_pool_id IS NOT NULL)",
+  );
   const agents = sqlRows(
     await db.execute(sql`
       SELECT u.id AS agent_id, u.name AS agent_name,
-        count(*) FILTER (WHERE ac.deleted_at IS NULL)::int AS active,
-        count(*) FILTER (WHERE ac.deleted_at IS NULL AND ac.status = 'pending')::int AS pending,
-        count(*) FILTER (WHERE ac.deleted_at IS NULL AND ac.status = 'callback')::int AS callbacks,
-        count(*) FILTER (WHERE ac.deleted_at IS NOT NULL)::int AS deleted
+        COALESCE(ac.active, 0)::int AS active,
+        COALESCE(ac.pending, 0)::int AS pending,
+        COALESCE(ac.callbacks, 0)::int AS callbacks,
+        COALESCE(ac.removed, 0)::int AS removed,
+        COALESCE(calls.attempts, 0)::int AS attempts,
+        COALESCE(calls.called_contacts, 0)::int AS called_contacts,
+        COALESCE(calls.interested, 0)::int AS interested,
+        COALESCE(q.qualified, 0)::int AS qualified
       FROM users u
-      LEFT JOIN agent_calling_data ac ON ac.agent_id = u.id
+      LEFT JOIN (
+        SELECT agent_id,
+          count(*) FILTER (WHERE deleted_at IS NULL)::int AS active,
+          count(*) FILTER (WHERE deleted_at IS NULL AND status = 'pending')::int AS pending,
+          count(*) FILTER (WHERE deleted_at IS NULL AND status = 'callback')::int AS callbacks,
+          count(*) FILTER (WHERE deleted_at IS NOT NULL)::int AS removed
+        FROM agent_calling_data
+        WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+        GROUP BY agent_id
+      ) ac ON ac.agent_id = u.id
+      LEFT JOIN (
+        SELECT agent_id,
+          count(*)::int AS attempts,
+          count(DISTINCT contact_id)::int AS called_contacts,
+          count(*) FILTER (WHERE outcome = 'interested')::int AS interested
+        FROM contact_call_logs
+        WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+        GROUP BY agent_id
+      ) calls ON calls.agent_id = u.id
+      LEFT JOIN (
+        SELECT assigned_to AS agent_id, count(*)::int AS qualified
+        FROM leads
+        WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+          AND deleted_at IS NULL
+          AND ${callingLead}
+        GROUP BY assigned_to
+      ) q ON q.agent_id = u.id
       WHERE u.org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND u.role = 'agent' AND u.is_active = true
-      GROUP BY u.id, u.name
       ORDER BY u.name
     `),
   );
-  const reasons = sqlRows(
+  const [totals] = sqlRows(
+    await db.execute(sql`
+      SELECT
+        COALESCE((SELECT count(*) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid), 0)::int AS attempts,
+        COALESCE((SELECT count(DISTINCT contact_id) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid), 0)::int AS called_contacts,
+        COALESCE((SELECT count(*) FROM agent_calling_data WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND deleted_at IS NULL AND status = 'pending'), 0)::int AS pending,
+        COALESCE((SELECT count(*) FROM agent_calling_data WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND deleted_at IS NULL AND status = 'callback'), 0)::int AS callbacks,
+        COALESCE((SELECT count(*) FROM agent_calling_data WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND deleted_at IS NULL), 0)::int AS active,
+        COALESCE((SELECT count(*) FROM agent_calling_data WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND deleted_at IS NOT NULL), 0)::int AS removed,
+        COALESCE((SELECT count(*) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND outcome = 'interested'), 0)::int AS interested,
+        COALESCE((
+          SELECT count(*) FROM leads
+          WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND deleted_at IS NULL AND ${callingLead}
+        ), 0)::int AS qualified,
+        COALESCE((SELECT count(*) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND outcome = 'not_interested'), 0)::int AS not_interested,
+        COALESCE((SELECT count(*) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND outcome = 'callback'), 0)::int AS outcome_callback,
+        COALESCE((SELECT count(*) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND outcome = 'no_answer'), 0)::int AS no_answer,
+        COALESCE((SELECT count(*) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND outcome = 'busy'), 0)::int AS busy,
+        COALESCE((SELECT count(*) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND outcome = 'invalid'), 0)::int AS invalid,
+        COALESCE((SELECT count(*) FROM contact_call_logs WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND outcome = 'dnc'), 0)::int AS dnc
+    `),
+  );
+  const reasonRows = sqlRows(
     await db.execute(sql`
       SELECT COALESCE(deleted_reason, 'unknown') AS reason, count(*)::int AS count
       FROM agent_calling_data
       WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND deleted_at IS NOT NULL
       GROUP BY deleted_reason
-      ORDER BY count DESC
     `),
   );
-  return { agents, deletionReasons: reasons };
+  const reasonCounts = new Map(reasonRows.map((row) => [String(row.reason), countOf(row.count)]));
+  const deletionReasons = DELETION_REASON_LABELS.map((item) => ({
+    reason: item.reason,
+    label: item.label,
+    count: reasonCounts.get(item.reason) ?? 0,
+  }));
+  for (const [reason, count] of reasonCounts) {
+    if (!DELETION_REASON_LABELS.some((item) => item.reason === reason)) {
+      deletionReasons.push({ reason, label: reason, count });
+    }
+  }
+  const row = totals ?? {};
+  return {
+    totals: {
+      attempts: countOf(row.attempts),
+      calledContacts: countOf(row.called_contacts),
+      pending: countOf(row.pending),
+      callbacks: countOf(row.callbacks),
+      active: countOf(row.active),
+      removed: countOf(row.removed),
+      interested: countOf(row.interested),
+      qualified: countOf(row.qualified),
+      outcomes: {
+        interested: countOf(row.interested),
+        not_interested: countOf(row.not_interested),
+        callback: countOf(row.outcome_callback),
+        no_answer: countOf(row.no_answer),
+        busy: countOf(row.busy),
+        invalid: countOf(row.invalid),
+        dnc: countOf(row.dnc),
+      },
+    },
+    agents: agents.map((agent) => ({
+      agentId: String(agent.agent_id),
+      agentName: String(agent.agent_name),
+      active: countOf(agent.active),
+      pending: countOf(agent.pending),
+      callbacks: countOf(agent.callbacks),
+      removed: countOf(agent.removed),
+      attempts: countOf(agent.attempts),
+      calledContacts: countOf(agent.called_contacts),
+      interested: countOf(agent.interested),
+      qualified: countOf(agent.qualified),
+    })),
+    deletionReasons,
+  };
 }
 
 export async function adminLeadsOverview() {
@@ -626,6 +738,18 @@ export async function adminLeadsOverview() {
       WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND status <> 'unassigned'
     `),
   );
+  const items = sqlRows(
+    await db.execute(sql`
+      SELECT l.lead_code, l.first_name, l.last_name, l.phone, l.qualified_at, u.name AS agent_name
+      FROM leads l
+      LEFT JOIN users u ON u.id = l.assigned_to
+      WHERE l.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+        AND l.deleted_at IS NULL
+        AND (l.lead_source = 'calling_data' OR l.source_contact_pool_id IS NOT NULL)
+      ORDER BY l.qualified_at DESC NULLS LAST, l.created_at DESC
+      LIMIT 100
+    `),
+  );
   const leadCount = stages.reduce((sum, row) => sum + Number(row.count), 0);
   const assignedCount = Number(assigned?.count ?? 0);
   return {
@@ -635,6 +759,13 @@ export async function adminLeadsOverview() {
     assignedContacts: assignedCount,
     conversionPercent:
       assignedCount === 0 ? 0 : Math.round((1000 * leadCount) / assignedCount) / 10,
+    items: items.map((row) => ({
+      leadCode: String(row.lead_code),
+      name: `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim() || "Unknown",
+      phone: row.phone ? String(row.phone) : null,
+      agentName: row.agent_name ? String(row.agent_name) : null,
+      qualifiedAt: row.qualified_at ? new Date(String(row.qualified_at)).toISOString() : null,
+    })),
   };
 }
 

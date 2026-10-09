@@ -1,6 +1,7 @@
 import { contactPool, dncPhones, uploadBatches, uploadInvalidRows } from "@propninja/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
+import { contactNameFromRow, isMissingContactName } from "../lib/contactPool/contactName.js";
 import { headerValue, parseContactFile } from "../lib/contactPool/parseSpreadsheet.js";
 import {
   chunkRows,
@@ -12,7 +13,7 @@ import {
   sanitizeText,
 } from "../lib/contactPool/sanitize.js";
 import { scanUploadBuffer } from "../lib/contactPool/virusScan.js";
-import { getDb } from "../lib/db.js";
+import { type Database, getDb } from "../lib/db.js";
 import { badRequest } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 
@@ -108,9 +109,7 @@ async function processUpload(batchId: string, rows: Record<string, string>[]) {
           return;
         }
         seen.add(phone);
-        const name =
-          sanitizeText(headerValue(row, ["name", "full_name", "fullname", "contact_name"]), 120) ||
-          "Unknown";
+        const name = contactNameFromRow(row);
         const budget = parseBudget(headerValue(row, ["budget", "budget_range"]));
         const email = sanitizeText(headerValue(row, ["email", "email_address"]), 160);
         prepared.push({
@@ -153,6 +152,10 @@ async function processUpload(batchId: string, rows: Record<string, string>[]) {
         ]);
         const existingPhones = new Set(existing.map((row) => row.phone));
         const blockedPhones = new Set(blocked.map((row) => row.phone));
+        const renamed = prepared.filter(
+          (row) => existingPhones.has(row.phone) && !isMissingContactName(row.name),
+        );
+        if (renamed.length > 0) await fillMissingNames(db, renamed);
         const insertable = prepared.filter((row) => {
           if (blockedPhones.has(row.phone)) {
             invalidRows.push({
@@ -261,5 +264,36 @@ async function processUpload(batchId: string, rows: Record<string, string>[]) {
       })
       .where(eq(uploadBatches.batchId, batchId));
     throw error;
+  }
+}
+
+/** Re-uploads keep the phone, so a later file can fill a name that was stored as Unknown. */
+function textArray(values: string[]) {
+  return sql`ARRAY[${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )}]::text[]`;
+}
+
+async function fillMissingNames(db: Database, rows: PreparedRow[]) {
+  for (const chunk of chunkRows(rows, 200)) {
+    const phoneList = chunk.map((row) => row.phone);
+    const nameList = chunk.map((row) => row.name);
+    await db.execute(sql`
+      UPDATE contact_pool AS p
+      SET name = v.name
+      FROM unnest(${textArray(phoneList)}, ${textArray(nameList)}) AS v(phone, name)
+      WHERE p.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+        AND p.phone = v.phone
+        AND (p.name = 'Unknown' OR btrim(p.name) = '')
+    `);
+    await db.execute(sql`
+      UPDATE agent_calling_data AS ac
+      SET name = v.name
+      FROM unnest(${textArray(phoneList)}, ${textArray(nameList)}) AS v(phone, name)
+      WHERE ac.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+        AND ac.phone = v.phone
+        AND (ac.name = 'Unknown' OR btrim(ac.name) = '')
+    `);
   }
 }
