@@ -288,7 +288,7 @@ export function useLeads(
 
   return useQuery({
     queryKey: leadsListQueryKey(params),
-    queryFn: () => apiGet<LeadsListData>(`/api/leads${query}`),
+    queryFn: ({ signal }) => apiGet<LeadsListData>(`/api/leads${query}`, { signal }),
     enabled: options?.enabled !== false,
     staleTime: 15_000,
     placeholderData: keepPreviousData,

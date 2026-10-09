@@ -22,6 +22,7 @@ import type { Database } from "../lib/db.js";
 import { getDb } from "../lib/db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { normalizeStoredPhone } from "../lib/leadPhone.js";
+import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 
 export type PoolFilters = {
   city?: string | null;
@@ -525,7 +526,7 @@ export async function agentPerformance() {
         ON d.agent_id = u.id AND d.date = ${dateKey}::date
       LEFT JOIN LATERAL (
         SELECT count(*) AS n FROM contact_call_logs c
-        WHERE c.agent_id = u.id AND c.called_at >= ${start} AND c.outcome = 'interested'
+        WHERE c.agent_id = u.id AND c.called_at >= ${sqlTimestamptz(start)} AND c.outcome = 'interested'
       ) inter ON true
       LEFT JOIN LATERAL (
         SELECT count(*) AS n FROM contact_pool p WHERE p.assigned_to_agent_id = u.id

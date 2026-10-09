@@ -1,5 +1,9 @@
-/** Height of the floating tab bar (excluding safe-area inset). */
-export const TAB_BAR_HEIGHT = 64;
+/**
+ * Height of the bottom tab bar content, excluding the safe-area inset.
+ * ScrollableTabBar adds insets.bottom below this so labels stay above the
+ * gesture bar and the Android navigation buttons.
+ */
+export const TAB_BAR_HEIGHT = 76;
 
-/** Extra scroll padding above the tab bar on tab-root screens. */
+/** List padding that clears the overlay tab bar, plus a little air. */
 export const TAB_BAR_SCROLL_PADDING = TAB_BAR_HEIGHT + 24;

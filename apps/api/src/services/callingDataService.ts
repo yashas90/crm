@@ -24,6 +24,7 @@ import type { Database } from "../lib/db.js";
 import { getDb } from "../lib/db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { formatLeadCode, isLeadCodeUniqueViolation } from "../lib/leadCode.js";
+import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 
 type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -50,8 +51,8 @@ export async function listCallingData(input: {
       WHERE ${sql.join(clauses, sql` AND `)}
       ORDER BY
         CASE
-          WHEN ac.status = 'callback' AND ac.callback_scheduled_at < ${start} THEN 0
-          WHEN ac.status = 'callback' AND ac.callback_scheduled_at <= ${end} THEN 1
+          WHEN ac.status = 'callback' AND ac.callback_scheduled_at < ${sqlTimestamptz(start)} THEN 0
+          WHEN ac.status = 'callback' AND ac.callback_scheduled_at <= ${sqlTimestamptz(end)} THEN 1
           WHEN ac.status = 'callback' THEN 2
           WHEN ac.status = 'pending' THEN 3
           WHEN ac.status = 'retry' THEN 4
@@ -77,7 +78,7 @@ export async function callingStats(agentId: string) {
         ), 0)::int AS assigned_today,
         COALESCE((
           SELECT count(*) FROM contact_call_logs
-          WHERE agent_id = ${agentId}::uuid AND called_at >= ${start}
+          WHERE agent_id = ${agentId}::uuid AND called_at >= ${sqlTimestamptz(start)}
         ), 0)::int AS called_today,
         COALESCE((
           SELECT count(*) FROM agent_calling_data
@@ -93,13 +94,13 @@ export async function callingStats(agentId: string) {
         ), 0)::int AS callbacks,
         COALESCE((
           SELECT count(*) FROM agent_calling_data
-          WHERE agent_id = ${agentId}::uuid AND deleted_at >= ${start}
+          WHERE agent_id = ${agentId}::uuid AND deleted_at >= ${sqlTimestamptz(start)}
         ), 0)::int AS deleted_today,
         COALESCE((
           SELECT count(*) FROM agent_calling_data
           WHERE agent_id = ${agentId}::uuid
             AND deleted_reason = 'converted_to_lead'
-            AND deleted_at >= ${start}
+            AND deleted_at >= ${sqlTimestamptz(start)}
         ), 0)::int AS converted_today,
         COALESCE((
           SELECT count(*) FROM agent_calling_data
@@ -246,7 +247,7 @@ async function applyOutcome(
       SELECT 1 FROM contact_call_logs
       WHERE contact_id = ${String(row.contact_pool_id)}::uuid
         AND agent_id = ${input.agentId}::uuid
-        AND called_at >= ${start}
+        AND called_at >= ${sqlTimestamptz(start)}
       LIMIT 1
     `),
   );

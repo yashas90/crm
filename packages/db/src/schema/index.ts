@@ -139,6 +139,10 @@ export const leads = pgTable(
     qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
     /** Spec pipeline: new, contacted, site_visit_scheduled, site_visit_done, negotiation, closed_won, closed_lost. */
     pipelineStage: text("pipeline_stage"),
+    /** Last 10 digits of phone. Null when the number is too short to dedupe. */
+    phoneKey: text("phone_key"),
+    /** Oldest lead for this phone in the same active/deleted bucket. List queries filter on this instead of a window sort. */
+    isPrimaryPhone: boolean("is_primary_phone").notNull().default(true),
   },
   (table) => [
     check(
@@ -155,6 +159,12 @@ export const leads = pgTable(
     index("leads_lead_code_idx").on(table.leadCode),
     index("leads_source_contact_pool_id_idx").on(table.sourceContactPoolId),
     index("leads_pipeline_stage_idx").on(table.pipelineStage),
+    index("leads_phone_key_active_idx")
+      .on(table.phoneKey, table.createdAt, table.id)
+      .where(sql`${table.phoneKey} is not null and ${table.deletedAt} is null`),
+    index("leads_primary_active_created_idx")
+      .on(table.createdAt)
+      .where(sql`${table.deletedAt} is null and ${table.isPrimaryPhone}`),
   ],
 );
 

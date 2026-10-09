@@ -28,7 +28,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = BottomTabScreenProps<MainTabParamList, "NotificationsTab">;
 
@@ -88,6 +88,7 @@ const NotificationItem = memo(function NotificationItem({
 });
 
 export function NotificationsScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const notifications = useNotifications();
   const markRead = useMarkNotificationsRead();
 
@@ -145,7 +146,7 @@ export function NotificationsScreen({ navigation }: Props) {
           contentContainerStyle={[
             styles.listContent,
             items.length === 0 && styles.listEmpty,
-            { paddingBottom: TAB_BAR_SCROLL_PADDING },
+            { paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom },
           ]}
           refreshControl={
             <RefreshControl

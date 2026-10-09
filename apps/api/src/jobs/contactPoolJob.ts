@@ -5,6 +5,7 @@ import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { sqlRows } from "../lib/contactPool/sql.js";
 import { getDb } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
+import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 
 const INTERVAL_MS = 60_000;
@@ -14,11 +15,17 @@ let timer: ReturnType<typeof setInterval> | undefined;
 export function startContactPoolJob() {
   if (timer) return;
   logger.info("Starting calling-data maintenance");
-  void runContactPoolMaintenance();
+  void runContactPoolMaintenance().catch(logMaintenanceFailure);
   timer = setInterval(() => {
-    void runContactPoolMaintenance();
+    void runContactPoolMaintenance().catch(logMaintenanceFailure);
   }, INTERVAL_MS);
   timer.unref?.();
+}
+
+function logMaintenanceFailure(error: unknown) {
+  logger.error("Calling-data maintenance failed", {
+    message: error instanceof Error ? error.message : String(error),
+  });
 }
 
 export async function runContactPoolMaintenance(now = new Date()) {
@@ -85,7 +92,7 @@ async function morningReminder(
       SELECT agent_id, count(*)::int AS pending
       FROM agent_calling_data
       WHERE deleted_at IS NULL
-        AND assigned_at < ${start}
+        AND assigned_at < ${sqlTimestamptz(start)}
         AND status IN ('pending', 'retry', 'callback')
       GROUP BY agent_id
     `),
@@ -128,7 +135,7 @@ async function eveningSummary(
         count(*) FILTER (WHERE outcome = 'interested')::int AS interested,
         count(*) FILTER (WHERE outcome = 'callback')::int AS callbacks
       FROM contact_call_logs
-      WHERE called_at >= ${start}
+      WHERE called_at >= ${sqlTimestamptz(start)}
       GROUP BY agent_id
     `),
   );
@@ -161,7 +168,7 @@ async function callbackReminders(
         AND status = 'callback'
         AND callback_notified_at IS NULL
         AND callback_scheduled_at IS NOT NULL
-        AND callback_scheduled_at <= ${now}
+        AND callback_scheduled_at <= ${sqlTimestamptz(now)}
     `),
   );
   for (const row of due) {
@@ -172,7 +179,7 @@ async function callbackReminders(
     });
     await db.execute(sql`
       UPDATE agent_calling_data
-      SET callback_notified_at = ${now}
+      SET callback_notified_at = ${sqlTimestamptz(now)}
       WHERE record_id = ${String(row.record_id)}::uuid
     `);
   }

@@ -14,6 +14,9 @@ export function CallingTodayStrip() {
       apiGet<{ remaining: number; pending: number; callbacks: number; calledToday: number }>(
         "/api/agent/calling-data/stats",
       ),
+    retry: false,
+    refetchInterval: false,
+    meta: { suppressErrorToast: true },
   });
   const leads = useQuery({
     queryKey: ["my-leads-stats"],
@@ -21,6 +24,9 @@ export function CallingTodayStrip() {
       apiGet<{ total: number; hot: number; byStage: Record<string, number> }>(
         "/api/agent/leads/stats",
       ),
+    retry: false,
+    refetchInterval: false,
+    meta: { suppressErrorToast: true },
   });
   const visit =
     (leads.data?.byStage.site_visit_scheduled ?? 0) + (leads.data?.byStage.site_visit_done ?? 0);

@@ -106,14 +106,7 @@ export type ListLeadsParams = {
   tags?: string[];
 } & Partial<LeadAdvancedListQuery>;
 
-/** Last 10 digits — treats +91… and local 10-digit numbers as the same phone. */
-const leadPhoneKeySql = sql`RIGHT(regexp_replace(COALESCE(${leads.phone}, ''), '[^0-9]', '', 'g'), 10)`;
-
-function leadHasValidPhoneKey() {
-  return sql`LENGTH(${leadPhoneKeySql}) >= 10`;
-}
-
-/** Another lead in the org shares this phone key (same deleted/active bucket). */
+/** Another lead in the org shares this indexed phone key (same deleted/active bucket). */
 function duplicatePhoneExistsSql(deletedOnly: boolean) {
   const peerDeletedClause = deletedOnly
     ? sql`l2.deleted_at IS NOT NULL`
@@ -123,29 +116,8 @@ function duplicatePhoneExistsSql(deletedOnly: boolean) {
     SELECT 1 FROM leads l2
     WHERE l2.org_id = ${leads.orgId}
       AND l2.id <> ${leads.id}
+      AND l2.phone_key = ${leads.phoneKey}
       AND ${peerDeletedClause}
-      AND LENGTH(RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10)) >= 10
-      AND RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10) = ${leadPhoneKeySql}
-  )`;
-}
-
-/** Keep the oldest lead per phone key; hide newer copies from default lists. */
-function canonicalLeadOnlySql(deletedOnly: boolean) {
-  const peerDeletedClause = deletedOnly
-    ? sql`l2.deleted_at IS NOT NULL`
-    : sql`l2.deleted_at IS NULL`;
-
-  return sql`NOT EXISTS (
-    SELECT 1 FROM leads l2
-    WHERE l2.org_id = ${leads.orgId}
-      AND l2.id <> ${leads.id}
-      AND ${peerDeletedClause}
-      AND LENGTH(RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10)) >= 10
-      AND RIGHT(regexp_replace(COALESCE(l2.phone, ''), '[^0-9]', '', 'g'), 10) = ${leadPhoneKeySql}
-      AND (
-        l2.created_at < ${leads.createdAt}
-        OR (l2.created_at = ${leads.createdAt} AND l2.id::text < ${leads.id}::text)
-      )
   )`;
 }
 
@@ -256,8 +228,8 @@ async function resolveProjectFields(input: {
 }
 
 async function findLeadByPhone(phone: string) {
-  const variants = phoneMatchVariants(phone);
-  if (variants.length === 0) {
+  const key = phoneLast10Digits(phone);
+  if (!key) {
     return null;
   }
 
@@ -265,11 +237,7 @@ async function findLeadByPhone(phone: string) {
     .select()
     .from(leads)
     .where(
-      and(
-        eq(leads.orgId, SINGLE_TENANT_ORG_ID),
-        isNull(leads.deletedAt),
-        or(...variants.map((variant) => eq(leads.phone, variant)))!,
-      ),
+      and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt), eq(leads.phoneKey, key)),
     )
     .orderBy(asc(leads.createdAt), asc(leads.id))
     .limit(1);
@@ -432,7 +400,7 @@ function buildListWhere(params: ListLeadsParams) {
     const last10 = phoneLast10Digits(trimmed);
     const digitClauses = last10
       ? [
-          sql`RIGHT(regexp_replace(COALESCE(${leads.phone}, ''), '[^0-9]', '', 'g'), 10) = ${last10}`,
+          eq(leads.phoneKey, last10),
           sql`RIGHT(regexp_replace(COALESCE(${leads.secondaryPhone}, ''), '[^0-9]', '', 'g'), 10) = ${last10}`,
         ]
       : [];
@@ -451,12 +419,10 @@ function buildListWhere(params: ListLeadsParams) {
 
   const deletedBucket = Boolean(params.deletedOnly);
   if (params.duplicatesOnly) {
-    whereClauses.push(leadHasValidPhoneKey());
+    whereClauses.push(isNotNull(leads.phoneKey));
     whereClauses.push(duplicatePhoneExistsSql(deletedBucket));
   } else if (params.excludeDuplicates) {
-    whereClauses.push(
-      or(sql`NOT (${leadHasValidPhoneKey()})`, canonicalLeadOnlySql(deletedBucket))!,
-    );
+    whereClauses.push(eq(leads.isPrimaryPhone, true));
   }
 
   if (params.reEnquiredOnly) {
@@ -721,102 +687,43 @@ export const leadService = {
   async listLeads(params: ListLeadsParams) {
     const { page = 1, pageSize = 20 } = params;
     const offset = (page - 1) * pageSize;
-
-    // Phone-dedupe via window function (one pass) instead of correlated NOT EXISTS per row.
-    if (params.excludeDuplicates && !params.duplicatesOnly) {
-      const baseWhere = buildListWhere({ ...params, excludeDuplicates: false });
-      const orderExpr = params.slaOnly
-        ? sql`coalesce(last_activity_at, last_contacted_at, created_at) ASC, created_at ASC`
-        : params.orderByFollowUp
-          ? sql`next_followup_at ASC NULLS LAST, created_at DESC`
-          : sql`created_at DESC`;
-
-      const [idRows, countRows] = await Promise.all([
-        db.execute<{ id: string }>(sql`
-          WITH filtered AS (
-            SELECT
-              ${leads.id} AS id,
-              ${leads.createdAt} AS created_at,
-              ${leads.nextFollowupAt} AS next_followup_at,
-              ${leads.lastActivityAt} AS last_activity_at,
-              ${leads.lastContactedAt} AS last_contacted_at,
-              CASE
-                WHEN LENGTH(${leadPhoneKeySql}) >= 10 THEN ${leadPhoneKeySql}
-                ELSE ${leads.id}::text
-              END AS dedupe_key,
-              ROW_NUMBER() OVER (
-                PARTITION BY CASE
-                  WHEN LENGTH(${leadPhoneKeySql}) >= 10 THEN ${leadPhoneKeySql}
-                  ELSE ${leads.id}::text
-                END
-                ORDER BY ${leads.createdAt} ASC, ${leads.id} ASC
-              ) AS rn
-            FROM ${leads}
-            WHERE ${baseWhere}
-          )
-          SELECT id FROM filtered
-          WHERE rn = 1
-          ORDER BY ${orderExpr}
-          LIMIT ${pageSize} OFFSET ${offset}
-        `),
-        db.execute<{ count: number }>(sql`
-          WITH filtered AS (
-            SELECT
-              ${leads.id} AS id,
-              ROW_NUMBER() OVER (
-                PARTITION BY CASE
-                  WHEN LENGTH(${leadPhoneKeySql}) >= 10 THEN ${leadPhoneKeySql}
-                  ELSE ${leads.id}::text
-                END
-                ORDER BY ${leads.createdAt} ASC, ${leads.id} ASC
-              ) AS rn
-            FROM ${leads}
-            WHERE ${baseWhere}
-          )
-          SELECT COUNT(*)::int AS count FROM filtered WHERE rn = 1
-        `),
-      ]);
-
-      const ids = idRows.map((row) => row.id);
-      const total = Number(countRows[0]?.count ?? 0);
-
-      if (ids.length === 0) {
-        return { items: [], page, pageSize, total };
-      }
-
-      const rows = await db
-        .select()
-        .from(leads)
-        .leftJoin(users, eq(leads.assignedTo, users.id))
-        .leftJoin(projects, eq(leads.projectId, projects.id))
-        .where(inArray(leads.id, ids));
-
-      const byId = new Map(
-        rows.map((row) => [
-          row.leads.id,
-          {
-            ...row.leads,
-            projectName: enquiryProjectName(row.leads.projectName, row.projects?.name),
-            assignedUser: row.users
-              ? { id: row.users.id, name: row.users.name, email: row.users.email }
-              : null,
-          },
-        ]),
-      );
-
-      return {
-        items: ids.map((id) => byId.get(id)!).filter(Boolean),
-        page,
-        pageSize,
-        total,
-      };
-    }
-
     const whereClause = buildListWhere(params);
 
     const [rows, [{ count }]] = await Promise.all([
       db
-        .select()
+        .select({
+          id: leads.id,
+          leadCode: leads.leadCode,
+          assignedTo: leads.assignedTo,
+          firstName: leads.firstName,
+          lastName: leads.lastName,
+          email: leads.email,
+          phone: leads.phone,
+          secondaryPhone: leads.secondaryPhone,
+          city: leads.city,
+          state: leads.state,
+          leadStatus: leads.leadStatus,
+          temperature: leads.temperature,
+          leadSource: leads.leadSource,
+          projectName: leads.projectName,
+          projectId: leads.projectId,
+          estimatedValue: leads.estimatedValue,
+          notes: leads.notes,
+          tags: leads.tags,
+          score: leads.score,
+          customFields: leads.customFields,
+          lastContactedAt: leads.lastContactedAt,
+          lastActivityAt: leads.lastActivityAt,
+          slaBreachedAt: leads.slaBreachedAt,
+          nextFollowupAt: leads.nextFollowupAt,
+          followUpCount: leads.followUpCount,
+          createdAt: leads.createdAt,
+          updatedAt: leads.updatedAt,
+          linkedProjectName: projects.name,
+          assigneeId: users.id,
+          assigneeName: users.name,
+          assigneeEmail: users.email,
+        })
         .from(leads)
         .leftJoin(users, eq(leads.assignedTo, users.id))
         .leftJoin(projects, eq(leads.projectId, projects.id))
@@ -835,10 +742,35 @@ export const leadService = {
 
     return {
       items: rows.map((row) => ({
-        ...row.leads,
-        projectName: enquiryProjectName(row.leads.projectName, row.projects?.name),
-        assignedUser: row.users
-          ? { id: row.users.id, name: row.users.name, email: row.users.email }
+        id: row.id,
+        leadCode: row.leadCode,
+        assignedTo: row.assignedTo,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        email: row.email,
+        phone: row.phone,
+        secondaryPhone: row.secondaryPhone,
+        city: row.city,
+        state: row.state,
+        leadStatus: row.leadStatus,
+        temperature: row.temperature,
+        leadSource: row.leadSource,
+        projectId: row.projectId,
+        estimatedValue: row.estimatedValue,
+        notes: row.notes,
+        tags: row.tags,
+        score: row.score,
+        customFields: row.customFields,
+        lastContactedAt: row.lastContactedAt,
+        lastActivityAt: row.lastActivityAt,
+        slaBreachedAt: row.slaBreachedAt,
+        nextFollowupAt: row.nextFollowupAt,
+        followUpCount: row.followUpCount,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        projectName: enquiryProjectName(row.projectName, row.linkedProjectName),
+        assignedUser: row.assigneeId
+          ? { id: row.assigneeId, name: row.assigneeName ?? "", email: row.assigneeEmail ?? "" }
           : null,
       })),
       page,

@@ -92,6 +92,10 @@ async function tryRefreshSession(): Promise<boolean> {
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError";
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
   const method = (init?.method ?? "GET").toUpperCase();
@@ -117,7 +121,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   let response: Response;
   try {
     response = await executeRequest();
-  } catch {
+  } catch (err) {
+    if (isAbortError(err)) throw err;
     throw new ApiRequestError(
       "NETWORK_ERROR",
       "Unable to reach the server. Check your connection and API URL.",
@@ -134,7 +139,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     if (refreshed) {
       try {
         response = await executeRequest();
-      } catch {
+      } catch (err) {
+        if (isAbortError(err)) throw err;
         throw new ApiRequestError(
           "NETWORK_ERROR",
           "Unable to reach the server. Check your connection and API URL.",
@@ -166,8 +172,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return json.data;
 }
 
-export function apiGet<T>(path: string) {
-  return apiFetch<T>(path, { method: "GET", cache: "no-store" });
+export function apiGet<T>(path: string, init?: { signal?: AbortSignal }) {
+  return apiFetch<T>(path, { method: "GET", cache: "no-store", signal: init?.signal });
 }
 
 export async function apiDownload(path: string, filename: string) {

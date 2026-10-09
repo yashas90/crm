@@ -63,7 +63,10 @@ export function MyLeadsScreen({
       <FlatList
         data={list.data ?? []}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: TAB_BAR_SCROLL_PADDING }}
+        contentContainerStyle={{
+          padding: spacing.md,
+          paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom,
+        }}
         ListHeaderComponent={
           <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
             <Text style={styles.title}>

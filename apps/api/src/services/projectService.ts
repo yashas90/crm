@@ -169,7 +169,12 @@ export function createProjectService(db: Database) {
 
       const [rows, [{ count }]] = await Promise.all([
         db
-          .select()
+          .select({
+            project: projects,
+            assigneeId: users.id,
+            assigneeName: users.name,
+            assigneeEmail: users.email,
+          })
           .from(projects)
           .leftJoin(users, eq(projects.assignedTo, users.id))
           .where(whereClause)
@@ -179,7 +184,7 @@ export function createProjectService(db: Database) {
         db.select({ count: sql<number>`count(*)::int` }).from(projects).where(whereClause),
       ]);
 
-      const projectIds = rows.map((row) => row.projects.id);
+      const projectIds = rows.map((row) => row.project.id);
       let unitSummaries: Record<string, import("./projectUnitService.js").UnitSummary> = {};
       if (query.includeUnitSummary && projectIds.length > 0) {
         const { createProjectUnitService } = await import("./projectUnitService.js");
@@ -188,12 +193,16 @@ export function createProjectService(db: Database) {
 
       return {
         items: rows.map((row) => ({
-          ...row.projects,
-          assignedUser: row.users
-            ? { id: row.users.id, name: row.users.name, email: row.users.email }
+          ...row.project,
+          assignedUser: row.assigneeId
+            ? {
+                id: row.assigneeId,
+                name: row.assigneeName ?? "",
+                email: row.assigneeEmail ?? "",
+              }
             : null,
           ...(query.includeUnitSummary
-            ? { unitSummary: unitSummaries[row.projects.id] ?? null }
+            ? { unitSummary: unitSummaries[row.project.id] ?? null }
             : {}),
         })),
         page: query.page,

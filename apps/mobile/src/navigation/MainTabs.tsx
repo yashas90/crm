@@ -5,15 +5,14 @@ import { useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useOpenTaskCount } from "@/hooks/use-tasks";
 import { apiGet } from "@/lib/apiClient";
 import { LeadsStack } from "@/navigation/LeadsStack";
+import { ScrollableTabBar } from "@/navigation/ScrollableTabBar";
 import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, navigationTheme } from "@/theme";
-import { TAB_BAR_HEIGHT } from "@/theme/layout";
 import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useQuery } from "@tanstack/react-query";
 import type { ComponentProps } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -37,13 +36,12 @@ const NotificationsScreen = lazyNamed(
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
-function tabIcon(name: IoniconName, focused: boolean) {
-  return (
-    <Ionicons
-      name={name}
-      size={focused ? 26 : 22}
-      color={focused ? colors.primary : colors.textMuted}
-    />
+function tabIcon(name: IoniconName) {
+  const activeName = (
+    name.endsWith("-outline") ? name.slice(0, -"-outline".length) : name
+  ) as IoniconName;
+  return ({ focused, color, size }: { focused: boolean; color: string; size: number }) => (
+    <Ionicons name={focused ? activeName : name} size={size} color={color} />
   );
 }
 
@@ -68,8 +66,6 @@ function useDeferredTabBadges() {
 }
 
 export function MainTabs({ onLogout }: MainTabsProps) {
-  const insets = useSafeAreaInsets();
-  const tabBarHeight = TAB_BAR_HEIGHT + insets.bottom;
   const isManager = useIsManager();
   const isAgent = useIsAgent();
   const { visitsBadge, notificationBadge, tasksBadge } = useDeferredTabBadges();
@@ -77,11 +73,17 @@ export function MainTabs({ onLogout }: MainTabsProps) {
     queryKey: ["calling-stats"],
     queryFn: () => apiGet<{ badge: number }>("/api/agent/calling-data/stats"),
     enabled: isAgent,
+    retry: false,
+    refetchInterval: false,
+    meta: { suppressErrorToast: true },
   });
   const leadsBadgeQuery = useQuery({
     queryKey: ["my-leads-stats"],
     queryFn: () => apiGet<{ hot: number }>("/api/agent/leads/stats"),
     enabled: isAgent,
+    retry: false,
+    refetchInterval: false,
+    meta: { suppressErrorToast: true },
   });
   const callingBadge = callingBadgeQuery.data?.badge || undefined;
   const hotBadge = leadsBadgeQuery.data?.hot || undefined;
@@ -89,26 +91,10 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   return (
     <ScreenSuspense>
       <Tab.Navigator
+        tabBar={ScrollableTabBar}
         screenOptions={{
           headerShown: false,
           lazy: true,
-          tabBarStyle: {
-            position: "absolute",
-            backgroundColor: "#1e293b",
-            borderTopColor: "#334155",
-            borderTopWidth: 0.5,
-            elevation: 16,
-            shadowColor: "#000",
-            shadowOpacity: 0.4,
-            shadowRadius: 16,
-            shadowOffset: { width: 0, height: -4 },
-            height: tabBarHeight,
-            paddingBottom: Math.max(insets.bottom, 8),
-            paddingTop: 8,
-          },
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textMuted,
-          tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
         }}
       >
         <Tab.Screen
@@ -116,7 +102,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           component={LeadsStack}
           options={{
             title: "Leads",
-            tabBarIcon: ({ focused }) => tabIcon("people-outline", focused),
+            tabBarIcon: tabIcon("people-outline"),
           }}
         />
         <Tab.Screen
@@ -124,7 +110,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           component={PipelineScreen}
           options={{
             title: "Pipeline",
-            tabBarIcon: ({ focused }) => tabIcon("git-network-outline", focused),
+            tabBarIcon: tabIcon("git-network-outline"),
             headerShown: true,
             ...navigationTheme,
           }}
@@ -135,7 +121,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             component={TeamStack}
             options={{
               title: "Team",
-              tabBarIcon: ({ focused }) => tabIcon("people-circle-outline", focused),
+              tabBarIcon: tabIcon("people-circle-outline"),
               headerShown: false,
             }}
           />
@@ -145,7 +131,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             component={TodayScreen}
             options={{
               title: "Today",
-              tabBarIcon: ({ focused }) => tabIcon("today-outline", focused),
+              tabBarIcon: tabIcon("today-outline"),
               headerShown: true,
               ...navigationTheme,
             }}
@@ -156,7 +142,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           component={DialPadScreen}
           options={{
             title: "Dial",
-            tabBarIcon: ({ focused }) => tabIcon("call-outline", focused),
+            tabBarIcon: tabIcon("call-outline"),
             headerShown: false,
           }}
         />
@@ -166,7 +152,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             component={CallingDataScreen}
             options={{
               title: "Calling",
-              tabBarIcon: ({ focused }) => tabIcon("call-outline", focused),
+              tabBarIcon: tabIcon("call-outline"),
               tabBarBadge: callingBadge,
               headerShown: false,
             }}
@@ -178,7 +164,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             component={MyLeadsStack}
             options={{
               title: "My Leads",
-              tabBarIcon: ({ focused }) => tabIcon("ribbon-outline", focused),
+              tabBarIcon: tabIcon("ribbon-outline"),
               tabBarBadge: hotBadge,
               headerShown: false,
             }}
@@ -189,7 +175,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           component={VisitsStack}
           options={{
             title: "Visits",
-            tabBarIcon: ({ focused }) => tabIcon("location-outline", focused),
+            tabBarIcon: tabIcon("location-outline"),
             tabBarBadge: visitsBadge,
             tabBarBadgeStyle: {
               backgroundColor: colors.primary,
@@ -206,7 +192,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           component={TasksScreen}
           options={{
             title: "Tasks",
-            tabBarIcon: ({ focused }) => tabIcon("checkbox-outline", focused),
+            tabBarIcon: tabIcon("checkbox-outline"),
             tabBarBadge: tasksBadge,
             tabBarBadgeStyle: {
               backgroundColor: colors.hot,
@@ -225,7 +211,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           component={NotificationsScreen}
           options={{
             title: "Alerts",
-            tabBarIcon: ({ focused }) => tabIcon("notifications-outline", focused),
+            tabBarIcon: tabIcon("notifications-outline"),
             tabBarBadge: notificationBadge,
             tabBarBadgeStyle: {
               backgroundColor: colors.danger,
@@ -241,7 +227,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           name="ProfileTab"
           options={{
             title: "Profile",
-            tabBarIcon: ({ focused }) => tabIcon("person-circle-outline", focused),
+            tabBarIcon: tabIcon("person-circle-outline"),
             headerShown: false,
           }}
         >

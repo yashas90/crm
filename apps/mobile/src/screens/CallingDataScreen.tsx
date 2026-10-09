@@ -61,6 +61,8 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   const status = useQuery({
     queryKey: ["calling-daily-status"],
     queryFn: () => apiGet<DailyStatus>("/api/agent/daily-status"),
+    retry: false,
+    meta: { suppressErrorToast: true },
   });
   const stats = useQuery({
     queryKey: ["calling-stats"],
@@ -68,6 +70,9 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
       apiGet<{ remaining: number; pending: number; retry: number; callbacks: number }>(
         "/api/agent/calling-data/stats",
       ),
+    retry: false,
+    refetchInterval: false,
+    meta: { suppressErrorToast: true },
   });
   const list = useQuery({
     queryKey: ["calling-data", search],
@@ -75,6 +80,8 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
       apiGet<CallingRow[]>(
         `/api/agent/calling-data${search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ""}`,
       ),
+    retry: false,
+    meta: { suppressErrorToast: true },
   });
 
   useEffect(() => {
@@ -147,7 +154,7 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
         data={rows}
         keyExtractor={(item) => item.recordId}
         contentContainerStyle={{
-          paddingBottom: TAB_BAR_SCROLL_PADDING,
+          paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom,
           paddingHorizontal: spacing.md,
         }}
         ListHeaderComponent={

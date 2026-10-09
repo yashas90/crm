@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { sqlRows } from "../lib/contactPool/sql.js";
 import { getDb } from "../lib/db.js";
+import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 
 export async function poolReport() {
   const db = getDb();
@@ -26,7 +27,7 @@ export async function poolReport() {
       SELECT count(*)::int AS assigned
       FROM contact_pool
       WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid
-        AND assigned_at >= ${start}
+        AND assigned_at >= ${sqlTimestamptz(start)}
         AND status <> 'unassigned'
     `),
   );
@@ -68,7 +69,7 @@ export async function overallReport(range: "day" | "week" | "month" = "day") {
         count(*) FILTER (WHERE outcome = 'interested')::int AS interested,
         COALESCE(avg(duration_seconds), 0)::int AS avg_duration
       FROM contact_call_logs
-      WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND called_at >= ${bounds.start}
+      WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND called_at >= ${sqlTimestamptz(bounds.start)}
     `),
   );
   const hours = sqlRows(
@@ -77,7 +78,7 @@ export async function overallReport(range: "day" | "week" | "month" = "day") {
         count(*)::int AS calls,
         count(*) FILTER (WHERE outcome IN ('interested', 'callback'))::int AS positive
       FROM contact_call_logs
-      WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND called_at >= ${bounds.start}
+      WHERE org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND called_at >= ${sqlTimestamptz(bounds.start)}
       GROUP BY 1
       ORDER BY 1
     `),
@@ -129,7 +130,7 @@ export async function agentRangeReport(agentId: string, range: "day" | "week" | 
         count(*) FILTER (WHERE lead_created)::int AS leads_created,
         COALESCE(avg(duration_seconds), 0)::int AS avg_duration
       FROM contact_call_logs
-      WHERE agent_id = ${agentId}::uuid AND called_at >= ${bounds.start}
+      WHERE agent_id = ${agentId}::uuid AND called_at >= ${sqlTimestamptz(bounds.start)}
     `),
   );
   const called = Number(row?.called ?? 0);
@@ -138,7 +139,7 @@ export async function agentRangeReport(agentId: string, range: "day" | "week" | 
     await db.execute(sql`
       SELECT COALESCE(sum(contacts_assigned), 0)::int AS requested
       FROM agent_data_requests
-      WHERE agent_id = ${agentId}::uuid AND requested_at >= ${bounds.start}
+      WHERE agent_id = ${agentId}::uuid AND requested_at >= ${sqlTimestamptz(bounds.start)}
     `),
   );
   return {

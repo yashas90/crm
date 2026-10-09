@@ -24,7 +24,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<TeamStackParamList, "TeamHomeScreen">;
 
@@ -36,6 +36,7 @@ function greeting() {
 }
 
 function TeamHomeContent({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const role = useRole();
   const { user } = useAuth();
   const teamReport = useTeamTodayReport();
@@ -82,7 +83,10 @@ function TeamHomeContent({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={teamReport.isRefetching}
