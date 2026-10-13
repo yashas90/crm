@@ -39,6 +39,7 @@ import type { AuthUser } from "../middleware/auth.js";
 import { leadService } from "../services/leadService.js";
 import { setUserPassword } from "../services/passwordHistoryService.js";
 import { revokeAllUserSessions } from "../services/tokenRevocationService.js";
+import { releaseBlockingUserReferences } from "../services/userDeleteReferences.js";
 type UserRow = typeof users.$inferSelect;
 
 function toPublicUser(row: UserRow, activeAdminCount?: number) {
@@ -69,10 +70,20 @@ function trimOptional(value: string | null | undefined) {
 }
 
 function isForeignKeyError(err: unknown): boolean {
-  if (!err || typeof err !== "object") return false;
-  if ("code" in err && (err as { code?: string }).code === "23503") return true;
-  if ("cause" in err) return isForeignKeyError((err as { cause?: unknown }).cause);
-  return false;
+  return postgresField(err, "code") === "23503";
+}
+
+function postgresField(err: unknown, field: string): string | undefined {
+  const seen = new Set<unknown>();
+  let current: unknown = err;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const record = current as Record<string, unknown>;
+    const value = record[field];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    current = record.cause;
+  }
+  return undefined;
 }
 
 async function moveOwnedRows(
@@ -246,6 +257,8 @@ async function detachUserBeforeDelete(
       metadata: sql`${auditLogs.metadata} - 'email' - 'name' - 'userName'`,
     })
     .where(and(eq(auditLogs.entityType, "user"), eq(auditLogs.entityId, userId)));
+
+  await releaseBlockingUserReferences(db, userId, actingUserId);
 }
 
 function buildUserSearchFilters(search?: string) {
@@ -721,8 +734,11 @@ export function createUserService(db: Database) {
         await db.delete(users).where(and(eq(users.id, id), eq(users.orgId, SINGLE_TENANT_ORG_ID)));
       } catch (err) {
         if (isForeignKeyError(err)) {
+          const table = postgresField(err, "table");
           throw conflict(
-            "Could not remove this user because other records still reference them.",
+            table
+              ? `Could not remove this user because ${table} still references them.`
+              : "Could not remove this user because other records still reference them.",
             "USER_DELETE_BLOCKED",
           );
         }

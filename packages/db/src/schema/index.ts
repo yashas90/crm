@@ -135,7 +135,7 @@ export const leads = pgTable(
     /** Pool contact this lead was qualified from. Null for every other source. */
     sourceContactPoolId: uuid("source_contact_pool_id"),
     /** Agent who qualified the calling-data contact into this lead. */
-    sourceAgentId: uuid("source_agent_id").references(() => users.id),
+    sourceAgentId: uuid("source_agent_id").references(() => users.id, { onDelete: "set null" }),
     qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
     /** Spec pipeline: new, contacted, site_visit_scheduled, site_visit_done, negotiation, closed_won, closed_lost. */
     pipelineStage: text("pipeline_stage"),
@@ -2192,12 +2192,16 @@ export const contactPool = pgTable(
     source: text("source"),
     notes: text("notes"),
     status: text("status").notNull().default("unassigned"),
-    assignedToAgentId: uuid("assigned_to_agent_id").references(() => users.id),
+    assignedToAgentId: uuid("assigned_to_agent_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     assignedAt: timestamp("assigned_at", { withTimezone: true }),
     calledAt: timestamp("called_at", { withTimezone: true }),
     callOutcome: text("call_outcome"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    uploadedByAdminId: uuid("uploaded_by_admin_id").references(() => users.id),
+    uploadedByAdminId: uuid("uploaded_by_admin_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [
     uniqueIndex("contact_pool_org_phone_uidx").on(table.orgId, table.phone),
@@ -2223,7 +2227,7 @@ export const uploadBatches = pgTable(
       .notNull()
       .references(() => organizations.id),
     batchName: text("batch_name").notNull(),
-    uploadedBy: uuid("uploaded_by").references(() => users.id),
+    uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
     fileName: text("file_name").notNull(),
     totalRecords: integer("total_records").notNull().default(0),
@@ -2267,7 +2271,7 @@ export const agentDataRequests = pgTable(
       .references(() => organizations.id),
     agentId: uuid("agent_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
     contactsRequested: integer("contacts_requested").notNull(),
     contactsAssigned: integer("contacts_assigned").notNull().default(0),
@@ -2287,7 +2291,7 @@ export const agentDataRequests = pgTable(
 export const agentCallingLimits = pgTable("agent_calling_limits", {
   agentId: uuid("agent_id")
     .primaryKey()
-    .references(() => users.id),
+    .references(() => users.id, { onDelete: "cascade" }),
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id),
@@ -2304,7 +2308,7 @@ export const agentDailyLimits = pgTable(
       .references(() => organizations.id),
     agentId: uuid("agent_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     date: date("date", { mode: "string" }).notNull(),
     contactsRequestedToday: integer("contacts_requested_today").notNull().default(0),
     contactsCalledToday: integer("contacts_called_today").notNull().default(0),
@@ -2330,7 +2334,7 @@ export const agentCallingData = pgTable(
       .references(() => contactPool.contactId),
     agentId: uuid("agent_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
     name: text("name").notNull(),
     phone: text("phone").notNull(),
@@ -2373,8 +2377,10 @@ export const contactCallLogs = pgTable(
       .references(() => contactPool.contactId),
     agentId: uuid("agent_id")
       .notNull()
-      .references(() => users.id),
-    recordId: uuid("record_id").references(() => agentCallingData.recordId),
+      .references(() => users.id, { onDelete: "cascade" }),
+    recordId: uuid("record_id").references(() => agentCallingData.recordId, {
+      onDelete: "set null",
+    }),
     calledAt: timestamp("called_at", { withTimezone: true }).notNull().defaultNow(),
     durationSeconds: integer("duration_seconds").notNull().default(0),
     outcome: text("outcome").notNull(),
@@ -2403,7 +2409,7 @@ export const dncPhones = pgTable(
     phone: text("phone").notNull(),
     phoneHash: text("phone_hash").notNull(),
     reason: text("reason"),
-    createdBy: uuid("created_by").references(() => users.id),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex("dnc_phones_org_phone_uidx").on(table.orgId, table.phone)],
@@ -2415,7 +2421,7 @@ export const contactPoolSettings = pgTable("contact_pool_settings", {
     .references(() => organizations.id),
   requestsPaused: boolean("requests_paused").notNull().default(false),
   pausedAt: timestamp("paused_at", { withTimezone: true }),
-  pausedBy: uuid("paused_by").references(() => users.id),
+  pausedBy: uuid("paused_by").references(() => users.id, { onDelete: "set null" }),
   lowPoolThreshold: integer("low_pool_threshold").notNull().default(500),
   costPerContact: numeric("cost_per_contact", { precision: 14, scale: 2 }),
   lastLowPoolAlertAt: timestamp("last_low_pool_alert_at", { withTimezone: true }),
