@@ -129,6 +129,12 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
             ? payload.message
             : `${leadName} requested a callback on WhatsApp`,
       };
+    case "tcf_submitted":
+    case "tcf_reviewed":
+      return {
+        title: typeof payload.title === "string" ? payload.title : "Transaction closure",
+        body: typeof payload.message === "string" ? payload.message : "A TCF needs attention",
+      };
     default:
       return {
         title: "PropNinja",

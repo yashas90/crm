@@ -31,6 +31,12 @@ const PAGE_TITLES: Record<string, string> = {
   "/documents": "Documents",
   "/site-visits": "Site Visits",
   "/bookings": "Bookings",
+  "/tcf": "Transaction closure",
+  "/tcf/new": "New TCF",
+  "/incentives": "My Incentive",
+  "/incentives/team": "Team Incentive",
+  "/incentives/disbursement": "Incentive Disbursement",
+  "/appraisals": "Appraisal",
   "/analytics": "Analytics",
   "/performance": "My Performance",
   "/sla": "Lead SLA",
@@ -47,6 +53,7 @@ function segmentLabel(seg: string, fullPath: string): string {
   if (fullPath === "/users/new") return "Add User";
   if (fullPath.startsWith("/users/")) return "Edit User";
   if (fullPath.startsWith("/leads/")) return "Lead Detail";
+  if (fullPath.startsWith("/tcf/")) return "TCF";
   return seg.charAt(0).toUpperCase() + seg.slice(1);
 }
 

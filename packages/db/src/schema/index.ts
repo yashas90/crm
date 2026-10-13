@@ -2430,3 +2430,117 @@ export const contactPoolSettings = pgTable("contact_pool_settings", {
   lastEveningSummaryDate: date("last_evening_summary_date", { mode: "string" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Sales transaction closure. Distinct from tcf_consents (call/SMS/email consent). */
+export const transactionClosures = pgTable(
+  "transaction_closures",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    tcfCode: text("tcf_code").notNull(),
+    status: text("status").notNull().default("draft"),
+    segment: text("segment"),
+    channel: text("channel"),
+    currency: text("currency").notNull().default("INR"),
+    coolOffEndDate: date("cool_off_end_date"),
+    productName: text("product_name"),
+    dealClosureDate: date("deal_closure_date"),
+    clientAccess: boolean("client_access").notNull().default(false),
+    initialPaymentVerified: boolean("initial_payment_verified").notNull().default(false),
+    invoiceStatus: text("invoice_status").notNull().default("not_raised"),
+    netRevenue: numeric("net_revenue", { precision: 14, scale: 2 }).notNull().default("0"),
+    convertible: boolean("convertible").notNull().default(false),
+    primaryApplicant: text("primary_applicant"),
+    clientMobile: text("client_mobile"),
+    form: jsonb("form").$type<Record<string, unknown>>().notNull().default({}),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("transaction_closures_org_code_uidx").on(table.orgId, table.tcfCode),
+    index("transaction_closures_org_status_idx").on(table.orgId, table.status, table.createdAt),
+    check(
+      "transaction_closures_status_check",
+      sql`${table.status} in ('draft', 'pending_approval', 'approved', 'rejected')`,
+    ),
+    check(
+      "transaction_closures_invoice_status_check",
+      sql`${table.invoiceStatus} in ('not_raised', 'raised', 'collected')`,
+    ),
+  ],
+);
+
+export const transactionClosureShares = pgTable(
+  "transaction_closure_shares",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tcfId: uuid("tcf_id")
+      .notNull()
+      .references(() => transactionClosures.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    employeeName: text("employee_name").notNull(),
+    sharePercent: numeric("share_percent", { precision: 6, scale: 2 }).notNull(),
+  },
+  (table) => [
+    index("transaction_closure_shares_tcf_idx").on(table.tcfId),
+    index("transaction_closure_shares_user_idx").on(table.userId),
+  ],
+);
+
+export const transactionClosureEvents = pgTable(
+  "transaction_closure_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tcfId: uuid("tcf_id")
+      .notNull()
+      .references(() => transactionClosures.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("transaction_closure_events_tcf_idx").on(table.tcfId, table.createdAt)],
+);
+
+export const incentiveProfiles = pgTable("incentive_profiles", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id),
+  band: text("band"),
+  designation: text("designation"),
+  monthlyBasic: numeric("monthly_basic", { precision: 14, scale: 2 }).notNull().default("0"),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const incentiveDisbursements = pgTable(
+  "incentive_disbursements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    quarterKey: text("quarter_key").notNull(),
+    earnedAmount: numeric("earned_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    cashAmount: numeric("cash_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    esopAmount: numeric("esop_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    disbursedBy: uuid("disbursed_by").references(() => users.id, { onDelete: "set null" }),
+    disbursedAt: timestamp("disbursed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("incentive_disbursements_user_quarter_uidx").on(table.userId, table.quarterKey),
+  ],
+);

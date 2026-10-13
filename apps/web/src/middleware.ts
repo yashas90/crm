@@ -23,6 +23,9 @@ const DASHBOARD_PREFIXES = [
   "/tasks",
   "/sla",
   "/whatsapp",
+  "/tcf",
+  "/incentives",
+  "/appraisals",
 ];
 
 function isPublicPath(pathname: string) {
