@@ -91,6 +91,8 @@ export type TcfForm = {
   currency: string;
   coolOffEndDate: string;
   productName: string;
+  /** Selected project. Empty when the saved name does not match a project. */
+  projectId: string;
   dealClosureDate: string;
   clientAccess: boolean;
   initialPaymentVerified: boolean;
@@ -175,6 +177,7 @@ export function emptyTcfForm(): TcfForm {
     currency: "INR",
     coolOffEndDate: "",
     productName: "",
+    projectId: "",
     dealClosureDate: "",
     clientAccess: false,
     initialPaymentVerified: false,
@@ -252,6 +255,7 @@ export function asTcfForm(value: unknown): TcfForm {
   return {
     ...base,
     ...raw,
+    projectId: typeof raw.projectId === "string" ? raw.projectId : "",
     property: { ...base.property, ...raw.property },
     client: {
       ...base.client,
@@ -270,6 +274,51 @@ export function asTcfForm(value: unknown): TcfForm {
     documents: raw.documents ?? [],
     flags: raw.flags ?? {},
   };
+}
+
+export type TcfProjectOption = { id: string; name: string };
+
+function sameProjectName(left: string, right: string) {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+/** Map a saved product name / project id onto a current project when one matches. */
+export function resolveTcfProduct(
+  form: Pick<TcfForm, "productName" | "projectId">,
+  projects: TcfProjectOption[],
+): { productName: string; projectId: string } {
+  const byId = form.projectId
+    ? projects.find((project) => project.id === form.projectId)
+    : undefined;
+  if (byId) return { productName: byId.name, projectId: byId.id };
+
+  const byName = form.productName.trim()
+    ? projects.find((project) => sameProjectName(project.name, form.productName))
+    : undefined;
+  if (byName) return { productName: byName.name, projectId: byName.id };
+
+  return { productName: form.productName, projectId: form.projectId };
+}
+
+/** Select value for a stored product that is not in the project list. */
+export const UNMATCHED_PRODUCT_VALUE = "__unmatched_product__";
+
+export function tcfProductSelectValue(
+  form: Pick<TcfForm, "productName" | "projectId">,
+  projects: TcfProjectOption[],
+  projectsReady: boolean,
+) {
+  if (!projectsReady) {
+    if (form.projectId) return form.projectId;
+    if (form.productName.trim()) return UNMATCHED_PRODUCT_VALUE;
+    return "";
+  }
+  const resolved = resolveTcfProduct(form, projects);
+  if (resolved.projectId && projects.some((project) => project.id === resolved.projectId)) {
+    return resolved.projectId;
+  }
+  if (form.productName.trim() || form.projectId) return UNMATCHED_PRODUCT_VALUE;
+  return "";
 }
 
 export function currentQuarterKey(now = new Date()) {

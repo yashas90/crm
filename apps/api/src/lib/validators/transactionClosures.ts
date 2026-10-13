@@ -16,6 +16,7 @@ export const tcfFormSchema = z.object({
   currency: z.string().default("INR"),
   coolOffEndDate: z.string().default(""),
   productName: z.string().default(""),
+  projectId: z.string().default(""),
   dealClosureDate: z.string().default(""),
   clientAccess: z.boolean().default(false),
   initialPaymentVerified: z.boolean().default(false),

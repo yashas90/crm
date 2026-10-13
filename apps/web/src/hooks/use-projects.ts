@@ -176,16 +176,61 @@ function projectsScopeCountsQueryKey(params: Pick<ProjectsQueryParams, "search" 
   return ["projects", "scope-counts", params.search ?? null, params.category ?? null] as const;
 }
 
-/** Dropdown / filter helper — returns active projects (first 100). */
-export function useProjects(options?: { search?: string; availability?: boolean }) {
+/** API list endpoint rejects page sizes above this. */
+const PROJECTS_MAX_PAGE_SIZE = 100;
+
+async function fetchAllProjectPages(params: {
+  search?: string;
+  availability?: boolean;
+}): Promise<ProjectRow[]> {
+  const first = await apiGet<ProjectsListData>(
+    `/api/projects${buildProjectsQuery({ ...params, page: 1, pageSize: PROJECTS_MAX_PAGE_SIZE })}`,
+  );
+  const pageSize = first.pageSize > 0 ? first.pageSize : PROJECTS_MAX_PAGE_SIZE;
+  const items = [...first.items];
+  if (items.length >= first.total) return items;
+
+  const pageCount = Math.ceil(first.total / pageSize);
+  if (pageCount <= 1) return items;
+
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) =>
+      apiGet<ProjectsListData>(
+        `/api/projects${buildProjectsQuery({ ...params, page: index + 2, pageSize })}`,
+      ),
+    ),
+  );
+  for (const page of rest) items.push(...page.items);
+
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+/** Dropdown / filter helper. Pass `all` to follow `total` past the first page. */
+export function useProjects(options?: { search?: string; availability?: boolean; all?: boolean }) {
   const params: ProjectsQueryParams = {
     search: options?.search,
     availability: options?.availability,
     page: 1,
-    pageSize: 100,
+    pageSize: PROJECTS_MAX_PAGE_SIZE,
   };
+  const fetchAll = options?.all === true;
 
-  const list = useProjectsList(params);
+  const list = useProjectsList(params, { enabled: !fetchAll });
+  const allPages = useQuery({
+    queryKey: ["projects", "all", params.search ?? null, params.availability ?? null] as const,
+    queryFn: () =>
+      fetchAllProjectPages({ search: params.search, availability: params.availability }),
+    enabled: fetchAll,
+    staleTime: 30_000,
+  });
+
+  if (fetchAll) return allPages;
+
   return {
     ...list,
     data: list.data?.items,

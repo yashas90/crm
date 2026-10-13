@@ -1,5 +1,6 @@
 "use client";
 
+import { useProjects } from "@/hooks/use-projects";
 import { useSession } from "@/hooks/use-session";
 import { type TcfDetail, useTcfMutations } from "@/hooks/use-transaction-closures";
 import { useUsers } from "@/hooks/use-users";
@@ -11,14 +12,17 @@ import {
   TCF_FLAGS,
   TCF_SEGMENTS,
   type TcfForm,
+  UNMATCHED_PRODUCT_VALUE,
   asTcfForm,
   emptyTcfForm,
+  resolveTcfProduct,
+  tcfProductSelectValue,
 } from "@/lib/tcf-form";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function Field({
   label,
@@ -57,33 +61,62 @@ export function TcfEditor({ record }: { record?: TcfDetail }) {
   const router = useRouter();
   const { isAdmin } = useSession();
   const users = useUsers(undefined, { enabled: true });
+  const projectsQuery = useProjects({ all: true });
+  const projects = useMemo(
+    () =>
+      [...(projectsQuery.data ?? [])].sort((left, right) => left.name.localeCompare(right.name)),
+    [projectsQuery.data],
+  );
+  const projectsReady = projectsQuery.isSuccess || projectsQuery.isError;
   const mutations = useTcfMutations();
   const [form, setForm] = useState<TcfForm>(() =>
     record ? asTcfForm(record.form) : emptyTcfForm(),
   );
   const [reason, setReason] = useState("");
   const [duplicateReason, setDuplicateReason] = useState("");
+  const locked = record?.status === "pending_approval" || record?.status === "approved";
 
   useEffect(() => {
     if (record) setForm(asTcfForm(record.form));
   }, [record]);
 
-  const locked = record?.status === "pending_approval" || record?.status === "approved";
+  useEffect(() => {
+    if (locked || !projectsQuery.isSuccess) return;
+    setForm((current) => {
+      const resolved = resolveTcfProduct(current, projects);
+      if (
+        resolved.productName === current.productName &&
+        resolved.projectId === current.projectId
+      ) {
+        return current;
+      }
+      return { ...current, productName: resolved.productName, projectId: resolved.projectId };
+    });
+  }, [locked, projects, projectsQuery.isSuccess]);
+
   const shareTotal = form.shares.reduce((sum, share) => sum + Number(share.sharePercent || 0), 0);
 
   function patch(next: Partial<TcfForm>) {
     setForm((current) => ({ ...current, ...next }));
   }
 
+  function formPayload(): TcfForm {
+    if (!projectsQuery.isSuccess) return form;
+    return { ...form, ...resolveTcfProduct(form, projects) };
+  }
+
+  const productSelectValue = tcfProductSelectValue(form, projects, projectsReady);
+
   async function save() {
+    const payload = formPayload();
     try {
       if (!record) {
-        const created = await mutations.create.mutateAsync(form);
+        const created = await mutations.create.mutateAsync(payload);
         toast.success("Draft saved");
         router.push(`/tcf/${created.id}`);
         return;
       }
-      await mutations.update.mutateAsync({ id: record.id, form });
+      await mutations.update.mutateAsync({ id: record.id, form: payload });
       toast.success("TCF saved");
     } catch (error) {
       toast.error(getErrorMessage(error));
@@ -110,7 +143,7 @@ export function TcfEditor({ record }: { record?: TcfDetail }) {
               type="button"
               onClick={() => {
                 void mutations.update
-                  .mutateAsync({ id: record.id, form })
+                  .mutateAsync({ id: record.id, form: formPayload() })
                   .then(() => mutations.submit.mutateAsync(record.id))
                   .then(() => toast.success("Submitted for admin approval"))
                   .catch((error: unknown) => toast.error(getErrorMessage(error)));
@@ -168,11 +201,40 @@ export function TcfEditor({ record }: { record?: TcfDetail }) {
           />
         </Field>
         <Field label="Product name *">
-          <Input
-            disabled={locked}
-            value={form.productName}
-            onChange={(event) => patch({ productName: event.target.value })}
-          />
+          <select
+            className={`${selectClass} w-full dark:border-white/10 dark:bg-white/5 dark:text-white`}
+            disabled={locked || projectsQuery.isLoading}
+            value={productSelectValue}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value || value === UNMATCHED_PRODUCT_VALUE) return;
+              const project = projects.find((item) => item.id === value);
+              if (!project) return;
+              patch({ productName: project.name, projectId: project.id });
+            }}
+          >
+            <option value="">
+              {projectsQuery.isLoading ? "Loading projects..." : "Select a project"}
+            </option>
+            {!projectsReady && form.projectId ? (
+              <option value={form.projectId}>
+                {form.productName.trim() || "Loading projects..."}
+              </option>
+            ) : null}
+            {productSelectValue === UNMATCHED_PRODUCT_VALUE ? (
+              <option value={UNMATCHED_PRODUCT_VALUE}>
+                {form.productName.trim() || "Saved project"}
+              </option>
+            ) : null}
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          {projectsQuery.isError ? (
+            <span className="text-xs text-red-400">Could not load projects</span>
+          ) : null}
         </Field>
         <Field label="Deal closure date *">
           <Input
