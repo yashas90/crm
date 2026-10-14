@@ -1,5 +1,6 @@
 "use client";
 
+import { MyRankingCard } from "@/components/leaderboard/my-ranking-card";
 import { useAgentStats } from "@/hooks/use-agent-stats";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useUsers } from "@/hooks/use-users";
@@ -72,6 +73,8 @@ export function AgentPerformanceContent() {
           </Button>
         </div>
       </div>
+
+      <MyRankingCard />
 
       {canPickAgent ? (
         <Card>

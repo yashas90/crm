@@ -55,6 +55,10 @@
     "./whatsapp-blaster": {
       "types": "./src/whatsappBlaster.ts",
       "default": "./src/whatsappBlaster.ts"
+    },
+    "./money": {
+      "types": "./src/money.ts",
+      "default": "./src/money.ts"
     }
   },
   "scripts": {

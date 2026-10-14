@@ -135,6 +135,7 @@ authRoutes.get("/me", async (c) => {
       name: authUser.name,
       role: authUser.role,
       isFirstLogin: row?.isFirstLogin ?? false,
+      showLeaderboardAvatar: row?.showLeaderboardAvatar ?? false,
     },
   });
 });

@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Overview",
+  "/leaderboard": "Leaderboard",
   "/whatsapp": "WhatsApp",
   "/whatsapp/inbox": "WhatsApp Inbox",
   "/whatsapp/leads": "WhatsApp Leads",
@@ -36,6 +37,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/incentives": "My Incentive",
   "/incentives/team": "Team Incentive",
   "/incentives/disbursement": "Incentive Disbursement",
+  "/approvals": "Approvals",
   "/appraisals": "Appraisal",
   "/analytics": "Analytics",
   "/performance": "My Performance",

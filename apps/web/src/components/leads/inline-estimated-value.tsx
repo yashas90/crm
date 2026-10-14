@@ -1,10 +1,10 @@
 "use client";
 
+import { InrInput } from "@/components/common/inr-input";
 import { useFormatMoney } from "@/hooks/use-format-money";
 import { type LeadDetail, useUpdateLead } from "@/hooks/use-leads";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
-import { Input } from "@propninja/ui/input";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 
@@ -14,12 +14,14 @@ type InlineEstimatedValueProps = {
 
 export function InlineEstimatedValue({ lead }: InlineEstimatedValueProps) {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(lead.estimatedValue ?? "");
+  const [value, setValue] = useState<number | null>(
+    lead.estimatedValue ? Number(lead.estimatedValue) : null,
+  );
   const updateLead = useUpdateLead(lead.id);
   const { formatMoney } = useFormatMoney();
 
   function save() {
-    const num = value ? Number(value) : 0;
+    const num = value ?? 0;
     updateLead.mutate(
       { estimatedValue: value ? num : null },
       {
@@ -34,14 +36,7 @@ export function InlineEstimatedValue({ lead }: InlineEstimatedValueProps) {
   if (editing) {
     return (
       <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          min={0}
-          className="h-8 w-36 rounded-lg"
-          placeholder="Amount in ₹"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
+        <InrInput className="w-40" value={value} onChange={setValue} />
         <Button size="sm" onClick={save} disabled={updateLead.isPending}>
           Save
         </Button>
@@ -61,7 +56,7 @@ export function InlineEstimatedValue({ lead }: InlineEstimatedValueProps) {
         type="button"
         className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         onClick={() => {
-          setValue(lead.estimatedValue ?? "");
+          setValue(lead.estimatedValue ? Number(lead.estimatedValue) : null);
           setEditing(true);
         }}
       >

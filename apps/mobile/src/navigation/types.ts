@@ -62,6 +62,7 @@ export type MainTabParamList = {
   TasksTab: undefined;
   NotificationsTab: undefined;
   ProfileTab: undefined;
+  LeaderboardTab: undefined;
   PipelineTab: undefined;
   DialPadTab: undefined;
   CallingTab: undefined;

@@ -27,6 +27,19 @@ export const NOTIFICATION_TYPES = {
   POOL_LOW: "pool_low",
   CALLBACK_DUE: "callback_due",
   CALLING_SUMMARY: "calling_daily_summary",
+  INCENTIVE_CALCULATED: "incentive_calculated",
+  INCENTIVE_APPROVED: "incentive_approved",
+  INCENTIVE_REJECTED: "incentive_rejected",
+  INCENTIVE_DISBURSED: "incentive_disbursed",
+  INCENTIVE_PENDING_REMINDER: "incentive_pending_reminder",
+  INCENTIVE_MONTH_END: "incentive_month_end",
+  APPRAISAL_READY: "appraisal_ready",
+  APPRAISAL_APPROVED: "appraisal_approved",
+  APPRAISAL_REJECTED: "appraisal_rejected",
+  SALARY_APPLIED: "salary_applied",
+  LEADERBOARD_DEAL_CLOSED: "leaderboard_deal_closed",
+  LEADERBOARD_BADGE: "leaderboard_badge",
+  LEADERBOARD_MONTH_END: "leaderboard_month_end",
 } as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[keyof typeof NOTIFICATION_TYPES];
@@ -134,6 +147,23 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
       return {
         title: typeof payload.title === "string" ? payload.title : "Transaction closure",
         body: typeof payload.message === "string" ? payload.message : "A TCF needs attention",
+      };
+    case NOTIFICATION_TYPES.INCENTIVE_CALCULATED:
+    case NOTIFICATION_TYPES.INCENTIVE_APPROVED:
+    case NOTIFICATION_TYPES.INCENTIVE_REJECTED:
+    case NOTIFICATION_TYPES.INCENTIVE_DISBURSED:
+    case NOTIFICATION_TYPES.INCENTIVE_PENDING_REMINDER:
+    case NOTIFICATION_TYPES.INCENTIVE_MONTH_END:
+    case NOTIFICATION_TYPES.APPRAISAL_READY:
+    case NOTIFICATION_TYPES.APPRAISAL_APPROVED:
+    case NOTIFICATION_TYPES.APPRAISAL_REJECTED:
+    case NOTIFICATION_TYPES.SALARY_APPLIED:
+    case NOTIFICATION_TYPES.LEADERBOARD_DEAL_CLOSED:
+    case NOTIFICATION_TYPES.LEADERBOARD_BADGE:
+    case NOTIFICATION_TYPES.LEADERBOARD_MONTH_END:
+      return {
+        title: typeof payload.title === "string" ? payload.title : "PropNinja",
+        body: typeof payload.message === "string" ? payload.message : "You have a new notification",
       };
     default:
       return {

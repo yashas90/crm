@@ -14,6 +14,7 @@ import {
 import { HotLeadsTable } from "@/components/dashboard/hot-leads-table";
 import { LeadsSourceHero } from "@/components/dashboard/leads-source-hero";
 import { OverviewKpiStrip } from "@/components/dashboard/overview-kpi-strip";
+import { ViewLeaderboardCard } from "@/components/leaderboard/my-ranking-card";
 import dynamic from "next/dynamic";
 const PipelineHealth = dynamic(
   () =>
@@ -113,6 +114,9 @@ export function AdminDashboardView({ enabled }: AdminDashboardViewProps) {
                 Full analytics →
               </Link>
             </p>
+            <div className="mt-4 max-w-sm">
+              <ViewLeaderboardCard />
+            </div>
           </header>
 
           <DashboardFilterBar value={dashboardFilters} onChange={setDashboardFilters} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { InrInput } from "@/components/common/inr-input";
 import { QuarterSwitcher } from "@/components/incentives/quarter-switcher";
 import {
   type AppraisalResult,
@@ -11,7 +12,6 @@ import { getErrorMessage } from "@/lib/errors";
 import { DESIGNATIONS, INCENTIVE_BANDS, currentQuarterKey, inr } from "@/lib/tcf-form";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
-import { Input } from "@propninja/ui/input";
 import { useState } from "react";
 
 export function AppraisalPageContent() {
@@ -33,8 +33,8 @@ export function AppraisalPageContent() {
         <p className="max-w-3xl text-sm text-slate-500">
           A calendar quarter pays a 10% hike on monthly basic when the person hits both the minimum
           sales and the minimum units. A closure counts only after the TCF is admin-approved and the
-          invoice is collected. Only that person&apos;s own share counts. The hike is a
-          recommendation for an admin to confirm. Payroll is not changed.
+          invoice is collected. Only that person&apos;s own share counts. An admin approves the
+          hike. Salary updates on the 1st of the next month and is then used for the next target.
         </p>
       </div>
       <QuarterSwitcher quarter={quarter} onChange={setQuarter} />
@@ -69,7 +69,9 @@ export function AppraisalPageContent() {
                     <td className="px-3 py-2">{result.name}</td>
                     <td className="px-3 py-2">{result.designation ?? "Not mapped"}</td>
                     <td className="px-3 py-2">{result.band ?? "—"}</td>
-                    <td className="px-3 py-2">{inr(result.monthlyBasic)}</td>
+                    <td className="px-3 py-2">
+                      {result.monthlyBasic == null ? "—" : inr(result.monthlyBasic)}
+                    </td>
                     <td className="px-3 py-2">
                       {result.countedSales}
                       {result.minSales != null ? ` / ${result.minSales}` : ""}
@@ -81,11 +83,15 @@ export function AppraisalPageContent() {
                     <td className="px-3 py-2">
                       {result.mapped
                         ? result.eligible
-                          ? `Eligible ${inr(result.hikeAmount)}`
+                          ? result.hikeAmount == null
+                            ? "Eligible"
+                            : `Eligible ${inr(result.hikeAmount)}`
                           : "Not eligible"
                         : "Not mapped"}
                     </td>
-                    <td className="px-3 py-2">{inr(result.recommendedBasic)}</td>
+                    <td className="px-3 py-2">
+                      {result.recommendedBasic == null ? "—" : inr(result.recommendedBasic)}
+                    </td>
                   </tr>
                 ),
               )}
@@ -189,7 +195,7 @@ function AdminResultRow({ result }: { result: AppraisalResult }) {
   const save = useSaveIncentiveProfile();
   const [designation, setDesignation] = useState(result.designation ?? "");
   const [band, setBand] = useState(result.band ?? "");
-  const [basic, setBasic] = useState(String(result.monthlyBasic || ""));
+  const [basic, setBasic] = useState<number | null>(result.monthlyBasic);
 
   return (
     <tr className="border-t">
@@ -223,11 +229,7 @@ function AdminResultRow({ result }: { result: AppraisalResult }) {
         </select>
       </td>
       <td className="px-3 py-2">
-        <Input
-          className="h-9 w-28"
-          value={basic}
-          onChange={(event) => setBasic(event.target.value)}
-        />
+        <InrInput className="w-36" value={basic} onChange={setBasic} />
       </td>
       <td className="px-3 py-2">
         {result.countedSales}
@@ -252,11 +254,7 @@ function AdminResultRow({ result }: { result: AppraisalResult }) {
             variant="outline"
             disabled={save.isPending}
             onClick={() => {
-              const monthlyBasic = Number(basic || 0);
-              if (!Number.isFinite(monthlyBasic) || monthlyBasic < 0) {
-                toast.error("Monthly basic must be a zero or positive number");
-                return;
-              }
+              const monthlyBasic = basic ?? 0;
               save.mutate(
                 {
                   userId: result.userId,

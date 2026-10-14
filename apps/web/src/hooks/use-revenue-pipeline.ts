@@ -1,6 +1,7 @@
 "use client";
 
 import { apiDownload, apiGet } from "@/lib/apiClient";
+import { formatINR } from "@propninja/types/money";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 export type RevenuePipelineProjectRow = {
@@ -70,5 +71,5 @@ export async function downloadRevenuePipelineCsv(params: {
 }
 
 export function formatInr(value: number) {
-  return `₹${value.toLocaleString("en-IN")}`;
+  return formatINR(value);
 }

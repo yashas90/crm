@@ -1,3 +1,4 @@
+import { formatINR } from "@propninja/types/money";
 import PDFDocument from "pdfkit";
 
 export type BookingPdfInput = {
@@ -15,10 +16,6 @@ export type BookingPdfInput = {
   leadPhone: string | null;
   agentName: string;
 };
-
-function formatInr(value: number): string {
-  return value.toLocaleString("en-IN");
-}
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString("en-IN", { dateStyle: "long" });
@@ -54,8 +51,8 @@ export function buildBookingPdfBuffer(input: BookingPdfInput): Promise<Buffer> {
       ["Property", input.projectName],
       ["Unit", `${input.unitNumber} | Floor: ${input.floor} | ${input.bedrooms}BHK`],
       ["Area", `${input.areaSqFt} sq ft`],
-      ["Listed Price", `₹${formatInr(input.priceListedRs)}`],
-      ["Final Price", input.priceFinalRs != null ? `₹${formatInr(input.priceFinalRs)}` : "TBD"],
+      ["Listed Price", formatINR(input.priceListedRs)],
+      ["Final Price", input.priceFinalRs != null ? formatINR(input.priceFinalRs) : "TBD"],
       ["Lead Name", input.leadName],
       ["Lead Phone", input.leadPhone ?? "—"],
       ["Assigned Agent", input.agentName],

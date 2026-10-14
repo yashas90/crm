@@ -5,6 +5,7 @@ import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { formatINR } from "@propninja/types/money";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { memo, useMemo, useState } from "react";
 import {
@@ -22,7 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 type Props = NativeStackScreenProps<ProfileStackParamList, "BookingsScreen">;
 
 function formatPrice(value: number) {
-  return `₹${value.toLocaleString("en-IN")}`;
+  return formatINR(value);
 }
 
 export function BookingsScreen({ navigation }: Props) {

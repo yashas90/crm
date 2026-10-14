@@ -1,4 +1,7 @@
 import { DEFAULT_ORG_CURRENCY, DEFAULT_ORG_LOCALE } from "@/lib/org-settings";
+import { formatINR } from "@propninja/types/money";
+
+export { formatINR };
 
 export function formatMoneyCompact(
   value: number,
@@ -32,6 +35,7 @@ export function formatMoneyCompact(
 export function formatMoneyFull(value: number, options?: { locale?: string; currency?: string }) {
   const locale = options?.locale ?? DEFAULT_ORG_LOCALE;
   const currency = options?.currency ?? DEFAULT_ORG_CURRENCY;
+  if (currency === "INR") return formatINR(value);
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,

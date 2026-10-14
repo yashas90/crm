@@ -1,9 +1,11 @@
 "use client";
 
+import { InrInput } from "@/components/common/inr-input";
 import { useSession } from "@/hooks/use-session";
 import { apiGet, apiPut } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { formatINR } from "@propninja/types/money";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@propninja/ui/card";
 import { Input } from "@propninja/ui/input";
@@ -148,15 +150,25 @@ export default function AgentTargetsPage() {
                             .replace(/([A-Z])/g, " $1")
                             .trim()}
                         </Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={form[field]}
-                          onChange={(e) =>
-                            setForm((prev) => ({ ...prev, [field]: Number(e.target.value) }))
-                          }
-                          className="h-8 text-sm"
-                        />
+                        {field === "targetRevenue" ? (
+                          <InrInput
+                            className="h-8 flex-1"
+                            value={form.targetRevenue}
+                            onChange={(next) =>
+                              setForm((prev) => ({ ...prev, targetRevenue: next ?? 0 }))
+                            }
+                          />
+                        ) : (
+                          <Input
+                            type="number"
+                            min={0}
+                            value={form[field]}
+                            onChange={(e) =>
+                              setForm((prev) => ({ ...prev, [field]: Number(e.target.value) }))
+                            }
+                            className="h-8 text-sm"
+                          />
+                        )}
                       </div>
                     ))}
                     <div className="flex gap-2 pt-1">
@@ -201,6 +213,9 @@ export default function AgentTargetsPage() {
                         <ProgressBar value={actual} max={target} />
                       </div>
                     ))}
+                    <p className="text-xs text-muted-foreground">
+                      Revenue target {formatINR(Number(t?.targetRevenue ?? 0))}
+                    </p>
                     <Button
                       size="sm"
                       variant="outline"

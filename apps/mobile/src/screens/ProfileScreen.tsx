@@ -1,3 +1,4 @@
+import { MyRankingBlock } from "@/components/profile/MyRankingBlock";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useCurrentUser } from "@/hooks/use-auth";
@@ -105,6 +106,9 @@ export function ProfileScreen({
         <Text style={styles.name}>{user?.name ?? "—"}</Text>
         <Text style={styles.role}>{user?.role ?? "agent"}</Text>
       </View>
+
+      <Text style={screenStyles.sectionTitle}>My Ranking</Text>
+      <MyRankingBlock />
 
       <Text style={screenStyles.sectionTitle}>Today's performance</Text>
       <View style={styles.statsRow}>

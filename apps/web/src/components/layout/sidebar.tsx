@@ -1,6 +1,7 @@
 "use client";
 
 import { AppLogo } from "@/components/layout/app-logo";
+import { useLeaderboard } from "@/hooks/use-leaderboard";
 import { useSession } from "@/hooks/use-session";
 import { useWhatsAppUnreadCount } from "@/hooks/use-whatsapp-blaster";
 import { cn } from "@propninja/ui/lib/utils";
@@ -29,12 +30,14 @@ import {
   Settings,
   Shield,
   TrendingUp,
+  Trophy,
   UserCircle,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 type UserRole = "admin" | "manager" | "agent";
 
@@ -47,6 +50,12 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager", "agent"] },
+  {
+    href: "/leaderboard",
+    label: "Leaderboard",
+    icon: Trophy,
+    roles: ["admin", "manager", "agent"],
+  },
   { href: "/leads", label: "Leads", icon: Users, roles: ["admin", "manager", "agent"] },
   {
     href: "/whatsapp",
@@ -90,7 +99,13 @@ const navItems: NavItem[] = [
     href: "/incentives/team",
     label: "Team Incentive",
     icon: Users,
-    roles: ["admin", "manager", "agent"],
+    roles: ["admin", "manager"],
+  },
+  {
+    href: "/approvals",
+    label: "Approvals",
+    icon: CheckSquare,
+    roles: ["admin"],
   },
   {
     href: "/incentives/disbursement",
@@ -193,6 +208,19 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const role = roleFromSession(session?.role);
   const unread = useWhatsAppUnreadCount(ready && role === "admin");
   const unreadCount = unread.data?.count ?? 0;
+  const rankBoard = useLeaderboard("month", "team", ready);
+  const [rankImproved, setRankImproved] = useState(false);
+  const currentRank = rankBoard.data?.me.rank;
+
+  useEffect(() => {
+    if (!currentRank) return;
+    const stored = Number(localStorage.getItem("pn-leaderboard-last-rank") || "0");
+    if (pathname === "/leaderboard") {
+      setRankImproved(false);
+      return;
+    }
+    setRankImproved(stored > 0 && currentRank < stored);
+  }, [currentRank, pathname]);
 
   const visibleItems =
     ready && role ? navItems.filter((item) => item.roles.includes(role)) : DEFAULT_NAV;
@@ -250,6 +278,12 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
                     )}
                   />
                   <span className="truncate">{label}</span>
+                  {href === "/leaderboard" && rankImproved ? (
+                    <span
+                      className="ml-auto h-2 w-2 rounded-full bg-emerald-500"
+                      title="Rank improved"
+                    />
+                  ) : null}
                   {href === "/whatsapp" && unreadCount > 0 ? (
                     <span className="ml-auto rounded-full bg-[#C02020] px-1.5 py-0.5 text-[10px] font-bold text-white">
                       {unreadCount > 99 ? "99+" : unreadCount}

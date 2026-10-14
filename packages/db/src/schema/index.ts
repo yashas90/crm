@@ -63,6 +63,8 @@ export const users = pgTable(
     sessionsRevokedAt: timestamp("sessions_revoked_at", { withTimezone: true }),
     reportEmailEnabled: boolean("report_email_enabled").notNull().default(true),
     trackingPolicyEnabled: boolean("tracking_policy_enabled").notNull().default(true),
+    /** Default false: leaderboard shows initials until the user opts in. */
+    showLeaderboardAvatar: boolean("show_leaderboard_avatar").notNull().default(false),
     expoPushToken: text("expo_push_token"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2542,5 +2544,214 @@ export const incentiveDisbursements = pgTable(
   },
   (table) => [
     uniqueIndex("incentive_disbursements_user_quarter_uidx").on(table.userId, table.quarterKey),
+  ],
+);
+
+export type IncentiveApprovalDeal = {
+  tcfCode: string;
+  propertyName: string | null;
+  dealValue: number;
+  nr: number;
+  closedOn: string | null;
+  invoiceStatus: string;
+};
+
+export const incentiveApprovals = pgTable(
+  "incentive_approvals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    monthKey: text("month_key").notNull(),
+    quarterKey: text("quarter_key").notNull(),
+    employeeName: text("employee_name").notNull(),
+    designation: text("designation"),
+    band: text("band"),
+    monthlySalary: numeric("monthly_salary", { precision: 14, scale: 2 }).notNull().default("0"),
+    eligibilityTarget: numeric("eligibility_target", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    nrAchieved: numeric("nr_achieved", { precision: 14, scale: 2 }).notNull().default("0"),
+    achievementPercent: numeric("achievement_percent", { precision: 8, scale: 2 })
+      .notNull()
+      .default("0"),
+    incentiveTillTarget: numeric("incentive_till_target", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    incentiveAboveTarget: numeric("incentive_above_target", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    grossIncentive: numeric("gross_incentive", { precision: 14, scale: 2 }).notNull().default("0"),
+    cashAmount: numeric("cash_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    esopAmount: numeric("esop_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    n1Bonus: numeric("n1_bonus", { precision: 14, scale: 2 }).notNull().default("0"),
+    totalPayable: numeric("total_payable", { precision: 14, scale: 2 }).notNull().default("0"),
+    status: text("status").notNull().default("pending_admin_approval"),
+    rejectionReason: text("rejection_reason"),
+    approvedBy: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    disbursedAt: timestamp("disbursed_at", { withTimezone: true }),
+    calculatedAt: timestamp("calculated_at", { withTimezone: true }).notNull().defaultNow(),
+    details: jsonb("details").$type<{ deals?: IncentiveApprovalDeal[] }>().notNull().default({}),
+  },
+  (table) => [
+    uniqueIndex("incentive_approvals_user_month_uidx").on(table.userId, table.monthKey),
+    index("incentive_approvals_org_status_idx").on(table.orgId, table.status, table.monthKey),
+    index("incentive_approvals_quarter_idx").on(table.orgId, table.quarterKey),
+    check(
+      "incentive_approvals_status_check",
+      sql`${table.status} in ('pending_admin_approval', 'approved', 'rejected', 'disbursed')`,
+    ),
+  ],
+);
+
+export type AppraisalApprovalDeal = {
+  tcfCode: string;
+  propertyName: string | null;
+  dealValue: number;
+  nr: number;
+  closedOn: string | null;
+  invoiceRaised: boolean;
+  paymentCollected: boolean;
+};
+
+export const appraisalApprovals = pgTable(
+  "appraisal_approvals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    quarterKey: text("quarter_key").notNull(),
+    employeeName: text("employee_name").notNull(),
+    designation: text("designation"),
+    band: text("band"),
+    requiredSales: numeric("required_sales", { precision: 8, scale: 2 }),
+    requiredUnits: numeric("required_units", { precision: 8, scale: 2 }),
+    achievedSales: numeric("achieved_sales", { precision: 8, scale: 2 }).notNull().default("0"),
+    achievedUnits: numeric("achieved_units", { precision: 8, scale: 2 }).notNull().default("0"),
+    eligible: boolean("eligible").notNull().default(false),
+    currentSalary: numeric("current_salary", { precision: 14, scale: 2 }).notNull().default("0"),
+    hikePercent: numeric("hike_percent", { precision: 6, scale: 4 }).notNull().default("0"),
+    newSalary: numeric("new_salary", { precision: 14, scale: 2 }).notNull().default("0"),
+    incrementAmount: numeric("increment_amount", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    status: text("status").notNull().default("pending_admin_approval"),
+    rejectionReason: text("rejection_reason"),
+    approvedBy: uuid("approved_by").references(() => users.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    effectiveFrom: date("effective_from"),
+    salaryAppliedAt: timestamp("salary_applied_at", { withTimezone: true }),
+    deals: jsonb("deals").$type<AppraisalApprovalDeal[]>().notNull().default([]),
+    calculatedAt: timestamp("calculated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("appraisal_approvals_user_quarter_uidx").on(table.userId, table.quarterKey),
+    index("appraisal_approvals_org_status_idx").on(table.orgId, table.status, table.quarterKey),
+    check(
+      "appraisal_approvals_status_check",
+      sql`${table.status} in ('pending_admin_approval', 'approved', 'rejected', 'salary_applied')`,
+    ),
+  ],
+);
+
+export const salaryHistory = pgTable(
+  "salary_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    previousSalary: numeric("previous_salary", { precision: 14, scale: 2 }).notNull().default("0"),
+    newSalary: numeric("new_salary", { precision: 14, scale: 2 }).notNull().default("0"),
+    incrementAmount: numeric("increment_amount", { precision: 14, scale: 2 })
+      .notNull()
+      .default("0"),
+    reason: text("reason").notNull(),
+    appraisalId: uuid("appraisal_id").references(() => appraisalApprovals.id, {
+      onDelete: "set null",
+    }),
+    effectiveFrom: date("effective_from"),
+    appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+    changedBy: uuid("changed_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (table) => [index("salary_history_user_idx").on(table.userId, table.appliedAt)],
+);
+
+/** Yesterday's ranks so leaderboard trends survive process restarts. */
+export const leaderboardRankSnapshots = pgTable(
+  "leaderboard_rank_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    periodKey: text("period_key").notNull(),
+    scopeKey: text("scope_key").notNull(),
+    rank: integer("rank").notNull(),
+    snapshotDate: date("snapshot_date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("leaderboard_rank_snapshots_uidx").on(
+      table.userId,
+      table.periodKey,
+      table.scopeKey,
+      table.snapshotDate,
+    ),
+    index("leaderboard_rank_snapshots_lookup_idx").on(
+      table.periodKey,
+      table.scopeKey,
+      table.snapshotDate,
+    ),
+  ],
+);
+
+export const agentBadges = pgTable(
+  "agent_badges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    badgeType: text("badge_type").notNull(),
+    earnedAt: timestamp("earned_at", { withTimezone: true }).notNull().defaultNow(),
+    periodMonth: integer("period_month"),
+    periodYear: integer("period_year"),
+    periodQuarter: integer("period_quarter"),
+  },
+  (table) => [index("agent_badges_agent_idx").on(table.agentId, table.earnedAt)],
+);
+
+export const leaderboardAnnouncements = pgTable(
+  "leaderboard_announcements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    kind: text("kind").notNull(),
+    body: text("body").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("leaderboard_announcements_org_idx").on(table.orgId, table.kind, table.active),
+    check(
+      "leaderboard_announcements_kind_check",
+      sql`${table.kind} in ('announcement', 'challenge')`,
+    ),
   ],
 );

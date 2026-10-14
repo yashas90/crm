@@ -4,6 +4,7 @@ import { FLAT_LIST_PERF } from "@/lib/flatList";
 import type { ProfileStackParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
+import { formatINR } from "@propninja/types/money";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { memo, useLayoutEffect, useState } from "react";
 import {
@@ -28,7 +29,7 @@ const STATUS_FILTERS = [
 ] as const;
 
 function formatPrice(value: number) {
-  return `₹${value.toLocaleString("en-IN")}`;
+  return formatINR(value);
 }
 
 export function ProjectDetailScreen({ route, navigation }: Props) {

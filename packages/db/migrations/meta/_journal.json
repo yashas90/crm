@@ -477,6 +477,20 @@
       "when": 1780632546755,
       "tag": "0067_transaction_closures_incentives",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1780632546756,
+      "tag": "0068_incentive_appraisal_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1780632546757,
+      "tag": "0069_leaderboard",
+      "breakpoints": true
     }
   ]
 }

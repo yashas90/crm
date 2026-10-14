@@ -46,6 +46,16 @@ export type IncentiveMe = {
   }[];
   payout: Payout;
   disbursed: boolean;
+  approvals?: {
+    id: string;
+    monthKey: string;
+    status: string;
+    totalPayable: number;
+    cashAmount: number;
+    esopAmount: number;
+    grossIncentive: number;
+    rejectionReason: string | null;
+  }[];
 };
 
 export function useMyIncentive(quarter: string) {
@@ -92,7 +102,7 @@ export type AppraisalResult = {
   name: string;
   designation: string | null;
   band: string | null;
-  monthlyBasic: number;
+  monthlyBasic: number | null;
   mapped: boolean;
   grade: string | null;
   minSales: number | null;
@@ -101,8 +111,8 @@ export type AppraisalResult = {
   countedSales: number;
   countedUnits: number;
   eligible: boolean;
-  hikeAmount: number;
-  recommendedBasic: number;
+  hikeAmount: number | null;
+  recommendedBasic: number | null;
 };
 
 export type AppraisalPolicyRow = {

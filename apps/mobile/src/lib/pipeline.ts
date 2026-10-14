@@ -1,5 +1,6 @@
 import type { LeadRow } from "@/hooks/use-leads";
 import type { LeadStatus } from "@propninja/types/enums";
+import { formatINR } from "@propninja/types/money";
 
 export type PipelineStage = {
   id?: string;
@@ -93,7 +94,7 @@ export function sumPipelineColumnValue(leads: LeadRow[]): number {
 
 export function formatPipelineValue(total: number): string | null {
   if (total <= 0) return null;
-  return `₹${total.toLocaleString("en-IN")}`;
+  return formatINR(total);
 }
 
 export function pipelineStageHeaderStyle(stage: PipelineStage) {

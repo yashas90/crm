@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { apiGet } from "@/lib/apiClient";
+import { formatINR } from "@propninja/types/money";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { useQuery } from "@tanstack/react-query";
@@ -31,9 +32,7 @@ type CompareProject = {
 };
 
 function fmt(n: number) {
-  if (n >= 10_000_000) return `₹${(n / 10_000_000).toFixed(1)}Cr`;
-  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
-  return `₹${n.toLocaleString()}`;
+  return formatINR(n);
 }
 
 type StatKey =

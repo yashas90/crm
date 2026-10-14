@@ -1,5 +1,6 @@
 "use client";
 
+import { formatINR } from "@propninja/types/money";
 import { Card, CardContent } from "@propninja/ui/card";
 import { IndianRupee, TrendingUp } from "lucide-react";
 
@@ -14,14 +15,14 @@ export function RevenueKpiRow({ revenue }: RevenueKpiRowProps) {
   const items = [
     {
       title: "Won value (month)",
-      value: `₹${revenue.won_value_month.toLocaleString("en-IN")}`,
+      value: formatINR(revenue.won_value_month),
       hint: "Estimated value of deals won this month",
       icon: IndianRupee,
       iconBg: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
     },
     {
       title: "Avg deal size",
-      value: revenue.avg_deal_size > 0 ? `₹${revenue.avg_deal_size.toLocaleString("en-IN")}` : "—",
+      value: revenue.avg_deal_size > 0 ? formatINR(revenue.avg_deal_size) : "—",
       hint: "Across all won leads with a value",
       icon: TrendingUp,
       iconBg: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",

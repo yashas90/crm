@@ -5,6 +5,7 @@ import { type PipelineStage, isClosedPipelineStageKey } from "@/lib/pipeline";
 import { colors, radii, spacing } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import type { LeadStatus } from "@propninja/types/enums";
+import { formatINR } from "@propninja/types/money";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -35,7 +36,7 @@ function formatEstimatedValue(value: string | null | undefined): string | null {
   if (!value) return null;
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return null;
-  return `₹${num.toLocaleString("en-IN")}`;
+  return formatINR(num);
 }
 
 export const PipelineLeadCard = memo(function PipelineLeadCard({

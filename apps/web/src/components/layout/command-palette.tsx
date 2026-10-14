@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   Award,
   BarChart3,
+  CheckSquare,
   FileText,
   Flame,
   FolderKanban,
@@ -17,6 +18,7 @@ import {
   Search,
   Settings,
   TrendingUp,
+  Trophy,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -39,6 +41,13 @@ const NAV_ITEMS: CommandItem[] = [
     href: "/",
     keywords: "home overview",
     icon: <LayoutDashboard className="h-4 w-4" />,
+  },
+  {
+    id: "leaderboard",
+    label: "Leaderboard",
+    href: "/leaderboard",
+    keywords: "rank ranking nr podium",
+    icon: <Trophy className="h-4 w-4" />,
   },
   {
     id: "whatsapp",
@@ -119,6 +128,15 @@ const NAV_ITEMS: CommandItem[] = [
     href: "/incentives/team",
     keywords: "leader team kicker",
     icon: <Users className="h-4 w-4" />,
+    roles: ["admin", "manager"],
+  },
+  {
+    id: "approvals",
+    label: "Approvals",
+    href: "/approvals",
+    keywords: "incentive appraisal approve reject disbursement hike admin",
+    icon: <CheckSquare className="h-4 w-4" />,
+    roles: ["admin"],
   },
   {
     id: "disbursement",

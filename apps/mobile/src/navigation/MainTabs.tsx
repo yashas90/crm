@@ -33,6 +33,10 @@ const NotificationsScreen = lazyNamed(
   () => import("@/screens/NotificationsScreen"),
   "NotificationsScreen",
 );
+const LeaderboardScreen = lazyNamed(
+  () => import("@/screens/LeaderboardScreen"),
+  "LeaderboardScreen",
+);
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -222,6 +226,15 @@ export function MainTabs({ onLogout }: MainTabsProps) {
               minWidth: 18,
               lineHeight: 14,
             },
+            headerShown: false,
+          }}
+        />
+        <Tab.Screen
+          name="LeaderboardTab"
+          component={LeaderboardScreen}
+          options={{
+            title: "Ranks",
+            tabBarIcon: tabIcon("trophy-outline"),
             headerShown: false,
           }}
         />

@@ -1,5 +1,6 @@
 "use client";
 
+import { LeaderboardAvatarToggle, MyRankingCard } from "@/components/leaderboard/my-ranking-card";
 import { LeadScoringSettingsCard } from "@/components/settings/lead-scoring-settings-card";
 import { OrgProfileSettingsCard } from "@/components/settings/org-profile-settings-card";
 import { OrgRegionalSettingsCard } from "@/components/settings/org-regional-settings-card";
@@ -48,6 +49,8 @@ export default function SettingsPage() {
             <span className="text-muted-foreground">Role:</span>{" "}
             {ready ? (session?.role ?? "—") : "—"}
           </p>
+          <LeaderboardAvatarToggle />
+          <MyRankingCard />
         </CardContent>
       </Card>
 

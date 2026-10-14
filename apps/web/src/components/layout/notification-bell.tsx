@@ -21,6 +21,18 @@ function formatNotificationLabel(notification: NotificationRow): string {
   const payload = notification.payload;
   const leadName = typeof payload.leadName === "string" ? payload.leadName : "Lead";
 
+  if (notification.type.startsWith("leaderboard_")) {
+    return typeof payload.message === "string" ? payload.message : "Leaderboard update";
+  }
+
+  if (
+    notification.type.startsWith("incentive_") ||
+    notification.type.startsWith("appraisal_") ||
+    notification.type === "salary_applied"
+  ) {
+    return typeof payload.message === "string" ? payload.message : "Approval update";
+  }
+
   if (notification.type === "lead_assigned") {
     const assignedBy = typeof payload.assignedBy === "string" ? payload.assignedBy : "Someone";
     return `${assignedBy} assigned you ${leadName}`;
@@ -129,6 +141,10 @@ export function NotificationBell() {
               <ul className="divide-y divide-border/60">
                 {items.map((notification) => {
                   const leadId = leadIdFromPayload(notification.payload);
+                  const href =
+                    typeof notification.payload.href === "string"
+                      ? notification.payload.href
+                      : null;
                   const content = (
                     <div
                       className={cn(
@@ -136,7 +152,9 @@ export function NotificationBell() {
                         !notification.isRead && "bg-primary/5",
                       )}
                     >
-                      <p className="text-sm font-medium">{formatNotificationLabel(notification)}</p>
+                      <p className="whitespace-pre-line text-sm font-medium">
+                        {formatNotificationLabel(notification)}
+                      </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {new Date(notification.createdAt).toLocaleString()}
                       </p>
@@ -145,9 +163,9 @@ export function NotificationBell() {
 
                   return (
                     <li key={notification.id}>
-                      {leadId ? (
+                      {href || leadId ? (
                         <Link
-                          href={`/leads/${leadId}`}
+                          href={href ?? `/leads/${leadId}`}
                           onClick={() => void handleNotificationClick(notification)}
                         >
                           {content}

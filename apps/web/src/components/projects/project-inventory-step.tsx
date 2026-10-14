@@ -19,6 +19,7 @@ import {
 import { apiDownload } from "@/lib/apiClient";
 import { getErrorMessage } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { formatINR } from "@propninja/types/money";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
@@ -43,7 +44,7 @@ const STATUS_LABELS: Record<UnitStatus, string> = {
 };
 
 function formatPrice(value: number) {
-  return `₹${value.toLocaleString("en-IN")}`;
+  return formatINR(value);
 }
 
 type ProjectInventoryStepProps = {

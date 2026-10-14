@@ -43,6 +43,9 @@ describe("responseCache", () => {
     expect(resolveTtlSeconds("/api/notifications")).toBe(CACHE_TTL.notificationsShort);
     expect(resolveTtlSeconds("/api/notifications/read-all")).toBeNull();
     expect(resolveTtlSeconds("/api/reports/calls/export")).toBeNull();
+    expect(resolveTtlSeconds("/api/leaderboard")).toBe(CACHE_TTL.leaderboard);
+    expect(resolveTtlSeconds("/api/leaderboard/hall-of-fame")).toBe(CACHE_TTL.leaderboard);
+    expect(resolveTtlSeconds("/api/leaderboard/export")).toBeNull();
   });
 
   it("clears analytics cache scoped to a user", () => {

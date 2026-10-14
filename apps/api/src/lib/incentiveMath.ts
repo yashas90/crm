@@ -55,12 +55,15 @@ export type IncentiveDeal = {
   netRevenue: number;
   convertible: boolean;
   closedOn?: string | null;
+  productName?: string | null;
   shares: IncentiveShare[];
 };
 
 export type SlabIncentive = {
   eligibilityTarget: number;
   incentive: number;
+  tillIncentive: number;
+  aboveIncentive: number;
   tillRate: number;
   aboveRate: number;
 };
@@ -86,6 +89,8 @@ export function slabIncentive(input: {
     return {
       eligibilityTarget,
       incentive: 0,
+      tillIncentive: 0,
+      aboveIncentive: 0,
       tillRate: input.tillRate,
       aboveRate: input.aboveRate,
     };
@@ -93,9 +98,13 @@ export function slabIncentive(input: {
   const standardExcess = Math.max(0, standardNr - eligibilityTarget);
   const thresholdLeft = Math.max(0, eligibilityTarget - standardNr);
   const convertibleExcess = Math.max(0, convertibleNr - thresholdLeft);
+  const tillIncentive = MONEY(convertibleExcess * input.tillRate);
+  const aboveIncentive = MONEY(standardExcess * input.aboveRate);
   return {
     eligibilityTarget,
-    incentive: MONEY(standardExcess * input.aboveRate + convertibleExcess * input.tillRate),
+    incentive: MONEY(tillIncentive + aboveIncentive),
+    tillIncentive,
+    aboveIncentive,
     tillRate: input.tillRate,
     aboveRate: input.aboveRate,
   };
@@ -173,6 +182,11 @@ export type AgentPayout = {
   eligibilityTarget: number;
   tillRate: number;
   aboveRate: number;
+  tillIncentive: number;
+  aboveIncentive: number;
+  grossIncentive: number;
+  achievedNr: number;
+  achievementPercent: number;
   deals: {
     id: string;
     tcfCode: string;
@@ -258,7 +272,14 @@ export function summarizeAgentIncentive(input: {
         tillRate: rates.tillRate,
         aboveRate: rates.aboveRate,
       })
-    : { eligibilityTarget: 0, incentive: 0, tillRate: 0, aboveRate: 0 };
+    : {
+        eligibilityTarget: 0,
+        incentive: 0,
+        tillIncentive: 0,
+        aboveIncentive: 0,
+        tillRate: 0,
+        aboveRate: 0,
+      };
   const earnedCalc = band
     ? slabIncentive({
         achievedNr: personalConfirmNr.standard + personalConfirmNr.convertible,
@@ -268,12 +289,25 @@ export function summarizeAgentIncentive(input: {
         tillRate: rates.tillRate,
         aboveRate: rates.aboveRate,
       })
-    : { eligibilityTarget: countedCalc.eligibilityTarget, incentive: 0, tillRate: 0, aboveRate: 0 };
+    : {
+        eligibilityTarget: countedCalc.eligibilityTarget,
+        incentive: 0,
+        tillIncentive: 0,
+        aboveIncentive: 0,
+        tillRate: 0,
+        aboveRate: 0,
+      };
 
   const earnedCore = earnedCalc.incentive + collectedTeamKicker(n1TeamKicker);
   const countedCore = countedCalc.incentive + n1TeamKicker;
   const earned = MONEY(earnedCore);
   const provisional = MONEY(Math.max(0, countedCore - earnedCore));
+  const grossIncentive = MONEY(earnedCalc.incentive);
+  const achievedNr = MONEY(personalConfirmNr.standard + personalConfirmNr.convertible);
+  const achievementPercent =
+    earnedCalc.eligibilityTarget > 0
+      ? Math.round((achievedNr / earnedCalc.eligibilityTarget) * 10000) / 100
+      : 0;
   const earnedSplit = splitEsop(earned);
   const provisionalSplit = splitEsop(provisional);
   const disbursed = MONEY(Math.max(0, input.disbursedAmount ?? 0));
@@ -295,6 +329,11 @@ export function summarizeAgentIncentive(input: {
     eligibilityTarget: countedCalc.eligibilityTarget,
     tillRate: rates.tillRate,
     aboveRate: rates.aboveRate,
+    tillIncentive: earnedCalc.tillIncentive,
+    aboveIncentive: earnedCalc.aboveIncentive,
+    grossIncentive,
+    achievedNr,
+    achievementPercent,
     deals: input.deals.filter(approved).map((deal) => ({
       id: deal.id,
       tcfCode: deal.tcfCode,

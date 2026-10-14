@@ -1,100 +1,36 @@
-import {
-  incentiveDisbursements,
-  incentiveProfiles,
-  transactionClosureShares,
-  transactionClosures,
-  users,
-} from "@propninja/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { incentiveApprovals, incentiveDisbursements, incentiveProfiles } from "@propninja/db";
+import { and, eq } from "drizzle-orm";
 import { APPRAISAL_POLICY, appraisalResult } from "../lib/appraisalMath.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import type { Database } from "../lib/db.js";
-import { badRequest, forbidden } from "../lib/errors.js";
+import { forbidden } from "../lib/errors.js";
+import {
+  type IncentivePerson,
+  dealsFor,
+  loadIncentiveDeals,
+  loadIncentivePeople,
+  num,
+} from "../lib/incentiveData.js";
 import {
   INCENTIVE_BANDS,
   type IncentiveBand,
-  type IncentiveDeal,
   isIncentiveBand,
   summarizeAgentIncentive,
 } from "../lib/incentiveMath.js";
-import { type QuarterRef, dateInQuarter, parseQuarterKey, quarterKey } from "../lib/quarters.js";
+import { parseQuarterKey, quarterKey } from "../lib/quarters.js";
 import type { AuthUser } from "../middleware/auth.js";
+import { createApprovalService } from "./approvalService.js";
 
-function num(value: string | number | null | undefined) {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-type Profile = {
-  userId: string;
-  name: string;
-  band: IncentiveBand | null;
-  designation: string | null;
-  monthlyBasic: number;
-  reportingToId: string | null;
-};
-
-async function loadProfiles(db: Database): Promise<Profile[]> {
-  const people = await db
-    .select({
-      userId: users.id,
-      name: users.name,
-      reportingToId: users.reportingToId,
-      band: incentiveProfiles.band,
-      designation: incentiveProfiles.designation,
-      monthlyBasic: incentiveProfiles.monthlyBasic,
-    })
-    .from(users)
-    .leftJoin(incentiveProfiles, eq(incentiveProfiles.userId, users.id))
-    .where(and(eq(users.orgId, SINGLE_TENANT_ORG_ID), eq(users.isActive, true)));
-  return people.map((person) => ({
-    userId: person.userId,
-    name: person.name,
-    reportingToId: person.reportingToId,
-    band: isIncentiveBand(person.band) ? person.band : null,
-    designation: person.designation,
-    monthlyBasic: num(person.monthlyBasic),
-  }));
-}
-
-async function loadDeals(db: Database): Promise<IncentiveDeal[]> {
-  const rows = await db
-    .select()
-    .from(transactionClosures)
-    .where(eq(transactionClosures.orgId, SINGLE_TENANT_ORG_ID));
-  if (rows.length === 0) return [];
-  const shares = await db
-    .select()
-    .from(transactionClosureShares)
-    .where(
-      inArray(
-        transactionClosureShares.tcfId,
-        rows.map((row) => row.id),
-      ),
+function teamIds(actor: AuthUser, profiles: IncentivePerson[]) {
+  if (actor.role === "admin") return null;
+  if (actor.role === "manager") {
+    return new Set(
+      profiles
+        .filter((person) => person.userId === actor.id || person.reportingToId === actor.id)
+        .map((person) => person.userId),
     );
-  return rows.map((row) => ({
-    id: row.id,
-    tcfCode: row.tcfCode,
-    status: row.status as IncentiveDeal["status"],
-    invoiceStatus: row.invoiceStatus as IncentiveDeal["invoiceStatus"],
-    netRevenue: num(row.netRevenue),
-    convertible: row.convertible,
-    closedOn: row.dealClosureDate,
-    shares: shares
-      .filter((share) => share.tcfId === row.id && share.userId)
-      .map((share) => ({
-        userId: share.userId as string,
-        sharePercent: num(share.sharePercent),
-      })),
-  }));
-}
-
-function dealsFor(all: IncentiveDeal[], userId: string, quarter: QuarterRef) {
-  return all.filter(
-    (deal) =>
-      dateInQuarter(deal.closedOn, quarter) &&
-      deal.shares.some((share) => share.userId === userId && share.sharePercent > 0),
-  );
+  }
+  return new Set([actor.id]);
 }
 
 export function createIncentiveService(db: Database) {
@@ -112,8 +48,8 @@ export function createIncentiveService(db: Database) {
     async mine(user: AuthUser, quarterValue?: string) {
       const quarter = parseQuarterKey(quarterValue);
       const [profiles, deals, disbursed] = await Promise.all([
-        loadProfiles(db),
-        loadDeals(db),
+        loadIncentivePeople(db),
+        loadIncentiveDeals(db),
         db
           .select()
           .from(incentiveDisbursements)
@@ -138,33 +74,51 @@ export function createIncentiveService(db: Database) {
         })),
         disbursedAmount: num(disbursed[0]?.earnedAmount),
       });
+      const approvals = await db
+        .select()
+        .from(incentiveApprovals)
+        .where(
+          and(
+            eq(incentiveApprovals.userId, user.id),
+            eq(incentiveApprovals.quarterKey, quarterKey(quarter)),
+          ),
+        );
       return {
         quarter,
-        profile: profile ?? null,
+        profile: profile
+          ? {
+              userId: profile.userId,
+              name: profile.name,
+              band: profile.band,
+              designation: profile.designation,
+              monthlyBasic: profile.monthlyBasic,
+            }
+          : null,
         slabs: this.slabs(),
         payout,
         disbursed: Boolean(disbursed[0]),
+        approvals: approvals.map((row) => ({
+          id: row.id,
+          monthKey: row.monthKey,
+          status: row.status,
+          totalPayable: num(row.totalPayable),
+          cashAmount: num(row.cashAmount),
+          esopAmount: num(row.esopAmount),
+          grossIncentive: num(row.grossIncentive),
+          rejectionReason: row.rejectionReason,
+        })),
       };
     },
 
     async team(user: AuthUser, quarterValue?: string) {
-      const quarter = parseQuarterKey(quarterValue);
-      const profiles = await loadProfiles(db);
-      const me = profiles.find((person) => person.userId === user.id);
-      const members =
-        user.role === "admin"
-          ? profiles
-          : profiles.filter(
-              (person) => person.reportingToId === user.id || person.userId === user.id,
-            );
-      if (user.role === "agent" && !me?.band) {
-        return {
-          quarter,
-          members: [] as unknown[],
-          note: "Set your band on Appraisal to see team incentive.",
-        };
+      if (user.role === "agent") {
+        throw forbidden("Agents can only view their own incentive");
       }
-      const deals = await loadDeals(db);
+      const quarter = parseQuarterKey(quarterValue);
+      const profiles = await loadIncentivePeople(db);
+      const allowed = teamIds(user, profiles);
+      const members = allowed ? profiles.filter((person) => allowed.has(person.userId)) : profiles;
+      const deals = await loadIncentiveDeals(db);
       const rows = [];
       for (const member of members) {
         const reports = profiles.filter((person) => person.reportingToId === member.userId);
@@ -181,14 +135,22 @@ export function createIncentiveService(db: Database) {
         });
         rows.push({ userId: member.userId, name: member.name, band: member.band, payout });
       }
-      return { quarter, members: rows, note: null };
+      return {
+        quarter,
+        members: rows,
+        note: user.role === "admin" ? null : "Read only. Only an admin can approve incentives.",
+      };
     },
 
     async appraisal(user: AuthUser, quarterValue?: string, everyone = false) {
       const quarter = parseQuarterKey(quarterValue);
-      const profiles = await loadProfiles(db);
-      const deals = await loadDeals(db);
-      const subjects = everyone ? profiles : profiles.filter((person) => person.userId === user.id);
+      const profiles = await loadIncentivePeople(db);
+      const deals = await loadIncentiveDeals(db);
+      const allowed = teamIds(user, profiles);
+      const subjects =
+        user.role === "admin" && everyone
+          ? profiles
+          : profiles.filter((person) => (allowed ?? new Set([user.id])).has(person.userId));
       const results = subjects.map((person) => {
         const ownDeals = dealsFor(deals, person.userId, quarter).map((deal) => ({
           agentId: person.userId,
@@ -197,18 +159,22 @@ export function createIncentiveService(db: Database) {
           sharePercent:
             deal.shares.find((share) => share.userId === person.userId)?.sharePercent ?? 0,
         }));
+        const result = appraisalResult({
+          agentId: person.userId,
+          designation: person.designation,
+          monthlyBasic: person.monthlyBasic,
+          deals: ownDeals,
+        });
+        const showSalary = user.role === "admin" || person.userId === user.id;
         return {
           userId: person.userId,
           name: person.name,
           designation: person.designation,
           band: person.band,
-          monthlyBasic: person.monthlyBasic,
-          ...appraisalResult({
-            agentId: person.userId,
-            designation: person.designation,
-            monthlyBasic: person.monthlyBasic,
-            deals: ownDeals,
-          }),
+          monthlyBasic: showSalary ? person.monthlyBasic : null,
+          ...result,
+          hikeAmount: showSalary ? result.hikeAmount : null,
+          recommendedBasic: showSalary ? result.recommendedBasic : null,
         };
       });
       return { quarter, policy: APPRAISAL_POLICY, results };
@@ -237,8 +203,9 @@ export function createIncentiveService(db: Database) {
           : input.band;
       const designation =
         input.designation === undefined ? (current?.designation ?? null) : input.designation;
-      const monthlyBasic =
-        input.monthlyBasic === undefined ? num(current?.monthlyBasic) : input.monthlyBasic;
+      const monthlyBasic = Math.round(
+        input.monthlyBasic === undefined ? num(current?.monthlyBasic) : input.monthlyBasic,
+      );
       await db
         .insert(incentiveProfiles)
         .values({
@@ -265,8 +232,8 @@ export function createIncentiveService(db: Database) {
     async disbursements(actor: AuthUser, quarterValue?: string) {
       if (actor.role !== "admin") throw forbidden("Only an admin can view disbursements");
       const quarter = parseQuarterKey(quarterValue);
-      const profiles = await loadProfiles(db);
-      const deals = await loadDeals(db);
+      const profiles = await loadIncentivePeople(db);
+      const deals = await loadIncentiveDeals(db);
       const paid = await db
         .select()
         .from(incentiveDisbursements)
@@ -300,33 +267,7 @@ export function createIncentiveService(db: Database) {
 
     async disburse(actor: AuthUser, userId: string, quarterValue: string) {
       if (actor.role !== "admin") throw forbidden("Only an admin can disburse incentive");
-      const quarter = parseQuarterKey(quarterValue);
-      const view = await this.disbursements(actor, quarterKey(quarter));
-      const row = view.rows.find((item) => item.userId === userId);
-      if (!row) throw badRequest("Agent not found");
-      if (row.payout.earned <= 0) throw badRequest("Nothing has been earned for this quarter");
-      await db
-        .insert(incentiveDisbursements)
-        .values({
-          orgId: SINGLE_TENANT_ORG_ID,
-          userId,
-          quarterKey: quarterKey(quarter),
-          earnedAmount: row.payout.earned.toFixed(2),
-          cashAmount: row.payout.cash.toFixed(2),
-          esopAmount: row.payout.esop.toFixed(2),
-          disbursedBy: actor.id,
-        })
-        .onConflictDoUpdate({
-          target: [incentiveDisbursements.userId, incentiveDisbursements.quarterKey],
-          set: {
-            earnedAmount: row.payout.earned.toFixed(2),
-            cashAmount: row.payout.cash.toFixed(2),
-            esopAmount: row.payout.esop.toFixed(2),
-            disbursedBy: actor.id,
-            disbursedAt: new Date(),
-          },
-        });
-      return { ok: true };
+      return createApprovalService(db).disburse(actor, { quarter: quarterValue, userId });
     },
   };
 }

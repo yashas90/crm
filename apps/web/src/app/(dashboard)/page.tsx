@@ -8,6 +8,7 @@ import { HotLeadsTable } from "@/components/dashboard/hot-leads-table";
 import { MyTasksDueTodayWidget } from "@/components/dashboard/my-tasks-due-today-widget";
 import { RecentActivityFeed } from "@/components/dashboard/recent-activity-feed";
 import { RemindersPanel } from "@/components/dashboard/reminders-panel";
+import { ViewLeaderboardCard } from "@/components/leaderboard/my-ranking-card";
 import { NeuButton, NeuCard, NeuSectionHeading } from "@/components/ui/neubrutal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHotLeads } from "@/hooks/use-hot-leads";
@@ -221,6 +222,7 @@ function AgentDashboard() {
                 SLA breaches
               </NeuButton>
             </Link>
+            <ViewLeaderboardCard />
             <div className="flex-grow" />
             <NeuCard hover={false} className="flex items-center gap-2 px-4 py-2">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />

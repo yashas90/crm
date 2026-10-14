@@ -72,6 +72,37 @@ export function IncentiveMine() {
             <Metric label="Due incentive" value={inr(payout.due)} />
             <Metric label="N1 team kicker" value={inr(payout.n1TeamKicker)} />
           </div>
+          {(query.data?.approvals?.length ?? 0) > 0 ? (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-100 text-xs uppercase dark:bg-slate-900">
+                  <tr>
+                    <th className="px-3 py-2">Month</th>
+                    <th className="px-3 py-2">Gross</th>
+                    <th className="px-3 py-2">Cash</th>
+                    <th className="px-3 py-2">ESOP</th>
+                    <th className="px-3 py-2">Total</th>
+                    <th className="px-3 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(query.data?.approvals ?? []).map((row) => (
+                    <tr key={row.id} className="border-t">
+                      <td className="px-3 py-2">{row.monthKey}</td>
+                      <td className="px-3 py-2">{inr(row.grossIncentive)}</td>
+                      <td className="px-3 py-2">{inr(row.cashAmount)}</td>
+                      <td className="px-3 py-2">{inr(row.esopAmount)}</td>
+                      <td className="px-3 py-2">{inr(row.totalPayable)}</td>
+                      <td className="px-3 py-2">
+                        {row.status.replaceAll("_", " ")}
+                        {row.rejectionReason ? ` — ${row.rejectionReason}` : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
           <div className="overflow-x-auto rounded-lg border">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-100 text-xs uppercase dark:bg-slate-900">

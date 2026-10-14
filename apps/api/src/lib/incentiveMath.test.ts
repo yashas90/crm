@@ -43,6 +43,8 @@ describe("slabIncentive", () => {
       aboveRate: 0.15,
     });
     expect(result.incentive).toBe(15_000);
+    expect(result.aboveIncentive).toBe(15_000);
+    expect(result.tillIncentive).toBe(0);
     const split = splitEsop(result.incentive);
     expect(split.esop).toBe(3_000);
     expect(split.cash).toBe(12_000);
@@ -58,6 +60,8 @@ describe("slabIncentive", () => {
       aboveRate: 0.15,
     });
     expect(result.incentive).toBe(5_000);
+    expect(result.tillIncentive).toBe(5_000);
+    expect(result.aboveIncentive).toBe(0);
   });
 });
 

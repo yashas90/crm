@@ -1,3 +1,5 @@
+import { formatINR } from "@propninja/types/money";
+
 export const TCF_SEGMENTS = ["Primary"] as const;
 export const TCF_CHANNELS = ["Direct"] as const;
 export const TCF_CURRENCIES = ["INR"] as const;
@@ -328,10 +330,5 @@ export function currentQuarterKey(now = new Date()) {
 }
 
 export function inr(value: number | string | null | undefined) {
-  const amount = Number(value ?? 0);
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(amount) ? amount : 0);
+  return formatINR(value);
 }

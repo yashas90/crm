@@ -4,6 +4,7 @@ import { type LeadRow, useLeads } from "@/hooks/use-leads";
 import { type PipelineStageView, usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { apiPatch } from "@/lib/apiClient";
 import { toast } from "@/lib/toast";
+import { formatINR } from "@propninja/types/money";
 import { Button } from "@propninja/ui/button";
 import { cn } from "@propninja/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -77,7 +78,7 @@ function LeadCard({
 
       {lead.estimatedValue ? (
         <p className="mt-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-          ₹{Number(lead.estimatedValue).toLocaleString("en-IN")}
+          {formatINR(Number(lead.estimatedValue))}
         </p>
       ) : null}
 
@@ -127,9 +128,7 @@ function KanbanColumn({
           </span>
         </div>
         {totalValue > 0 ? (
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            ₹{totalValue.toLocaleString("en-IN")}
-          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{formatINR(totalValue)}</p>
         ) : null}
       </div>
 

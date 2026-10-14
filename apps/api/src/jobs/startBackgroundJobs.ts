@@ -8,10 +8,12 @@ import { pruneSecurityWindows } from "../middleware/securityMonitoring.js";
 import { syncPagesFormsAndSubscribe } from "../services/metaPageSyncService.js";
 import { purgeExpiredRefreshSessions } from "../services/refreshTokenService.js";
 import { startAgeOutNewLeadsJob } from "./ageOutNewLeadsJob.js";
+import { startApprovalJob } from "./approvalJob.js";
 import { startContactPoolJob } from "./contactPoolJob.js";
 import { startDailyFollowUpJobs } from "./dailyFollowUpJob.js";
 import { startFollowupReminderJob } from "./followUpReminderJob.js";
 import { startLeadScoringJob } from "./leadScoringJob.js";
+import { startLeaderboardJob } from "./leaderboardJob.js";
 import { startMetaLeadContinuity } from "./metaLeadContinuityJob.js";
 import { startNaPoolJob } from "./naPoolJob.js";
 import { startPurgeExpiredLeadsJob } from "./purgeExpiredLeadsJob.js";
@@ -63,6 +65,8 @@ export async function startBackgroundJobs() {
     startTaskDueNotificationJob();
     startWhatsAppBlasterJob();
     startContactPoolJob();
+    startApprovalJob();
+    startLeaderboardJob();
     return;
   }
 
@@ -79,6 +83,8 @@ export async function startBackgroundJobs() {
   startTaskDueNotificationJob();
   startWhatsAppBlasterJob();
   startContactPoolJob();
+  startApprovalJob();
+  startLeaderboardJob();
   setInterval(
     () => {
       void syncPagesFormsAndSubscribe().catch((err) => {

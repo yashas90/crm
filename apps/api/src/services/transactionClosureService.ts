@@ -9,12 +9,14 @@ import { ZodError } from "zod";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import type { Database } from "../lib/db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
+import { logger } from "../lib/logger.js";
 import {
   type TcfFormInput,
   readTcfForm,
   submitErrors,
 } from "../lib/validators/transactionClosures.js";
 import type { AuthUser } from "../middleware/auth.js";
+import { onLeaderboardDealChanged } from "./leaderboardService.js";
 import { createNotificationService } from "./notificationService.js";
 
 type Status = "draft" | "pending_approval" | "approved" | "rejected";
@@ -159,6 +161,17 @@ async function getRow(db: Database, id: string) {
     .limit(1);
   if (!row) throw notFound("Transaction closure not found");
   return row;
+}
+
+async function refreshLeaderboard(db: Database, tcfId: string, announce: boolean) {
+  try {
+    await onLeaderboardDealChanged(db, tcfId, announce);
+  } catch (err) {
+    logger.warn("Leaderboard refresh after a collected deal failed", {
+      tcfId,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 function assertCanEdit(user: AuthUser, row: typeof transactionClosures.$inferSelect) {
@@ -334,6 +347,9 @@ export function createTransactionClosureService(db: Database) {
         })
         .where(eq(transactionClosures.id, id));
       await addEvent(db, id, user.id, decision, reason);
+      if (decision === "approved" && row.invoiceStatus === "collected") {
+        await refreshLeaderboard(db, id, true);
+      }
       if (row.createdBy) {
         await createNotificationService(db).createNotification(row.createdBy, "tcf_reviewed", {
           title: decision === "approved" ? "TCF approved" : "TCF rejected",
@@ -366,6 +382,11 @@ export function createTransactionClosureService(db: Database) {
         .set({ invoiceStatus, form, updatedAt: new Date() })
         .where(eq(transactionClosures.id, id));
       await addEvent(db, id, user.id, "invoice_updated", invoiceStatus);
+      const wasCounted = row.status === "approved" && row.invoiceStatus === "collected";
+      const willBeCounted = row.status === "approved" && invoiceStatus === "collected";
+      if (wasCounted || willBeCounted) {
+        await refreshLeaderboard(db, id, willBeCounted && !wasCounted);
+      }
       return this.get(user, id);
     },
 

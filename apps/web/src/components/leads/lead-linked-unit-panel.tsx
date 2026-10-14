@@ -3,6 +3,7 @@
 import { openBookingPdf } from "@/hooks/use-bookings";
 import type { LeadLinkedUnit } from "@/hooks/use-message-templates";
 import { UNIT_STATUS_LABELS, type UnitStatus } from "@propninja/types";
+import { formatINR } from "@propninja/types/money";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { cn } from "@propninja/ui/lib/utils";
@@ -18,7 +19,7 @@ const STATUS_STYLES: Record<UnitStatus, string> = {
 
 function formatPrice(value: number | string) {
   const n = typeof value === "string" ? Number(value) : value;
-  return `₹${n.toLocaleString("en-IN")}`;
+  return formatINR(n);
 }
 
 type LeadLinkedUnitPanelProps = {

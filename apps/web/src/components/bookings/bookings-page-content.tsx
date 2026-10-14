@@ -2,6 +2,7 @@
 
 import { currentMonthIsoRange, openBookingPdf, useBookings } from "@/hooks/use-bookings";
 import { usePermissions } from "@/hooks/use-permissions";
+import { formatINR } from "@propninja/types/money";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
 import { Input } from "@propninja/ui/input";
@@ -17,7 +18,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 function formatPrice(value: number) {
-  return `₹${value.toLocaleString("en-IN")}`;
+  return formatINR(value);
 }
 
 export function BookingsPageContent() {
