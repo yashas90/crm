@@ -4,6 +4,7 @@ import { useIsAgent, useIsManager } from "@/hooks/use-role";
 import { useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useOpenTaskCount } from "@/hooks/use-tasks";
 import { apiGet } from "@/lib/apiClient";
+import { CALLING_QUEUE_QUERY } from "@/lib/callingQueueList";
 import { LeadsStack } from "@/navigation/LeadsStack";
 import { ScrollableTabBar } from "@/navigation/ScrollableTabBar";
 import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
@@ -82,12 +83,9 @@ export function MainTabs({ onLogout }: MainTabsProps) {
     queryKey: ["calling-stats"],
     queryFn: () => apiGet<{ badge: number }>("/api/agent/calling-data/stats"),
     enabled: isAgent,
-    retry: false,
-    refetchInterval: false,
-    // Same cache as the calling list. A dialer-focus refetch rewrites it and
-    // the list header changes underneath the agent.
-    refetchOnWindowFocus: false,
-    meta: { suppressErrorToast: true },
+    // Dialer return must not refetch this shared cache. A new stats object
+    // rebuilds the calling-list header and Android jumps the queue to the top.
+    ...CALLING_QUEUE_QUERY,
   });
   const leadsBadgeQuery = useQuery({
     queryKey: ["my-leads-stats"],

@@ -1,4 +1,11 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
+import {
+  CALLING_LIST_QUERY,
+  CALLING_QUEUE_QUERY,
+  applyOutcomeToCallingRows,
+  callingListRestoreOffset,
+  resolveDisplayedCallingRows,
+} from "@/lib/callingQueueList";
 import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { dialPhoneNumber } from "@/lib/phoneActions";
 import type { MainTabParamList } from "@/navigation/types";
@@ -6,11 +13,24 @@ import { colors, radii, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  AppState,
   FlatList,
+  Keyboard,
   Modal,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -57,16 +77,42 @@ const CITIES = ["", "Bangalore", "Mumbai", "Delhi", "Hyderabad", "Chennai", "Pun
 /** Same array every render so FlatList does not treat "no rows yet" as new data. */
 const EMPTY_CALLING_ROWS: CallingRow[] = [];
 
-/**
- * Dialer return focuses the app. A window-focus refetch replaces `data` and
- * Android snaps this list back to the top under the agent.
- */
-const CALLING_QUERY = {
-  retry: false,
-  refetchInterval: false,
-  refetchOnWindowFocus: false,
-  meta: { suppressErrorToast: true },
-} as const;
+type CallingStats = {
+  remaining: number;
+  pending: number;
+  retry: number;
+  callbacks: number;
+  badge?: number;
+};
+
+type HeaderModel = {
+  remainingLabel: number;
+  pending: number;
+  retry: number;
+  callbacks: number;
+  contactsRequestedToday: number;
+  maxDailyLimit: number;
+  remainingToday: number;
+  paused: boolean;
+  resetsAt: string | null;
+  limitReached: boolean;
+  search: string;
+  onSearch: (value: string) => void;
+  onCity: (value: string) => void;
+  propertyType: string | null;
+  onPropertyType: (value: string | null) => void;
+  onRequest: () => void;
+  message: string | null;
+};
+
+const CallingHeaderContext = createContext<HeaderModel | null>(null);
+
+/** Stable type so a stats tick cannot swap the FlatList header element (Android jumps to top). */
+function CallingDataListHeader() {
+  const model = useContext(CallingHeaderContext);
+  if (!model) return null;
+  return <CallingListHeader {...model} />;
+}
 
 export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList, "CallingTab">) {
   const insets = useSafeAreaInsets();
@@ -81,18 +127,24 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const listRef = useRef<FlatList<CallingRow>>(null);
+  const scrollOffsetRef = useRef(0);
+  const heldOffsetRef = useRef<number | null>(null);
+  const displayedRef = useRef<readonly CallingRow[]>(EMPTY_CALLING_ROWS);
+  const searchRef = useRef(search);
+  const activeRef = useRef(active);
+  searchRef.current = search;
+  activeRef.current = active;
+
   const status = useQuery({
     queryKey: ["calling-daily-status"],
     queryFn: () => apiGet<DailyStatus>("/api/agent/daily-status"),
-    ...CALLING_QUERY,
+    ...CALLING_LIST_QUERY,
   });
   const stats = useQuery({
     queryKey: ["calling-stats"],
-    queryFn: () =>
-      apiGet<{ remaining: number; pending: number; retry: number; callbacks: number }>(
-        "/api/agent/calling-data/stats",
-      ),
-    ...CALLING_QUERY,
+    queryFn: () => apiGet<CallingStats>("/api/agent/calling-data/stats"),
+    ...CALLING_QUEUE_QUERY,
   });
   const list = useQuery({
     queryKey: ["calling-data", search],
@@ -100,7 +152,8 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
       apiGet<CallingRow[]>(
         `/api/agent/calling-data${search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ""}`,
       ),
-    ...CALLING_QUERY,
+    placeholderData: keepPreviousData,
+    ...CALLING_LIST_QUERY,
   });
 
   const request = useMutation({
@@ -119,9 +172,8 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
         data.denialReason ??
           `${data.contactsAssigned} contacts assigned.${data.alreadyLeads?.[0] ? ` ${data.alreadyLeads[0].message}` : ""}`,
       );
-      await queryClient.invalidateQueries({ queryKey: ["calling-data"] });
-      await queryClient.invalidateQueries({ queryKey: ["calling-stats"] });
-      await queryClient.invalidateQueries({ queryKey: ["calling-daily-status"] });
+      // Explicit reload only. invalidateQueries is a no-op on the static list query.
+      await Promise.all([list.refetch(), stats.refetch(), status.refetch()]);
     },
     onError: (error) => setMessage(error instanceof Error ? error.message : "Request failed"),
   });
@@ -129,7 +181,13 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   const save = useMutation({
     mutationFn: () => {
       if (!active || !outcome) throw new Error("Choose an outcome");
-      return apiPost<{ message: string; leadCode: string | null }>("/api/agent/log-outcome", {
+      return apiPost<{
+        message: string;
+        leadCode: string | null;
+        removed?: boolean;
+        callingStatus?: string;
+        callAttempts?: number;
+      }>("/api/agent/log-outcome", {
         record_id: active.recordId,
         outcome,
         notes: notes || null,
@@ -137,20 +195,36 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
       });
     },
     onSuccess: async (data) => {
+      const row = activeRef.current;
+      const queueKey = ["calling-data", searchRef.current] as const;
       setMessage(data.leadCode ? `Lead ${data.leadCode} created` : data.message);
+      if (row) {
+        queryClient.setQueryData<CallingRow[]>(queueKey, (current) => {
+          const next = applyOutcomeToCallingRows(current, row.recordId, data);
+          return next ? [...next] : current;
+        });
+        const rowsNow = queryClient.getQueryData<CallingRow[]>(queueKey);
+        if (rowsNow) {
+          queryClient.setQueryData<CallingStats>(["calling-stats"], (current) =>
+            statsFromRows(rowsNow, current),
+          );
+        }
+      }
       setActive(null);
       setOutcome(null);
       setNotes("");
-      await queryClient.invalidateQueries({ queryKey: ["calling-data"] });
-      await queryClient.invalidateQueries({ queryKey: ["calling-stats"] });
       await queryClient.invalidateQueries({ queryKey: ["my-leads"] });
     },
     onError: (error) => setMessage(error instanceof Error ? error.message : "Could not save"),
   });
 
+  const callInProgress = active != null;
+  const incoming = list.data ?? EMPTY_CALLING_ROWS;
+  const rows = resolveDisplayedCallingRows(displayedRef.current, incoming, callInProgress);
+  displayedRef.current = rows;
+
   const remainingToday = status.data?.remaining ?? 0;
   const limitReached = remainingToday <= 0 || Boolean(status.data?.paused);
-  const rows = list.data ?? EMPTY_CALLING_ROWS;
   const headerCounts = useMemo(
     () => ({
       pending: stats.data?.pending ?? rows.filter((row) => row.status === "pending").length,
@@ -164,28 +238,26 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
     request.mutate();
   }, [request.mutate]);
 
-  const listHeader = useMemo(
-    () => (
-      <CallingListHeader
-        remainingLabel={stats.data?.remaining ?? rows.length}
-        pending={headerCounts.pending}
-        retry={headerCounts.retry}
-        callbacks={headerCounts.callbacks}
-        contactsRequestedToday={status.data?.contactsRequestedToday ?? 0}
-        maxDailyLimit={status.data?.maxDailyLimit ?? 200}
-        remainingToday={remainingToday}
-        paused={Boolean(status.data?.paused)}
-        resetsAt={status.data?.resetsAt ?? null}
-        limitReached={limitReached}
-        search={search}
-        onSearch={setSearch}
-        onCity={setCity}
-        propertyType={propertyType}
-        onPropertyType={setPropertyType}
-        onRequest={onRequest}
-        message={message}
-      />
-    ),
+  const liveHeader = useMemo<HeaderModel>(
+    () => ({
+      remainingLabel: stats.data?.remaining ?? rows.length,
+      pending: headerCounts.pending,
+      retry: headerCounts.retry,
+      callbacks: headerCounts.callbacks,
+      contactsRequestedToday: status.data?.contactsRequestedToday ?? 0,
+      maxDailyLimit: status.data?.maxDailyLimit ?? 200,
+      remainingToday,
+      paused: Boolean(status.data?.paused),
+      resetsAt: status.data?.resetsAt ?? null,
+      limitReached,
+      search,
+      onSearch: setSearch,
+      onCity: setCity,
+      propertyType,
+      onPropertyType: setPropertyType,
+      onRequest,
+      message,
+    }),
     [
       headerCounts,
       limitReached,
@@ -202,8 +274,13 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
       status.data?.resetsAt,
     ],
   );
+  const frozenHeaderRef = useRef(liveHeader);
+  if (!callInProgress) frozenHeaderRef.current = liveHeader;
+  const headerModel = callInProgress ? frozenHeaderRef.current : liveHeader;
 
   const onCallRow = useCallback((item: CallingRow) => {
+    heldOffsetRef.current = scrollOffsetRef.current;
+    Keyboard.dismiss();
     void dialPhoneNumber(item.phone);
     setActive(item);
     setOutcome(null);
@@ -223,31 +300,70 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
     [insets.bottom],
   );
 
-  const refreshing = list.isRefetching || stats.isRefetching || status.isRefetching;
+  const [userRefreshing, setUserRefreshing] = useState(false);
   const onRefresh = useCallback(() => {
-    void Promise.all([list.refetch(), stats.refetch(), status.refetch()]);
+    setUserRefreshing(true);
+    void Promise.all([list.refetch(), stats.refetch(), status.refetch()]).finally(() => {
+      setUserRefreshing(false);
+    });
   }, [list.refetch, stats.refetch, status.refetch]);
 
   const refreshControl = useMemo(
     () => (
-      <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+      <RefreshControl
+        refreshing={userRefreshing}
+        onRefresh={onRefresh}
+        tintColor={colors.primary}
+      />
     ),
-    [onRefresh, refreshing],
+    [onRefresh, userRefreshing],
   );
+
+  const onListScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+  }, []);
+
+  useEffect(() => {
+    if (!callInProgress) return;
+    void queryClient.cancelQueries({ queryKey: ["calling-data"] });
+    void queryClient.cancelQueries({ queryKey: ["calling-daily-status"] });
+  }, [callInProgress, queryClient]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "background" || next === "inactive") Keyboard.dismiss();
+    });
+    return () => sub.remove();
+  }, []);
+
+  useLayoutEffect(() => {
+    const offset = callingListRestoreOffset(callInProgress, heldOffsetRef.current);
+    if (offset == null) return;
+    heldOffsetRef.current = null;
+    listRef.current?.scrollToOffset({ offset, animated: false });
+  }, [callInProgress]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.sm }]}>
-      <FlatList
-        testID="calling-data-list"
-        data={rows}
-        keyExtractor={callingRowKey}
-        contentContainerStyle={contentContainerStyle}
-        ListHeaderComponent={listHeader}
-        renderItem={renderItem}
-        refreshControl={refreshControl}
-        ListEmptyComponent={CallingListEmpty}
-        {...FLAT_LIST_PERF}
-      />
+      <CallingHeaderContext.Provider value={headerModel}>
+        <FlatList
+          ref={listRef}
+          testID="calling-data-list"
+          data={rows}
+          extraData={headerModel}
+          keyExtractor={callingRowKey}
+          contentContainerStyle={contentContainerStyle}
+          ListHeaderComponent={CallingDataListHeader}
+          renderItem={renderItem}
+          refreshControl={refreshControl}
+          ListEmptyComponent={CallingListEmpty}
+          onScroll={onListScroll}
+          scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
+          {...FLAT_LIST_PERF}
+          removeClippedSubviews={false}
+        />
+      </CallingHeaderContext.Provider>
 
       <Modal visible={active != null} animationType="slide" onRequestClose={() => undefined}>
         <View style={[styles.modal, { paddingTop: insets.top + spacing.md }]}>
@@ -304,6 +420,23 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
 
 function callingRowKey(item: CallingRow) {
   return item.recordId;
+}
+
+function statsFromRows(
+  rows: readonly CallingRow[],
+  previous: CallingStats | undefined,
+): CallingStats {
+  const pending = rows.filter((row) => row.status === "pending").length;
+  const retry = rows.filter((row) => row.status === "retry").length;
+  const callbacks = rows.filter((row) => row.status === "callback").length;
+  return {
+    ...previous,
+    remaining: rows.length,
+    pending,
+    retry,
+    callbacks,
+    badge: pending + callbacks,
+  };
 }
 
 function CallingListEmpty() {
@@ -408,6 +541,8 @@ function CallingRowCard({
   item: CallingRow;
   onCall: (item: CallingRow) => void;
 }) {
+  // Freeze the relative time so a parent re-render cannot change row height and shove the list.
+  const [assignedLabel] = useState(() => timeSince(item.assignedAt));
   return (
     <View style={styles.card}>
       <Text style={styles.name}>{item.name}</Text>
@@ -416,7 +551,7 @@ function CallingRowCard({
         {[item.city, item.budget, item.propertyType, item.bedrooms].filter(Boolean).join(" · ")}
       </Text>
       <Text style={styles.badge}>
-        {labelFor(item.status)} · attempt {item.callAttempts}/3 · {timeSince(item.assignedAt)}
+        {labelFor(item.status)} · attempt {item.callAttempts}/3 · {assignedLabel}
       </Text>
       <Pressable style={styles.call} onPress={() => onCall(item)}>
         <Text style={styles.primaryText}>Call</Text>

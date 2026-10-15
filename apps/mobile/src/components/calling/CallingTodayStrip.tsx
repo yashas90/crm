@@ -1,4 +1,5 @@
 import { apiGet } from "@/lib/apiClient";
+import { CALLING_QUEUE_QUERY } from "@/lib/callingQueueList";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing } from "@/theme";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -14,10 +15,7 @@ export function CallingTodayStrip() {
       apiGet<{ remaining: number; pending: number; callbacks: number; calledToday: number }>(
         "/api/agent/calling-data/stats",
       ),
-    retry: false,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
-    meta: { suppressErrorToast: true },
+    ...CALLING_QUEUE_QUERY,
   });
   const leads = useQuery({
     queryKey: ["my-leads-stats"],

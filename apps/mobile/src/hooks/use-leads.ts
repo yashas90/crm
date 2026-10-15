@@ -2,6 +2,7 @@ import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { getCurrentUserId, getUser, normalizeRole } from "@/lib/auth";
 import { todayRange } from "@/lib/dates";
 import { cancelFollowUpReminder, scheduleFollowUpReminder } from "@/lib/followUpLocalReminders";
+import { resolveNextLeadPage } from "@/lib/lead-list";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
 import { LIST_PAGE_SIZE, QUERY_STALE } from "@/lib/queryStale";
 import { useAuth } from "@/providers/auth-provider";
@@ -250,18 +251,8 @@ export function useInfiniteLeads(query: Omit<LeadsQuery, "page"> = {}) {
         `/api/leads?${params.toString()}`,
       );
     },
-    getNextPageParam: (lastPage) => {
-      if (
-        !lastPage ||
-        typeof lastPage.total !== "number" ||
-        typeof lastPage.pageSize !== "number"
-      ) {
-        return undefined;
-      }
-      const pageSize = Math.max(1, lastPage.pageSize);
-      const totalPages = Math.max(1, Math.ceil(lastPage.total / pageSize));
-      return lastPage.page < totalPages ? lastPage.page + 1 : undefined;
-    },
+    getNextPageParam: (lastPage, allPages, _lastPageParam, allPageParams) =>
+      resolveNextLeadPage(lastPage, allPages, allPageParams),
     enabled: ready,
     staleTime: LEAD_STALE_MS,
     placeholderData: keepPreviousData,

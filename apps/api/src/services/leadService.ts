@@ -44,6 +44,7 @@ import { coldCutoffDate, daysOverdue, daysSinceContact } from "../lib/followUp.j
 import { inferFollowupType } from "../lib/followupType.js";
 import type { LeadAdvancedListQuery } from "../lib/leadAdvancedListQuery.js";
 import { isLeadCodeUniqueViolation, withAllocatedLeadCode } from "../lib/leadCode.js";
+import { orderRowsByIds } from "../lib/leadListRows.js";
 import { normalizeStoredPhone, phoneLast10Digits, phoneMatchVariants } from "../lib/leadPhone.js";
 import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
@@ -689,59 +690,74 @@ export const leadService = {
     const offset = (page - 1) * pageSize;
     const whereClause = buildListWhere(params);
 
-    const [rows, [{ count }]] = await Promise.all([
-      db
-        .select({
-          id: leads.id,
-          leadCode: leads.leadCode,
-          assignedTo: leads.assignedTo,
-          firstName: leads.firstName,
-          lastName: leads.lastName,
-          email: leads.email,
-          phone: leads.phone,
-          secondaryPhone: leads.secondaryPhone,
-          city: leads.city,
-          state: leads.state,
-          leadStatus: leads.leadStatus,
-          temperature: leads.temperature,
-          leadSource: leads.leadSource,
-          projectName: leads.projectName,
-          projectId: leads.projectId,
-          estimatedValue: leads.estimatedValue,
-          notes: leads.notes,
-          tags: leads.tags,
-          score: leads.score,
-          customFields: leads.customFields,
-          lastContactedAt: leads.lastContactedAt,
-          lastActivityAt: leads.lastActivityAt,
-          slaBreachedAt: leads.slaBreachedAt,
-          nextFollowupAt: leads.nextFollowupAt,
-          followUpCount: leads.followUpCount,
-          createdAt: leads.createdAt,
-          updatedAt: leads.updatedAt,
-          linkedProjectName: projects.name,
-          assigneeId: users.id,
-          assigneeName: users.name,
-          assigneeEmail: users.email,
-        })
-        .from(leads)
-        .leftJoin(users, eq(leads.assignedTo, users.id))
-        .leftJoin(projects, eq(leads.projectId, projects.id))
-        .where(whereClause)
-        .orderBy(
-          params.slaOnly
-            ? sql`${lastEngagementAtSql()} asc`
-            : params.orderByFollowUp
-              ? asc(leads.nextFollowupAt)
-              : desc(leads.createdAt),
-        )
-        .limit(pageSize)
-        .offset(offset),
+    // Page by lead id before joining assignee/project. A join match must not
+    // turn one lead into many rows or shift OFFSET onto the same id again.
+    const idQuery = db.select({ id: leads.id }).from(leads).where(whereClause);
+    const orderedIdQuery = params.slaOnly
+      ? idQuery.orderBy(sql`${lastEngagementAtSql()} asc`, asc(leads.id))
+      : params.orderByFollowUp
+        ? idQuery.orderBy(asc(leads.nextFollowupAt), asc(leads.id))
+        : idQuery.orderBy(desc(leads.createdAt), asc(leads.id));
+
+    const [idRows, [{ count }]] = await Promise.all([
+      orderedIdQuery.limit(pageSize).offset(offset),
       db.select({ count: sql<number>`count(*)::int` }).from(leads).where(whereClause),
     ]);
 
-    return {
-      items: rows.map((row) => ({
+    const orderedIds: string[] = [];
+    const seenIds = new Set<string>();
+    for (const row of idRows) {
+      if (!row.id || seenIds.has(row.id)) continue;
+      seenIds.add(row.id);
+      orderedIds.push(row.id);
+    }
+
+    if (orderedIds.length === 0) {
+      return { items: [], page, pageSize, total: Number(count) };
+    }
+
+    const rows = await db
+      .select({
+        id: leads.id,
+        leadCode: leads.leadCode,
+        assignedTo: leads.assignedTo,
+        firstName: leads.firstName,
+        lastName: leads.lastName,
+        email: leads.email,
+        phone: leads.phone,
+        secondaryPhone: leads.secondaryPhone,
+        city: leads.city,
+        state: leads.state,
+        leadStatus: leads.leadStatus,
+        temperature: leads.temperature,
+        leadSource: leads.leadSource,
+        projectName: leads.projectName,
+        projectId: leads.projectId,
+        estimatedValue: leads.estimatedValue,
+        notes: leads.notes,
+        tags: leads.tags,
+        score: leads.score,
+        customFields: leads.customFields,
+        lastContactedAt: leads.lastContactedAt,
+        lastActivityAt: leads.lastActivityAt,
+        slaBreachedAt: leads.slaBreachedAt,
+        nextFollowupAt: leads.nextFollowupAt,
+        followUpCount: leads.followUpCount,
+        createdAt: leads.createdAt,
+        updatedAt: leads.updatedAt,
+        linkedProjectName: projects.name,
+        assigneeId: users.id,
+        assigneeName: users.name,
+        assigneeEmail: users.email,
+      })
+      .from(leads)
+      .leftJoin(users, eq(leads.assignedTo, users.id))
+      .leftJoin(projects, eq(leads.projectId, projects.id))
+      .where(and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), inArray(leads.id, orderedIds)));
+
+    const items = orderRowsByIds(
+      orderedIds,
+      rows.map((row) => ({
         id: row.id,
         leadCode: row.leadCode,
         assignedTo: row.assignedTo,
@@ -773,6 +789,10 @@ export const leadService = {
           ? { id: row.assigneeId, name: row.assigneeName ?? "", email: row.assigneeEmail ?? "" }
           : null,
       })),
+    );
+
+    return {
+      items,
       page,
       pageSize,
       total: Number(count),

@@ -11,6 +11,7 @@ import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { getCurrentUserId } from "@/lib/auth";
 import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { buildLeadBrowserParams } from "@/lib/lead-browser";
+import { flattenLeadPages } from "@/lib/lead-list";
 import { isNaLeadStatus } from "@/lib/lead-status-options";
 import {
   type MobileLeadFilters,
@@ -103,19 +104,13 @@ export function LeadsScreen({ navigation }: Props) {
   } = useInfiniteLeads(queryParams);
   useRefreshOnFocus(refetch);
 
-  const visibleLeads = useMemo(() => {
-    const pages = data?.pages;
-    if (!pages?.length) return [] as LeadRow[];
-    const flat: LeadRow[] = [];
-    for (const page of pages) {
-      if (!Array.isArray(page?.items)) continue;
-      for (const lead of page.items) {
-        if (!debouncedSearch && isAgent && isNaLeadStatus(lead.leadStatus)) continue;
-        flat.push(lead);
-      }
-    }
-    return flat;
-  }, [data?.pages, isAgent, debouncedSearch]);
+  const visibleLeads = useMemo(
+    () =>
+      flattenLeadPages(data?.pages, {
+        omit: (lead) => !debouncedSearch && isAgent && isNaLeadStatus(lead.leadStatus),
+      }),
+    [data?.pages, isAgent, debouncedSearch],
+  );
 
   const total = data?.pages[0]?.total ?? visibleLeads.length;
   const showInitialLoading = (isPending || isLoading) && !data;
@@ -135,10 +130,11 @@ export function LeadsScreen({ navigation }: Props) {
   );
 
   const onEndReached = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) {
-      void fetchNextPage();
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    // Refresh replaces pages. Ignore end-reached while that replace is in flight
+    // so it cannot append another copy of the current page.
+    if (isRefetching || !hasNextPage || isFetchingNextPage) return;
+    void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, isRefetching, fetchNextPage]);
 
   const onRefresh = useCallback(() => {
     void refetch();

@@ -1,6 +1,7 @@
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { QueryErrorBanner } from "@/components/ui/QueryErrorBanner";
 import { useStaleQueryBanner } from "@/hooks/useStaleQueryBanner";
+import { isCallingListQueryKey } from "@/lib/callingQueueList";
 import { flushLocationPingQueue } from "@/lib/locationTracking";
 import { setNetworkOnline } from "@/lib/networkState";
 import { flushOfflineQueue } from "@/lib/offlineQueue";
@@ -44,7 +45,12 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
       if (wasOffline.current) {
         wasOffline.current = false;
         void queryClient.resumePausedMutations();
-        void queryClient.invalidateQueries({ refetchType: "active" });
+        // Phone calls flicker NetInfo. Refreshing the calling queue here replaces
+        // the FlatList data and Android scrolls it back to the top under the agent.
+        void queryClient.invalidateQueries({
+          refetchType: "active",
+          predicate: (query) => !isCallingListQueryKey(query.queryKey),
+        });
         void Promise.all([flushOfflineQueue(), flushLocationPingQueue()]).then(
           ([callSynced, locationSynced]) => {
             const synced = callSynced + locationSynced;
