@@ -8,11 +8,12 @@ import { SINGLE_TENANT_ORG_ID } from "./constants.js";
 const cache = new NodeCache({ stdTTL: 0, checkperiod: 120, useClones: false });
 
 export const CACHE_TTL = {
-  analytics: 5 * 60,
+  analytics: 60,
   reports: 5 * 60,
   reportsLeaderboard: 10 * 60,
-  leaderboard: 5 * 60,
-  morningBrief: 3 * 60,
+  leaderboard: 60,
+  morningBrief: 30,
+  adminOverview: 30,
   projects: 10 * 60,
   documents: 5 * 60,
   org: 30 * 60,
@@ -72,12 +73,16 @@ export function resolveTtlSeconds(pathname: string): number | null {
     return CACHE_TTL.analytics;
   }
 
+  if (pathname === "/api/reports/dashboard" || pathname === "/api/reports/overview") {
+    return CACHE_TTL.adminOverview;
+  }
+
   if (pathname === "/api/dashboard/morning-brief") {
     return CACHE_TTL.morningBrief;
   }
 
   if (pathname === "/api/dashboard/admin-overview") {
-    return CACHE_TTL.reports;
+    return CACHE_TTL.adminOverview;
   }
 
   if (pathname.startsWith("/api/leaderboard")) {

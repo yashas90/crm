@@ -1,5 +1,10 @@
+import { addDaysToDateKey, istWallClockToDate } from "@propninja/types/ist";
 import { describe, expect, it } from "vitest";
-import { callsReportFiltersToQueryParams } from "./calls-report-filters";
+import {
+  callsReportFiltersToApiRange,
+  callsReportFiltersToQueryParams,
+  defaultCallsReportFilters,
+} from "./calls-report-filters";
 
 describe("calls report filters", () => {
   it("includes withTeam in API query params when enabled", () => {
@@ -23,6 +28,18 @@ describe("calls report filters", () => {
       projectStatus: undefined,
       campaignName: undefined,
     });
+  });
+
+  it("bounds a selected calendar day in IST", () => {
+    const range = callsReportFiltersToApiRange({
+      ...defaultCallsReportFilters(),
+      datePreset: "custom",
+      dateFrom: "2026-10-15",
+      dateTo: "2026-10-15",
+    });
+    const end = new Date(istWallClockToDate(addDaysToDateKey("2026-10-15", 1), 0, 0).getTime() - 1);
+    expect(range.dateFrom).toBe(istWallClockToDate("2026-10-15", 0, 0).toISOString());
+    expect(range.dateTo).toBe(end.toISOString());
   });
 
   it("omits withTeam when disabled", () => {

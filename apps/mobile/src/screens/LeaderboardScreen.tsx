@@ -68,8 +68,9 @@ export function LeaderboardScreen() {
   const query = useQuery({
     queryKey: ["leaderboard", period, scope],
     queryFn: () => apiGet<Payload>(`/api/leaderboard?period=${period}&scope=${scope}`),
-    staleTime: 60_000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     meta: { suppressErrorToast: true },
   });
 

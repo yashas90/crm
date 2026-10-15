@@ -76,7 +76,9 @@ export function useAdminOverview(period: AdminDashboardPeriod, source: string, e
     queryFn: () => apiGet<AdminOverview>(`/api/dashboard/admin-overview?${params.toString()}`),
     enabled,
     placeholderData: keepPreviousData,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
     meta: SILENT_QUERY_ERROR_META,
   });
 }

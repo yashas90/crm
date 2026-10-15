@@ -4,7 +4,7 @@ import { apiGet, apiPost } from "@/lib/apiClient";
 import { SILENT_QUERY_ERROR_META } from "@/lib/query-meta";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-const ANALYTICS_STALE_TIME_MS = 5 * 60 * 1000;
+const ANALYTICS_STALE_TIME_MS = 60_000;
 
 export type AnalyticsKpi = {
   value: number;
@@ -74,6 +74,8 @@ export function useAnalyticsOverview(dateFrom: string, dateTo: string, enabled =
     enabled,
     placeholderData: keepPreviousData,
     staleTime: ANALYTICS_STALE_TIME_MS,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     meta: SILENT_QUERY_ERROR_META,
   });
 }

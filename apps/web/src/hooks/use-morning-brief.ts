@@ -112,7 +112,9 @@ export function useMorningBrief(enabled = true) {
     queryKey: ["morning-brief"],
     queryFn: () => apiGet<MorningBrief>("/api/dashboard/morning-brief"),
     enabled,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -293,6 +293,9 @@ export function useDashboardReport(dateFrom?: string, dateTo?: string, userId?: 
     queryKey: ["reports", "dashboard", dateFrom, dateTo, userId],
     queryFn: () =>
       apiGet<DashboardReport>(`/api/reports/dashboard${withDateRange(params.toString())}`),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     meta: SILENT_QUERY_ERROR_META,
   });
 }
@@ -376,6 +379,9 @@ export function useOverviewReport(params: DashboardReportParams & { enabled?: bo
     queryFn: () => apiGet<OverviewReport>(`/api/reports/overview${withDateRange(query)}`),
     enabled: enabled ?? true,
     placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     meta: { ...SILENT_QUERY_ERROR_META, errorContext: "overview" },
   });
 }

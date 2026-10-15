@@ -27,6 +27,7 @@ import {
 import { newLeadFreshnessCutoff } from "../lib/ageOutNewLeads.js";
 import { answeredCallFilter, connectedTalkTimeFilter } from "../lib/callTalkTime.js";
 import { expandTeamUserIds } from "../lib/callsReportScope.js";
+import { aggregateCombinedCalls, emptyCombinedCallStats } from "../lib/combinedCallStats.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
@@ -35,6 +36,7 @@ import {
   buildSourceGroupReport,
   formatSourceName,
 } from "../lib/leadSourceGroups.js";
+import { loadCombinedCallEvents } from "../lib/loadCombinedCallEvents.js";
 import {
   type ReportScope,
   priorPeriod,
@@ -566,16 +568,6 @@ function siteVisitReportLeadExistsFilter(query: CallsReportQuery) {
   return buildReportLeadExistsFilter(query, sql`sv.lead_id`);
 }
 
-function callPerUserScopeFilter(query: CallsReportQuery) {
-  const scope = leadScopeFromQuery(query);
-  const filters = [
-    callStartedFilter(scope, query.userIds?.length ? undefined : scope.userId, query.userIds),
-    callReportLeadExistsFilter(query),
-  ].filter(Boolean);
-
-  return and(...filters);
-}
-
 function leadActivityFilter(range: DateRange, userId?: string, userIds?: string[]) {
   const filters = [
     eq(leadActivities.orgId, SINGLE_TENANT_ORG_ID),
@@ -711,65 +703,6 @@ type CallsPerUserTotalsRow = Omit<CallsPerUserMetricsRow, "userId" | "userName">
 const connectedTalk = connectedTalkTimeFilter();
 const answeredCall = answeredCallFilter();
 
-const callsPerUserMetricsSelect = {
-  userId: users.id,
-  userName: users.name,
-  incomingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming' and ${answeredCall})::int`,
-  incomingMissed: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming' and ${callRecords.status} = 'missed')::int`,
-  incomingTotal: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'incoming')::int`,
-  outgoingAnswered: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and ${answeredCall})::int`,
-  outgoingNotConnected: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing' and not (${answeredCall}))::int`,
-  outgoingTotal: sql<number>`count(${callRecords.id}) filter (where ${callRecords.direction} = 'outgoing')::int`,
-  totalTalkTimeSeconds: sql<number>`coalesce(sum(${callRecords.durationSeconds}) filter (where ${connectedTalk}), 0)::int`,
-  avgTalkTimeSeconds: sql<number>`coalesce(round(avg(${callRecords.durationSeconds}) filter (where ${connectedTalk})), 0)::int`,
-  minTalkTimeSeconds: sql<number>`coalesce(min(${callRecords.durationSeconds}) filter (where ${connectedTalk}), 0)::int`,
-  maxTalkTimeSeconds: sql<number>`coalesce(max(${callRecords.durationSeconds}) filter (where ${connectedTalk}), 0)::int`,
-  totalCalls: sql<number>`count(${callRecords.id})::int`,
-};
-
-function siteVisitsCountExpr(query: CallsReportQuery, mode: "booked" | "conducted") {
-  const scope = leadScopeFromQuery(query);
-  const leadFilter = siteVisitReportLeadExistsFilter(query);
-  const leadFilterSql = leadFilter ?? sql`true`;
-
-  // Booked = when the visit was scheduled (created_at in range).
-  // Conducted = visits completed whose appointment day falls in range.
-  // Dates must be ISO strings in sql`` — postgres.js rejects Date bind params.
-  if (mode === "booked") {
-    const createdFrom = scope.dateFrom.toISOString();
-    const createdTo = scope.dateTo.toISOString();
-    return sql<number>`coalesce((
-      select count(*)::int from ${siteVisits} sv
-      where sv.agent_id = ${users.id}
-      and sv.org_id = ${SINGLE_TENANT_ORG_ID}
-      and sv.created_at >= ${createdFrom}
-      and sv.created_at <= ${createdTo}
-      and sv.status <> 'cancelled'
-      and ${leadFilterSql}
-    ), 0)::int`;
-  }
-
-  const dateFromKey = getIstDateKey(scope.dateFrom);
-  const dateToKey = getIstDateKey(scope.dateTo);
-  return sql<number>`coalesce((
-    select count(*)::int from ${siteVisits} sv
-    where sv.agent_id = ${users.id}
-    and sv.org_id = ${SINGLE_TENANT_ORG_ID}
-    and sv.visit_date >= ${dateFromKey}
-    and sv.visit_date <= ${dateToKey}
-    and sv.status = 'completed'
-    and ${leadFilterSql}
-  ), 0)::int`;
-}
-
-function siteVisitsBookedExpr(query: CallsReportQuery) {
-  return siteVisitsCountExpr(query, "booked");
-}
-
-function siteVisitsConductedExpr(query: CallsReportQuery) {
-  return siteVisitsCountExpr(query, "conducted");
-}
-
 function reportUsesLeadFilter(query: CallsReportQuery) {
   return Boolean(
     query.source ||
@@ -780,63 +713,6 @@ function reportUsesLeadFilter(query: CallsReportQuery) {
   );
 }
 
-type DeviceCallBucket =
-  | "incoming_answered"
-  | "incoming_missed"
-  | "outgoing_answered"
-  | "outgoing_not_connected"
-  | "connected"
-  | "all";
-
-type DeviceCallTotals = {
-  incomingAnswered: number;
-  incomingMissed: number;
-  outgoingAnswered: number;
-  outgoingNotConnected: number;
-  totalTalkTimeSeconds: number;
-  connectedCalls: number;
-  minTalkTimeSeconds: number | null;
-  maxTalkTimeSeconds: number | null;
-  totalCalls: number;
-};
-
-function deviceBucketCondition(callType: SQL, durationSeconds: SQL, bucket: DeviceCallBucket) {
-  const duration = sql`coalesce(${durationSeconds}, 0)`;
-  switch (bucket) {
-    case "incoming_answered":
-      return sql`${callType} = 'INCOMING' and ${duration} > 0`;
-    case "incoming_missed":
-      return sql`(
-        ${callType} in ('MISSED', 'REJECTED')
-        or (${callType} = 'INCOMING' and ${duration} = 0)
-      )`;
-    case "outgoing_answered":
-      return sql`${callType} not in ('INCOMING', 'MISSED', 'REJECTED') and ${duration} > 0`;
-    case "outgoing_not_connected":
-      return sql`${callType} not in ('INCOMING', 'MISSED', 'REJECTED') and ${duration} = 0`;
-    case "connected":
-      return sql`${callType} in ('INCOMING', 'OUTGOING', 'UNKNOWN') and ${duration} > 0`;
-    case "all":
-      return sql`true`;
-  }
-}
-
-/** OS call logs that are not already represented by a CRM call within two minutes. */
-function unmatchedDeviceLogWhere(fromIso: string, toIso: string) {
-  return sql`
-    acl.user_id = ${users.id}
-    and acl.call_start_time >= ${fromIso}
-    and acl.call_start_time <= ${toIso}
-    and not exists (
-      select 1 from ${callRecords} cr
-      where cr.user_id = acl.user_id
-        and cr.org_id = ${SINGLE_TENANT_ORG_ID}
-        and cr.started_at >= acl.call_start_time - interval '2 minutes'
-        and cr.started_at <= acl.call_start_time + interval '2 minutes'
-    )
-  `;
-}
-
 function unmatchedDeviceCallExistsSql() {
   return sql`not exists (
     select 1 from ${callRecords} cr
@@ -845,82 +721,6 @@ function unmatchedDeviceCallExistsSql() {
       and cr.started_at >= ${agentCallLogs.callStartTime} - interval '2 minutes'
       and cr.started_at <= ${agentCallLogs.callStartTime} + interval '2 minutes'
   )`;
-}
-
-function deviceCallCountExpr(query: CallsReportQuery, bucket: DeviceCallBucket) {
-  if (reportUsesLeadFilter(query)) return sql<number>`0`;
-  const scope = leadScopeFromQuery(query);
-  const bucketSql = deviceBucketCondition(sql`acl.call_type`, sql`acl.duration_seconds`, bucket);
-  return sql<number>`coalesce((
-    select count(*)::int from ${agentCallLogs} acl
-    where ${unmatchedDeviceLogWhere(scope.dateFrom.toISOString(), scope.dateTo.toISOString())}
-      and ${bucketSql}
-  ), 0)::int`;
-}
-
-function deviceCallTalkSumExpr(query: CallsReportQuery) {
-  if (reportUsesLeadFilter(query)) return sql<number>`0`;
-  const scope = leadScopeFromQuery(query);
-  const connected = deviceBucketCondition(
-    sql`acl.call_type`,
-    sql`acl.duration_seconds`,
-    "connected",
-  );
-  return sql<number>`coalesce((
-    select coalesce(sum(coalesce(acl.duration_seconds, 0)), 0)::int
-    from ${agentCallLogs} acl
-    where ${unmatchedDeviceLogWhere(scope.dateFrom.toISOString(), scope.dateTo.toISOString())}
-      and ${connected}
-  ), 0)::int`;
-}
-
-function deviceCallTalkBoundExpr(query: CallsReportQuery, bound: "min" | "max") {
-  if (reportUsesLeadFilter(query)) return sql`null`;
-  const scope = leadScopeFromQuery(query);
-  const connected = deviceBucketCondition(
-    sql`acl.call_type`,
-    sql`acl.duration_seconds`,
-    "connected",
-  );
-  const agg = bound === "min" ? sql`min` : sql`max`;
-  return sql`(
-    select ${agg}(acl.duration_seconds)
-    from ${agentCallLogs} acl
-    where ${unmatchedDeviceLogWhere(scope.dateFrom.toISOString(), scope.dateTo.toISOString())}
-      and ${connected}
-  )`;
-}
-
-function callsPerUserMetricsSelectFor(query: CallsReportQuery) {
-  const crm = callsPerUserMetricsSelect;
-  const osIncomingAnswered = deviceCallCountExpr(query, "incoming_answered");
-  const osIncomingMissed = deviceCallCountExpr(query, "incoming_missed");
-  const osOutgoingAnswered = deviceCallCountExpr(query, "outgoing_answered");
-  const osOutgoingNotConnected = deviceCallCountExpr(query, "outgoing_not_connected");
-  const osTotal = deviceCallCountExpr(query, "all");
-  const osTalk = deviceCallTalkSumExpr(query);
-  const osConnected = deviceCallCountExpr(query, "connected");
-  const osMin = deviceCallTalkBoundExpr(query, "min");
-  const osMax = deviceCallTalkBoundExpr(query, "max");
-  const crmConnected = sql`count(${callRecords.id}) filter (where ${answeredCall})`;
-
-  return {
-    userId: crm.userId,
-    userName: crm.userName,
-    incomingAnswered: sql<number>`(${crm.incomingAnswered} + ${osIncomingAnswered})::int`,
-    incomingMissed: sql<number>`(${crm.incomingMissed} + ${osIncomingMissed})::int`,
-    incomingTotal: sql<number>`(${crm.incomingTotal} + ${osIncomingAnswered} + ${osIncomingMissed})::int`,
-    outgoingAnswered: sql<number>`(${crm.outgoingAnswered} + ${osOutgoingAnswered})::int`,
-    outgoingNotConnected: sql<number>`(${crm.outgoingNotConnected} + ${osOutgoingNotConnected})::int`,
-    outgoingTotal: sql<number>`(${crm.outgoingTotal} + ${osOutgoingAnswered} + ${osOutgoingNotConnected})::int`,
-    totalTalkTimeSeconds: sql<number>`(${crm.totalTalkTimeSeconds} + ${osTalk})::int`,
-    avgTalkTimeSeconds: sql<number>`coalesce(round((${crm.totalTalkTimeSeconds} + ${osTalk})::numeric / nullif(${crmConnected} + ${osConnected}, 0)), 0)::int`,
-    minTalkTimeSeconds: sql<number>`coalesce(least(nullif(${crm.minTalkTimeSeconds}, 0), ${osMin}), 0)::int`,
-    maxTalkTimeSeconds: sql<number>`coalesce(greatest(nullif(${crm.maxTalkTimeSeconds}, 0), ${osMax}), 0)::int`,
-    totalCalls: sql<number>`(${crm.totalCalls} + ${osTotal})::int`,
-    siteVisitsBooked: siteVisitsBookedExpr(query),
-    siteVisitsConducted: siteVisitsConductedExpr(query),
-  };
 }
 
 function buildCallsPerUserUserWhere(query: CallsReportQuery) {
@@ -941,65 +741,6 @@ function buildCallsPerUserUserWhere(query: CallsReportQuery) {
   }
 
   return and(...filters);
-}
-
-function buildCallsPerUserCallJoinOn(query: CallsReportQuery) {
-  const scope = leadScopeFromQuery(query);
-  const conditions = [
-    eq(callRecords.userId, users.id),
-    eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
-    gte(callRecords.startedAt, scope.dateFrom),
-    lte(callRecords.startedAt, scope.dateTo),
-  ];
-
-  const leadFilter = callReportLeadExistsFilter(query);
-  if (leadFilter) {
-    conditions.push(leadFilter);
-  }
-
-  return and(...conditions);
-}
-
-function buildCallsPerUserCallWhere(query: CallsReportQuery) {
-  return callPerUserScopeFilter(query);
-}
-
-function mapCallsPerUserMetricsRow(row: CallsPerUserMetricsRow) {
-  return {
-    userId: row.userId,
-    userName: row.userName,
-    incomingAnswered: row.incomingAnswered,
-    incomingMissed: row.incomingMissed,
-    incomingTotal: row.incomingTotal,
-    outgoingAnswered: row.outgoingAnswered,
-    outgoingNotConnected: row.outgoingNotConnected,
-    outgoingTotal: row.outgoingTotal,
-    totalTalkTimeSeconds: row.totalTalkTimeSeconds,
-    avgTalkTimeSeconds: row.avgTalkTimeSeconds,
-    minTalkTimeSeconds: row.minTalkTimeSeconds,
-    maxTalkTimeSeconds: row.maxTalkTimeSeconds,
-    totalCalls: row.totalCalls,
-    siteVisitsBooked: row.siteVisitsBooked,
-    siteVisitsConducted: row.siteVisitsConducted,
-  };
-}
-
-function mapCallsPerUserTotalsRow(row: CallsPerUserTotalsRow) {
-  return {
-    incomingAnswered: row.incomingAnswered,
-    incomingMissed: row.incomingMissed,
-    incomingTotal: row.incomingTotal,
-    outgoingAnswered: row.outgoingAnswered,
-    outgoingNotConnected: row.outgoingNotConnected,
-    outgoingTotal: row.outgoingTotal,
-    totalTalkTimeSeconds: row.totalTalkTimeSeconds,
-    avgTalkTimeSeconds: row.avgTalkTimeSeconds,
-    minTalkTimeSeconds: row.minTalkTimeSeconds,
-    maxTalkTimeSeconds: row.maxTalkTimeSeconds,
-    totalCalls: row.totalCalls,
-    siteVisitsBooked: row.siteVisitsBooked,
-    siteVisitsConducted: row.siteVisitsConducted,
-  };
 }
 
 function formatTalkTimeCsv(seconds: number) {
@@ -1081,235 +822,124 @@ function buildCallsUserReportCsv(items: CallsPerUserMetricsRow[], totals: CallsP
   return `${lines.join("\n")}\n`;
 }
 
-async function fetchCallsPerUserRows(
-  query: CallsReportQuery,
-  pagination?: { limit: number; offset: number },
-) {
-  const userWhere = buildCallsPerUserUserWhere(query);
-  const callJoinOn = buildCallsPerUserCallJoinOn(query);
-  const metrics = callsPerUserMetricsSelectFor(query);
-  const baseQuery = db
-    .select(metrics)
-    .from(users)
-    .leftJoin(callRecords, callJoinOn)
-    .where(userWhere)
-    .groupBy(users.id, users.name)
-    .orderBy(sql`${metrics.totalCalls} desc`, users.name);
-
-  const rows = pagination
-    ? await baseQuery.limit(pagination.limit).offset(pagination.offset)
-    : await baseQuery;
-
-  return rows.map(mapCallsPerUserMetricsRow);
-}
-
-async function countCallsPerUserGroups(query: CallsReportQuery) {
-  const userWhere = buildCallsPerUserUserWhere(query);
-  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(users).where(userWhere);
-  return row?.count ?? 0;
-}
-
-function buildSiteVisitsReportWhere(query: CallsReportQuery, mode: "booked" | "conducted") {
+async function fetchSiteVisitCountsByUser(query: CallsReportQuery) {
   const scope = leadScopeFromQuery(query);
-  const filters = [
-    eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
-    mode === "conducted"
-      ? and(
-          gte(siteVisits.visitDate, getIstDateKey(scope.dateFrom)),
-          lte(siteVisits.visitDate, getIstDateKey(scope.dateTo)),
-          eq(siteVisits.status, "completed"),
-        )
-      : and(
-          // Booked today = created today, even if visit_date is in the future.
-          gte(siteVisits.createdAt, scope.dateFrom),
-          lte(siteVisits.createdAt, scope.dateTo),
-          ne(siteVisits.status, "cancelled"),
-        ),
-  ];
-  const leadFilter = buildReportLeadExistsFilter(query, siteVisits.leadId);
-  if (leadFilter) {
-    filters.push(leadFilter);
-  }
-  return and(...filters);
-}
-
-async function fetchSiteVisitsCountGrandTotal(
-  query: CallsReportQuery,
-  mode: "booked" | "conducted",
-) {
-  const visitWhere = buildSiteVisitsReportWhere(query, mode);
   const userWhere = buildCallsPerUserUserWhere(query);
-  const [row] = await db
-    .select({ count: sql<number>`count(${siteVisits.id})::int` })
+  const leadFilter = siteVisitReportLeadExistsFilter(query);
+
+  const booked = await db
+    .select({
+      userId: siteVisits.agentId,
+      count: sql<number>`count(*)::int`,
+    })
     .from(siteVisits)
     .innerJoin(users, eq(siteVisits.agentId, users.id))
-    .where(and(visitWhere, userWhere));
-
-  return row?.count ?? 0;
-}
-
-function emptyDeviceCallTotals(): DeviceCallTotals {
-  return {
-    incomingAnswered: 0,
-    incomingMissed: 0,
-    outgoingAnswered: 0,
-    outgoingNotConnected: 0,
-    totalTalkTimeSeconds: 0,
-    connectedCalls: 0,
-    minTalkTimeSeconds: null,
-    maxTalkTimeSeconds: null,
-    totalCalls: 0,
-  };
-}
-
-function positiveTalkSeconds(value: number | null | undefined) {
-  if (value == null) return null;
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return null;
-  return numeric;
-}
-
-function mergeTalkBound(crmSeconds: number, deviceSeconds: number | null, mode: "min" | "max") {
-  const values = [positiveTalkSeconds(crmSeconds), positiveTalkSeconds(deviceSeconds)].filter(
-    (value): value is number => value != null,
-  );
-  if (values.length === 0) return 0;
-  return mode === "min" ? Math.min(...values) : Math.max(...values);
-}
-
-function mergeCallsPerUserTotals(crm: CallsPerUserTotalsRow, device: DeviceCallTotals) {
-  const crmConnected = Number(crm.incomingAnswered) + Number(crm.outgoingAnswered);
-  const connected = crmConnected + device.connectedCalls;
-  const talk = Number(crm.totalTalkTimeSeconds) + device.totalTalkTimeSeconds;
-
-  return mapCallsPerUserTotalsRow({
-    incomingAnswered: Number(crm.incomingAnswered) + device.incomingAnswered,
-    incomingMissed: Number(crm.incomingMissed) + device.incomingMissed,
-    incomingTotal: Number(crm.incomingTotal) + device.incomingAnswered + device.incomingMissed,
-    outgoingAnswered: Number(crm.outgoingAnswered) + device.outgoingAnswered,
-    outgoingNotConnected: Number(crm.outgoingNotConnected) + device.outgoingNotConnected,
-    outgoingTotal:
-      Number(crm.outgoingTotal) + device.outgoingAnswered + device.outgoingNotConnected,
-    totalTalkTimeSeconds: talk,
-    avgTalkTimeSeconds: connected > 0 ? Math.round(talk / connected) : 0,
-    minTalkTimeSeconds: mergeTalkBound(
-      Number(crm.minTalkTimeSeconds),
-      device.minTalkTimeSeconds,
-      "min",
-    ),
-    maxTalkTimeSeconds: mergeTalkBound(
-      Number(crm.maxTalkTimeSeconds),
-      device.maxTalkTimeSeconds,
-      "max",
-    ),
-    totalCalls: Number(crm.totalCalls) + device.totalCalls,
-    siteVisitsBooked: crm.siteVisitsBooked,
-    siteVisitsConducted: crm.siteVisitsConducted,
-  });
-}
-
-async function fetchDeviceCallGrandTotals(query: CallsReportQuery): Promise<DeviceCallTotals> {
-  if (reportUsesLeadFilter(query)) return emptyDeviceCallTotals();
-
-  const scope = leadScopeFromQuery(query);
-  const userWhere = buildCallsPerUserUserWhere(query);
-  const duration = sql`coalesce(${agentCallLogs.durationSeconds}, 0)`;
-  const bucket = (name: DeviceCallBucket) =>
-    deviceBucketCondition(
-      sql`${agentCallLogs.callType}`,
-      sql`${agentCallLogs.durationSeconds}`,
-      name,
-    );
-
-  const [row] = await db
-    .select({
-      incomingAnswered: sql<number>`count(*) filter (where ${bucket("incoming_answered")})::int`,
-      incomingMissed: sql<number>`count(*) filter (where ${bucket("incoming_missed")})::int`,
-      outgoingAnswered: sql<number>`count(*) filter (where ${bucket("outgoing_answered")})::int`,
-      outgoingNotConnected: sql<number>`count(*) filter (where ${bucket("outgoing_not_connected")})::int`,
-      totalTalkTimeSeconds: sql<number>`coalesce(sum(${duration}) filter (where ${bucket("connected")}), 0)::int`,
-      connectedCalls: sql<number>`count(*) filter (where ${bucket("connected")})::int`,
-      minTalkTimeSeconds: sql<
-        number | null
-      >`min(${agentCallLogs.durationSeconds}) filter (where ${bucket("connected")})`,
-      maxTalkTimeSeconds: sql<
-        number | null
-      >`max(${agentCallLogs.durationSeconds}) filter (where ${bucket("connected")})`,
-      totalCalls: sql<number>`count(*)::int`,
-    })
-    .from(agentCallLogs)
-    .innerJoin(users, eq(agentCallLogs.userId, users.id))
     .where(
       and(
+        eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
+        gte(siteVisits.createdAt, scope.dateFrom),
+        lte(siteVisits.createdAt, scope.dateTo),
+        ne(siteVisits.status, "cancelled"),
+        leadFilter,
         userWhere,
-        gte(agentCallLogs.callStartTime, scope.dateFrom),
-        lte(agentCallLogs.callStartTime, scope.dateTo),
-        unmatchedDeviceCallExistsSql(),
       ),
-    );
+    )
+    .groupBy(siteVisits.agentId);
 
-  if (!row) return emptyDeviceCallTotals();
+  const conducted = await db
+    .select({
+      userId: siteVisits.agentId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(siteVisits)
+    .innerJoin(users, eq(siteVisits.agentId, users.id))
+    .where(
+      and(
+        eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
+        gte(siteVisits.visitDate, getIstDateKey(scope.dateFrom)),
+        lte(siteVisits.visitDate, getIstDateKey(scope.dateTo)),
+        eq(siteVisits.status, "completed"),
+        leadFilter,
+        userWhere,
+      ),
+    )
+    .groupBy(siteVisits.agentId);
 
   return {
-    incomingAnswered: Number(row.incomingAnswered ?? 0),
-    incomingMissed: Number(row.incomingMissed ?? 0),
-    outgoingAnswered: Number(row.outgoingAnswered ?? 0),
-    outgoingNotConnected: Number(row.outgoingNotConnected ?? 0),
-    totalTalkTimeSeconds: Number(row.totalTalkTimeSeconds ?? 0),
-    connectedCalls: Number(row.connectedCalls ?? 0),
-    minTalkTimeSeconds: row.minTalkTimeSeconds == null ? null : Number(row.minTalkTimeSeconds),
-    maxTalkTimeSeconds: row.maxTalkTimeSeconds == null ? null : Number(row.maxTalkTimeSeconds),
-    totalCalls: Number(row.totalCalls ?? 0),
+    booked: new Map(booked.map((row) => [row.userId, row.count])),
+    conducted: new Map(conducted.map((row) => [row.userId, row.count])),
   };
 }
 
-async function fetchCallsPerUserGrandTotals(query: CallsReportQuery) {
-  const callWhere = buildCallsPerUserCallWhere(query);
-  const userWhere = buildCallsPerUserUserWhere(query);
-  const [row, siteVisitsBooked, siteVisitsConducted, device] = await Promise.all([
-    db
-      .select({
-        incomingAnswered: callsPerUserMetricsSelect.incomingAnswered,
-        incomingMissed: callsPerUserMetricsSelect.incomingMissed,
-        incomingTotal: callsPerUserMetricsSelect.incomingTotal,
-        outgoingAnswered: callsPerUserMetricsSelect.outgoingAnswered,
-        outgoingNotConnected: callsPerUserMetricsSelect.outgoingNotConnected,
-        outgoingTotal: callsPerUserMetricsSelect.outgoingTotal,
-        totalTalkTimeSeconds: callsPerUserMetricsSelect.totalTalkTimeSeconds,
-        avgTalkTimeSeconds: callsPerUserMetricsSelect.avgTalkTimeSeconds,
-        minTalkTimeSeconds: callsPerUserMetricsSelect.minTalkTimeSeconds,
-        maxTalkTimeSeconds: callsPerUserMetricsSelect.maxTalkTimeSeconds,
-        totalCalls: callsPerUserMetricsSelect.totalCalls,
-      })
-      .from(callRecords)
-      .innerJoin(users, eq(callRecords.userId, users.id))
-      .where(and(callWhere, userWhere))
-      .then((rows) => rows[0]),
-    fetchSiteVisitsCountGrandTotal(query, "booked"),
-    fetchSiteVisitsCountGrandTotal(query, "conducted"),
-    fetchDeviceCallGrandTotals(query),
-  ]);
+async function buildCallsPerUserReport(query: CallsReportQuery) {
+  const people = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(buildCallsPerUserUserWhere(query));
 
-  return mergeCallsPerUserTotals(
-    {
-      ...(row ?? {
-        incomingAnswered: 0,
-        incomingMissed: 0,
-        incomingTotal: 0,
-        outgoingAnswered: 0,
-        outgoingNotConnected: 0,
-        outgoingTotal: 0,
-        totalTalkTimeSeconds: 0,
-        avgTalkTimeSeconds: 0,
-        minTalkTimeSeconds: 0,
-        maxTalkTimeSeconds: 0,
-        totalCalls: 0,
-      }),
-      siteVisitsBooked,
-      siteVisitsConducted,
-    },
-    device,
-  );
+  const userIds = people.map((person) => person.id);
+  const leadAttributeFilter = reportUsesLeadFilter(query);
+  const events = await loadCombinedCallEvents(db, {
+    from: query.dateFrom,
+    to: query.dateTo,
+    userIds,
+    includeDataCalls: !leadAttributeFilter,
+    includeDeviceCalls: !leadAttributeFilter,
+    leadCallFilter: callReportLeadExistsFilter(query),
+  });
+  const aggregated = aggregateCombinedCalls(events);
+  const visits =
+    userIds.length === 0
+      ? { booked: new Map<string, number>(), conducted: new Map<string, number>() }
+      : await fetchSiteVisitCountsByUser(query);
+
+  const rows: CallsPerUserMetricsRow[] = people.map((person) => {
+    const stats = aggregated.byUser.get(person.id) ?? emptyCombinedCallStats();
+    return {
+      userId: person.id,
+      userName: person.name,
+      incomingAnswered: stats.incomingAnswered,
+      incomingMissed: stats.incomingMissed,
+      incomingTotal: stats.incomingTotal,
+      outgoingAnswered: stats.outgoingAnswered,
+      outgoingNotConnected: stats.outgoingNotConnected,
+      outgoingTotal: stats.outgoingTotal,
+      totalTalkTimeSeconds: stats.totalTalkTimeSeconds,
+      avgTalkTimeSeconds: stats.avgTalkTimeSeconds,
+      minTalkTimeSeconds: stats.minTalkTimeSeconds,
+      maxTalkTimeSeconds: stats.maxTalkTimeSeconds,
+      totalCalls: stats.totalCalls,
+      siteVisitsBooked: visits.booked.get(person.id) ?? 0,
+      siteVisitsConducted: visits.conducted.get(person.id) ?? 0,
+    };
+  });
+
+  rows.sort((a, b) => b.totalCalls - a.totalCalls || a.userName.localeCompare(b.userName));
+
+  let siteVisitsBooked = 0;
+  let siteVisitsConducted = 0;
+  for (const row of rows) {
+    siteVisitsBooked += row.siteVisitsBooked;
+    siteVisitsConducted += row.siteVisitsConducted;
+  }
+
+  const totals: CallsPerUserTotalsRow = {
+    incomingAnswered: aggregated.totals.incomingAnswered,
+    incomingMissed: aggregated.totals.incomingMissed,
+    incomingTotal: aggregated.totals.incomingTotal,
+    outgoingAnswered: aggregated.totals.outgoingAnswered,
+    outgoingNotConnected: aggregated.totals.outgoingNotConnected,
+    outgoingTotal: aggregated.totals.outgoingTotal,
+    totalTalkTimeSeconds: aggregated.totals.totalTalkTimeSeconds,
+    avgTalkTimeSeconds: aggregated.totals.avgTalkTimeSeconds,
+    minTalkTimeSeconds: aggregated.totals.minTalkTimeSeconds,
+    maxTalkTimeSeconds: aggregated.totals.maxTalkTimeSeconds,
+    totalCalls: aggregated.totals.totalCalls,
+    siteVisitsBooked,
+    siteVisitsConducted,
+  };
+
+  return { rows, totals };
 }
 
 async function fetchCallsReportPerUserPaginated(query: CallsReportQuery) {
@@ -1317,14 +947,15 @@ async function fetchCallsReportPerUserPaginated(query: CallsReportQuery) {
   const page = scopedQuery.page ?? 1;
   const pageSize = scopedQuery.pageSize ?? 50;
   const offset = (page - 1) * pageSize;
+  const built = await buildCallsPerUserReport(scopedQuery);
 
-  const [total, items, totals] = await Promise.all([
-    countCallsPerUserGroups(scopedQuery),
-    fetchCallsPerUserRows(scopedQuery, { limit: pageSize, offset }),
-    fetchCallsPerUserGrandTotals(scopedQuery),
-  ]);
-
-  return { items, total, page, pageSize, totals };
+  return {
+    items: built.rows.slice(offset, offset + pageSize),
+    total: built.rows.length,
+    page,
+    pageSize,
+    totals: built.totals,
+  };
 }
 
 export const reportService = {
@@ -1411,16 +1042,14 @@ export const reportService = {
 
   async exportCallsReportPerUserCsv(query: CallsReportQuery) {
     const scopedQuery = await resolveCallsReportQuery(query);
-    const [items, totals] = await Promise.all([
-      fetchCallsPerUserRows(scopedQuery),
-      fetchCallsPerUserGrandTotals(scopedQuery),
-    ]);
-    return buildCallsUserReportCsv(items, totals);
+    const built = await buildCallsPerUserReport(scopedQuery);
+    return buildCallsUserReportCsv(built.rows, built.totals);
   },
 
   async exportCallsReportPerUserCsvStream(query: CallsReportQuery) {
     const scopedQuery = await resolveCallsReportQuery(query);
-    const totals = await fetchCallsPerUserGrandTotals(scopedQuery);
+    const built = await buildCallsPerUserReport(scopedQuery);
+    const totals = built.totals;
 
     const headers = [
       "User Name",
@@ -1443,10 +1072,8 @@ export const reportService = {
     async function* lines() {
       yield headers.join(",");
 
-      let offset = 0;
-      while (true) {
-        const batch = await fetchCallsPerUserRows(scopedQuery, { limit: pageSize, offset });
-        if (batch.length === 0) break;
+      for (let offset = 0; offset < built.rows.length; offset += pageSize) {
+        const batch = built.rows.slice(offset, offset + pageSize);
 
         for (const row of batch) {
           yield [
@@ -1468,8 +1095,6 @@ export const reportService = {
             .map((cell) => escapeCsvCell(cell as unknown as string | number))
             .join(",");
         }
-
-        offset += pageSize;
       }
 
       yield [

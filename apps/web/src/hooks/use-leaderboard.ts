@@ -89,8 +89,9 @@ export function useLeaderboard(period: LeaderboardPeriod, scope: LeaderboardScop
     enabled,
     meta: SILENT_QUERY_ERROR_META,
     placeholderData: keepPreviousData,
-    staleTime: 60_000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 
   async function refresh() {
@@ -110,7 +111,9 @@ export function useHallOfFame(enabled: boolean) {
     enabled,
     meta: SILENT_QUERY_ERROR_META,
     placeholderData: keepPreviousData,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -124,7 +127,9 @@ export function useLeaderboardTeams(period: LeaderboardPeriod, enabled: boolean)
     enabled,
     meta: SILENT_QUERY_ERROR_META,
     placeholderData: keepPreviousData,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 

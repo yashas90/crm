@@ -1,6 +1,6 @@
-import { type DateRangePreset, resolveReportFilters, toApiRange } from "@/lib/report-filters";
-
 import { LEAD_SOURCE_VALUES } from "@/lib/lead-sources";
+import type { DateRangePreset } from "@/lib/report-filters";
+import { addDaysToDateKey, getIstDateKey, istWallClockToDate } from "@propninja/types/ist";
 
 export const CALLS_LEAD_SOURCE_OPTIONS = LEAD_SOURCE_VALUES;
 
@@ -35,19 +35,32 @@ export function defaultCallsReportFilters(): CallsReportFilterState {
   };
 }
 
+/** Calendar dates for the call report are IST days, including the preset shortcuts. */
 export function resolveCallsReportDates(filters: CallsReportFilterState) {
-  return resolveReportFilters({
-    dateRange: {
-      preset: filters.datePreset,
-      from: filters.dateFrom,
-      to: filters.dateTo,
-    },
-  });
+  if (filters.datePreset === "custom" && filters.dateFrom && filters.dateTo) {
+    return { from: filters.dateFrom, to: filters.dateTo };
+  }
+
+  const today = getIstDateKey();
+  if (filters.datePreset === "today") return { from: today, to: today };
+  if (filters.datePreset === "yesterday") {
+    const day = addDaysToDateKey(today, -1);
+    return { from: day, to: day };
+  }
+  if (filters.datePreset === "last30") {
+    return { from: addDaysToDateKey(today, -30), to: today };
+  }
+  return { from: addDaysToDateKey(today, -7), to: today };
 }
 
 export function callsReportFiltersToApiRange(filters: CallsReportFilterState) {
   const { from, to } = resolveCallsReportDates(filters);
-  return toApiRange(from, to);
+  const dateFrom = istWallClockToDate(from, 0, 0);
+  const dateTo = new Date(istWallClockToDate(addDaysToDateKey(to, 1), 0, 0).getTime() - 1);
+  return {
+    dateFrom: dateFrom.toISOString(),
+    dateTo: dateTo.toISOString(),
+  };
 }
 
 export function countActiveCallsReportFilters(filters: CallsReportFilterState): number {

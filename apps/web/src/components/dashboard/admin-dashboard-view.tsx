@@ -331,24 +331,28 @@ function DashboardBody({ data, updating }: { data: AdminOverview; updating: bool
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Top 5 sources that received new leads
               </h3>
-              <ul className="mt-3 space-y-2.5">
-                {data.sources.map((source) => (
-                  <li key={source.source}>
-                    <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                      <span className="truncate text-slate-700 dark:text-slate-200">
-                        {source.source}
-                      </span>
-                      <span className="tabular-nums text-slate-500">{source.count}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-violet-500"
-                        style={{ width: `${source.percent}%` }}
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {data.sources.length === 0 ? (
+                <p className="mt-3 text-xs text-slate-500">No leads in this period</p>
+              ) : (
+                <ul className="mt-3 space-y-2.5">
+                  {data.sources.map((source) => (
+                    <li key={source.source}>
+                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate text-slate-700 dark:text-slate-200">
+                          {source.source}
+                        </span>
+                        <span className="tabular-nums text-slate-500">{source.count}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-violet-500"
+                          style={{ width: `${source.percent}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         </section>

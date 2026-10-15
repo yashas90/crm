@@ -148,7 +148,9 @@ export function HomeScreen({ navigation }: Props) {
   const brief = useQuery({
     queryKey: ["morning-brief"],
     queryFn: () => apiGet<MorningBrief>("/api/dashboard/morning-brief"),
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
   const done = useMutation({
     mutationFn: (input: { source: "lead" | "calling"; id: string }) =>

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  attributeClosureCredit,
   buildLeadFunnel,
   changePercent,
+  closureInvoiceCollected,
+  collectedNetRevenue,
   rankLeadSources,
   resolveAdminDashboardWindows,
   splitReceivedLeads,
@@ -89,12 +92,67 @@ describe("admin dashboard math", () => {
     expect(funnel.map((stage) => stage.percent)).toEqual([100, 40, 20, 10, 10]);
   });
 
-  it("ranks sources and pads the list so an empty source can still show", () => {
-    const ranked = rankLeadSources([{ source: "facebook", count: 2 }], (source) =>
-      source === "facebook" ? "Meta Ads" : source,
+  it("ranks only sources that actually received leads", () => {
+    const ranked = rankLeadSources(
+      [
+        { source: "facebook", count: 2 },
+        { source: "Walk In", count: 0 },
+      ],
+      (source) => (source === "facebook" ? "Meta Ads" : source),
     );
-    expect(ranked[0]).toEqual({ source: "Meta Ads", count: 2, percent: 100 });
-    expect(ranked).toHaveLength(5);
-    expect(ranked.some((row) => row.count === 0)).toBe(true);
+    expect(ranked).toEqual([{ source: "Meta Ads", count: 2, percent: 100 }]);
+  });
+
+  it("returns no sources when the period has no leads", () => {
+    expect(rankLeadSources([], (source) => source)).toEqual([]);
+  });
+
+  it("reads collected net revenue from the column, then the TCF form", () => {
+    expect(collectedNetRevenue(250000, "1")).toBe(250000);
+    expect(collectedNetRevenue(0, "180000.50")).toBe(180000.5);
+    expect(collectedNetRevenue(0, "")).toBe(0);
+    expect(collectedNetRevenue(Number.NaN, "nope")).toBe(0);
+  });
+
+  it("treats a collected invoice on the row or the form as collected", () => {
+    expect(closureInvoiceCollected("collected", "raised")).toBe(true);
+    expect(closureInvoiceCollected("raised", "collected")).toBe(true);
+    expect(closureInvoiceCollected("raised", "not_raised")).toBe(false);
+  });
+
+  it("attributes a closure to share users, then a named employee, then the creator", () => {
+    const names = new Map([["asha admin", "user-asha"]]);
+    expect(
+      attributeClosureCredit({
+        amount: 1000,
+        createdBy: "user-creator",
+        userIdByName: names,
+        shares: [{ userId: "user-agent", employeeName: "Agent", sharePercent: 40 }],
+      }),
+    ).toEqual([{ userId: "user-agent", amount: 400 }]);
+
+    expect(
+      attributeClosureCredit({
+        amount: 1000,
+        createdBy: "user-creator",
+        userIdByName: names,
+        shares: [{ userId: null, employeeName: "Asha Admin", sharePercent: 100 }],
+      }),
+    ).toEqual([{ userId: "user-asha", amount: 1000 }]);
+
+    expect(
+      attributeClosureCredit({
+        amount: 1000,
+        createdBy: "user-creator",
+        userIdByName: names,
+        shares: [{ userId: null, employeeName: "Unknown Person", sharePercent: 100 }],
+      }),
+    ).toEqual([{ userId: "user-creator", amount: 1000 }]);
+  });
+
+  it("computes driver deltas from the two period counts", () => {
+    expect(changePercent(120, 100)).toBe(20);
+    expect(changePercent(97, 73)).toBe(33);
+    expect(changePercent(1, 0)).toBe(100);
   });
 });

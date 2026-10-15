@@ -32,7 +32,9 @@ describe("responseCache", () => {
   });
 
   it("resolves TTLs for cacheable routes", () => {
-    expect(resolveTtlSeconds("/api/analytics/overview")).toBe(300);
+    expect(resolveTtlSeconds("/api/analytics/overview")).toBe(60);
+    expect(resolveTtlSeconds("/api/reports/overview")).toBe(CACHE_TTL.adminOverview);
+    expect(resolveTtlSeconds("/api/reports/dashboard")).toBe(CACHE_TTL.adminOverview);
     expect(resolveTtlSeconds("/api/reports/agent-stats")).toBe(600);
     expect(resolveTtlSeconds("/api/projects")).toBe(600);
     expect(resolveTtlSeconds("/api/org")).toBe(1800);
@@ -45,8 +47,9 @@ describe("responseCache", () => {
     expect(resolveTtlSeconds("/api/reports/calls/export")).toBeNull();
     expect(resolveTtlSeconds("/api/leaderboard")).toBe(CACHE_TTL.leaderboard);
     expect(resolveTtlSeconds("/api/dashboard/morning-brief")).toBe(CACHE_TTL.morningBrief);
-    expect(resolveTtlSeconds("/api/dashboard/admin-overview")).toBe(CACHE_TTL.reports);
-    expect(CACHE_TTL.morningBrief).toBe(180);
+    expect(resolveTtlSeconds("/api/dashboard/admin-overview")).toBe(CACHE_TTL.adminOverview);
+    expect(CACHE_TTL.morningBrief).toBe(30);
+    expect(CACHE_TTL.adminOverview).toBe(30);
     expect(resolveTtlSeconds("/api/leaderboard/hall-of-fame")).toBe(CACHE_TTL.leaderboard);
     expect(resolveTtlSeconds("/api/leaderboard/export")).toBeNull();
   });

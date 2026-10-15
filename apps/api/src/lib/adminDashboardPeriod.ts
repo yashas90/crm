@@ -219,7 +219,55 @@ export function buildLeadFunnel(counts: FunnelCounts) {
   }));
 }
 
-const SOURCE_FILLERS = ["Walk In", "Meta Ads", "Website", "Referral", "99 Acres"] as const;
+/**
+ * Collected net revenue. The column wins when it is positive.
+ * Older closures keep the amount only inside the TCF form JSON.
+ */
+export function collectedNetRevenue(column: number, formValue: string | null | undefined): number {
+  if (Number.isFinite(column) && column > 0) return column;
+  const parsed = Number(String(formValue ?? "").trim());
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+export function closureInvoiceCollected(
+  columnStatus: string | null | undefined,
+  formStatus: string | null | undefined,
+): boolean {
+  return columnStatus === "collected" || formStatus === "collected";
+}
+
+export type ClosureShareCredit = {
+  userId: string | null;
+  employeeName: string;
+  sharePercent: number;
+};
+
+/** Who earns a collected closure. Mirrors the admin overview closer SQL. */
+export function attributeClosureCredit(input: {
+  amount: number;
+  createdBy: string | null;
+  shares: ClosureShareCredit[];
+  userIdByName: ReadonlyMap<string, string>;
+}): { userId: string; amount: number }[] {
+  const credited = input.shares.filter((share) => share.sharePercent > 0 && share.userId);
+  if (credited.length > 0) {
+    return credited.map((share) => ({
+      userId: share.userId as string,
+      amount: (input.amount * share.sharePercent) / 100,
+    }));
+  }
+
+  const named = input.shares.flatMap((share) => {
+    if (share.sharePercent <= 0) return [];
+    const userId = input.userIdByName.get(share.employeeName.trim().toLowerCase());
+    if (!userId) return [];
+    return [{ userId, amount: (input.amount * share.sharePercent) / 100 }];
+  });
+  if (named.length > 0) return named;
+
+  if (input.createdBy) return [{ userId: input.createdBy, amount: input.amount }];
+  return [];
+}
 
 export function rankLeadSources(
   rows: { source: string; count: number }[],
@@ -233,16 +281,10 @@ export function rankLeadSources(
   }
 
   const ranked = [...totals.entries()]
+    .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([source, count]) => ({ source, count }));
-
-  for (const filler of SOURCE_FILLERS) {
-    if (ranked.length >= limit) break;
-    if (!ranked.some((row) => row.source === filler)) {
-      ranked.push({ source: filler, count: 0 });
-    }
-  }
 
   const max = Math.max(...ranked.map((row) => row.count), 0);
   return ranked.map((row) => ({
