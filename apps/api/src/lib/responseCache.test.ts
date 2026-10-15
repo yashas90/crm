@@ -44,6 +44,9 @@ describe("responseCache", () => {
     expect(resolveTtlSeconds("/api/notifications/read-all")).toBeNull();
     expect(resolveTtlSeconds("/api/reports/calls/export")).toBeNull();
     expect(resolveTtlSeconds("/api/leaderboard")).toBe(CACHE_TTL.leaderboard);
+    expect(resolveTtlSeconds("/api/dashboard/morning-brief")).toBe(CACHE_TTL.morningBrief);
+    expect(resolveTtlSeconds("/api/dashboard/admin-overview")).toBe(CACHE_TTL.reports);
+    expect(CACHE_TTL.morningBrief).toBe(180);
     expect(resolveTtlSeconds("/api/leaderboard/hall-of-fame")).toBe(CACHE_TTL.leaderboard);
     expect(resolveTtlSeconds("/api/leaderboard/export")).toBeNull();
   });

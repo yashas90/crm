@@ -583,7 +583,7 @@ export default function LeadDetailPage() {
                   <TabsTrigger value="timeline">Timeline</TabsTrigger>
                   <TabsTrigger value="tasks">Tasks</TabsTrigger>
                   <TabsTrigger value="calls">Calls</TabsTrigger>
-                  <TabsTrigger value="site-visits">Site visits</TabsTrigger>
+                  <TabsTrigger value="site-visits">Site Visits</TabsTrigger>
                   <TabsTrigger value="documents">Documents</TabsTrigger>
                   <TabsTrigger value="email">Email</TabsTrigger>
                   <TabsTrigger value="sms">SMS</TabsTrigger>

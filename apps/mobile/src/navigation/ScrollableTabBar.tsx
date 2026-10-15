@@ -26,6 +26,15 @@ const TAB_ACTIVE = "#ffffff";
 const ICON_SIZE = 26;
 
 /**
+ * Center the focused tab once per selection. Later layout events (badge width,
+ * font load) must not call scrollTo again — that yanks the bar while the user
+ * is holding a position.
+ */
+export function shouldRecenterTabBar(placedIndex: number | null, index: number): boolean {
+  return placedIndex !== index;
+}
+
+/**
  * Horizontal tab bar. Ten destinations do not fit in one phone-width row
  * without ellipsizing, so each item sizes to its full label and the row scrolls.
  */
@@ -35,6 +44,7 @@ export function ScrollableTabBar({ state, descriptors, navigation, insets }: Bot
   const layouts = useRef(new Map<string, { x: number; width: number }>());
   const viewportWidth = useRef(0);
   const hasScrolled = useRef(false);
+  const placedIndex = useRef<number | null>(null);
   const indexRef = useRef(state.index);
   const routesRef = useRef(state.routes);
   indexRef.current = state.index;
@@ -43,6 +53,9 @@ export function ScrollableTabBar({ state, descriptors, navigation, insets }: Bot
   const barHeight = TAB_BAR_HEIGHT + insets.bottom;
 
   const scrollToFocused = useCallback((index: number, animated: boolean) => {
+    // Layout passes keep firing (badges, fonts). After this index is placed,
+    // another scrollTo fights the user dragging the bar.
+    if (!shouldRecenterTabBar(placedIndex.current, index)) return;
     const route = routesRef.current[index];
     const layout = route ? layouts.current.get(route.key) : undefined;
     const viewport = viewportWidth.current;
@@ -50,9 +63,11 @@ export function ScrollableTabBar({ state, descriptors, navigation, insets }: Bot
     const x = Math.max(0, layout.x + layout.width / 2 - viewport / 2);
     scrollRef.current?.scrollTo({ x, animated: animated && hasScrolled.current });
     hasScrolled.current = true;
+    placedIndex.current = index;
   }, []);
 
   useEffect(() => {
+    placedIndex.current = null;
     scrollToFocused(state.index, true);
   }, [scrollToFocused, state.index]);
 

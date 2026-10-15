@@ -1,68 +1,169 @@
 import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { useCurrentUser } from "@/hooks/use-auth";
-import { useTodayCallSummary } from "@/hooks/use-calls";
-import { type HotLead, useHotLeads, useMyLeadsTotal, useTodayQueue } from "@/hooks/use-leads";
-import { useUnreadNotificationCount } from "@/hooks/use-notifications";
-import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
-import { buildLeadBrowserParams } from "@/lib/lead-browser";
+import { SkeletonBox } from "@/components/ui/Skeleton";
+import { useIsAdmin, useIsAgent, useIsManager } from "@/hooks/use-role";
+import { apiGet, apiPost } from "@/lib/apiClient";
+import { dialPhoneNumber } from "@/lib/phoneActions";
+import { queryClient } from "@/lib/queryClient";
 import type { MainTabParamList } from "@/navigation/types";
-import { colors, radii, shadows, spacing, typography } from "@/theme";
+import { useNetwork } from "@/providers/network-provider";
+import { colors, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
-import { neuSticky } from "@/theme/neubrutal";
-import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { memo, useMemo } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { memo } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Props = { navigation: BottomTabNavigationProp<MainTabParamList> };
+type BriefCallback = {
+  id: string;
+  source: "lead" | "calling";
+  name: string;
+  phone: string | null;
+  at: string;
+  leadId: string | null;
+};
 
-function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+type MorningBrief = {
+  greeting: string;
+  name: string;
+  date: string;
+  trackingStatus: { on: boolean; label: "On" | "Off"; health: string | null };
+  quoteOfDay: { text: string };
+  target: {
+    achievedLabel: string;
+    amountLabel: string;
+    dailyNeededLabel: string;
+    daysRemaining: number;
+    percent: number;
+    unlocked: boolean;
+    aboveTargetPercent: number;
+  };
+  teamTarget: {
+    memberCount: number;
+    targetLabel: string;
+    achievedLabel: string;
+    aboveTargetCount: number;
+  } | null;
+  callbacks: { overdue: BriefCallback[]; today: BriefCallback[]; count: number };
+  leaderboard: {
+    rank: number;
+    previousRank: number | null;
+    trend: string;
+    nameAbove: string | null;
+    neighborBelow: { name: string; rank: number } | null;
+    gapToNextLabel: string;
+  };
+  callingData: {
+    pending: number;
+    calledToday: number;
+    interestedToday: number;
+    remaining: number;
+  };
+  leads: {
+    hot: number;
+    warm: number;
+    cold: number;
+    siteVisit: number;
+    negotiation: number;
+    urgent: number;
+  };
+  teamFeed: {
+    items: { id: string; title: string; body: string; reactions: number }[];
+    viewAll: { label: string; surface: "whatsapp" | "announcements" };
+  };
+  schedule: {
+    items: {
+      id: string;
+      timeLabel: string;
+      leadName: string;
+      projectName: string | null;
+      status: string;
+      agentName: string | null;
+    }[];
+  };
+  appraisal: {
+    quarterLabel: string;
+    sales: number;
+    units: number;
+    minSales: number | null;
+    minUnits: number | null;
+    hikePercent: number;
+    eligible: boolean;
+    hikeAmountLabel: string;
+    mapped: boolean;
+  };
+};
+
+type Props = { navigation: BottomTabNavigationProp<MainTabParamList, "HomeTab"> };
+
+function formatWhen(iso: string) {
+  return new Date(iso).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
+const BlockSkeleton = memo(function BlockSkeleton() {
+  return (
+    <Card>
+      <SkeletonBox height={16} width="40%" />
+      <SkeletonBox height={28} width="70%" style={{ marginTop: spacing.sm }} />
+      <SkeletonBox height={14} width="90%" style={{ marginTop: spacing.sm }} />
+    </Card>
+  );
+});
+
+const TargetCard = memo(function TargetCard({ brief }: { brief: MorningBrief }) {
+  const width = Math.max(0, Math.min(100, brief.target.percent));
+  return (
+    <Card>
+      <Text style={styles.kicker}>This month</Text>
+      <Text style={styles.metric}>
+        {brief.target.achievedLabel}
+        <Text style={styles.metricMuted}> / {brief.target.amountLabel}</Text>
+      </Text>
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${width}%` }]} />
+      </View>
+      <Text style={styles.body}>
+        {brief.target.unlocked ? "Unlocked" : "Locked"} · {brief.target.aboveTargetPercent}% above
+        target
+      </Text>
+      <Text style={styles.body}>
+        {brief.target.dailyNeededLabel} a day · {brief.target.daysRemaining} days left
+      </Text>
+    </Card>
+  );
+});
+
 export function HomeScreen({ navigation }: Props) {
-  const { data: user } = useCurrentUser();
-  const queue = useTodayQueue();
-  const summary = useTodayCallSummary();
-  const myLeadsTotal = useMyLeadsTotal();
-  const hotLeads = useHotLeads(5);
-  const unreadNotifications = useUnreadNotificationCount();
-  const firstName = user?.name?.split(" ")[0] ?? "Agent";
-  const queueItems = queue.data?.items ?? [];
-  const hotItems = hotLeads.data?.items ?? [];
-  const homeBrowserLeads = useMemo(() => {
-    const merged = [...queueItems, ...hotItems];
-    const seen = new Set<string>();
-    return merged.filter((lead) => {
-      if (seen.has(lead.id)) return false;
-      seen.add(lead.id);
-      return true;
-    });
-  }, [hotItems, queueItems]);
+  const isAgent = useIsAgent();
+  const isManager = useIsManager();
+  const isAdmin = useIsAdmin();
+  const { isOnline } = useNetwork();
+  const brief = useQuery({
+    queryKey: ["morning-brief"],
+    queryFn: () => apiGet<MorningBrief>("/api/dashboard/morning-brief"),
+    refetchInterval: 5 * 60 * 1000,
+  });
+  const done = useMutation({
+    mutationFn: (input: { source: "lead" | "calling"; id: string }) =>
+      apiPost("/api/dashboard/morning-brief/callbacks/complete", input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["morning-brief"] });
+    },
+  });
 
-  const refreshAll = () =>
-    Promise.all([queue.refetch(), summary.refetch(), myLeadsTotal.refetch(), hotLeads.refetch()]);
+  const data = brief.data;
+  const loading = brief.isLoading && !data;
+  const minutes = Math.max(0, Math.floor((Date.now() - brief.dataUpdatedAt) / 60_000));
 
-  useRefreshOnFocus(refreshAll);
-
-  const isLoading = queue.isLoading && !queue.data;
-  const isError = queue.isError || summary.isError;
-
-  if (isError && !queue.data) {
-    return <ErrorState onRetry={refreshAll} />;
+  if (brief.isError && !data) {
+    return <ErrorState onRetry={() => void brief.refetch()} />;
   }
 
   return (
@@ -71,296 +172,326 @@ export function HomeScreen({ navigation }: Props) {
         contentContainerStyle={[styles.content, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
         refreshControl={
           <RefreshControl
-            refreshing={queue.isRefetching || summary.isRefetching}
-            onRefresh={refreshAll}
+            refreshing={brief.isRefetching}
+            onRefresh={() => void brief.refetch()}
             tintColor={colors.primary}
           />
         }
       >
-        <View style={styles.hero}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroText}>
-              <Text style={styles.greeting} testID="home-greeting">
-                {greeting()}, {firstName}
-              </Text>
-              <Text style={styles.heroSub}>Here is your pipeline at a glance</Text>
-            </View>
-            <Pressable
-              style={({ pressed }) => [styles.bellButton, pressed && styles.pressed]}
-              onPress={() => navigation.navigate("NotificationsTab")}
-              accessibilityLabel="Notifications"
-            >
-              <Ionicons name="notifications-outline" size={24} color={colors.text} />
-              {unreadNotifications > 0 ? (
-                <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>
-                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
-          </View>
-        </View>
+        {!isOnline && data && brief.dataUpdatedAt > 0 ? (
+          <Text style={styles.offline}>Showing data from {minutes} minutes ago — offline</Text>
+        ) : null}
 
-        {isLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.xl }} />
+        {loading ? (
+          <BlockSkeleton />
         ) : (
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="calendar-outline"
-              value={String(queue.data?.total ?? queue.data?.items?.length ?? 0)}
-              label="Follow-ups due"
-              accent={colors.primary}
-              onPress={() => navigation.navigate("TodayTab", { focusQueue: true })}
-            />
-            <StatCard
-              icon="call-outline"
-              value={String(summary.data?.total_calls ?? 0)}
-              label="Calls today"
-              accent="#60a5fa"
-              onPress={() => navigation.navigate("TodayTab")}
-            />
-            <StatCard
-              icon="people-outline"
-              value={String(myLeadsTotal.data ?? 0)}
-              label="My leads"
-              accent="#a5b4fc"
-              onPress={() => navigation.navigate("LeadsTab")}
-            />
-            <StatCard
-              icon="checkmark-done-outline"
-              value={String(summary.data?.completed_calls ?? 0)}
-              label="Completed"
-              accent="#34d399"
-              onPress={() => navigation.navigate("TodayTab")}
-            />
+          <View>
+            <Text style={styles.greeting} testID="home-greeting">
+              {data?.greeting}, {data?.name}
+            </Text>
+            <Text style={styles.sub}>
+              {data?.date}
+              {data ? ` · Tracking ${data.trackingStatus.label}` : ""}
+              {data?.trackingStatus.health ? ` · ${data.trackingStatus.health}` : ""}
+            </Text>
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Quick actions</Text>
         <View style={styles.actions}>
-          <ActionTile
-            icon="today-outline"
-            label="Today's queue"
-            onPress={() => navigation.navigate("TodayTab", { focusQueue: true })}
+          <Action
+            label="Start calling"
+            onPress={() => navigation.navigate(isAgent ? "CallingTab" : "DialPadTab")}
           />
-          <ActionTile
-            icon="list-outline"
-            label="All leads"
-            onPress={() => navigation.navigate("LeadsTab")}
+          <Action
+            label="Add lead"
+            onPress={() => navigation.navigate("LeadsTab", { screen: "LeadCreateScreen" })}
           />
-          <ActionTile
-            icon="person-add-outline"
-            label="New lead"
-            onPress={() =>
-              navigation.navigate("LeadsTab", {
-                screen: "LeadCreateScreen",
-              })
-            }
+          <Action label="Reports" onPress={() => navigation.navigate("ProfileTab")} />
+          <Action
+            label={isAdmin ? "WhatsApp" : isManager ? "Team" : "Announcements"}
+            onPress={() => {
+              if (isAdmin) navigation.navigate("ProfileTab");
+              else if (isManager) navigation.navigate("TeamTab");
+              else navigation.navigate("LeaderboardTab");
+            }}
           />
+          {isAgent ? (
+            <Action label="Request data" onPress={() => navigation.navigate("CallingTab")} />
+          ) : null}
+          <Action label="Leaderboard" onPress={() => navigation.navigate("LeaderboardTab")} />
         </View>
 
-        {(hotLeads.data?.items?.length ?? 0) > 0 ? (
-          <>
-            <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>🔥 Hot leads</Text>
-            <View style={styles.hotList}>
-              {hotLeads.data!.items.map((lead) => (
-                <HotLeadRow
-                  key={lead.id}
-                  lead={lead}
-                  onPress={() =>
-                    navigation.navigate("LeadsTab", {
-                      screen: "LeadDetailScreen",
-                      params: buildLeadBrowserParams(homeBrowserLeads, lead.id),
-                    })
-                  }
-                />
-              ))}
-            </View>
-          </>
+        <Card>
+          {loading ? (
+            <SkeletonBox height={48} />
+          ) : (
+            <Text style={styles.quote}>“{data?.quoteOfDay.text}”</Text>
+          )}
+        </Card>
+
+        {loading ? <BlockSkeleton /> : data ? <TargetCard brief={data} /> : null}
+
+        {data?.teamTarget ? (
+          <Card>
+            <Text style={styles.kicker}>Team target</Text>
+            <Text style={styles.metric}>
+              {data.teamTarget.achievedLabel}
+              <Text style={styles.metricMuted}> / {data.teamTarget.targetLabel}</Text>
+            </Text>
+            <Text style={styles.body}>
+              {data.teamTarget.aboveTargetCount} of {data.teamTarget.memberCount} above target
+            </Text>
+          </Card>
         ) : null}
+
+        <Card>
+          <Text style={styles.kicker}>Callbacks{data ? ` · ${data.callbacks.count}` : ""}</Text>
+          {loading ? (
+            <SkeletonBox height={64} style={{ marginTop: spacing.sm }} />
+          ) : data && data.callbacks.count === 0 ? (
+            <Text style={styles.body}>No callbacks due today.</Text>
+          ) : (
+            <>
+              <CallbackGroup
+                title="Overdue"
+                items={data?.callbacks.overdue ?? []}
+                busyId={done.isPending ? (done.variables?.id ?? null) : null}
+                onDone={(item) => done.mutate({ source: item.source, id: item.id })}
+                onOpenLead={(leadId) =>
+                  navigation.navigate("LeadsTab", {
+                    screen: "LeadDetailScreen",
+                    params: { leadId },
+                  })
+                }
+              />
+              <CallbackGroup
+                title="Today"
+                items={data?.callbacks.today ?? []}
+                busyId={done.isPending ? (done.variables?.id ?? null) : null}
+                onDone={(item) => done.mutate({ source: item.source, id: item.id })}
+                onOpenLead={(leadId) =>
+                  navigation.navigate("LeadsTab", {
+                    screen: "LeadDetailScreen",
+                    params: { leadId },
+                  })
+                }
+              />
+            </>
+          )}
+        </Card>
+
+        <Card>
+          <Text style={styles.kicker}>Leaderboard</Text>
+          {loading || !data ? (
+            <SkeletonBox height={48} style={{ marginTop: spacing.sm }} />
+          ) : (
+            <>
+              <Text style={styles.metric}>#{data.leaderboard.rank}</Text>
+              <Text style={styles.body}>
+                Yesterday #{data.leaderboard.previousRank ?? "—"} · {data.leaderboard.trend}
+              </Text>
+              <Text style={styles.body}>
+                {data.leaderboard.nameAbove
+                  ? `${data.leaderboard.gapToNextLabel} behind ${data.leaderboard.nameAbove}`
+                  : "You are at the top of this board"}
+              </Text>
+              {data.leaderboard.neighborBelow ? (
+                <Text style={styles.body}>
+                  Next behind you: {data.leaderboard.neighborBelow.name} #
+                  {data.leaderboard.neighborBelow.rank}
+                </Text>
+              ) : null}
+            </>
+          )}
+        </Card>
+
+        <Card>
+          <Text style={styles.kicker}>Calling data</Text>
+          {loading || !data ? (
+            <SkeletonBox height={20} style={{ marginTop: spacing.sm }} />
+          ) : (
+            <Text style={styles.body}>
+              {data.callingData.pending} pending · {data.callingData.calledToday} called today ·{" "}
+              {data.callingData.interestedToday} interested today · {data.callingData.remaining}{" "}
+              remaining
+            </Text>
+          )}
+        </Card>
+
+        <Card>
+          <Text style={styles.kicker}>Leads</Text>
+          {loading || !data ? (
+            <SkeletonBox height={20} style={{ marginTop: spacing.sm }} />
+          ) : (
+            <Text style={styles.body}>
+              {data.leads.hot} hot · {data.leads.warm} warm · {data.leads.cold} cold ·{" "}
+              {data.leads.siteVisit} site visit · {data.leads.negotiation} negotiation ·{" "}
+              {data.leads.urgent} urgent
+            </Text>
+          )}
+        </Card>
+
+        <Card>
+          <Text style={styles.kicker}>Team feed</Text>
+          {loading || !data ? (
+            <SkeletonBox height={48} style={{ marginTop: spacing.sm }} />
+          ) : data.teamFeed.items.length === 0 ? (
+            <Text style={styles.body}>Nothing new from the team yet.</Text>
+          ) : (
+            data.teamFeed.items.map((item) => (
+              <View key={item.id} style={styles.feedItem}>
+                <Text style={styles.feedTitle}>{item.title}</Text>
+                <Text style={styles.body}>{item.body}</Text>
+                <Text style={styles.meta}>{item.reactions} reactions</Text>
+              </View>
+            ))
+          )}
+          <Pressable
+            onPress={() => {
+              if (isAdmin) navigation.navigate("ProfileTab");
+              else if (isManager) navigation.navigate("TeamTab");
+              else navigation.navigate("LeaderboardTab");
+            }}
+          >
+            <Text style={styles.link}>{data?.teamFeed.viewAll.label ?? "View full team chat"}</Text>
+          </Pressable>
+        </Card>
+
+        {loading ? (
+          <BlockSkeleton />
+        ) : data && data.schedule.items.length > 0 ? (
+          <Pressable onPress={() => navigation.navigate("VisitsTab")}>
+            <Card>
+              <Text style={styles.kicker}>Today&apos;s visits</Text>
+              {data.schedule.items.map((visit) => (
+                <Text key={visit.id} style={styles.body}>
+                  {visit.timeLabel} · {visit.leadName}
+                  {visit.projectName ? ` · ${visit.projectName}` : ""} · {visit.status}
+                  {visit.agentName ? ` · ${visit.agentName}` : ""}
+                </Text>
+              ))}
+              <Text style={styles.link}>Open today&apos;s visits</Text>
+            </Card>
+          </Pressable>
+        ) : null}
+
+        <Card>
+          <Text style={styles.kicker}>Appraisal</Text>
+          {loading || !data ? (
+            <SkeletonBox height={20} style={{ marginTop: spacing.sm }} />
+          ) : (
+            <Text style={styles.body}>
+              {data.appraisal.quarterLabel}: {data.appraisal.sales} sales / {data.appraisal.units}{" "}
+              units
+              {data.appraisal.minSales != null
+                ? ` (need ${data.appraisal.minSales} / ${data.appraisal.minUnits})`
+                : ""}
+              . {Math.round(data.appraisal.hikePercent * 100)}% hike{" "}
+              {data.appraisal.eligible ? `ready · ${data.appraisal.hikeAmountLabel}` : "not yet"}.
+              {data.appraisal.mapped ? "" : " Designation is not on the appraisal sheet."}
+            </Text>
+          )}
+        </Card>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const StatCard = memo(function StatCard({
-  icon,
-  value,
-  label,
-  accent,
-  onPress,
+function CallbackGroup({
+  title,
+  items,
+  busyId,
+  onDone,
+  onOpenLead,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
-  value: string;
-  label: string;
-  accent: string;
-  onPress: () => void;
+  title: string;
+  items: BriefCallback[];
+  busyId: string | null;
+  onDone: (item: BriefCallback) => void;
+  onOpenLead: (leadId: string) => void;
 }) {
+  if (items.length === 0) return null;
   return (
-    <Pressable
-      style={({ pressed }) => [styles.statCard, pressed && styles.pressed]}
-      onPress={onPress}
-    >
-      <Ionicons name={icon} size={22} color={accent} />
-      <Text style={[styles.statValue, { color: accent }]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.group}>
+      <Text style={styles.groupTitle}>{title}</Text>
+      {items.map((item) => (
+        <View key={`${item.source}:${item.id}`} style={styles.row}>
+          <Pressable
+            style={styles.rowText}
+            onPress={() => {
+              if (item.leadId) onOpenLead(item.leadId);
+            }}
+          >
+            <Text style={styles.feedTitle}>{item.name}</Text>
+            <Text style={styles.meta}>{formatWhen(item.at)}</Text>
+          </Pressable>
+          {item.phone ? (
+            <Pressable onPress={() => void dialPhoneNumber(item.phone!)}>
+              <Text style={styles.link}>Call</Text>
+            </Pressable>
+          ) : null}
+          <Pressable disabled={busyId === item.id} onPress={() => onDone(item)}>
+            <Text style={styles.link}>Done</Text>
+          </Pressable>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Action({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.action} onPress={onPress}>
+      <Text style={styles.actionText}>{label}</Text>
     </Pressable>
   );
-});
-
-const ActionTile = memo(function ActionTile({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Card onPress={onPress} style={styles.actionTile}>
-      <Ionicons name={icon} size={24} color={colors.primary} />
-      <Text style={styles.actionLabel}>{label}</Text>
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-    </Card>
-  );
-});
-
-const HotLeadRow = memo(function HotLeadRow({
-  lead,
-  onPress,
-}: { lead: HotLead; onPress: () => void }) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.hotRow, pressed && styles.pressed]}
-      onPress={onPress}
-    >
-      <View style={styles.hotScoreBadge}>
-        <Text style={styles.hotScoreText}>{lead.score}</Text>
-      </View>
-      <View style={styles.hotMeta}>
-        <Text style={styles.hotName} numberOfLines={1}>
-          {lead.firstName} {lead.lastName}
-        </Text>
-        <Text style={styles.hotProject} numberOfLines={1}>
-          {lead.projectName?.trim() || "No project"}
-        </Text>
-        <Text style={styles.hotPhone} numberOfLines={1}>
-          {lead.phone ?? "No phone"}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-    </Pressable>
-  );
-});
+}
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md },
-  hero: {
-    marginBottom: spacing.lg,
-    padding: spacing.lg,
-    ...neuSticky,
+  content: { padding: spacing.md, gap: spacing.md },
+  greeting: { ...typography.h2, color: colors.text },
+  sub: { color: colors.textMuted, marginTop: 4 },
+  offline: {
+    backgroundColor: "#fef3c7",
+    color: "#78350f",
+    fontWeight: "700",
+    padding: spacing.sm,
+    borderRadius: 8,
   },
-  heroTop: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
-  heroText: { flex: 1 },
-  bellButton: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.pill,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.cardSm,
-  },
-  bellBadge: {
-    position: "absolute",
-    top: 2,
-    right: 2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: radii.pill,
-    backgroundColor: colors.danger,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  bellBadgeText: {
-    color: colors.text,
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  greeting: { ...typography.heading, color: colors.text, fontSize: 24 },
-  heroSub: { color: colors.textMuted, marginTop: 6, fontSize: 15, fontWeight: "500" },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
-  statCard: {
-    width: "48%",
-    flexGrow: 1,
-    backgroundColor: colors.card,
-    padding: spacing.md,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    minWidth: "46%",
-    ...shadows.card,
-  },
-  pressed: { opacity: 0.92 },
-  statValue: { fontSize: 28, fontWeight: "700", marginTop: 8 },
-  statLabel: {
+  kicker: {
     color: colors.textMuted,
     fontSize: 12,
-    marginTop: 4,
-    fontWeight: "500",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
-  sectionTitle: {
-    ...typography.subheading,
-    color: colors.text,
-    marginBottom: spacing.sm,
-    fontSize: 16,
+  metric: { color: colors.text, fontSize: 22, fontWeight: "800", marginTop: spacing.xs },
+  metricMuted: { color: colors.textMuted, fontSize: 16, fontWeight: "600" },
+  body: { color: colors.text, marginTop: 4, lineHeight: 20 },
+  quote: { color: colors.text, fontSize: 16, lineHeight: 22 },
+  track: {
+    height: 8,
+    borderRadius: 99,
+    backgroundColor: "#e5e5e5",
+    marginTop: spacing.sm,
+    overflow: "hidden",
   },
-  actions: { gap: spacing.sm },
-  actionTile: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
+  fill: { height: 8, backgroundColor: colors.primary },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  action: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  actionLabel: { flex: 1, color: colors.text, fontSize: 15, fontWeight: "600" },
-  hotList: { gap: spacing.xs },
-  hotRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.card,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.sm,
-    ...shadows.cardSm,
-  },
-  hotScoreBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.sm,
-    backgroundColor: colors.hot,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  hotScoreText: { color: "#fff", fontWeight: "800", fontSize: 14 },
-  hotMeta: { flex: 1 },
-  hotName: { color: colors.text, fontWeight: "700", fontSize: 14 },
-  hotProject: { color: colors.primary, fontSize: 12, fontWeight: "700", marginTop: 2 },
-  hotPhone: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  actionText: { color: "#fff", fontWeight: "700" },
+  group: { marginTop: spacing.sm },
+  groupTitle: { color: colors.text, fontWeight: "700" },
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm },
+  rowText: { flex: 1 },
+  feedItem: { marginTop: spacing.sm },
+  feedTitle: { color: colors.text, fontWeight: "700" },
+  meta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  link: { color: colors.primary, fontWeight: "700", marginTop: spacing.sm },
 });

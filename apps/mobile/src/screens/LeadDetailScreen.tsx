@@ -54,6 +54,7 @@ import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { neuCard } from "@/theme/neubrutal";
 import { statusStyle } from "@/theme/status";
 import { Ionicons } from "@expo/vector-icons";
+import { OUTCOME_LABELS, type VisitOutcome } from "@propninja/types/site-visit-tracking";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
@@ -569,7 +570,9 @@ export function LeadDetailScreen({ route, navigation }: Props) {
               style={[styles.tab, tab === "visits" && styles.tabActive]}
               onPress={() => setTab("visits")}
             >
-              <Text style={[styles.tabText, tab === "visits" && styles.tabTextActive]}>Visits</Text>
+              <Text style={[styles.tabText, tab === "visits" && styles.tabTextActive]}>
+                Site Visits
+              </Text>
             </Pressable>
             <Pressable
               style={[styles.tab, tab === "documents" && styles.tabActive]}
@@ -671,7 +674,7 @@ export function LeadDetailScreen({ route, navigation }: Props) {
                 style={styles.scheduleVisitBtn}
                 onPress={() => setScheduleVisitVisible(true)}
               >
-                <Text style={styles.scheduleVisitBtnText}>Schedule visit</Text>
+                <Text style={styles.scheduleVisitBtnText}>Schedule Site Visit</Text>
               </Pressable>
               {(visitsData?.items ?? []).length === 0 ? (
                 <Text style={styles.empty}>No site visits scheduled.</Text>
@@ -697,6 +700,14 @@ export function LeadDetailScreen({ route, navigation }: Props) {
                         </View>
                       </View>
                       <Text style={styles.visitMeta}>{visitLocation(visit)}</Text>
+                      {visit.outcome || visit.durationMinutes ? (
+                        <Text style={styles.visitMeta}>
+                          {visit.outcome
+                            ? (OUTCOME_LABELS[visit.outcome as VisitOutcome] ?? visit.outcome)
+                            : "No outcome yet"}
+                          {visit.durationMinutes ? ` · ${visit.durationMinutes} min` : ""}
+                        </Text>
+                      ) : null}
                     </Pressable>
                   );
                 })

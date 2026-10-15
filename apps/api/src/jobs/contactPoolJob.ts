@@ -2,6 +2,7 @@ import { contactPoolSettings, users } from "@propninja/db";
 import { getIstDateKey, getIstDayBounds, isIstDailyWindow } from "@propninja/types/ist";
 import { and, eq, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
+import { HARD_DAILY_CONTACT_CAP } from "../lib/contactPool/outcomeRules.js";
 import { sqlRows } from "../lib/contactPool/sql.js";
 import { getDb } from "../lib/db.js";
 import { logger } from "../lib/logger.js";
@@ -43,7 +44,7 @@ export async function runContactPoolMaintenance(now = new Date()) {
     if (settings?.last !== dateKey) {
       await db.execute(sql`
         INSERT INTO agent_daily_limits (org_id, agent_id, date, contacts_requested_today, contacts_called_today, max_daily_limit)
-        SELECT u.org_id, u.id, ${dateKey}::date, 0, 0, LEAST(COALESCE(l.max_daily_limit, 100), 100)
+        SELECT u.org_id, u.id, ${dateKey}::date, 0, 0, LEAST(COALESCE(l.max_daily_limit, ${HARD_DAILY_CONTACT_CAP}), ${HARD_DAILY_CONTACT_CAP})
         FROM users u
         LEFT JOIN agent_calling_limits l ON l.agent_id = u.id
         WHERE u.org_id = ${SINGLE_TENANT_ORG_ID}::uuid AND u.role = 'agent' AND u.is_active = true

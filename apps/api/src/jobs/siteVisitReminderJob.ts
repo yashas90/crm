@@ -8,6 +8,7 @@ import {
   runSiteVisitAutomation,
 } from "../services/siteVisitAutomationService.js";
 import { siteVisitService } from "../services/siteVisitService.js";
+import { siteVisitTrackingService } from "../services/siteVisitTrackingService.js";
 import { sendClientSiteVisitWhatsAppDirect } from "../services/siteVisitWhatsAppService.js";
 
 const INTERVAL_MS = 5 * 60 * 1000;
@@ -15,6 +16,10 @@ const INTERVAL_MS = 5 * 60 * 1000;
 let syncTimer: ReturnType<typeof setInterval> | undefined;
 
 export async function syncSiteVisitReminders(now = new Date()) {
+  const tracked = await siteVisitTrackingService.processDueReminders(now).catch(() => ({
+    sent: 0,
+    overdue: 0,
+  }));
   const db = getDb();
   const notifications = createNotificationService(db);
   const dueVisits = await siteVisitService.findDueForReminders(now);
@@ -74,11 +79,16 @@ export async function syncSiteVisitReminders(now = new Date()) {
 
   const missed = await markMissedSiteVisits(db);
 
-  if (sent > 0 || missed > 0) {
-    logger.info("Site visit reminder sync", { sent, checked: dueVisits.length, missed });
+  if (sent > 0 || missed > 0 || tracked.sent > 0 || tracked.overdue > 0) {
+    logger.info("Site visit reminder sync", {
+      sent: sent + tracked.sent,
+      checked: dueVisits.length,
+      missed,
+      overdue: tracked.overdue,
+    });
   }
 
-  return { sent, checked: dueVisits.length, missed };
+  return { sent: sent + tracked.sent, checked: dueVisits.length, missed, overdue: tracked.overdue };
 }
 
 export function startSiteVisitReminderJob() {

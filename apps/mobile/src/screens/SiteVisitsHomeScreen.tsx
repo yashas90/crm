@@ -1,19 +1,31 @@
 import { SiteVisitCard } from "@/components/site-visits/SiteVisitCard";
 import { VisitDetailSheet } from "@/components/site-visits/VisitDetailSheet";
+import { VisitLiveSheet } from "@/components/site-visits/VisitLiveSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ListSkeleton } from "@/components/ui/Skeleton";
 import { useIsManager } from "@/hooks/use-role";
-import { type SiteVisit, useTodaySiteVisits } from "@/hooks/use-site-visits";
+import { type SiteVisit, useManagerVisitBoard, useTodaySiteVisits } from "@/hooks/use-site-visits";
 import { useTeamMembers } from "@/hooks/use-users";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { FLAT_LIST_PERF } from "@/lib/flatList";
+import { flushVisitPayloadQueue } from "@/lib/siteVisitOfflineQueue";
 import type { VisitsStackParamList } from "@/navigation/types";
 import { colors, radii, shadows, spacing, typography } from "@/theme";
 import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import { getIstDateKey } from "@propninja/types/ist";
+import NetInfo from "@react-native-community/netinfo";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useCallback, useMemo, useState } from "react";
-import { FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AppState,
+  FlatList,
+  Modal,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = NativeStackScreenProps<VisitsStackParamList, "SiteVisitsHomeScreen">;
@@ -41,6 +53,8 @@ export function SiteVisitsHomeScreen({ navigation }: Props) {
   const [agentFilter, setAgentFilter] = useState<string | undefined>(undefined);
   const [agentPickerOpen, setAgentPickerOpen] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<SiteVisit | null>(null);
+  const [liveVisit, setLiveVisit] = useState<SiteVisit | null>(null);
+  const board = useManagerVisitBoard(isManager);
 
   const todayVisits = useTodaySiteVisits(isManager ? agentFilter : undefined);
   const visits = useMemo(
@@ -54,6 +68,18 @@ export function SiteVisitsHomeScreen({ navigation }: Props) {
 
   const refetch = useCallback(() => todayVisits.refetch(), [todayVisits]);
   useRefreshOnFocus(refetch);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void flushVisitPayloadQueue();
+    });
+    const net = NetInfo.addEventListener((state) => {
+      if (state.isConnected) void flushVisitPayloadQueue();
+    });
+    return () => {
+      sub.remove();
+      net();
+    };
+  }, []);
 
   const agentLabel =
     !isManager || !agentFilter
@@ -70,6 +96,9 @@ export function SiteVisitsHomeScreen({ navigation }: Props) {
         <Text style={styles.title}>Site Visits</Text>
         <Text style={styles.subtitle}>
           {todayLabel} · {scheduledCount} scheduled today
+          {board.data
+            ? ` · in ${board.data.counts.checkedIn} · done ${board.data.counts.completed} · no-show ${board.data.counts.noShow}`
+            : ""}
         </Text>
       </View>
 
@@ -135,10 +164,17 @@ export function SiteVisitsHomeScreen({ navigation }: Props) {
             <SiteVisitCard
               visit={visit}
               showAgent={isManager}
-              onPress={() => setSelectedVisit(visit)}
+              onPress={() => setLiveVisit(visit)}
             />
           </View>
         )}
+      />
+
+      <VisitLiveSheet
+        visit={liveVisit}
+        visible={Boolean(liveVisit)}
+        onClose={() => setLiveVisit(null)}
+        onChanged={() => void refetch()}
       />
 
       <VisitDetailSheet

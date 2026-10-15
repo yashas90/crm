@@ -1,7 +1,9 @@
 "use client";
 
+import { ManagerVisitBoard } from "@/components/site-visits/manager-visit-board";
 import { ScheduleVisitDialog } from "@/components/site-visits/schedule-visit-dialog";
 import { VisitDetailSlideOver } from "@/components/site-visits/visit-detail-slide-over";
+import { useSession } from "@/hooks/use-session";
 import {
   type SiteVisit,
   type SiteVisitStatus,
@@ -18,6 +20,7 @@ import { cn } from "@propninja/ui/lib/utils";
 import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from "date-fns";
 import { enIN } from "date-fns/locale/en-IN";
 import { AlertCircle } from "lucide-react";
+import Link from "next/link";
 import { type ComponentType, useMemo, useState } from "react";
 import { Calendar, type CalendarProps, type View, dateFnsLocalizer } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
@@ -79,6 +82,8 @@ type SiteVisitsCalendarProps = {
 };
 
 export function SiteVisitsCalendar({ agentId, initialDate }: SiteVisitsCalendarProps) {
+  const { session } = useSession();
+  const canManage = session?.role === "admin" || session?.role === "manager";
   const [currentDate, setCurrentDate] = useState(initialDate ?? new Date());
   const [view, setView] = useState<View>("month");
   const [statusTab, setStatusTab] = useState<StatusTab>("all");
@@ -144,8 +149,17 @@ export function SiteVisitsCalendar({ agentId, initialDate }: SiteVisitsCalendarP
             Schedule and track property visits — drag events to reschedule
           </p>
         </div>
-        <Button onClick={() => setScheduleOpen(true)}>Schedule visit</Button>
+        <div className="flex flex-wrap gap-2">
+          {session?.role === "admin" ? (
+            <Button variant="outline" asChild>
+              <Link href="/site-visits/reports">Reports</Link>
+            </Button>
+          ) : null}
+          <Button onClick={() => setScheduleOpen(true)}>Schedule Site Visit</Button>
+        </div>
       </div>
+
+      {canManage ? <ManagerVisitBoard /> : null}
 
       <div className="flex flex-wrap gap-2">
         <button

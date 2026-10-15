@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useLeads } from "@/hooks/use-leads";
+import { useLead, useLeads } from "@/hooks/use-leads";
 import { useProjectUnits } from "@/hooks/use-project-units";
 import { useProjects } from "@/hooks/use-projects";
 import { useSession } from "@/hooks/use-session";
@@ -20,12 +20,19 @@ import {
   type SiteVisit,
   formatVisitTime,
   useCreateSiteVisit,
+  useSiteVisits,
 } from "@/hooks/use-site-visits";
 import { useUsers } from "@/hooks/use-users";
 import { siteVisitCustomerUrlFromToken } from "@/lib/site-visit-customer-url";
 import { openCustomerSiteVisitWhatsApp } from "@/lib/site-visit-whatsapp-actions";
 import { toast } from "@/lib/toast";
 import { getIstDateKey } from "@propninja/types/ist";
+import { formatINR } from "@propninja/types/money";
+import {
+  VISIT_COMPANION_LABELS,
+  type VisitCompanions,
+  visitTimeSlots,
+} from "@propninja/types/site-visit-tracking";
 import { Button } from "@propninja/ui/button";
 import { Input } from "@propninja/ui/input";
 import { Label } from "@propninja/ui/label";
@@ -61,8 +68,10 @@ export function ScheduleVisitDialog({
   const [visitDate, setVisitDate] = useState(() => getIstDateKey());
   const [visitTime, setVisitTime] = useState("10:00");
   const [endTime, setEndTime] = useState("11:00");
-  const [duration, setDuration] = useState("60");
+  const [duration, _setDuration] = useState("60");
   const [notes, setNotes] = useState("");
+  const [propertyName, setPropertyName] = useState("");
+  const [companions, setCompanions] = useState<VisitCompanions>("just_customer");
   const [propertyAddress, setPropertyAddress] = useState("");
   const [meetingLocation, setMeetingLocation] = useState("");
   const [mapsLink, setMapsLink] = useState("");
@@ -70,6 +79,11 @@ export function ScheduleVisitDialog({
   const [leadSearch, setLeadSearch] = useState("");
   const [confirmedVisit, setConfirmedVisit] = useState<SiteVisit | null>(null);
   const { data: unitsData } = useProjectUnits(projectId);
+  const lockedLead = useLead(defaultLeadId ?? "");
+  const dayVisits = useSiteVisits(
+    { agentId: agentId || session?.id, date: visitDate, pageSize: 20 },
+    { enabled: open && Boolean(agentId || session?.id) },
+  );
 
   useEffect(() => {
     if (!open) {
@@ -117,6 +131,8 @@ export function ScheduleVisitDialog({
       duration: computeDurationFromTimes(visitTime, endTime),
       notes: notes.trim() || null,
       propertyAddress: propertyAddress.trim() || null,
+      propertyName: propertyName.trim() || null,
+      companions,
       meetingLocation: meetingLocation.trim() || null,
       mapsLink: mapsLink.trim() || null,
       customerEmail: customerEmail.trim() || selectedLead?.email || null,
@@ -188,7 +204,7 @@ export function ScheduleVisitDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Schedule site visit</DialogTitle>
+              <DialogTitle>Schedule Site Visit</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
@@ -208,10 +224,25 @@ export function ScheduleVisitDialog({
                     <option value="">Select lead</option>
                     {filteredLeads.map((lead) => (
                       <option key={lead.id} value={lead.id}>
-                        {lead.firstName} {lead.lastName} · {lead.phone ?? "No phone"}
+                        {lead.firstName} {lead.lastName} ·{" "}
+                        {lead.leadCode ?? lead.phone ?? "No phone"}
                       </option>
                     ))}
                   </select>
+                </div>
+              ) : lockedLead.data ? (
+                <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+                  <p className="font-medium">
+                    {lockedLead.data.firstName} {lockedLead.data.lastName}
+                    {lockedLead.data.leadCode ? ` · ${lockedLead.data.leadCode}` : ""}
+                  </p>
+                  <p className="text-muted-foreground">{lockedLead.data.phone ?? "No phone"}</p>
+                  <p className="text-muted-foreground">
+                    Budget{" "}
+                    {lockedLead.data.estimatedValue
+                      ? formatINR(Number(lockedLead.data.estimatedValue))
+                      : "—"}
+                  </p>
                 </div>
               ) : null}
 
@@ -294,12 +325,18 @@ export function ScheduleVisitDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Start time</Label>
-                  <Input
-                    type="time"
+                  <Label>Time (IST)</Label>
+                  <select
+                    className={selectClass}
                     value={visitTime}
                     onChange={(e) => setVisitTime(e.target.value)}
-                  />
+                  >
+                    {visitTimeSlots().map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="space-y-2">
                   <Label>End time</Label>
@@ -333,11 +370,17 @@ export function ScheduleVisitDialog({
                     value={agentId}
                     onChange={(e) => setAgentId(e.target.value)}
                   >
-                    {(users ?? []).map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name}
-                      </option>
-                    ))}
+                    {(users ?? [])
+                      .filter((user) =>
+                        session?.role === "admin"
+                          ? true
+                          : user.id === session?.id || user.reportingToId === session?.id,
+                      )
+                      .map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
               ) : null}
@@ -349,6 +392,43 @@ export function ScheduleVisitDialog({
                   onChange={(e) => setPropertyAddress(e.target.value)}
                   placeholder="Site address"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Property name</Label>
+                <Input
+                  value={propertyName}
+                  onChange={(e) => setPropertyName(e.target.value)}
+                  placeholder="Or pick a project above"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Companions</Label>
+                <select
+                  className={selectClass}
+                  value={companions}
+                  onChange={(e) => setCompanions(e.target.value as VisitCompanions)}
+                >
+                  {(Object.keys(VISIT_COMPANION_LABELS) as VisitCompanions[]).map((key) => (
+                    <option key={key} value={key}>
+                      {VISIT_COMPANION_LABELS[key]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>Other visits that day</p>
+                {(dayVisits.data?.items ?? []).length === 0 ? (
+                  <p>None yet.</p>
+                ) : (
+                  (dayVisits.data?.items ?? []).map((visit) => (
+                    <p key={visit.id}>
+                      {formatVisitTime(visit.visitTime)} · {visit.propertyLabel ?? "Property"}
+                    </p>
+                  ))
+                )}
               </div>
 
               <div className="space-y-2">

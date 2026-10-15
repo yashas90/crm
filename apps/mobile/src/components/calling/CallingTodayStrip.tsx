@@ -16,6 +16,7 @@ export function CallingTodayStrip() {
       ),
     retry: false,
     refetchInterval: false,
+    refetchOnWindowFocus: false,
     meta: { suppressErrorToast: true },
   });
   const leads = useQuery({

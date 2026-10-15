@@ -40,7 +40,7 @@ import {
   isLastIstDay,
   monthEndMessage,
 } from "../lib/leaderboardRank.js";
-import { clearLeaderboardCache } from "../lib/responseCache.js";
+import { clearLeaderboardCache, clearMorningBriefCache } from "../lib/responseCache.js";
 import type { AuthUser } from "../middleware/auth.js";
 import { NOTIFICATION_TYPES, createNotificationService } from "./notificationService.js";
 
@@ -471,6 +471,7 @@ export function createLeaderboardService(db: Database) {
 
 export async function onLeaderboardDealChanged(db: Database, tcfId: string, announce: boolean) {
   clearLeaderboardCache();
+  clearMorningBriefCache();
   if (!announce) return;
   const [row] = await db
     .select()

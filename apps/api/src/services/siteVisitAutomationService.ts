@@ -232,7 +232,7 @@ export async function runSiteVisitAutomation(
 
 export async function getSiteVisitWhatsAppLinks(
   visitId: string,
-  event: SiteVisitAutomationEvent,
+  event: SiteVisitMessageKind,
   database: Database = db,
 ) {
   const row = await loadVisitRow(database, visitId);

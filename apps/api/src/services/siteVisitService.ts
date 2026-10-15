@@ -1,6 +1,6 @@
 import { leads, organizations, projectUnits, projects, siteVisits, users } from "@propninja/db";
-import { getIstDateKey } from "@propninja/types/ist";
-import { and, asc, count, desc, eq, gte, lte, ne, sql } from "drizzle-orm";
+import { getIstDateKey, parseVisitStartIst } from "@propninja/types/ist";
+import { and, asc, count, desc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { LIST_PAGE_SIZE_MAX, boundPageSize } from "../lib/pagination.js";
@@ -47,6 +47,11 @@ export interface CreateSiteVisitInput {
   meetingLocation?: string | null;
   mapsLink?: string | null;
   customerEmail?: string | null;
+  propertyName?: string | null;
+  propertyLat?: number | null;
+  propertyLng?: number | null;
+  companions?: string | null;
+  scheduledBy?: string | null;
 }
 
 export interface UpdateSiteVisitInput {
@@ -101,6 +106,26 @@ const visitSelectFields = {
   googleCalendarEventId: siteVisits.googleCalendarEventId,
   outcome: siteVisits.outcome,
   outcomeNote: siteVisits.outcomeNote,
+  propertyName: siteVisits.propertyName,
+  propertyLat: siteVisits.propertyLat,
+  propertyLng: siteVisits.propertyLng,
+  scheduledAt: siteVisits.scheduledAt,
+  scheduledBy: siteVisits.scheduledBy,
+  checkinAt: siteVisits.checkinAt,
+  checkinLat: siteVisits.checkinLat,
+  checkinLng: siteVisits.checkinLng,
+  distanceMeters: siteVisits.distanceMeters,
+  checkinVerified: siteVisits.checkinVerified,
+  checkoutAt: siteVisits.checkoutAt,
+  durationMinutes: siteVisits.durationMinutes,
+  customerPresent: siteVisits.customerPresent,
+  companions: siteVisits.companions,
+  nextAction: siteVisits.nextAction,
+  nextActionDate: siteVisits.nextActionDate,
+  feedback: siteVisits.feedback,
+  agentNotes: siteVisits.agentNotes,
+  visitPhotos: siteVisits.visitPhotos,
+  customerSignature: siteVisits.customerSignature,
   reminderSent: siteVisits.reminderSent,
   remindersSent: siteVisits.remindersSent,
   confirmedByClient: siteVisits.confirmedByClient,
@@ -114,6 +139,8 @@ const visitSelectFields = {
     phone: leads.phone,
     email: leads.email,
     assignedTo: leads.assignedTo,
+    leadCode: leads.leadCode,
+    estimatedValue: leads.estimatedValue,
   },
   project: {
     id: projects.id,
@@ -151,6 +178,26 @@ function mapVisitRow(row: {
   googleCalendarEventId: string | null;
   outcome: string | null;
   outcomeNote: string | null;
+  propertyName: string | null;
+  propertyLat: string | null;
+  propertyLng: string | null;
+  scheduledAt: Date | null;
+  scheduledBy: string | null;
+  checkinAt: Date | null;
+  checkinLat: string | null;
+  checkinLng: string | null;
+  distanceMeters: number | null;
+  checkinVerified: boolean;
+  checkoutAt: Date | null;
+  durationMinutes: number | null;
+  customerPresent: string | null;
+  companions: string | null;
+  nextAction: string | null;
+  nextActionDate: Date | null;
+  feedback: Record<string, unknown> | null;
+  agentNotes: string | null;
+  visitPhotos: string[];
+  customerSignature: string | null;
   reminderSent: boolean;
   remindersSent: SiteVisitReminderTier[];
   confirmedByClient: boolean;
@@ -164,6 +211,8 @@ function mapVisitRow(row: {
     phone: string | null;
     email: string | null;
     assignedTo?: string | null;
+    leadCode?: string | null;
+    estimatedValue?: string | null;
   } | null;
   project: {
     id: string;
@@ -183,6 +232,7 @@ function mapVisitRow(row: {
   agent: { id: string; name: string; phone: string | null } | null;
 }) {
   const property =
+    row.propertyName?.trim() ||
     row.meetingLocation?.trim() ||
     row.propertyAddress?.trim() ||
     (row.project?.name ? `${row.project.name}` : null);
@@ -208,6 +258,26 @@ function mapVisitRow(row: {
     propertyLabel: property,
     outcome: row.outcome,
     outcomeNote: row.outcomeNote,
+    propertyName: row.propertyName,
+    propertyLat: row.propertyLat,
+    propertyLng: row.propertyLng,
+    scheduledAt: row.scheduledAt?.toISOString() ?? null,
+    scheduledBy: row.scheduledBy,
+    checkinAt: row.checkinAt?.toISOString() ?? null,
+    checkinLat: row.checkinLat,
+    checkinLng: row.checkinLng,
+    distanceMeters: row.distanceMeters,
+    checkinVerified: row.checkinVerified,
+    checkoutAt: row.checkoutAt?.toISOString() ?? null,
+    durationMinutes: row.durationMinutes,
+    customerPresent: row.customerPresent,
+    companions: row.companions,
+    nextAction: row.nextAction,
+    nextActionDate: row.nextActionDate?.toISOString() ?? null,
+    feedback: row.feedback,
+    agentNotes: row.agentNotes,
+    visitPhotos: row.visitPhotos ?? [],
+    customerSignature: row.customerSignature,
     reminderSent: row.reminderSent,
     remindersSent: row.remindersSent ?? [],
     confirmedByClient: row.confirmedByClient ?? false,
@@ -376,6 +446,12 @@ export const siteVisitService = {
             meetingLocation: input.meetingLocation ?? null,
             mapsLink: input.mapsLink ?? null,
             customerEmail: input.customerEmail ?? null,
+            propertyName: input.propertyName ?? null,
+            propertyLat: input.propertyLat != null ? String(input.propertyLat) : null,
+            propertyLng: input.propertyLng != null ? String(input.propertyLng) : null,
+            companions: input.companions ?? "just_customer",
+            scheduledBy: input.scheduledBy ?? input.agentId,
+            scheduledAt: parseVisitStartIst(input.visitDate, visitTime),
             publicToken,
             status: "scheduled",
             remindersSent: [],
@@ -525,7 +601,7 @@ export const siteVisitService = {
       .where(
         and(
           eq(siteVisits.orgId, SINGLE_TENANT_ORG_ID),
-          eq(siteVisits.status, "scheduled"),
+          inArray(siteVisits.status, ["scheduled", "reminder_sent"]),
           gte(siteVisits.visitDate, sql`CURRENT_DATE - INTERVAL '1 day'`),
         ),
       );

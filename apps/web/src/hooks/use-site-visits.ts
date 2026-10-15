@@ -5,7 +5,15 @@ import { toast } from "@/lib/toast";
 import { formatVisitTimeIst } from "@propninja/types/ist";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export type SiteVisitStatus = "scheduled" | "completed" | "cancelled" | "no_show";
+export type SiteVisitStatus =
+  | "scheduled"
+  | "reminder_sent"
+  | "checked_in"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "no_show"
+  | "rescheduled";
 
 export type SiteVisit = {
   id: string;
@@ -24,6 +32,17 @@ export type SiteVisit = {
   mapsLink: string | null;
   customerEmail: string | null;
   publicToken: string;
+  propertyName?: string | null;
+  propertyLat?: string | null;
+  propertyLng?: string | null;
+  companions?: string | null;
+  checkinAt?: string | null;
+  checkinVerified?: boolean;
+  checkoutAt?: string | null;
+  durationMinutes?: number | null;
+  outcome?: string | null;
+  nextAction?: string | null;
+  agentNotes?: string | null;
   googleCalendarEventId: string | null;
   propertyLabel: string | null;
   reminderSent: boolean;
@@ -36,6 +55,7 @@ export type SiteVisit = {
     lastName: string;
     phone: string | null;
     email?: string | null;
+    leadCode?: string | null;
   } | null;
   project: { id: string; name: string } | null;
   unit: { id: string; unitNumber: string } | null;
@@ -132,6 +152,10 @@ export type CreateSiteVisitInput = {
   meetingLocation?: string | null;
   mapsLink?: string | null;
   customerEmail?: string | null;
+  propertyName?: string | null;
+  propertyLat?: number | null;
+  propertyLng?: number | null;
+  companions?: "just_customer" | "plus_1" | "plus_2" | "family";
 };
 
 export function useSiteVisitSummary(agentId?: string) {
@@ -206,4 +230,70 @@ export function visitLeadName(visit: SiteVisit) {
 
 export function formatVisitTime(visitTime: string) {
   return formatVisitTimeIst(visitTime);
+}
+
+export type ManagerVisitBoard = {
+  mapSdk: false;
+  counts: {
+    scheduled: number;
+    checkedIn: number;
+    completed: number;
+    upcoming: number;
+    noShow: number;
+  };
+  items: Array<{
+    id: string;
+    agentName: string;
+    time: string;
+    property: string;
+    leadName: string;
+    leadCode: string | null;
+    status: string;
+    checkinAt: string | null;
+    outcome: string | null;
+    gpsVerified: boolean;
+    color: "green" | "blue" | "yellow" | "red" | "slate";
+    mapsUrl: string | null;
+    agentMapsUrl: string | null;
+  }>;
+};
+
+export function useManagerVisitBoard(enabled: boolean) {
+  return useQuery({
+    queryKey: ["site-visits", "manager-board"],
+    queryFn: () => apiGet<ManagerVisitBoard>("/api/site-visits/manager-board"),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export type SiteVisitReport = {
+  total: number;
+  completed: number;
+  noShow: number;
+  noShowRate: string;
+  avgDurationMinutes: string;
+  avgStars: string;
+  conversionPercent: string;
+  outcomes: Record<string, number>;
+  concerns: Array<[string, number]>;
+  peakHours: Array<{ hour: string; count: number }>;
+  propertyReactions: Array<{ property: string; avgStars: string; visits: number }>;
+  agents?: Array<{ agentName: string } & Omit<SiteVisitReport, "agents">>;
+};
+
+export function useOrgVisitReport(enabled: boolean) {
+  return useQuery({
+    queryKey: ["site-visits", "org-report"],
+    queryFn: () => apiGet<SiteVisitReport>("/api/site-visits/reports/org"),
+    enabled,
+  });
+}
+
+export function useMyVisitReport(enabled = true) {
+  return useQuery({
+    queryKey: ["site-visits", "my-report"],
+    queryFn: () => apiGet<SiteVisitReport>("/api/site-visits/reports/me"),
+    enabled,
+  });
 }

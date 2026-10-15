@@ -491,6 +491,27 @@
       "when": 1780632546757,
       "tag": "0069_leaderboard",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1780632546758,
+      "tag": "0070_morning_brief_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1780632546759,
+      "tag": "0071_site_visit_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1780632546760,
+      "tag": "0072_calling_data_request_cap",
+      "breakpoints": true
     }
   ]
 }

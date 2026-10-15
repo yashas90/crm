@@ -37,6 +37,12 @@ vi.mock("../services/siteVisitAutomationService.js", () => ({
   markMissedSiteVisits,
 }));
 
+vi.mock("../services/siteVisitTrackingService.js", () => ({
+  siteVisitTrackingService: {
+    processDueReminders: vi.fn().mockResolvedValue({ sent: 0, overdue: 0 }),
+  },
+}));
+
 import { syncSiteVisitReminders } from "./siteVisitReminderJob.js";
 
 describe("syncSiteVisitReminders", () => {
@@ -74,7 +80,7 @@ describe("syncSiteVisitReminders", () => {
   it("returns zero when no visits are due", async () => {
     findDueForReminders.mockResolvedValue([]);
     const result = await syncSiteVisitReminders();
-    expect(result).toEqual({ sent: 0, checked: 0, missed: 0 });
+    expect(result).toEqual({ sent: 0, checked: 0, missed: 0, overdue: 0 });
     expect(createNotification).not.toHaveBeenCalled();
   });
 });

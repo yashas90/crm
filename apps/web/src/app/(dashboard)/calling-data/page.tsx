@@ -689,8 +689,8 @@ function Agents() {
                 className="w-16 rounded border px-2 py-1"
                 type="number"
                 min={1}
-                max={100}
-                defaultValue={100}
+                max={200}
+                defaultValue={200}
                 onBlur={(event) => {
                   void apiPut(`/api/admin/agent-limit/${agent.agent_id}`, {
                     maxDailyLimit: Number(event.target.value),

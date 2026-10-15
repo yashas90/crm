@@ -1,5 +1,5 @@
 import { getIstDateKey } from "@propninja/types/ist";
-import type { Context } from "hono";
+import { validateVisitSlot } from "@propninja/types/site-visit-tracking";
 import { Hono } from "hono";
 import { z } from "zod";
 import { AUDIT_ACTIONS } from "../lib/auditActions.js";
@@ -14,14 +14,28 @@ import { writeRateLimit } from "../middleware/rateLimit.js";
 import { auditFromContext } from "../services/auditService.js";
 import { recalculateLeadScore } from "../services/leadScoringService.js";
 import { leadService } from "../services/leadService.js";
-import { NOTIFICATION_TYPES, createNotificationService } from "../services/notificationService.js";
 import {
   getSiteVisitWhatsAppLinks,
   runSiteVisitAutomation,
 } from "../services/siteVisitAutomationService.js";
 import { siteVisitService } from "../services/siteVisitService.js";
+import { siteVisitTrackingService } from "../services/siteVisitTrackingService.js";
+import { registerSiteVisitTrackingRoutes } from "./siteVisitTrackingRoutes.js";
 
 export const siteVisitsRoutes = new Hono();
+
+const visitStatusEnum = z.enum([
+  "scheduled",
+  "reminder_sent",
+  "checked_in",
+  "in_progress",
+  "completed",
+  "cancelled",
+  "no_show",
+  "rescheduled",
+]);
+
+registerSiteVisitTrackingRoutes(siteVisitsRoutes);
 
 function maskVisitLeadPhones<
   T extends { lead?: { phone?: string | null; assignedTo?: string | null } | null },
@@ -51,6 +65,10 @@ const createSiteVisitSchema = z.object({
   meetingLocation: z.string().max(500).nullable().optional(),
   mapsLink: z.string().url().max(2000).nullable().optional().or(z.literal("")),
   customerEmail: z.string().email().max(320).nullable().optional().or(z.literal("")),
+  propertyName: z.string().max(200).nullable().optional(),
+  propertyLat: z.number().finite().nullable().optional(),
+  propertyLng: z.number().finite().nullable().optional(),
+  companions: z.enum(["just_customer", "plus_1", "plus_2", "family"]).optional(),
 });
 
 const updateSiteVisitSchema = z.object({
@@ -64,9 +82,18 @@ const updateSiteVisitSchema = z.object({
     .optional(),
   visitTime: visitTimeSchema.optional(),
   duration: z.number().int().min(15).max(480).optional(),
-  status: z.enum(["scheduled", "completed", "cancelled", "no_show"]).optional(),
+  status: visitStatusEnum.optional(),
   outcome: z
-    .enum(["very_interested", "needs_time", "not_interested", "revisit_required"])
+    .enum([
+      "very_interested",
+      "needs_time",
+      "not_interested",
+      "revisit_required",
+      "interested",
+      "deal_closed",
+      "negotiating",
+      "wants_different_property",
+    ])
     .nullable()
     .optional(),
   outcomeNote: z.string().max(1000).nullable().optional(),
@@ -81,7 +108,7 @@ const listSiteVisitsSchema = listPaginationSchema.extend({
   agentId: z.string().uuid().optional(),
   leadId: z.string().uuid().optional(),
   projectId: z.string().uuid().optional(),
-  status: z.enum(["scheduled", "completed", "cancelled", "no_show"]).optional(),
+  status: visitStatusEnum.optional(),
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -120,27 +147,6 @@ function defaultCalendarMonthRange(now = new Date()) {
 function resolveAgentFilter(authUser: AuthUser, agentId?: string) {
   if (authUser.role === "agent") return authUser.id;
   return agentId;
-}
-
-async function notifyVisitScheduled(
-  c: Context,
-  visit: NonNullable<Awaited<ReturnType<typeof siteVisitService.getById>>>,
-  scheduledBy: AuthUser,
-) {
-  if (visit.agentId === scheduledBy.id) return;
-
-  const notifications = createNotificationService(c.get("db"));
-  const leadName = visit.lead ? `${visit.lead.firstName} ${visit.lead.lastName}`.trim() : "Lead";
-
-  await notifications.createNotification(visit.agentId, NOTIFICATION_TYPES.SITE_VISIT_SCHEDULED, {
-    siteVisitId: visit.id,
-    leadId: visit.leadId,
-    leadName,
-    visitDate: visit.visitDate,
-    visitTime: visit.visitTime,
-    property: visit.propertyLabel ?? visit.propertyAddress ?? "Property",
-    scheduledBy: scheduledBy.name,
-  });
 }
 
 function normalizeOptionalUrl(value: string | null | undefined) {
@@ -270,6 +276,8 @@ siteVisitsRoutes.get("/:id/whatsapp-links", async (c) => {
     "cancelled",
     "completed",
     "reminder",
+    "before_visit",
+    "after_interested",
   ]);
   const parsedEvent = eventSchema.safeParse(eventRaw);
   if (!parsedEvent.success) {
@@ -316,6 +324,9 @@ siteVisitsRoutes.post("/", writeRateLimit, validate("json", createSiteVisitSchem
     );
   }
 
+  const slotError = validateVisitSlot(body.visitDate, body.visitTime);
+  if (slotError) return jsonError(c, "VALIDATION_ERROR", slotError, 400);
+
   try {
     const visit = await siteVisitService.create({
       leadId: body.leadId,
@@ -331,15 +342,20 @@ siteVisitsRoutes.post("/", writeRateLimit, validate("json", createSiteVisitSchem
       meetingLocation: body.meetingLocation,
       mapsLink: normalizeOptionalUrl(body.mapsLink),
       customerEmail: normalizeOptionalEmail(body.customerEmail),
+      propertyName: body.propertyName,
+      propertyLat: body.propertyLat,
+      propertyLng: body.propertyLng,
+      companions: body.companions,
+      scheduledBy: authUser.id,
     });
 
     if (!visit) return jsonError(c, "SERVER_ERROR", "Failed to create visit", 500);
 
+    void siteVisitTrackingService.onScheduled(visit.id).catch(() => undefined);
+
     void runSiteVisitAutomation(visit.id, "scheduled", { actorUserId: authUser.id }).catch(
       () => undefined,
     );
-
-    await notifyVisitScheduled(c, visit, authUser);
 
     const leadName = visit.lead ? `${visit.lead.firstName} ${visit.lead.lastName}`.trim() : "Lead";
     await auditFromContext(c, c.get("db"), {
@@ -377,6 +393,12 @@ siteVisitsRoutes.patch(
 
     if (!existing) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
     if (authUser.role === "agent" && existing.agentId !== authUser.id) {
+      return jsonError(c, "FORBIDDEN", "Not allowed to update this visit", 403);
+    }
+    if (
+      authUser.role === "manager" &&
+      !(await siteVisitTrackingService.managerCanAccess(authUser.id, existing.agentId))
+    ) {
       return jsonError(c, "FORBIDDEN", "Not allowed to update this visit", 403);
     }
     if (authUser.role === "agent" && body.agentId && body.agentId !== authUser.id) {
@@ -439,6 +461,12 @@ siteVisitsRoutes.delete("/:id", writeRateLimit, async (c) => {
 
   if (!existing) return jsonError(c, "NOT_FOUND", "Site visit not found", 404);
   if (authUser.role === "agent" && existing.agentId !== authUser.id) {
+    return jsonError(c, "FORBIDDEN", "Not allowed to cancel this visit", 403);
+  }
+  if (
+    authUser.role === "manager" &&
+    !(await siteVisitTrackingService.managerCanAccess(authUser.id, existing.agentId))
+  ) {
     return jsonError(c, "FORBIDDEN", "Not allowed to cancel this visit", 403);
   }
 

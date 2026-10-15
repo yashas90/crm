@@ -2,6 +2,7 @@
 
 import { ScheduleVisitDialog } from "@/components/site-visits/schedule-visit-dialog";
 import { VisitDetailSlideOver } from "@/components/site-visits/visit-detail-slide-over";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   type SiteVisit,
   formatVisitTime,
@@ -27,12 +28,15 @@ export function LeadSiteVisitsPanel({ leadId }: LeadSiteVisitsPanelProps) {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">{visits.length} visit(s) for this lead</p>
         <Button size="sm" onClick={() => setScheduleOpen(true)}>
-          Schedule visit
+          Schedule Site Visit
         </Button>
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading visits…</p>
+        <div className="space-y-2">
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
+        </div>
       ) : visits.length === 0 ? (
         <p className="text-sm text-muted-foreground">No site visits scheduled yet.</p>
       ) : (
@@ -55,6 +59,8 @@ export function LeadSiteVisitsPanel({ leadId }: LeadSiteVisitsPanelProps) {
                 <p className="text-sm text-muted-foreground">
                   {visit.propertyLabel ?? visit.propertyAddress ?? "Property TBD"} ·{" "}
                   {visit.agent?.name ?? "Agent"}
+                  {visit.outcome ? ` · ${visit.outcome.replaceAll("_", " ")}` : ""}
+                  {visit.durationMinutes ? ` · ${visit.durationMinutes} min` : ""}
                 </p>
                 {visit.notes ? (
                   <p className="mt-1 text-sm text-muted-foreground">{visit.notes}</p>

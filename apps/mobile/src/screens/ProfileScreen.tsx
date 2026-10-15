@@ -161,7 +161,7 @@ export function ProfileScreen({
         ) : null}
         {onOpenSiteVisits ? (
           <Button
-            label="Site visits"
+            label="My Visits"
             variant="secondary"
             onPress={onOpenSiteVisits}
             style={styles.linkBtn}

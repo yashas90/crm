@@ -1,4 +1,12 @@
-export type SiteVisitStatus = "scheduled" | "completed" | "cancelled" | "no_show";
+export type SiteVisitStatus =
+  | "scheduled"
+  | "reminder_sent"
+  | "checked_in"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "no_show"
+  | "rescheduled";
 
 /** Normalize visit time to HH:MM:SS for parsing. */
 export function normalizeVisitTime(value: string): string {

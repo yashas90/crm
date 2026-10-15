@@ -14,6 +14,11 @@ export const NOTIFICATION_TYPES = {
   CALL_FOLLOWUP_SET: "call_followup_set",
   SITE_VISIT_REMINDER: "site_visit_reminder",
   SITE_VISIT_SCHEDULED: "site_visit_scheduled",
+  SITE_VISIT_CHECKIN: "site_visit_checkin",
+  SITE_VISIT_COMPLETED: "site_visit_completed",
+  SITE_VISIT_NO_SHOW: "site_visit_no_show",
+  SITE_VISIT_OVERDUE: "site_visit_overdue_checkin",
+  SITE_VISIT_DEAL_CLOSED: "site_visit_deal_closed",
   COLD_LEADS_ALERT: "cold_leads_alert",
   DAILY_DIGEST: "daily_digest",
   NEW_AD_LEAD: "new_ad_lead",
@@ -126,6 +131,17 @@ function pushMessageFor(type: string, payload: Record<string, unknown>) {
         typeof payload.message === "string" ? payload.message : `${agentName} tracking issue`;
       return { title: `Tracking: ${title}`, body: `${agentName} — ${message}` };
     }
+    case NOTIFICATION_TYPES.SITE_VISIT_SCHEDULED:
+    case NOTIFICATION_TYPES.SITE_VISIT_REMINDER:
+    case NOTIFICATION_TYPES.SITE_VISIT_CHECKIN:
+    case NOTIFICATION_TYPES.SITE_VISIT_COMPLETED:
+    case NOTIFICATION_TYPES.SITE_VISIT_NO_SHOW:
+    case NOTIFICATION_TYPES.SITE_VISIT_OVERDUE:
+    case NOTIFICATION_TYPES.SITE_VISIT_DEAL_CLOSED:
+      return {
+        title: typeof payload.title === "string" ? payload.title : "Site visit",
+        body: typeof payload.message === "string" ? payload.message : "Site visit update",
+      };
     case NOTIFICATION_TYPES.CALL_FOLLOWUP_SET:
       return {
         title: "Follow-up scheduled",
@@ -177,6 +193,7 @@ function pushDataFor(type: string, payload: Record<string, unknown>) {
   const data: Record<string, unknown> = { type };
   if (typeof payload.leadId === "string") data.leadId = payload.leadId;
   if (typeof payload.taskId === "string") data.taskId = payload.taskId;
+  if (typeof payload.siteVisitId === "string") data.siteVisitId = payload.siteVisitId;
   return data;
 }
 

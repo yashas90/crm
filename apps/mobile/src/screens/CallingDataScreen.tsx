@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from "@/lib/apiClient";
+import { FLAT_LIST_PERF } from "@/lib/flatList";
 import { dialPhoneNumber } from "@/lib/phoneActions";
 import type { MainTabParamList } from "@/navigation/types";
 import { colors, radii, spacing, typography } from "@/theme";
@@ -6,8 +7,17 @@ import { TAB_BAR_SCROLL_PADDING } from "@/theme/layout";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type CallingRow = {
@@ -44,6 +54,20 @@ const OUTCOMES = [
 
 const CITIES = ["", "Bangalore", "Mumbai", "Delhi", "Hyderabad", "Chennai", "Pune"];
 
+/** Same array every render so FlatList does not treat "no rows yet" as new data. */
+const EMPTY_CALLING_ROWS: CallingRow[] = [];
+
+/**
+ * Dialer return focuses the app. A window-focus refetch replaces `data` and
+ * Android snaps this list back to the top under the agent.
+ */
+const CALLING_QUERY = {
+  retry: false,
+  refetchInterval: false,
+  refetchOnWindowFocus: false,
+  meta: { suppressErrorToast: true },
+} as const;
+
 export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList, "CallingTab">) {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
@@ -56,13 +80,11 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   const [callbackAt, setCallbackAt] = useState(new Date(Date.now() + 60 * 60 * 1000));
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
 
   const status = useQuery({
     queryKey: ["calling-daily-status"],
     queryFn: () => apiGet<DailyStatus>("/api/agent/daily-status"),
-    retry: false,
-    meta: { suppressErrorToast: true },
+    ...CALLING_QUERY,
   });
   const stats = useQuery({
     queryKey: ["calling-stats"],
@@ -70,9 +92,7 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
       apiGet<{ remaining: number; pending: number; retry: number; callbacks: number }>(
         "/api/agent/calling-data/stats",
       ),
-    retry: false,
-    refetchInterval: false,
-    meta: { suppressErrorToast: true },
+    ...CALLING_QUERY,
   });
   const list = useQuery({
     queryKey: ["calling-data", search],
@@ -80,14 +100,8 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
       apiGet<CallingRow[]>(
         `/api/agent/calling-data${search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ""}`,
       ),
-    retry: false,
-    meta: { suppressErrorToast: true },
+    ...CALLING_QUERY,
   });
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const request = useMutation({
     mutationFn: () =>
@@ -135,10 +149,8 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   });
 
   const remainingToday = status.data?.remaining ?? 0;
-  const limitReached = remainingToday <= 0 || status.data?.paused;
-  const resetMs = status.data ? new Date(status.data.resetsAt).getTime() - now : 0;
-  const countdown = formatCountdown(Math.max(0, resetMs));
-  const rows = list.data ?? [];
+  const limitReached = remainingToday <= 0 || Boolean(status.data?.paused);
+  const rows = list.data ?? EMPTY_CALLING_ROWS;
   const headerCounts = useMemo(
     () => ({
       pending: stats.data?.pending ?? rows.filter((row) => row.status === "pending").length,
@@ -148,108 +160,93 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
     [rows, stats.data],
   );
 
+  const onRequest = useCallback(() => {
+    request.mutate();
+  }, [request.mutate]);
+
+  const listHeader = useMemo(
+    () => (
+      <CallingListHeader
+        remainingLabel={stats.data?.remaining ?? rows.length}
+        pending={headerCounts.pending}
+        retry={headerCounts.retry}
+        callbacks={headerCounts.callbacks}
+        contactsRequestedToday={status.data?.contactsRequestedToday ?? 0}
+        maxDailyLimit={status.data?.maxDailyLimit ?? 200}
+        remainingToday={remainingToday}
+        paused={Boolean(status.data?.paused)}
+        resetsAt={status.data?.resetsAt ?? null}
+        limitReached={limitReached}
+        search={search}
+        onSearch={setSearch}
+        onCity={setCity}
+        propertyType={propertyType}
+        onPropertyType={setPropertyType}
+        onRequest={onRequest}
+        message={message}
+      />
+    ),
+    [
+      headerCounts,
+      limitReached,
+      message,
+      onRequest,
+      propertyType,
+      remainingToday,
+      rows.length,
+      search,
+      stats.data?.remaining,
+      status.data?.contactsRequestedToday,
+      status.data?.maxDailyLimit,
+      status.data?.paused,
+      status.data?.resetsAt,
+    ],
+  );
+
+  const onCallRow = useCallback((item: CallingRow) => {
+    void dialPhoneNumber(item.phone);
+    setActive(item);
+    setOutcome(null);
+    setNotes("");
+  }, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: CallingRow }) => <CallingRowCard item={item} onCall={onCallRow} />,
+    [onCallRow],
+  );
+
+  const contentContainerStyle = useMemo(
+    () => ({
+      paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom,
+      paddingHorizontal: spacing.md,
+    }),
+    [insets.bottom],
+  );
+
+  const refreshing = list.isRefetching || stats.isRefetching || status.isRefetching;
+  const onRefresh = useCallback(() => {
+    void Promise.all([list.refetch(), stats.refetch(), status.refetch()]);
+  }, [list.refetch, stats.refetch, status.refetch]);
+
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+    ),
+    [onRefresh, refreshing],
+  );
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.sm }]}>
       <FlatList
+        testID="calling-data-list"
         data={rows}
-        keyExtractor={(item) => item.recordId}
-        contentContainerStyle={{
-          paddingBottom: TAB_BAR_SCROLL_PADDING + insets.bottom,
-          paddingHorizontal: spacing.md,
-        }}
-        ListHeaderComponent={
-          <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
-            <Text style={styles.title}>
-              Calling Data — {stats.data?.remaining ?? rows.length} contacts remaining
-            </Text>
-            <Text style={styles.sub}>
-              Pending {headerCounts.pending} · Retry {headerCounts.retry} · Callbacks{" "}
-              {headerCounts.callbacks}
-            </Text>
-            <Text style={styles.sub}>
-              You have requested {status.data?.contactsRequestedToday ?? 0}/
-              {status.data?.maxDailyLimit ?? 100} contacts today
-            </Text>
-            <Text style={styles.sub}>{remainingToday} more available today</Text>
-            <View style={styles.track}>
-              <View
-                style={[
-                  styles.fill,
-                  {
-                    width: `${Math.min(100, ((status.data?.contactsRequestedToday ?? 0) / (status.data?.maxDailyLimit || 100)) * 100)}%`,
-                  },
-                ]}
-              />
-            </View>
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search this calling list"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-            />
-            <View style={styles.row}>
-              {CITIES.map((item) => (
-                <Pressable key={item || "any"} onPress={() => setCity(item)} style={styles.chip}>
-                  <Text style={styles.chipText}>{item || "Any city"}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.row}>
-              {["apartment", "villa", "plot"].map((item) => (
-                <Pressable
-                  key={item}
-                  onPress={() => setPropertyType(propertyType === item ? null : item)}
-                  style={styles.chip}
-                >
-                  <Text style={styles.chipText}>{item}</Text>
-                </Pressable>
-              ))}
-            </View>
-            {limitReached ? (
-              <Text style={styles.warn}>
-                {status.data?.paused
-                  ? "Data requests are paused."
-                  : `Daily limit reached. Resets at midnight. ${countdown}`}
-              </Text>
-            ) : (
-              <Pressable style={styles.primary} onPress={() => request.mutate()}>
-                <Text style={styles.primaryText}>
-                  Request {Math.min(100, remainingToday)} Contacts
-                </Text>
-              </Pressable>
-            )}
-            {message ? <Text style={styles.sub}>{message}</Text> : null}
-          </View>
-        }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.phone}>{item.phone}</Text>
-            <Text style={styles.sub}>
-              {[item.city, item.budget, item.propertyType, item.bedrooms]
-                .filter(Boolean)
-                .join(" · ")}
-            </Text>
-            <Text style={styles.badge}>
-              {labelFor(item.status)} · attempt {item.callAttempts}/3 · {timeSince(item.assignedAt)}
-            </Text>
-            <Pressable
-              style={styles.call}
-              onPress={() => {
-                void dialPhoneNumber(item.phone);
-                setActive(item);
-                setOutcome(null);
-                setNotes("");
-              }}
-            >
-              <Text style={styles.primaryText}>Call</Text>
-            </Pressable>
-          </View>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.sub}>No calling contacts yet. Request data above.</Text>
-        }
+        keyExtractor={callingRowKey}
+        contentContainerStyle={contentContainerStyle}
+        ListHeaderComponent={listHeader}
+        renderItem={renderItem}
+        refreshControl={refreshControl}
+        ListEmptyComponent={CallingListEmpty}
+        {...FLAT_LIST_PERF}
       />
 
       <Modal visible={active != null} animationType="slide" onRequestClose={() => undefined}>
@@ -305,6 +302,145 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   );
 }
 
+function callingRowKey(item: CallingRow) {
+  return item.recordId;
+}
+
+function CallingListEmpty() {
+  return <Text style={styles.sub}>No calling contacts yet. Request data above.</Text>;
+}
+
+function CallingListHeader({
+  remainingLabel,
+  pending,
+  retry,
+  callbacks,
+  contactsRequestedToday,
+  maxDailyLimit,
+  remainingToday,
+  paused,
+  resetsAt,
+  limitReached,
+  search,
+  onSearch,
+  onCity,
+  propertyType,
+  onPropertyType,
+  onRequest,
+  message,
+}: {
+  remainingLabel: number;
+  pending: number;
+  retry: number;
+  callbacks: number;
+  contactsRequestedToday: number;
+  maxDailyLimit: number;
+  remainingToday: number;
+  paused: boolean;
+  resetsAt: string | null;
+  limitReached: boolean;
+  search: string;
+  onSearch: (value: string) => void;
+  onCity: (value: string) => void;
+  propertyType: string | null;
+  onPropertyType: (value: string | null) => void;
+  onRequest: () => void;
+  message: string | null;
+}) {
+  const requested = contactsRequestedToday;
+  const limit = maxDailyLimit || 200;
+  return (
+    <View style={styles.header}>
+      <Text style={styles.title}>Calling Data — {remainingLabel} contacts remaining</Text>
+      <Text style={styles.sub}>
+        Pending {pending} · Retry {retry} · Callbacks {callbacks}
+      </Text>
+      <Text style={styles.sub}>
+        You have requested {requested}/{limit} contacts today
+      </Text>
+      <Text style={styles.sub}>{remainingToday} more available today</Text>
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${Math.min(100, (requested / limit) * 100)}%` }]} />
+      </View>
+      <TextInput
+        value={search}
+        onChangeText={onSearch}
+        placeholder="Search this calling list"
+        placeholderTextColor={colors.textMuted}
+        style={styles.input}
+      />
+      <View style={styles.row}>
+        {CITIES.map((item) => (
+          <Pressable key={item || "any"} onPress={() => onCity(item)} style={styles.chip}>
+            <Text style={styles.chipText}>{item || "Any city"}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.row}>
+        {["apartment", "villa", "plot"].map((item) => (
+          <Pressable
+            key={item}
+            onPress={() => onPropertyType(propertyType === item ? null : item)}
+            style={styles.chip}
+          >
+            <Text style={styles.chipText}>{item}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {paused ? (
+        <Text style={styles.warn}>Data requests are paused.</Text>
+      ) : limitReached && resetsAt ? (
+        <DailyResetCountdown resetsAt={resetsAt} />
+      ) : (
+        <Pressable style={styles.primary} onPress={onRequest}>
+          <Text style={styles.primaryText}>Request {Math.min(limit, remainingToday)} Contacts</Text>
+        </Pressable>
+      )}
+      {message ? <Text style={styles.sub}>{message}</Text> : null}
+    </View>
+  );
+}
+
+function CallingRowCard({
+  item,
+  onCall,
+}: {
+  item: CallingRow;
+  onCall: (item: CallingRow) => void;
+}) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.name}>{item.name}</Text>
+      <Text style={styles.phone}>{item.phone}</Text>
+      <Text style={styles.sub}>
+        {[item.city, item.budget, item.propertyType, item.bedrooms].filter(Boolean).join(" · ")}
+      </Text>
+      <Text style={styles.badge}>
+        {labelFor(item.status)} · attempt {item.callAttempts}/3 · {timeSince(item.assignedAt)}
+      </Text>
+      <Pressable style={styles.call} onPress={() => onCall(item)}>
+        <Text style={styles.primaryText}>Call</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function DailyResetCountdown({ resetsAt }: { resetsAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const resetMs = Math.max(0, new Date(resetsAt).getTime() - now);
+  return (
+    <Text style={styles.warn} numberOfLines={1}>
+      Daily limit reached. Resets at midnight. {formatCountdown(resetMs)}
+    </Text>
+  );
+}
+
 function labelFor(status: string) {
   if (status === "pending") return "Not Called";
   if (status === "callback") return "Callback";
@@ -325,11 +461,13 @@ function formatCountdown(ms: number) {
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
-  return `${hours}h ${minutes}m ${seconds}s`;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  header: { gap: spacing.sm, marginBottom: spacing.md },
   title: { ...typography.h2, color: colors.text },
   name: { ...typography.h3, color: colors.text },
   phone: { color: colors.text, fontSize: 16, marginTop: 2 },

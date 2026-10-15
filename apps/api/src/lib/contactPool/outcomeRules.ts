@@ -25,7 +25,8 @@ export const PIPELINE_STAGES = [
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 export const MAX_CALL_ATTEMPTS = 3;
-export const HARD_DAILY_CONTACT_CAP = 100;
+/** Maximum contacts one data request can assign. Also the daily allotment ceiling. */
+export const HARD_DAILY_CONTACT_CAP = 200;
 
 export type DeletedReason =
   | "not_interested"

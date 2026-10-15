@@ -12,6 +12,7 @@ export const CACHE_TTL = {
   reports: 5 * 60,
   reportsLeaderboard: 10 * 60,
   leaderboard: 5 * 60,
+  morningBrief: 3 * 60,
   projects: 10 * 60,
   documents: 5 * 60,
   org: 30 * 60,
@@ -71,6 +72,14 @@ export function resolveTtlSeconds(pathname: string): number | null {
     return CACHE_TTL.analytics;
   }
 
+  if (pathname === "/api/dashboard/morning-brief") {
+    return CACHE_TTL.morningBrief;
+  }
+
+  if (pathname === "/api/dashboard/admin-overview") {
+    return CACHE_TTL.reports;
+  }
+
   if (pathname.startsWith("/api/leaderboard")) {
     if (
       pathname.includes("/export") ||
@@ -115,6 +124,7 @@ export function resolveCacheHeaderType(pathname: string): CacheHeaderType {
     return "static";
   }
   if (
+    pathname === "/api/dashboard/admin-overview" ||
     pathname.startsWith("/api/reports/") ||
     pathname.startsWith("/api/analytics/") ||
     pathname.startsWith("/api/leaderboard") ||
@@ -186,6 +196,10 @@ export function clearOrgCache(): number {
 
 export function clearLeaderboardCache(): number {
   return clearCacheByRoutePrefix("/api/leaderboard");
+}
+
+export function clearMorningBriefCache(): number {
+  return clearCacheByRoutePrefix("/api/dashboard/morning-brief");
 }
 
 export function clearProjectsCache(): number {

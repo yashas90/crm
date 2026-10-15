@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  HARD_DAILY_CONTACT_CAP,
   bucketsAreExclusive,
+  clampDailyLimit,
   decideCallOutcome,
   pipelineStageToLeadStatus,
 } from "./outcomeRules.js";
@@ -94,6 +96,17 @@ describe("decideCallOutcome", () => {
         if (plan.createLead) expect(plan.softDelete).toBe(true);
       }
     }
+  });
+});
+
+describe("clampDailyLimit", () => {
+  it("caps one data request at 200 contacts", () => {
+    expect(HARD_DAILY_CONTACT_CAP).toBe(200);
+    expect(clampDailyLimit(200)).toBe(200);
+    expect(clampDailyLimit(201)).toBe(200);
+    expect(clampDailyLimit(100)).toBe(100);
+    expect(clampDailyLimit(0)).toBe(1);
+    expect(clampDailyLimit(Number.NaN)).toBe(200);
   });
 });
 

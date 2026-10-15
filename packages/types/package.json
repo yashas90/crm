@@ -52,6 +52,10 @@
       "types": "./src/siteVisitPublic.ts",
       "default": "./src/siteVisitPublic.ts"
     },
+    "./site-visit-tracking": {
+      "types": "./src/siteVisitTracking.ts",
+      "default": "./src/siteVisitTracking.ts"
+    },
     "./whatsapp-blaster": {
       "types": "./src/whatsappBlaster.ts",
       "default": "./src/whatsappBlaster.ts"

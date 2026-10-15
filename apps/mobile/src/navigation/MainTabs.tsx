@@ -8,8 +8,10 @@ import { LeadsStack } from "@/navigation/LeadsStack";
 import { ScrollableTabBar } from "@/navigation/ScrollableTabBar";
 import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
 import type { MainTabParamList } from "@/navigation/types";
+import { HomeScreen } from "@/screens/HomeScreen";
 import { colors, navigationTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { isOverdueCheckIn } from "@propninja/types/site-visit-tracking";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useQuery } from "@tanstack/react-query";
 import type { ComponentProps } from "react";
@@ -59,26 +61,32 @@ function useDeferredTabBadges() {
   const unreadCount = useUnreadNotificationCount({ enabled: ready });
   const todayVisits = useTodaySiteVisits(undefined, { enabled: ready });
   const visitItems = Array.isArray(todayVisits.data?.items) ? todayVisits.data.items : [];
-  const visitsBadgeCount = visitItems.filter((v) => v.status === "scheduled").length;
+  const visitsBadgeCount = visitItems.filter((visit) => visit.status !== "cancelled").length;
+  const overdue = visitItems.some((visit) =>
+    isOverdueCheckIn(visit.status, visit.visitDate, visit.visitTime),
+  );
   const visitsBadge =
     visitsBadgeCount > 0 ? (visitsBadgeCount > 9 ? "9+" : visitsBadgeCount) : undefined;
   const openTaskCount = useOpenTaskCount({ enabled: ready });
   const notificationBadge = unreadCount > 0 ? (unreadCount > 9 ? "9+" : unreadCount) : undefined;
   const tasksBadge =
     openTaskCount !== undefined ? (openTaskCount > 9 ? "9+" : openTaskCount) : undefined;
-  return { visitsBadge, notificationBadge, tasksBadge };
+  return { visitsBadge, visitsOverdue: overdue, notificationBadge, tasksBadge };
 }
 
 export function MainTabs({ onLogout }: MainTabsProps) {
   const isManager = useIsManager();
   const isAgent = useIsAgent();
-  const { visitsBadge, notificationBadge, tasksBadge } = useDeferredTabBadges();
+  const { visitsBadge, visitsOverdue, notificationBadge, tasksBadge } = useDeferredTabBadges();
   const callingBadgeQuery = useQuery({
     queryKey: ["calling-stats"],
     queryFn: () => apiGet<{ badge: number }>("/api/agent/calling-data/stats"),
     enabled: isAgent,
     retry: false,
     refetchInterval: false,
+    // Same cache as the calling list. A dialer-focus refetch rewrites it and
+    // the list header changes underneath the agent.
+    refetchOnWindowFocus: false,
     meta: { suppressErrorToast: true },
   });
   const leadsBadgeQuery = useQuery({
@@ -95,6 +103,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
   return (
     <ScreenSuspense>
       <Tab.Navigator
+        initialRouteName="HomeTab"
         // React Navigation calls `tabBar` inside SafeAreaInsetsContext.Consumer.
         // Passing the component function directly runs its hooks outside a component.
         tabBar={(props) => <ScrollableTabBar {...props} />}
@@ -103,6 +112,15 @@ export function MainTabs({ onLogout }: MainTabsProps) {
           lazy: true,
         }}
       >
+        <Tab.Screen
+          name="HomeTab"
+          component={HomeScreen}
+          options={{
+            title: "Home",
+            lazy: false,
+            tabBarIcon: tabIcon("sunny-outline"),
+          }}
+        />
         <Tab.Screen
           name="LeadsTab"
           component={LeadsStack}
@@ -184,7 +202,7 @@ export function MainTabs({ onLogout }: MainTabsProps) {
             tabBarIcon: tabIcon("location-outline"),
             tabBarBadge: visitsBadge,
             tabBarBadgeStyle: {
-              backgroundColor: colors.primary,
+              backgroundColor: visitsOverdue ? colors.hot : colors.primary,
               color: "#ffffff",
               fontSize: 10,
               minWidth: 18,

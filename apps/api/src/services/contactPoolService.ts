@@ -15,7 +15,7 @@ import {
 import { getIstDateKey, getIstDayBounds } from "@propninja/types/ist";
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
-import { clampDailyLimit } from "../lib/contactPool/outcomeRules.js";
+import { HARD_DAILY_CONTACT_CAP, clampDailyLimit } from "../lib/contactPool/outcomeRules.js";
 import { phoneHash, sanitizeText } from "../lib/contactPool/sanitize.js";
 import { sqlRows, toCsv, uuidArray } from "../lib/contactPool/sql.js";
 import type { Database } from "../lib/db.js";
@@ -44,7 +44,7 @@ async function agentMaxLimit(db: Database, agentId: string): Promise<number> {
     .from(agentCallingLimits)
     .where(eq(agentCallingLimits.agentId, agentId))
     .limit(1);
-  return clampDailyLimit(row?.maxDailyLimit ?? 100);
+  return clampDailyLimit(row?.maxDailyLimit ?? HARD_DAILY_CONTACT_CAP);
 }
 
 export async function getDailyStatus(agentId: string) {

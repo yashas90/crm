@@ -3,7 +3,15 @@ import { useAuth } from "@/providers/auth-provider";
 import { formatVisitTimeIst } from "@propninja/types/ist";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export type SiteVisitStatus = "scheduled" | "completed" | "cancelled" | "no_show";
+export type SiteVisitStatus =
+  | "scheduled"
+  | "reminder_sent"
+  | "checked_in"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
+  | "no_show"
+  | "rescheduled";
 
 export type SiteVisitOutcome =
   | "very_interested"
@@ -29,8 +37,15 @@ export type SiteVisit = {
   mapsLink?: string | null;
   customerEmail?: string | null;
   propertyLabel: string | null;
-  outcome?: SiteVisitOutcome;
+  propertyName?: string | null;
+  propertyLat?: string | null;
+  propertyLng?: string | null;
+  companions?: string | null;
+  checkinAt?: string | null;
+  checkinVerified?: boolean;
+  outcome?: SiteVisitOutcome | string | null;
   outcomeNote?: string | null;
+  durationMinutes?: number | null;
   reminderSent?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -136,6 +151,8 @@ export function useCreateSiteVisit() {
       meetingLocation?: string | null;
       mapsLink?: string | null;
       customerEmail?: string | null;
+      propertyName?: string | null;
+      companions?: string;
     }) => apiPost<SiteVisit>("/api/site-visits", input),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["site-visits"] }),
   });
@@ -199,5 +216,30 @@ export function visitLeadName(visit: SiteVisit): string {
 }
 
 export function visitLocation(visit: SiteVisit): string {
-  return visit.propertyLabel ?? visit.propertyAddress ?? visit.project?.name ?? "Property TBD";
+  return (
+    visit.propertyName ??
+    visit.propertyLabel ??
+    visit.propertyAddress ??
+    visit.project?.name ??
+    "Property TBD"
+  );
+}
+
+export function useManagerVisitBoard(enabled: boolean) {
+  const ready = useAuthReady();
+  return useQuery({
+    queryKey: ["site-visits", "manager-board"],
+    queryFn: () =>
+      apiGet<{
+        mapSdk: boolean;
+        counts: {
+          scheduled: number;
+          checkedIn: number;
+          completed: number;
+          upcoming: number;
+          noShow: number;
+        };
+      }>("/api/site-visits/manager-board"),
+    enabled: ready && enabled,
+  });
 }

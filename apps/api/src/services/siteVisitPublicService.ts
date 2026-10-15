@@ -69,7 +69,10 @@ function toPublicView(
   const isScheduled = visit.status === "scheduled";
   return {
     reference: visit.publicToken,
-    status: visit.status,
+    status:
+      visit.status === "completed" || visit.status === "cancelled" || visit.status === "no_show"
+        ? visit.status
+        : "scheduled",
     projectName: visit.project?.name ?? null,
     unitLabel: visit.unit?.unitNumber ?? null,
     tower: visit.tower,

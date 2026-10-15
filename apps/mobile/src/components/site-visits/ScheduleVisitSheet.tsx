@@ -8,6 +8,11 @@ import {
 import { openCustomerSiteVisitWhatsApp } from "@/lib/siteVisitWhatsApp";
 import { colors, radii, spacing, typography } from "@/theme";
 import { getIstDateKey } from "@propninja/types/ist";
+import {
+  VISIT_COMPANION_LABELS,
+  type VisitCompanions,
+  visitTimeSlots,
+} from "@propninja/types/site-visit-tracking";
 import { useState } from "react";
 import {
   Alert,
@@ -46,6 +51,7 @@ export function ScheduleVisitSheet({
   const [endTime, setEndTime] = useState("11:00");
   const [duration, setDuration] = useState("60");
   const [notes, setNotes] = useState("");
+  const [companions, setCompanions] = useState<VisitCompanions>("just_customer");
   const [propertyAddress, setPropertyAddress] = useState("");
   const [meetingLocation, setMeetingLocation] = useState("");
   const [mapsLink, setMapsLink] = useState("");
@@ -65,6 +71,7 @@ export function ScheduleVisitSheet({
     setEndTime("11:00");
     setDuration("60");
     setNotes("");
+    setCompanions("just_customer");
     setPropertyAddress("");
     setMeetingLocation("");
     setMapsLink("");
@@ -109,6 +116,7 @@ export function ScheduleVisitSheet({
         visitTime,
         duration: computeDurationFromTimes(visitTime, endTime),
         notes: notes.trim() || null,
+        companions,
         propertyAddress: propertyAddress.trim() || null,
         meetingLocation: meetingLocation.trim() || null,
         mapsLink: mapsLink.trim() || null,
@@ -326,14 +334,26 @@ export function ScheduleVisitSheet({
                 placeholderTextColor={colors.textMuted}
               />
 
-              <Text style={styles.label}>Start time (HH:MM)</Text>
-              <TextInput
-                style={styles.input}
-                value={visitTime}
-                onChangeText={setVisitTime}
-                placeholder="10:00"
-                placeholderTextColor={colors.textMuted}
-              />
+              <Text style={styles.label}>Time slot (IST)</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {visitTimeSlots().map((slot) => (
+                  <Pressable key={slot} onPress={() => setVisitTime(slot)}>
+                    <Text style={{ color: visitTime === slot ? colors.primary : colors.text }}>
+                      {slot}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.label}>Companions</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {(Object.keys(VISIT_COMPANION_LABELS) as VisitCompanions[]).map((key) => (
+                  <Pressable key={key} onPress={() => setCompanions(key)}>
+                    <Text style={{ color: companions === key ? colors.primary : colors.text }}>
+                      {VISIT_COMPANION_LABELS[key]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
 
               <Text style={styles.label}>End time (HH:MM)</Text>
               <TextInput

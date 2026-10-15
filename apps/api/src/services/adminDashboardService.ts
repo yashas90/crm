@@ -1,0 +1,633 @@
+import { istWallClockToDate } from "@propninja/types/ist";
+import { sql } from "drizzle-orm";
+import {
+  type AdminDashboardPeriod,
+  type FunnelCounts,
+  buildLeadFunnel,
+  changePercent,
+  rankLeadSources,
+  resolveAdminDashboardWindows,
+  sparklineBetween,
+  splitReceivedLeads,
+  sumAmountBetween,
+} from "../lib/adminDashboardPeriod.js";
+import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
+import { uuidArray } from "../lib/contactPool/sql.js";
+import type { Database } from "../lib/db.js";
+import { canonicalizeLeadSource, leadSourceLowerVariants } from "../lib/leadSourceAliases.js";
+import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
+
+export type AdminOverviewScope = {
+  period: AdminDashboardPeriod;
+  source?: string;
+  /** Null is org-wide (admin). A list is the manager's team, including themselves. */
+  userIds: string[] | null;
+};
+
+type RevenueCard = {
+  amount: number;
+  changePercent: number;
+  sparkline: number[];
+};
+
+export type AdminOverview = {
+  period: AdminDashboardPeriod;
+  label: string;
+  scope: "org" | "team";
+  source: string | null;
+  range: { from: string; to: string };
+  revenue: {
+    total: RevenueCard;
+    today: RevenueCard;
+    last7Days: RevenueCard;
+    last30Days: RevenueCard;
+    lastQuarter: RevenueCard;
+  };
+  leadsReceived: {
+    total: number;
+    active: number;
+    lost: number;
+    byStatus: { status: string; label: string; count: number }[];
+  };
+  sources: { source: string; count: number; percent: number }[];
+  sourceOptions: string[];
+  funnel: { key: string; label: string; count: number; percent: number }[];
+  topClosers: { userId: string; name: string; netRevenue: number; deals: number }[];
+  drivers: {
+    newLeads: { count: number; previous: number; changePercent: number };
+    siteVisits: { count: number; previous: number; changePercent: number };
+    closed: { count: number; previous: number; changePercent: number };
+    pending: { count: number; previous: number; changePercent: number };
+  };
+  reminders: {
+    id: string;
+    kind: "site_visit" | "follow_up";
+    title: string;
+    subtitle: string;
+    at: string;
+  }[];
+  agentTalktime: AgentTalktimeRow[];
+};
+
+type AgentTalktimeRow = {
+  userId: string;
+  name: string;
+  totalCalls: number;
+  connected: number;
+  totalDurationSeconds: number;
+  incoming: number;
+  incomingAnswered: number;
+  incomingMissed: number;
+  incomingDurationSeconds: number;
+  outgoing: number;
+  outgoingDurationSeconds: number;
+  outgoingAnswered: number;
+  outgoingNotAnswered: number;
+};
+
+const COLLECTED_DAY = sql`coalesce(tc.deal_closure_date::text, to_char(timezone('Asia/Kolkata', coalesce(tc.reviewed_at, tc.updated_at)), 'YYYY-MM-DD'))`;
+
+const ANSWERED = sql`(
+  (call_records.outcome = 'answered' or call_records.disposition = 'answered')
+  and call_records.duration_seconds > 0
+)`;
+
+function rowsOf(result: unknown): Record<string, unknown>[] {
+  return Array.isArray(result) ? (result as Record<string, unknown>[]) : [];
+}
+
+function num(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function text(value: unknown): string {
+  return value == null ? "" : String(value);
+}
+
+function personName(first: unknown, last: unknown): string {
+  const name = [text(first), text(last)]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+  return name || "Lead";
+}
+
+function asIso(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(text(value));
+  return Number.isNaN(parsed.getTime()) ? new Date(0).toISOString() : parsed.toISOString();
+}
+
+function userFilter(columnSql: ReturnType<typeof sql>, userIds: string[] | null) {
+  if (userIds == null) return sql`true`;
+  if (userIds.length === 0) return sql`false`;
+  return sql`${columnSql} = any(${uuidArray(userIds)})`;
+}
+
+function sourceFilter(source: string | undefined) {
+  const trimmed = source?.trim();
+  if (!trimmed) return sql`true`;
+  const variants = leadSourceLowerVariants(trimmed);
+  if (variants.length === 0) return sql`true`;
+  return sql`lower(coalesce(l.lead_source, '')) in (${sql.join(
+    variants.map((variant) => sql`${variant}`),
+    sql`, `,
+  )})`;
+}
+
+function leadScope(userIds: string[] | null, source: string | undefined) {
+  return sql`
+    l.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+    and l.deleted_at is null
+    and l.is_primary_phone = true
+    and ${userFilter(sql`l.assigned_to`, userIds)}
+    and ${sourceFilter(source)}
+  `;
+}
+
+function revenueCard(
+  amounts: Map<string, number>,
+  fromKey: string,
+  toKey: string,
+  previousFrom: string,
+  previousTo: string,
+): RevenueCard {
+  const amount = sumAmountBetween(amounts, fromKey, toKey);
+  const previous = sumAmountBetween(amounts, previousFrom, previousTo);
+  return {
+    amount,
+    changePercent: changePercent(amount, previous),
+    sparkline: sparklineBetween(amounts, fromKey, toKey),
+  };
+}
+
+async function loadRevenueDays(
+  db: Database,
+  fromKey: string,
+  toKey: string,
+  userIds: string[] | null,
+): Promise<Map<string, number>> {
+  if (userIds && userIds.length === 0) return new Map();
+
+  const range = sql`${COLLECTED_DAY} >= ${fromKey} and ${COLLECTED_DAY} <= ${toKey}`;
+  const collected = sql`tc.org_id = ${SINGLE_TENANT_ORG_ID}::uuid and tc.status = 'approved' and tc.invoice_status = 'collected' and ${range}`;
+
+  const result =
+    userIds == null
+      ? await db.execute(sql`
+          select ${COLLECTED_DAY} as day, coalesce(sum(tc.net_revenue), 0)::float8 as amount
+          from transaction_closures tc
+          where ${collected}
+          group by 1
+        `)
+      : await db.execute(sql`
+          select day, coalesce(sum(amount), 0)::float8 as amount
+          from (
+            select ${COLLECTED_DAY} as day,
+              (tc.net_revenue::float8 * sh.share_percent::float8 / 100.0) as amount
+            from transaction_closures tc
+            inner join transaction_closure_shares sh on sh.tcf_id = tc.id
+            where ${collected}
+              and sh.user_id = any(${uuidArray(userIds)})
+              and sh.share_percent::float8 > 0
+            union all
+            select ${COLLECTED_DAY} as day, tc.net_revenue::float8 as amount
+            from transaction_closures tc
+            where ${collected}
+              and tc.created_by = any(${uuidArray(userIds)})
+              and not exists (
+                select 1 from transaction_closure_shares s where s.tcf_id = tc.id
+              )
+          ) points
+          group by day
+        `);
+
+  const amounts = new Map<string, number>();
+  for (const row of rowsOf(result)) {
+    const day = text(row.day);
+    if (day) amounts.set(day, num(row.amount));
+  }
+  return amounts;
+}
+
+async function loadTopClosers(
+  db: Database,
+  fromKey: string,
+  toKey: string,
+  userIds: string[] | null,
+) {
+  if (userIds && userIds.length === 0) return [];
+
+  const range = sql`${COLLECTED_DAY} >= ${fromKey} and ${COLLECTED_DAY} <= ${toKey}`;
+  const collected = sql`tc.org_id = ${SINGLE_TENANT_ORG_ID}::uuid and tc.status = 'approved' and tc.invoice_status = 'collected' and ${range}`;
+  const shareUsers = userIds == null ? sql`true` : sql`sh.user_id = any(${uuidArray(userIds)})`;
+  const creatorUsers =
+    userIds == null ? sql`true` : sql`tc.created_by = any(${uuidArray(userIds)})`;
+
+  const result = await db.execute(sql`
+    select u.id as user_id, u.name as name,
+      coalesce(sum(points.amount), 0)::float8 as net_revenue,
+      count(distinct points.tcf_id)::int as deals
+    from (
+      select sh.user_id, tc.id as tcf_id,
+        (tc.net_revenue::float8 * sh.share_percent::float8 / 100.0) as amount
+      from transaction_closures tc
+      inner join transaction_closure_shares sh on sh.tcf_id = tc.id
+      where ${collected}
+        and sh.user_id is not null
+        and sh.share_percent::float8 > 0
+        and ${shareUsers}
+      union all
+      select tc.created_by as user_id, tc.id as tcf_id, tc.net_revenue::float8 as amount
+      from transaction_closures tc
+      where ${collected}
+        and tc.created_by is not null
+        and ${creatorUsers}
+        and not exists (
+          select 1 from transaction_closure_shares s where s.tcf_id = tc.id
+        )
+    ) points
+    inner join users u on u.id = points.user_id
+    group by u.id, u.name
+    having coalesce(sum(points.amount), 0) > 0
+    order by net_revenue desc, u.name
+    limit 5
+  `);
+
+  return rowsOf(result).map((row) => ({
+    userId: text(row.user_id),
+    name: text(row.name) || "Agent",
+    netRevenue: Math.round(num(row.net_revenue)),
+    deals: num(row.deals),
+  }));
+}
+
+export async function listDashboardTeamUserIds(db: Database, managerId: string) {
+  const result = await db.execute(sql`
+    select id
+    from users
+    where org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+      and is_active = true
+      and (
+        id = ${managerId}::uuid
+        or reporting_to_id = ${managerId}::uuid
+        or general_manager_id = ${managerId}::uuid
+      )
+  `);
+  const ids = rowsOf(result)
+    .map((row) => text(row.id))
+    .filter(Boolean);
+  if (!ids.includes(managerId)) ids.push(managerId);
+  return ids;
+}
+
+export async function getAdminOverview(
+  db: Database,
+  query: AdminOverviewScope,
+): Promise<AdminOverview> {
+  const windows = resolveAdminDashboardWindows(query.period);
+  const source = query.source?.trim() || null;
+  const userIds = query.userIds;
+  const scope = leadScope(userIds, source ?? undefined);
+  const selectedFrom = sqlTimestamptz(windows.selected.from);
+  const selectedTo = sqlTimestamptz(windows.selected.to);
+  const previousFrom = sqlTimestamptz(windows.previous.from);
+  const previousTo = sqlTimestamptz(windows.previous.to);
+  const todayKey = windows.today.fromKey;
+
+  const [
+    revenueDays,
+    receivedRows,
+    driverRow,
+    closedRow,
+    visitRow,
+    funnelRow,
+    sourceRows,
+    optionRows,
+    closers,
+    visitReminders,
+    followupReminders,
+    talktimeRows,
+  ] = await Promise.all([
+    loadRevenueDays(db, windows.sparklineFromKey, windows.today.toKey, userIds),
+    db.execute(sql`
+      select l.lead_status as status, count(*)::int as count
+      from leads l
+      where ${scope}
+        and l.created_at >= ${selectedFrom}
+        and l.created_at <= ${selectedTo}
+      group by l.lead_status
+    `),
+    db.execute(sql`
+      select
+        count(*) filter (
+          where l.created_at >= ${selectedFrom} and l.created_at <= ${selectedTo}
+        )::int as new_leads,
+        count(*) filter (
+          where l.created_at >= ${previousFrom} and l.created_at <= ${previousTo}
+        )::int as new_leads_prev,
+        count(*) filter (
+          where l.created_at >= ${selectedFrom} and l.created_at <= ${selectedTo}
+            and l.lead_status in ('new', 'contacted', 'qualified', 'negotiation')
+        )::int as pending,
+        count(*) filter (
+          where l.created_at >= ${previousFrom} and l.created_at <= ${previousTo}
+            and l.lead_status in ('new', 'contacted', 'qualified', 'negotiation')
+        )::int as pending_prev
+      from leads l
+      where ${scope}
+        and l.created_at >= ${previousFrom}
+        and l.created_at <= ${selectedTo}
+    `),
+    db.execute(sql`
+      select
+        count(*) filter (
+          where l.updated_at >= ${selectedFrom} and l.updated_at <= ${selectedTo}
+        )::int as closed,
+        count(*) filter (
+          where l.updated_at >= ${previousFrom} and l.updated_at <= ${previousTo}
+        )::int as closed_prev
+      from leads l
+      where ${scope}
+        and l.lead_status = 'won'
+        and l.updated_at >= ${previousFrom}
+        and l.updated_at <= ${selectedTo}
+    `),
+    db.execute(sql`
+      select
+        count(*) filter (
+          where sv.visit_date >= ${windows.selected.fromKey}
+            and sv.visit_date <= ${windows.selected.toKey}
+        )::int as current,
+        count(*) filter (
+          where sv.visit_date >= ${windows.previous.fromKey}
+            and sv.visit_date <= ${windows.previous.toKey}
+        )::int as previous
+      from site_visits sv
+      inner join leads l on l.id = sv.lead_id
+      where sv.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+        and sv.status <> 'cancelled'
+        and sv.visit_date >= ${windows.previous.fromKey}
+        and sv.visit_date <= ${windows.selected.toKey}
+        and ${scope}
+    `),
+    db.execute(sql`
+      select
+        count(distinct l.id)::int as leads,
+        count(distinct l.id) filter (
+          where l.lead_status in ('contacted', 'qualified', 'negotiation', 'won')
+            or u.id is not null
+        )::int as prospect,
+        count(distinct l.id) filter (
+          where l.lead_status in ('qualified', 'negotiation', 'won')
+            or u.id is not null
+        )::int as opportunity,
+        count(distinct l.id) filter (
+          where l.lead_status = 'won' or u.id is not null
+        )::int as booked,
+        count(distinct l.id) filter (where l.lead_status = 'won')::int as invoiced
+      from leads l
+      left join project_units u
+        on u.assigned_lead_id = l.id
+       and u.status in ('booked', 'sold')
+      where ${scope}
+    `),
+    db.execute(sql`
+      select coalesce(nullif(trim(l.lead_source), ''), 'Unknown') as source, count(*)::int as count
+      from leads l
+      where ${scope}
+        and l.created_at >= ${selectedFrom}
+        and l.created_at <= ${selectedTo}
+      group by 1
+      order by count desc
+      limit 30
+    `),
+    db.execute(sql`
+      select coalesce(nullif(trim(l.lead_source), ''), 'Unknown') as source
+      from leads l
+      where ${scope}
+      group by 1
+      order by 1
+      limit 40
+    `),
+    loadTopClosers(db, windows.selected.fromKey, windows.selected.toKey, userIds),
+    db.execute(sql`
+      select sv.id, l.first_name, l.last_name, sv.visit_date, sv.visit_time, p.name as project_name
+      from site_visits sv
+      inner join leads l on l.id = sv.lead_id
+      left join projects p on p.id = sv.project_id
+      where sv.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+        and sv.status not in ('cancelled', 'completed')
+        and sv.visit_date >= ${todayKey}
+        and ${scope}
+      order by sv.visit_date, sv.visit_time
+      limit 6
+    `),
+    db.execute(sql`
+      select l.id, l.first_name, l.last_name, l.next_followup_at
+      from leads l
+      where ${scope}
+        and l.next_followup_at >= now()
+        and l.lead_status not in ('won', 'lost', 'not_interested', 'dropped')
+      order by l.next_followup_at
+      limit 6
+    `),
+    db.execute(sql`
+      select
+        users.id as user_id,
+        users.name as name,
+        count(call_records.id)::int as total_calls,
+        count(call_records.id) filter (where ${ANSWERED})::int as connected,
+        coalesce(sum(call_records.duration_seconds), 0)::int as total_duration,
+        count(call_records.id) filter (where call_records.direction = 'incoming')::int as incoming,
+        count(call_records.id) filter (
+          where call_records.direction = 'incoming' and ${ANSWERED}
+        )::int as incoming_answered,
+        count(call_records.id) filter (
+          where call_records.direction = 'incoming' and call_records.status = 'missed'
+        )::int as incoming_missed,
+        coalesce(sum(call_records.duration_seconds) filter (
+          where call_records.direction = 'incoming'
+        ), 0)::int as incoming_duration,
+        count(call_records.id) filter (where call_records.direction = 'outgoing')::int as outgoing,
+        coalesce(sum(call_records.duration_seconds) filter (
+          where call_records.direction = 'outgoing'
+        ), 0)::int as outgoing_duration,
+        count(call_records.id) filter (
+          where call_records.direction = 'outgoing' and ${ANSWERED}
+        )::int as outgoing_answered,
+        count(call_records.id) filter (
+          where call_records.direction = 'outgoing' and not ${ANSWERED}
+        )::int as outgoing_not_answered
+      from users
+      left join call_records
+        on call_records.user_id = users.id
+       and call_records.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+       and call_records.started_at >= ${selectedFrom}
+       and call_records.started_at <= ${selectedTo}
+      where users.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+        and users.is_active = true
+        and users.role in ('agent', 'manager')
+        and ${userFilter(sql`users.id`, userIds)}
+      group by users.id, users.name
+      order by total_calls desc, users.name
+      limit 80
+    `),
+  ]);
+
+  const received = splitReceivedLeads(
+    rowsOf(receivedRows).map((row) => ({ status: text(row.status), count: num(row.count) })),
+  );
+  const drivers = rowsOf(driverRow)[0] ?? {};
+  const closed = rowsOf(closedRow)[0] ?? {};
+  const visits = rowsOf(visitRow)[0] ?? {};
+  const funnelRaw = rowsOf(funnelRow)[0] ?? {};
+  const funnelCounts: FunnelCounts = {
+    leads: num(funnelRaw.leads),
+    prospect: num(funnelRaw.prospect),
+    opportunity: num(funnelRaw.opportunity),
+    booked: num(funnelRaw.booked),
+    invoiced: num(funnelRaw.invoiced),
+  };
+
+  const newLeads = num(drivers.new_leads);
+  const newLeadsPrev = num(drivers.new_leads_prev);
+  const pending = num(drivers.pending);
+  const pendingPrev = num(drivers.pending_prev);
+  const closedCount = num(closed.closed);
+  const closedPrev = num(closed.closed_prev);
+  const visitCount = num(visits.current);
+  const visitPrev = num(visits.previous);
+
+  const reminders = [
+    ...rowsOf(visitReminders).map((row) => {
+      const [hour, minute] = text(row.visit_time).split(":");
+      const at = istWallClockToDate(
+        text(row.visit_date),
+        Number(hour) || 0,
+        Number(minute) || 0,
+      ).toISOString();
+      const project = text(row.project_name).trim();
+      return {
+        id: `visit-${text(row.id)}`,
+        kind: "site_visit" as const,
+        title: personName(row.first_name, row.last_name),
+        subtitle: project || "Site visit",
+        at,
+      };
+    }),
+    ...rowsOf(followupReminders).map((row) => ({
+      id: `follow-${text(row.id)}`,
+      kind: "follow_up" as const,
+      title: personName(row.first_name, row.last_name),
+      subtitle: "Follow-up",
+      at: asIso(row.next_followup_at),
+    })),
+  ]
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(0, 8);
+
+  const sourceOptions = [
+    ...new Set(
+      rowsOf(optionRows)
+        .map((row) => canonicalizeLeadSource(text(row.source)) ?? text(row.source))
+        .filter((name) => name && name !== "Unknown"),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
+  const agentTalktime = rowsOf(talktimeRows)
+    .map((row) => ({
+      userId: text(row.user_id),
+      name: text(row.name) || "Agent",
+      totalCalls: num(row.total_calls),
+      connected: num(row.connected),
+      totalDurationSeconds: num(row.total_duration),
+      incoming: num(row.incoming),
+      incomingAnswered: num(row.incoming_answered),
+      incomingMissed: num(row.incoming_missed),
+      incomingDurationSeconds: num(row.incoming_duration),
+      outgoing: num(row.outgoing),
+      outgoingDurationSeconds: num(row.outgoing_duration),
+      outgoingAnswered: num(row.outgoing_answered),
+      outgoingNotAnswered: num(row.outgoing_not_answered),
+    }))
+    .filter((row) => row.totalCalls > 0);
+
+  return {
+    period: query.period,
+    label: windows.label,
+    scope: userIds == null ? "org" : "team",
+    source,
+    range: { from: windows.selected.from.toISOString(), to: windows.selected.to.toISOString() },
+    revenue: {
+      total: revenueCard(
+        revenueDays,
+        windows.selected.fromKey,
+        windows.selected.toKey,
+        windows.previous.fromKey,
+        windows.previous.toKey,
+      ),
+      today: revenueCard(
+        revenueDays,
+        windows.today.fromKey,
+        windows.today.toKey,
+        windows.yesterday.fromKey,
+        windows.yesterday.toKey,
+      ),
+      last7Days: revenueCard(
+        revenueDays,
+        windows.last7.fromKey,
+        windows.last7.toKey,
+        windows.previous7.fromKey,
+        windows.previous7.toKey,
+      ),
+      last30Days: revenueCard(
+        revenueDays,
+        windows.last30.fromKey,
+        windows.last30.toKey,
+        windows.previous30.fromKey,
+        windows.previous30.toKey,
+      ),
+      lastQuarter: revenueCard(
+        revenueDays,
+        windows.lastQuarter.fromKey,
+        windows.lastQuarter.toKey,
+        windows.quarterBeforeLast.fromKey,
+        windows.quarterBeforeLast.toKey,
+      ),
+    },
+    leadsReceived: received,
+    sources: rankLeadSources(
+      rowsOf(sourceRows).map((row) => ({ source: text(row.source), count: num(row.count) })),
+      (name) => canonicalizeLeadSource(name) ?? name,
+    ),
+    sourceOptions,
+    funnel: buildLeadFunnel(funnelCounts),
+    topClosers: closers,
+    drivers: {
+      newLeads: {
+        count: newLeads,
+        previous: newLeadsPrev,
+        changePercent: changePercent(newLeads, newLeadsPrev),
+      },
+      siteVisits: {
+        count: visitCount,
+        previous: visitPrev,
+        changePercent: changePercent(visitCount, visitPrev),
+      },
+      closed: {
+        count: closedCount,
+        previous: closedPrev,
+        changePercent: changePercent(closedCount, closedPrev),
+      },
+      pending: {
+        count: pending,
+        previous: pendingPrev,
+        changePercent: changePercent(pending, pendingPrev),
+      },
+    },
+    reminders,
+    agentTalktime,
+  };
+}

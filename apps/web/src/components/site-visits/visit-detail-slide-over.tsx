@@ -13,6 +13,7 @@ import {
   useUpdateSiteVisit,
   visitStatusColor,
 } from "@/hooks/use-site-visits";
+import { apiDownload } from "@/lib/apiClient";
 import { siteVisitCustomerUrlFromToken } from "@/lib/site-visit-customer-url";
 import { toast } from "@/lib/toast";
 import { Button } from "@propninja/ui/button";
@@ -99,6 +100,15 @@ export function VisitDetailSlideOver({
               Mark complete
             </Button>
           ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              void apiDownload(`/api/site-visits/${v.id}/summary.pdf`, `site-visit-${v.id}.pdf`)
+            }
+          >
+            Download PDF
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => void setStatus("no_show")}>
             No show
           </Button>

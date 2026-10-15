@@ -24,7 +24,9 @@ export type SiteVisitMessageKind =
   | "rescheduled"
   | "cancelled"
   | "completed"
-  | "reminder";
+  | "reminder"
+  | "before_visit"
+  | "after_interested";
 
 export type SiteVisitWhatsAppRecipient = "customer" | "agent";
 
@@ -82,6 +84,42 @@ export function buildCustomerSiteVisitMessage(
       `🕒 Time: ${time}`,
       "",
       "Reply if you would like to reschedule.",
+      "",
+      "Thank you.",
+    ].join("\n");
+  }
+
+  if (kind === "before_visit") {
+    return [
+      "🏡 PropNinja Consulting",
+      "",
+      `Hi ${ctx.customerName},`,
+      "",
+      "A reminder before your site visit.",
+      "",
+      `📅 Date: ${date}`,
+      `🕒 Time: ${time}`,
+      `📍 ${project}`,
+      "",
+      `${ctx.agentName} will meet you at the property.`,
+      "Reply if you need to reschedule.",
+      "",
+      "Thank you.",
+    ].join("\n");
+  }
+
+  if (kind === "after_interested") {
+    return [
+      "🏡 PropNinja Consulting",
+      "",
+      `Hi ${ctx.customerName},`,
+      "",
+      `Thank you for visiting ${project}.`,
+      "",
+      "You seemed interested. We will share the next steps and follow up shortly.",
+      "",
+      ctx.agentName,
+      ctx.agentPhone ?? "",
       "",
       "Thank you.",
     ].join("\n");
@@ -162,9 +200,9 @@ export function buildAgentSiteVisitMessage(
   }
 
   const heading =
-    kind === "reminder"
+    kind === "reminder" || kind === "before_visit"
       ? "Site Visit Reminder"
-      : kind === "completed"
+      : kind === "completed" || kind === "after_interested"
         ? "Site Visit Completed"
         : kind === "updated" || kind === "rescheduled"
           ? "Site Visit Updated"

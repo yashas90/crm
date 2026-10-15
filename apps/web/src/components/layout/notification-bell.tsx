@@ -33,6 +33,10 @@ function formatNotificationLabel(notification: NotificationRow): string {
     return typeof payload.message === "string" ? payload.message : "Approval update";
   }
 
+  if (notification.type.startsWith("site_visit")) {
+    return typeof payload.message === "string" ? payload.message : `Site visit · ${leadName}`;
+  }
+
   if (notification.type === "lead_assigned") {
     const assignedBy = typeof payload.assignedBy === "string" ? payload.assignedBy : "Someone";
     return `${assignedBy} assigned you ${leadName}`;

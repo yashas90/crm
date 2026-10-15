@@ -94,12 +94,8 @@ export function formatNotificationLabel(notification: NotificationRow): string {
       : `${leadName} breached inactivity SLA`;
   }
 
-  if (notification.type === "site_visit_scheduled" || notification.type === "site_visit_reminder") {
-    const when =
-      typeof payload.visitDate === "string" && typeof payload.visitTime === "string"
-        ? `${payload.visitDate} ${payload.visitTime}`
-        : "soon";
-    return `Site visit for ${leadName} · ${when}`;
+  if (notification.type.startsWith("site_visit")) {
+    return typeof payload.message === "string" ? payload.message : `Site visit for ${leadName}`;
   }
 
   return leadName;

@@ -1169,6 +1169,28 @@ export const siteVisits = pgTable(
       .default([]),
     confirmedByClient: boolean("confirmed_by_client").notNull().default(false),
     confirmedByClientAt: timestamp("confirmed_by_client_at", { withTimezone: true }),
+    propertyName: text("property_name"),
+    propertyLat: numeric("property_lat", { precision: 10, scale: 7 }),
+    propertyLng: numeric("property_lng", { precision: 10, scale: 7 }),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    scheduledBy: uuid("scheduled_by").references(() => users.id, { onDelete: "set null" }),
+    checkinAt: timestamp("checkin_at", { withTimezone: true }),
+    checkinLat: numeric("checkin_lat", { precision: 10, scale: 7 }),
+    checkinLng: numeric("checkin_lng", { precision: 10, scale: 7 }),
+    distanceMeters: integer("distance_meters"),
+    checkinVerified: boolean("checkin_verified").notNull().default(false),
+    checkoutAt: timestamp("checkout_at", { withTimezone: true }),
+    /** Minutes actually spent on site. `duration` remains the planned slot length. */
+    durationMinutes: integer("duration_minutes"),
+    customerPresent: text("customer_present"),
+    companions: text("companions"),
+    nextAction: text("next_action"),
+    nextActionDate: timestamp("next_action_date", { withTimezone: true }),
+    feedback: jsonb("feedback").$type<Record<string, unknown>>(),
+    agentNotes: text("agent_notes"),
+    visitPhotos: jsonb("visit_photos").$type<string[]>().notNull().default([]),
+    customerSignature: text("customer_signature"),
+    overdueAlertSent: boolean("overdue_alert_sent").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1178,6 +1200,66 @@ export const siteVisits = pgTable(
     index("site_visits_agent_id_idx").on(table.agentId),
     index("site_visits_visit_date_idx").on(table.visitDate),
     uniqueIndex("site_visits_public_token_idx").on(table.publicToken),
+    check(
+      "site_visits_status_check",
+      sql`${table.status} in ('scheduled', 'reminder_sent', 'checked_in', 'in_progress', 'completed', 'cancelled', 'no_show', 'rescheduled')`,
+    ),
+  ],
+);
+
+export const siteVisitFeedback = pgTable(
+  "site_visit_feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    visitId: uuid("visit_id")
+      .notNull()
+      .references(() => siteVisits.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    answer: text("answer").notNull(),
+    answerType: text("answer_type").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("site_visit_feedback_visit_id_idx").on(table.visitId)],
+);
+
+export const propertyCheckinZones = pgTable(
+  "property_checkin_zones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    propertyName: text("property_name").notNull(),
+    address: text("address"),
+    lat: doublePrecision("lat").notNull(),
+    lng: doublePrecision("lng").notNull(),
+    radiusMeters: integer("radius_meters").notNull().default(200),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("property_checkin_zones_org_id_idx").on(table.orgId),
+    index("property_checkin_zones_project_id_idx").on(table.projectId),
+  ],
+);
+
+export const visitReminders = pgTable(
+  "visit_reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    visitId: uuid("visit_id")
+      .notNull()
+      .references(() => siteVisits.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    isSent: boolean("is_sent").notNull().default(false),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (table) => [
+    check("visit_reminders_kind_check", sql`${table.kind} in ('24h', '2h', '30min', 'now')`),
+    uniqueIndex("visit_reminders_visit_kind_idx").on(table.visitId, table.kind),
+    index("visit_reminders_unsent_idx").on(table.isSent, table.scheduledFor),
   ],
 );
 
@@ -2297,7 +2379,7 @@ export const agentCallingLimits = pgTable("agent_calling_limits", {
   orgId: uuid("org_id")
     .notNull()
     .references(() => organizations.id),
-  maxDailyLimit: integer("max_daily_limit").notNull().default(100),
+  maxDailyLimit: integer("max_daily_limit").notNull().default(200),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -2314,7 +2396,7 @@ export const agentDailyLimits = pgTable(
     date: date("date", { mode: "string" }).notNull(),
     contactsRequestedToday: integer("contacts_requested_today").notNull().default(0),
     contactsCalledToday: integer("contacts_called_today").notNull().default(0),
-    maxDailyLimit: integer("max_daily_limit").notNull().default(100),
+    maxDailyLimit: integer("max_daily_limit").notNull().default(200),
     lastRequestAt: timestamp("last_request_at", { withTimezone: true }),
   },
   (table) => [

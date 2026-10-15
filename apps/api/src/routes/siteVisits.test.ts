@@ -18,6 +18,14 @@ vi.mock("../services/siteVisitService.js", () => ({
   },
 }));
 
+vi.mock("../services/siteVisitTrackingService.js", () => ({
+  siteVisitTrackingService: {
+    onScheduled: vi.fn(),
+    managerCanAccess: vi.fn(),
+    checkIn: vi.fn(),
+  },
+}));
+
 vi.mock("../middleware/rateLimit.js", () => ({
   writeRateLimit: async (_c: unknown, next: () => Promise<void>) => next(),
 }));
@@ -108,7 +116,7 @@ describe("POST /api/site-visits overlap", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         leadId: "00000000-0000-4000-8000-000000000010",
-        visitDate: "2026-06-16",
+        visitDate: "2026-12-16",
         visitTime: "10:00",
       }),
     });
@@ -117,5 +125,59 @@ describe("POST /api/site-visits overlap", () => {
     const body = await res.json();
     expect(body.ok).toBe(false);
     expect(body.error.code).toBe("VISIT_OVERLAP");
+  });
+});
+
+describe("POST /api/site-visits/:id/check-in", () => {
+  let app: Hono;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { siteVisitsRoutes } = await import("../routes/siteVisits.js");
+    app = new Hono();
+    app.use("*", async (c, next) => {
+      c.set("authUser", agentUser);
+      c.set("db", {});
+      await next();
+    });
+    app.route("/api/site-visits", siteVisitsRoutes);
+  });
+
+  it("returns 403 when an agent checks in another agent's visit", async () => {
+    getById.mockResolvedValue({
+      id: "visit-1",
+      agentId: "00000000-0000-4000-8000-000000000099",
+      visitDate: "2026-12-16",
+      visitTime: "10:00:00",
+      status: "scheduled",
+    });
+
+    const res = await app.request("/api/site-visits/visit-1/check-in", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat: 28.6, lng: 77.2 }),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 when check-in is earlier than 30 minutes before the visit", async () => {
+    getById.mockResolvedValue({
+      id: "visit-1",
+      agentId: agentUser.id,
+      visitDate: "2026-12-20",
+      visitTime: "10:00:00",
+      status: "scheduled",
+    });
+
+    const res = await app.request("/api/site-visits/visit-1/check-in", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat: 28.6, lng: 77.2 }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("CHECKIN_TOO_EARLY");
   });
 });

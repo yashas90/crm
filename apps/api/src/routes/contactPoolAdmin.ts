@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { HARD_DAILY_CONTACT_CAP } from "../lib/contactPool/outcomeRules.js";
 import {
   MultipartFileTooLargeError,
   MultipartValidationError,
@@ -130,7 +131,10 @@ contactPoolAdminRoutes.get("/agent-stats", async (c) => {
 
 contactPoolAdminRoutes.put(
   "/agent-limit/:id",
-  validate("json", z.object({ maxDailyLimit: z.number().int().min(1).max(100) })),
+  validate(
+    "json",
+    z.object({ maxDailyLimit: z.number().int().min(1).max(HARD_DAILY_CONTACT_CAP) }),
+  ),
   async (c) => {
     const body = c.req.valid("json");
     return jsonOk(c, await setAgentLimit(c.req.param("id"), body.maxDailyLimit));
