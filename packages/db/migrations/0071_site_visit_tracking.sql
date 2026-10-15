@@ -22,10 +22,10 @@ ALTER TABLE "site_visits" ADD COLUMN IF NOT EXISTS "visit_photos" jsonb NOT NULL
 ALTER TABLE "site_visits" ADD COLUMN IF NOT EXISTS "customer_signature" text;
 ALTER TABLE "site_visits" ADD COLUMN IF NOT EXISTS "overdue_alert_sent" boolean NOT NULL DEFAULT false;
 
+-- visit_time is a time column (0018), so date + time is the IST wall clock.
 UPDATE "site_visits"
-SET "scheduled_at" = (("visit_date"::timestamp + "visit_time"::time) AT TIME ZONE 'Asia/Kolkata')
-WHERE "scheduled_at" IS NULL
-  AND "visit_time" ~ '^\d{2}:\d{2}';
+SET "scheduled_at" = (("visit_date"::timestamp + "visit_time") AT TIME ZONE 'Asia/Kolkata')
+WHERE "scheduled_at" IS NULL;
 
 ALTER TABLE "site_visits" ADD CONSTRAINT "site_visits_status_check" CHECK (
   "status" IN (
