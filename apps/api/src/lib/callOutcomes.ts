@@ -1,3 +1,4 @@
+import { hasMeasurableTalk } from "@propninja/types/call-metrics";
 import type { CallOutcome, CallStatus } from "@propninja/types/enums";
 import { CALL_OUTCOMES } from "@propninja/types/enums";
 
@@ -25,8 +26,8 @@ export function mapCallOutcome(outcome: CallOutcome): {
 }
 
 /**
- * Answered requires connected talk time. Zero-second "answered" rows are unanswered
- * calls that were mis-tagged from ring/wall-clock.
+ * Answered requires connected talk time of at least MIN_TALK_SECONDS.
+ * Shorter "answered" rows are ringing, carrier, or voicemail artifacts.
  */
 export function normalizeLoggedCall(input: {
   outcome: CallOutcome;
@@ -40,7 +41,9 @@ export function normalizeLoggedCall(input: {
   const raw = Number(input.durationSeconds);
   const durationSeconds = Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : 0;
   const outcome =
-    input.outcome === "answered" && durationSeconds <= 0 ? "no_answer" : input.outcome;
+    input.outcome === "answered" && !hasMeasurableTalk(durationSeconds)
+      ? "no_answer"
+      : input.outcome;
   const mapped = mapCallOutcome(outcome);
   return { outcome, durationSeconds, ...mapped };
 }

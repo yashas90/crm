@@ -6,13 +6,17 @@ import {
   trackingSettings,
   users,
 } from "@propninja/db";
+import { CALL_DEDUPE_WINDOW_MS } from "@propninja/types/call-metrics";
 import { getIstDateKey, istWallClockToDate } from "@propninja/types/ist";
 import { deriveAgentAvailabilityStatus, isLastKnownLocation } from "@propninja/types/tracking";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
+import { callPhoneKey } from "../lib/combinedCallStats.js";
+import { sqlRows } from "../lib/contactPool/sql.js";
 import type { Database } from "../lib/db.js";
 import { jsonError, jsonOk } from "../lib/response.js";
+import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 import {
   getTrackingConfig,
   getTrackingConfigForOrg,
@@ -456,11 +460,51 @@ locationRoutes.post(
     let duplicates = 0;
     let skipped = 0;
     let lastDeviceId: string | null = null;
+    const seenLogIds = new Set<string>();
+    const seenPhoneStarts: { phone: string; startMs: number }[] = [];
 
     for (const item of body.items) {
       const start = new Date(item.callStartTime);
       if (start.getTime() < cutoff) {
         skipped += 1;
+        continue;
+      }
+
+      const phoneKey = callPhoneKey(item.phoneNumber);
+      const startMs = start.getTime();
+      const repeatedInBatch =
+        (item.callLogId != null && seenLogIds.has(item.callLogId)) ||
+        (phoneKey != null &&
+          seenPhoneStarts.some(
+            (seen) =>
+              seen.phone === phoneKey && Math.abs(seen.startMs - startMs) <= CALL_DEDUPE_WINDOW_MS,
+          ));
+      if (item.callLogId) seenLogIds.add(item.callLogId);
+      if (phoneKey) seenPhoneStarts.push({ phone: phoneKey, startMs });
+      if (repeatedInBatch) {
+        duplicates += 1;
+        continue;
+      }
+
+      const from = sqlTimestamptz(new Date(startMs - CALL_DEDUPE_WINDOW_MS));
+      const to = sqlTimestamptz(new Date(startMs + CALL_DEDUPE_WINDOW_MS));
+      const alreadyStored = await db.execute(sql`
+        select id
+        from agent_call_logs
+        where user_id = ${authUser.id}::uuid
+          and (
+            (${item.callLogId ?? null}::text is not null and call_log_id = ${item.callLogId ?? null})
+            or (
+              ${phoneKey}::text is not null
+              and right(regexp_replace(coalesce(phone_number, ''), '\\D', '', 'g'), 10) = ${phoneKey}
+              and call_start_time >= ${from}
+              and call_start_time <= ${to}
+            )
+          )
+        limit 1
+      `);
+      if (sqlRows(alreadyStored).length > 0) {
+        duplicates += 1;
         continue;
       }
 

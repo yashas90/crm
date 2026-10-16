@@ -40,6 +40,10 @@
       "types": "./src/ist.ts",
       "default": "./src/ist.ts"
     },
+    "./call-metrics": {
+      "types": "./src/callMetrics.ts",
+      "default": "./src/callMetrics.ts"
+    },
     "./tracking": {
       "types": "./src/tracking.ts",
       "default": "./src/tracking.ts"

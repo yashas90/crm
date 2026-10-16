@@ -1,8 +1,9 @@
+import { hasMeasurableTalk } from "@propninja/types/call-metrics";
 import type { CallOutcome } from "@propninja/types/enums";
 
 /** Connected talk time only — ring/wall-clock must not be passed here. */
 export function outcomeFromTalkSeconds(seconds: number): CallOutcome {
-  return seconds > 0 ? "answered" : "no_answer";
+  return hasMeasurableTalk(seconds) ? "answered" : "no_answer";
 }
 
 /**

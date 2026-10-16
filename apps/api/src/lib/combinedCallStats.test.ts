@@ -1,10 +1,12 @@
-import { getIstDateKey, istWallClockToDate } from "@propninja/types/ist";
+import { MIN_TALK_SECONDS } from "@propninja/types/call-metrics";
+import { getIstDateKey, istDateKeyBounds, istWallClockToDate } from "@propninja/types/ist";
 import { describe, expect, it } from "vitest";
 import {
   aggregateCombinedCalls,
   classifyDataCall,
   classifyDeviceCall,
   classifyLeadCall,
+  sumCallCountTotals,
 } from "./combinedCallStats.js";
 
 const agentId = "agent-poornesh";
@@ -60,7 +62,7 @@ describe("combined call stats", () => {
     const data = classifyDataCall({
       userId: agentId,
       phone: "+91-98765-43210",
-      calledAt: new Date(started.getTime() + 30_000),
+      calledAt: new Date(started.getTime() + 1_000),
       outcome: "interested",
       durationSeconds: 0,
     });
@@ -68,7 +70,7 @@ describe("combined call stats", () => {
       userId: agentId,
       phone: "09876543210",
       callType: "OUTGOING",
-      startedAt: new Date(started.getTime() + 20_000),
+      startedAt: new Date(started.getTime() + 1_500),
       durationSeconds: 45,
     });
 
@@ -128,5 +130,158 @@ describe("combined call stats", () => {
     expect(stats?.outgoingTotal).toBe(1);
     expect(stats?.totalCalls).toBe(4);
     expect(stats?.totalTalkTimeSeconds).toBe(37);
+  });
+
+  it("counts the shared sample once and keeps the footer equal to the user rows", () => {
+    expect(MIN_TALK_SECONDS).toBe(3);
+    const start = istWallClockToDate("2026-10-16", 10, 0);
+    const agentB = "agent-kesav";
+
+    const oneSecond = classifyLeadCall({
+      userId: agentId,
+      phone: "9876543210",
+      startedAt: start,
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 1,
+    });
+    const ringing = classifyLeadCall({
+      userId: agentId,
+      phone: "9876543213",
+      startedAt: new Date(start.getTime() + 5_000),
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 2,
+    });
+    const noAnswer = classifyLeadCall({
+      userId: agentId,
+      phone: "9876543211",
+      startedAt: new Date(start.getTime() + 60_000),
+      direction: "outgoing",
+      status: "missed",
+      outcome: "no_answer",
+      disposition: "no_answer",
+      durationSeconds: 0,
+    });
+    const answered = classifyLeadCall({
+      userId: agentId,
+      phone: "9876543212",
+      startedAt: new Date(start.getTime() + 120_000),
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 30,
+    });
+    const duplicate = classifyLeadCall({
+      userId: agentId,
+      phone: "+91 98765 43212",
+      startedAt: new Date(answered.startedAtMs + 1_500),
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 30,
+    });
+    const device = classifyDeviceCall({
+      userId: agentId,
+      phone: "9000000099",
+      callType: "OUTGOING",
+      startedAt: new Date(start.getTime() + 300_000),
+      durationSeconds: 40,
+      callLogId: "os-100",
+    });
+    const deviceRetry = classifyDeviceCall({
+      userId: agentId,
+      phone: "9000000099",
+      callType: "OUTGOING",
+      startedAt: new Date(start.getTime() + 315_000),
+      durationSeconds: 40,
+      callLogId: "os-100",
+    });
+    const missed = classifyDeviceCall({
+      userId: agentId,
+      phone: "9000000002",
+      callType: "MISSED",
+      startedAt: new Date(start.getTime() + 400_000),
+      durationSeconds: 0,
+    });
+    const otherAgent = classifyLeadCall({
+      userId: agentB,
+      phone: "9111111111",
+      startedAt: start,
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 10,
+    });
+
+    const { byUser, totals } = aggregateCombinedCalls([
+      oneSecond,
+      ringing,
+      noAnswer,
+      answered,
+      duplicate,
+      device,
+      deviceRetry,
+      missed,
+      otherAgent,
+    ]);
+    const poornesh = byUser.get(agentId);
+    const kesav = byUser.get(agentB);
+
+    expect(poornesh).toMatchObject({
+      outgoingAnswered: 2,
+      outgoingNotConnected: 3,
+      outgoingTotal: 5,
+      incomingAnswered: 0,
+      incomingMissed: 1,
+      incomingTotal: 1,
+      totalCalls: 6,
+      totalTalkTimeSeconds: 70,
+      avgTalkTimeSeconds: 35,
+      minTalkTimeSeconds: 30,
+      maxTalkTimeSeconds: 40,
+    });
+    expect(kesav).toMatchObject({
+      outgoingAnswered: 1,
+      outgoingTotal: 1,
+      totalCalls: 1,
+      totalTalkTimeSeconds: 10,
+      avgTalkTimeSeconds: 10,
+    });
+
+    const footer = sumCallCountTotals([poornesh!, kesav!]);
+    expect(footer.incomingAnswered).toBe(totals.incomingAnswered);
+    expect(footer.incomingMissed).toBe(totals.incomingMissed);
+    expect(footer.incomingTotal).toBe(footer.incomingAnswered + footer.incomingMissed);
+    expect(footer.outgoingAnswered).toBe(totals.outgoingAnswered);
+    expect(footer.outgoingNotConnected).toBe(totals.outgoingNotConnected);
+    expect(footer.outgoingTotal).toBe(footer.outgoingAnswered + footer.outgoingNotConnected);
+    expect(footer.totalCalls).toBe(footer.incomingTotal + footer.outgoingTotal);
+    expect(footer.totalCalls).toBe(7);
+    expect(footer.totalTalkTimeSeconds).toBe(80);
+    expect(footer.avgTalkTimeSeconds).toBe(
+      Math.round(footer.totalTalkTimeSeconds / (footer.incomingAnswered + footer.outgoingAnswered)),
+    );
+    expect(footer.minTalkTimeSeconds).toBe(10);
+    expect(footer.maxTalkTimeSeconds).toBe(40);
+
+    const day = istDateKeyBounds("2026-10-16");
+    const justBefore = new Date("2026-10-15T18:29:59.000Z");
+    const justAfterMidnight = new Date("2026-10-15T18:30:01.000Z");
+    const endOfDay = new Date("2026-10-16T18:29:59.000Z");
+    expect(justBefore.getTime()).toBeLessThan(day.start.getTime());
+    expect(justAfterMidnight.getTime()).toBeGreaterThanOrEqual(day.start.getTime());
+    expect(justAfterMidnight.getTime()).toBeLessThanOrEqual(day.end.getTime());
+    expect(endOfDay.getTime()).toBeLessThanOrEqual(day.end.getTime());
+    expect(getIstDateKey(justBefore)).toBe("2026-10-15");
+    expect(getIstDateKey(justAfterMidnight)).toBe("2026-10-16");
+    expect(getIstDateKey(endOfDay)).toBe("2026-10-16");
   });
 });

@@ -11,6 +11,7 @@ import {
 import { getIstDateKey, getIstDayBounds, getIstMonthBounds } from "@propninja/types/ist";
 import {
   type SQL,
+  type SQLWrapper,
   and,
   eq,
   gte,
@@ -27,7 +28,13 @@ import {
 import { newLeadFreshnessCutoff } from "../lib/ageOutNewLeads.js";
 import { answeredCallFilter, connectedTalkTimeFilter } from "../lib/callTalkTime.js";
 import { expandTeamUserIds } from "../lib/callsReportScope.js";
-import { aggregateCombinedCalls, emptyCombinedCallStats } from "../lib/combinedCallStats.js";
+import {
+  type CombinedCallEvent,
+  aggregateCombinedCalls,
+  dedupeCombinedCalls,
+  emptyCombinedCallStats,
+  sumCallCountTotals,
+} from "../lib/combinedCallStats.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
@@ -923,18 +930,9 @@ async function buildCallsPerUserReport(query: CallsReportQuery) {
     siteVisitsConducted += row.siteVisitsConducted;
   }
 
+  const callTotals = sumCallCountTotals(rows);
   const totals: CallsPerUserTotalsRow = {
-    incomingAnswered: aggregated.totals.incomingAnswered,
-    incomingMissed: aggregated.totals.incomingMissed,
-    incomingTotal: aggregated.totals.incomingTotal,
-    outgoingAnswered: aggregated.totals.outgoingAnswered,
-    outgoingNotConnected: aggregated.totals.outgoingNotConnected,
-    outgoingTotal: aggregated.totals.outgoingTotal,
-    totalTalkTimeSeconds: aggregated.totals.totalTalkTimeSeconds,
-    avgTalkTimeSeconds: aggregated.totals.avgTalkTimeSeconds,
-    minTalkTimeSeconds: aggregated.totals.minTalkTimeSeconds,
-    maxTalkTimeSeconds: aggregated.totals.maxTalkTimeSeconds,
-    totalCalls: aggregated.totals.totalCalls,
+    ...callTotals,
     siteVisitsBooked,
     siteVisitsConducted,
   };
@@ -955,6 +953,56 @@ async function fetchCallsReportPerUserPaginated(query: CallsReportQuery) {
     page,
     pageSize,
     totals: built.totals,
+  };
+}
+
+async function listCallsReportUserIds(query: CallsReportQuery): Promise<string[]> {
+  if (query.userIds?.length) return query.userIds;
+  if (query.userId) return [query.userId];
+  const people = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.orgId, SINGLE_TENANT_ORG_ID));
+  return people.map((row) => row.id);
+}
+
+function summarizeCallsAnalytics(events: CombinedCallEvent[]) {
+  const unique = dedupeCombinedCalls(events);
+  const byDate = new Map<string, { total: number; answered: number; unanswered: number }>();
+  const kinds = new Map<string, number>();
+  const directions = new Map<string, number>();
+  const leadCallsByDate = new Map<string, number>();
+
+  for (const event of unique) {
+    const date = getIstDateKey(new Date(event.startedAtMs));
+    const bucket = byDate.get(date) ?? { total: 0, answered: 0, unanswered: 0 };
+    bucket.total += 1;
+    if (event.kind === "answered") bucket.answered += 1;
+    else bucket.unanswered += 1;
+    byDate.set(date, bucket);
+    kinds.set(event.kind, (kinds.get(event.kind) ?? 0) + 1);
+    directions.set(event.direction, (directions.get(event.direction) ?? 0) + 1);
+    if (event.hasLead) {
+      leadCallsByDate.set(date, (leadCallsByDate.get(date) ?? 0) + 1);
+    }
+  }
+
+  return {
+    callsOverTime: [...byDate.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([date, row]) => ({
+        date,
+        total_calls: row.total,
+        completed_calls: row.answered,
+        missed_calls: row.unanswered,
+      })),
+    dispositionBreakdown: [...kinds.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .map(([disposition, count]) => ({ disposition, count })),
+    directionBreakdown: [...directions.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([direction, count]) => ({ direction, count })),
+    leadCallsOverTime: [...leadCallsByDate.entries()].map(([date, count]) => ({ date, count })),
   };
 }
 
@@ -1127,92 +1175,49 @@ export const reportService = {
       userId: scopedQuery.userId,
       userIds: scopedQuery.userIds,
     };
-    const callWhere = callScopeFilter(scope, userScope);
     const activityWhere = activityScopeFilter(scope, userScope);
+    const istDay = (column: SQLWrapper) =>
+      sql<string>`to_char(timezone('Asia/Kolkata', ${column}), 'YYYY-MM-DD')`;
 
-    const [
-      callsOverTime,
-      dispositionBreakdown,
-      directionBreakdown,
-      callsOnLeadsOverTime,
-      meetingsOverTime,
-      notesOverTime,
-    ] = await Promise.all([
+    const userIds = await listCallsReportUserIds(scopedQuery);
+    const leadAttributeFilter = reportUsesLeadFilter(scopedQuery);
+    const [events, meetingsOverTime, notesOverTime] = await Promise.all([
+      loadCombinedCallEvents(db, {
+        from: scopedQuery.dateFrom,
+        to: scopedQuery.dateTo,
+        userIds,
+        includeDataCalls: !leadAttributeFilter,
+        includeDeviceCalls: !leadAttributeFilter,
+        leadCallFilter: callReportLeadExistsFilter(scopedQuery),
+      }),
       db
         .select({
-          date: sql<string>`to_char(date_trunc('day', ${callRecords.startedAt}), 'YYYY-MM-DD')`,
-          totalCalls: sql<number>`count(*)::int`,
-          completedCalls: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
-          missedCalls: sql<number>`count(*) filter (where ${callRecords.status} = 'missed')::int`,
-        })
-        .from(callRecords)
-        .where(callWhere)
-        .groupBy(sql`date_trunc('day', ${callRecords.startedAt})`)
-        .orderBy(sql`date_trunc('day', ${callRecords.startedAt})`),
-      db
-        .select({
-          disposition: sql<string>`coalesce(${callRecords.disposition}, 'unknown')`,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(callRecords)
-        .where(callWhere)
-        .groupBy(callRecords.disposition)
-        .orderBy(sql`count(*) desc`),
-      db
-        .select({
-          direction: callRecords.direction,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(callRecords)
-        .where(callWhere)
-        .groupBy(callRecords.direction)
-        .orderBy(callRecords.direction),
-      db
-        .select({
-          date: sql<string>`to_char(date_trunc('day', ${callRecords.startedAt}), 'YYYY-MM-DD')`,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(callRecords)
-        .where(and(callWhere, isNotNull(callRecords.leadId)))
-        .groupBy(sql`date_trunc('day', ${callRecords.startedAt})`)
-        .orderBy(sql`date_trunc('day', ${callRecords.startedAt})`),
-      db
-        .select({
-          date: sql<string>`to_char(date_trunc('day', ${leadActivities.createdAt}), 'YYYY-MM-DD')`,
+          date: istDay(leadActivities.createdAt),
           count: sql<number>`count(*)::int`,
         })
         .from(leadActivities)
         .where(and(activityWhere, eq(leadActivities.type, "meeting")))
-        .groupBy(sql`date_trunc('day', ${leadActivities.createdAt})`)
-        .orderBy(sql`date_trunc('day', ${leadActivities.createdAt})`),
+        .groupBy(istDay(leadActivities.createdAt))
+        .orderBy(istDay(leadActivities.createdAt)),
       db
         .select({
-          date: sql<string>`to_char(date_trunc('day', ${leadActivities.createdAt}), 'YYYY-MM-DD')`,
+          date: istDay(leadActivities.createdAt),
           count: sql<number>`count(*)::int`,
         })
         .from(leadActivities)
         .where(and(activityWhere, eq(leadActivities.type, "note")))
-        .groupBy(sql`date_trunc('day', ${leadActivities.createdAt})`)
-        .orderBy(sql`date_trunc('day', ${leadActivities.createdAt})`),
+        .groupBy(istDay(leadActivities.createdAt))
+        .orderBy(istDay(leadActivities.createdAt)),
     ]);
 
+    const analytics = summarizeCallsAnalytics(events);
+
     return {
-      calls_over_time: callsOverTime.map((row) => ({
-        date: row.date,
-        total_calls: row.totalCalls,
-        completed_calls: row.completedCalls,
-        missed_calls: row.missedCalls,
-      })),
-      disposition_breakdown: dispositionBreakdown.map((row) => ({
-        disposition: row.disposition,
-        count: row.count,
-      })),
-      direction_breakdown: directionBreakdown.map((row) => ({
-        direction: row.direction,
-        count: row.count,
-      })),
+      calls_over_time: analytics.callsOverTime,
+      disposition_breakdown: analytics.dispositionBreakdown,
+      direction_breakdown: analytics.directionBreakdown,
       activity_on_leads_over_time: buildActivityOnLeadsOverTime(
-        callsOnLeadsOverTime.map((row) => ({ date: row.date, count: row.count })),
+        analytics.leadCallsOverTime,
         meetingsOverTime.map((row) => ({ date: row.date, count: row.count })),
         notesOverTime.map((row) => ({ date: row.date, count: row.count })),
       ),
@@ -1243,7 +1248,7 @@ export const reportService = {
     };
 
     async function* lines() {
-      yield ["Date", "Total Calls", "Completed Calls", "Missed Calls"].join(",");
+      yield ["Date", "Total Calls", "Answered", "Not answered"].join(",");
 
       for (const row of report.calls_over_time) {
         yield [row.date, row.total_calls, row.completed_calls, row.missed_calls]

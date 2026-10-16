@@ -20,6 +20,18 @@ describe("normalizeLoggedCall", () => {
     });
   });
 
+  it("coerces 1–2 second answered rows to no_answer", () => {
+    expect(normalizeLoggedCall({ outcome: "answered", durationSeconds: 1 }).outcome).toBe(
+      "no_answer",
+    );
+    expect(normalizeLoggedCall({ outcome: "answered", durationSeconds: 2 }).outcome).toBe(
+      "no_answer",
+    );
+    expect(normalizeLoggedCall({ outcome: "answered", durationSeconds: 3 }).outcome).toBe(
+      "answered",
+    );
+  });
+
   it("does not change busy or voicemail", () => {
     expect(normalizeLoggedCall({ outcome: "busy", durationSeconds: 0 }).outcome).toBe("busy");
     expect(normalizeLoggedCall({ outcome: "left_voicemail", durationSeconds: 8 }).outcome).toBe(

@@ -15,11 +15,14 @@ describe("formatCallLogDuration", () => {
 });
 
 describe("displayCallOutcome", () => {
-  it("does not show Answered when talk time is 0", () => {
+  it("does not show Answered for ringing artifacts", () => {
     expect(displayCallOutcome("answered", 0)).toBe("no_answer");
+    expect(displayCallOutcome("answered", 1)).toBe("no_answer");
+    expect(displayCallOutcome("answered", 2)).toBe("no_answer");
   });
 
-  it("keeps Answered when talk time is positive", () => {
+  it("keeps Answered when talk time is a real conversation", () => {
+    expect(displayCallOutcome("answered", 3)).toBe("answered");
     expect(displayCallOutcome("answered", 12)).toBe("answered");
   });
 

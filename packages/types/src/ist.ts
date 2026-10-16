@@ -37,15 +37,19 @@ export function istWallClockToDate(dateKey: string, hour: number, minute: number
   return new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1, hour, minute, 0, 0) - IST_OFFSET_MS);
 }
 
+/** UTC bounds for one IST calendar day, 00:00:00.000 through 23:59:59.999. */
+export function istDateKeyBounds(dateKey: string): { start: Date; end: Date; dateKey: string } {
+  const start = istWallClockToDate(dateKey, 0, 0);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+  return { start, end, dateKey };
+}
+
 /** UTC bounds for one IST calendar day. offsetDays: 0 = today IST, -1 = yesterday IST. */
 export function getIstDayBounds(
   offsetDays = 0,
   reference = new Date(),
 ): { start: Date; end: Date; dateKey: string } {
-  const dateKey = addDaysToDateKey(getIstDateKey(reference), offsetDays);
-  const start = istWallClockToDate(dateKey, 0, 0);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
-  return { start, end, dateKey };
+  return istDateKeyBounds(addDaysToDateKey(getIstDateKey(reference), offsetDays));
 }
 
 export function isIstMonday(date = new Date()): boolean {

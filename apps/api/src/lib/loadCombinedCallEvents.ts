@@ -3,6 +3,9 @@ import { type SQL, and, eq, inArray, or, sql } from "drizzle-orm";
 import {
   type CombinedCallEvent,
   type CombinedCallStats,
+  type DataCallForStats,
+  type DeviceCallForStats,
+  type LeadCallForStats,
   aggregateCombinedCalls,
   classifyDataCall,
   classifyDeviceCall,
@@ -33,11 +36,17 @@ function asNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export async function loadCombinedCallEvents(
+export type CombinedCallInputs = {
+  lead: LeadCallForStats[];
+  data: DataCallForStats[];
+  device: DeviceCallForStats[];
+};
+
+export async function loadCombinedCallInputs(
   database: Database,
   input: LoadCombinedCallEventsInput,
-): Promise<CombinedCallEvent[]> {
-  if (input.userIds.length === 0) return [];
+): Promise<CombinedCallInputs> {
+  if (input.userIds.length === 0) return { lead: [], data: [], device: [] };
 
   const from = sqlTimestamptz(input.from);
   const to = sqlTimestamptz(input.to);
@@ -53,7 +62,8 @@ export async function loadCombinedCallEvents(
         status,
         outcome,
         disposition,
-        duration_seconds
+        duration_seconds,
+        (lead_id is not null) as has_lead
       from call_records
       where org_id = ${SINGLE_TENANT_ORG_ID}::uuid
         and started_at >= ${from}
@@ -84,7 +94,8 @@ export async function loadCombinedCallEvents(
             phone_number,
             call_type,
             call_start_time,
-            duration_seconds
+            duration_seconds,
+            call_log_id
           from agent_call_logs
           where call_start_time >= ${from}
             and call_start_time <= ${to}
@@ -93,48 +104,48 @@ export async function loadCombinedCallEvents(
       : Promise.resolve([]),
   ]);
 
-  const events: CombinedCallEvent[] = [];
+  const lead: LeadCallForStats[] = sqlRows(leadRows).map((row) => ({
+    userId: String(row.user_id),
+    phone: row.phone_number == null ? null : String(row.phone_number),
+    startedAt: asDate(row.started_at as Date | string),
+    direction: String(row.direction ?? "outgoing"),
+    status: String(row.status ?? ""),
+    outcome: row.outcome == null ? null : String(row.outcome),
+    disposition: row.disposition == null ? null : String(row.disposition),
+    durationSeconds: asNumber(row.duration_seconds),
+    hasLead: row.has_lead === true || row.has_lead === "t" || row.has_lead === "true",
+  }));
 
-  for (const row of sqlRows(leadRows)) {
-    events.push(
-      classifyLeadCall({
-        userId: String(row.user_id),
-        phone: row.phone_number == null ? null : String(row.phone_number),
-        startedAt: asDate(row.started_at as Date | string),
-        direction: String(row.direction ?? "outgoing"),
-        status: String(row.status ?? ""),
-        outcome: row.outcome == null ? null : String(row.outcome),
-        disposition: row.disposition == null ? null : String(row.disposition),
-        durationSeconds: asNumber(row.duration_seconds),
-      }),
-    );
-  }
+  const data: DataCallForStats[] = sqlRows(dataRows).map((row) => ({
+    userId: String(row.agent_id),
+    phone: row.phone == null ? null : String(row.phone),
+    calledAt: asDate(row.called_at as Date | string),
+    outcome: String(row.outcome ?? ""),
+    durationSeconds: asNumber(row.duration_seconds),
+  }));
 
-  for (const row of sqlRows(dataRows)) {
-    events.push(
-      classifyDataCall({
-        userId: String(row.agent_id),
-        phone: row.phone == null ? null : String(row.phone),
-        calledAt: asDate(row.called_at as Date | string),
-        outcome: String(row.outcome ?? ""),
-        durationSeconds: asNumber(row.duration_seconds),
-      }),
-    );
-  }
+  const device: DeviceCallForStats[] = sqlRows(deviceRows).map((row) => ({
+    userId: String(row.user_id),
+    phone: row.phone_number == null ? null : String(row.phone_number),
+    callType: String(row.call_type ?? ""),
+    startedAt: asDate(row.call_start_time as Date | string),
+    durationSeconds: row.duration_seconds == null ? null : asNumber(row.duration_seconds),
+    callLogId: row.call_log_id == null ? null : String(row.call_log_id),
+  }));
 
-  for (const row of sqlRows(deviceRows)) {
-    events.push(
-      classifyDeviceCall({
-        userId: String(row.user_id),
-        phone: row.phone_number == null ? null : String(row.phone_number),
-        callType: String(row.call_type ?? ""),
-        startedAt: asDate(row.call_start_time as Date | string),
-        durationSeconds: row.duration_seconds == null ? null : asNumber(row.duration_seconds),
-      }),
-    );
-  }
+  return { lead, data, device };
+}
 
-  return events;
+export async function loadCombinedCallEvents(
+  database: Database,
+  input: LoadCombinedCallEventsInput,
+): Promise<CombinedCallEvent[]> {
+  const inputs = await loadCombinedCallInputs(database, input);
+  return [
+    ...inputs.lead.map(classifyLeadCall),
+    ...inputs.data.map(classifyDataCall),
+    ...inputs.device.map(classifyDeviceCall),
+  ];
 }
 
 export type AgentTalktimeStats = CombinedCallStats & {

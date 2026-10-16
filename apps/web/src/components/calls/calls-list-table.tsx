@@ -9,7 +9,27 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { CallRecord } from "@/hooks/use-leads";
+import { callMetricStatusLabel, classifyCall } from "@propninja/types/call-metrics";
 import Link from "next/link";
+
+function reportStatus(call: CallRecord): string {
+  if (
+    call.metricStatus === "answered" ||
+    call.metricStatus === "missed" ||
+    call.metricStatus === "not_connected"
+  ) {
+    return callMetricStatusLabel(call.metricStatus);
+  }
+  return callMetricStatusLabel(
+    classifyCall({
+      direction: call.direction,
+      durationSeconds: call.durationSeconds,
+      outcome: call.outcome,
+      disposition: call.disposition,
+      status: call.status,
+    }).kind,
+  );
+}
 
 function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -81,7 +101,7 @@ export function CallsListTable({
               <TableCell className="tabular-nums text-foreground">{call.phoneNumber}</TableCell>
             ) : null}
             <TableCell className="capitalize text-foreground">{call.direction}</TableCell>
-            <TableCell className="capitalize text-foreground">{call.status}</TableCell>
+            <TableCell className="text-foreground">{reportStatus(call)}</TableCell>
             <TableCell className="tabular-nums font-semibold text-foreground">
               {formatDuration(call.durationSeconds)}
             </TableCell>

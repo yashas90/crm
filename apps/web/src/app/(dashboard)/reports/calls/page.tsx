@@ -32,6 +32,7 @@ import {
   resolveCallsReportDates,
 } from "@/lib/calls-report-filters";
 import { toApiRange } from "@/lib/report-filters";
+import { callMetricStatusLabel } from "@propninja/types/call-metrics";
 import { CALL_OUTCOME_LABELS, type CallOutcome } from "@propninja/types/enums";
 import { Button } from "@propninja/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@propninja/ui/card";
@@ -51,6 +52,22 @@ const USER_STATUS_TABS: { id: CallsUserStatusFilter; label: string }[] = [
 ];
 
 const USER_NAME_SEARCH_DEBOUNCE_MS = 300;
+
+function outcomeChartLabel(disposition: string): string {
+  if (disposition === "answered" || disposition === "missed" || disposition === "not_connected") {
+    return callMetricStatusLabel(disposition);
+  }
+  if (disposition in CALL_OUTCOME_LABELS) {
+    return CALL_OUTCOME_LABELS[disposition as CallOutcome];
+  }
+  return disposition;
+}
+
+function directionChartLabel(direction: string): string {
+  if (direction === "incoming") return "Incoming";
+  if (direction === "outgoing") return "Outgoing";
+  return direction;
+}
 
 export default function CallsReportPage() {
   const { canViewReports, isManager, ready } = usePermissions();
@@ -366,17 +383,14 @@ export default function CallsReportPage() {
                   <PieChart
                     title="Outcome breakdown"
                     items={analyticsReport.data.disposition_breakdown.map((row) => ({
-                      label:
-                        row.disposition in CALL_OUTCOME_LABELS
-                          ? CALL_OUTCOME_LABELS[row.disposition as CallOutcome]
-                          : row.disposition,
+                      label: outcomeChartLabel(row.disposition),
                       value: row.count,
                     }))}
                   />
                   <PieChart
                     title="Direction breakdown"
                     items={analyticsReport.data.direction_breakdown.map((row) => ({
-                      label: row.direction,
+                      label: directionChartLabel(row.direction),
                       value: row.count,
                     }))}
                   />
@@ -385,7 +399,7 @@ export default function CallsReportPage() {
                 <BarChart
                   title="Direction breakdown (bar)"
                   items={analyticsReport.data.direction_breakdown.map((row) => ({
-                    label: row.direction,
+                    label: directionChartLabel(row.direction),
                     value: row.count,
                   }))}
                 />

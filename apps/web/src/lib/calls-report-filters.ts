@@ -1,6 +1,6 @@
 import { LEAD_SOURCE_VALUES } from "@/lib/lead-sources";
 import type { DateRangePreset } from "@/lib/report-filters";
-import { addDaysToDateKey, getIstDateKey, istWallClockToDate } from "@propninja/types/ist";
+import { addDaysToDateKey, getIstDateKey, istDateKeyBounds } from "@propninja/types/ist";
 
 export const CALLS_LEAD_SOURCE_OPTIONS = LEAD_SOURCE_VALUES;
 
@@ -55,11 +55,9 @@ export function resolveCallsReportDates(filters: CallsReportFilterState) {
 
 export function callsReportFiltersToApiRange(filters: CallsReportFilterState) {
   const { from, to } = resolveCallsReportDates(filters);
-  const dateFrom = istWallClockToDate(from, 0, 0);
-  const dateTo = new Date(istWallClockToDate(addDaysToDateKey(to, 1), 0, 0).getTime() - 1);
   return {
-    dateFrom: dateFrom.toISOString(),
-    dateTo: dateTo.toISOString(),
+    dateFrom: istDateKeyBounds(from).start.toISOString(),
+    dateTo: istDateKeyBounds(to).end.toISOString(),
   };
 }
 

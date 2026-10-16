@@ -1,3 +1,5 @@
+import { hasMeasurableTalk } from "@propninja/types/call-metrics";
+
 /** Format talk time for call-log rows. Sub-minute calls must not round to "0m". */
 export function formatCallLogDuration(durationSeconds: number): string {
   const s = Math.max(0, Math.round(durationSeconds));
@@ -14,6 +16,6 @@ export function formatCallLogDuration(durationSeconds: number): string {
  * Zero talk time cannot be "Answered" — even if a stale row still has that outcome.
  */
 export function displayCallOutcome(outcome: string | null, durationSeconds: number): string | null {
-  if (outcome === "answered" && durationSeconds <= 0) return "no_answer";
+  if (outcome === "answered" && !hasMeasurableTalk(durationSeconds)) return "no_answer";
   return outcome;
 }

@@ -1,9 +1,12 @@
 import { callRecords, leadActivities, leads, users } from "@propninja/db";
+import { classifyCall } from "@propninja/types/call-metrics";
 import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
-import { answeredCallFilter } from "../lib/callTalkTime.js";
+import { excludeDuplicateCallRecordSql } from "../lib/callTalkTime.js";
+import { aggregateCombinedCalls } from "../lib/combinedCallStats.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
+import { loadCombinedCallEvents } from "../lib/loadCombinedCallEvents.js";
 import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
 import { recalculateLeadScore } from "../services/leadScoringService.js";
 
@@ -59,6 +62,7 @@ function buildWhere(
   if (params.outcome) where.push(eq(callRecords.outcome, params.outcome));
   if (params.dateFrom) where.push(gte(callRecords.startedAt, params.dateFrom));
   if (params.dateTo) where.push(lte(callRecords.startedAt, params.dateTo));
+  where.push(excludeDuplicateCallRecordSql());
 
   return and(...where);
 }
@@ -219,20 +223,31 @@ export const callService = {
       db.select({ count: sql<number>`count(*)::int` }).from(callRecords).where(whereClause),
     ]);
 
-    const items = rows.map((row) => ({
-      ...row.call,
-      userName: row.user?.name ?? null,
-      user: row.user ? { id: row.user.id, name: row.user.name, email: row.user.email } : null,
-      lead: row.lead
-        ? {
-            id: row.lead.id,
-            leadCode: row.lead.leadCode,
-            firstName: row.lead.firstName,
-            lastName: row.lead.lastName,
-            phone: row.lead.phone,
-          }
-        : null,
-    }));
+    const items = rows.map((row) => {
+      const metric = classifyCall({
+        direction: row.call.direction,
+        durationSeconds: row.call.durationSeconds,
+        outcome: row.call.outcome,
+        disposition: row.call.disposition,
+        status: row.call.status,
+      });
+      return {
+        ...row.call,
+        metricStatus: metric.kind,
+        talkSeconds: metric.talkSeconds,
+        userName: row.user?.name ?? null,
+        user: row.user ? { id: row.user.id, name: row.user.name, email: row.user.email } : null,
+        lead: row.lead
+          ? {
+              id: row.lead.id,
+              leadCode: row.lead.leadCode,
+              firstName: row.lead.firstName,
+              lastName: row.lead.lastName,
+              phone: row.lead.phone,
+            }
+          : null,
+      };
+    });
 
     return {
       items,
@@ -244,47 +259,38 @@ export const callService = {
 
   async getSummary(params: CallSummaryParams) {
     const { userId, dateFrom, dateTo } = params;
+    const from = dateFrom ?? new Date(0);
+    const to = dateTo ?? new Date();
+    const userIds = userId
+      ? [userId]
+      : (
+          await db.select({ id: users.id }).from(users).where(eq(users.orgId, SINGLE_TENANT_ORG_ID))
+        ).map((row) => row.id);
 
-    const whereClause = buildWhere({ userId, dateFrom, dateTo });
-    const answered = answeredCallFilter();
-
-    const [agg] = await db
-      .select({
-        total: sql<number>`count(*)::int`,
-        completed: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
-        answered: sql<number>`count(*) filter (where ${answered})::int`,
-        missed: sql<number>`count(*) filter (where ${callRecords.status} = 'missed')::int`,
-        avgDuration: sql<number | null>`avg(${callRecords.durationSeconds})`,
-      })
-      .from(callRecords)
-      .where(whereClause);
-
-    const byUser = await db
-      .select({
-        userId: callRecords.userId,
-        total: sql<number>`count(*)::int`,
-        completed: sql<number>`count(*) filter (where ${callRecords.status} = 'completed')::int`,
-        answered: sql<number>`count(*) filter (where ${answered})::int`,
-        missed: sql<number>`count(*) filter (where ${callRecords.status} = 'missed')::int`,
-        avgDuration: sql<number | null>`avg(${callRecords.durationSeconds})`,
-      })
-      .from(callRecords)
-      .where(whereClause)
-      .groupBy(callRecords.userId);
+    const events = await loadCombinedCallEvents(db, {
+      from,
+      to,
+      userIds,
+      includeDataCalls: true,
+      includeDeviceCalls: true,
+    });
+    const { byUser, totals } = aggregateCombinedCalls(events);
+    const unanswered = totals.incomingMissed + totals.outgoingNotConnected;
 
     return {
-      total_calls: Number(agg?.total ?? 0),
-      completed_calls: Number(agg?.completed ?? 0),
-      answered_calls: Number(agg?.answered ?? 0),
-      missed_calls: Number(agg?.missed ?? 0),
-      average_duration: agg?.avgDuration ? Math.round(Number(agg.avgDuration)) : 0,
-      calls_by_user: byUser.map((row) => ({
-        user_id: row.userId,
-        total: Number(row.total),
-        completed: Number(row.completed),
-        answered: Number(row.answered),
-        missed: Number(row.missed),
-        average_duration: row.avgDuration ? Math.round(Number(row.avgDuration)) : 0,
+      total_calls: totals.totalCalls,
+      completed_calls: totals.connected,
+      answered_calls: totals.connected,
+      missed_calls: unanswered,
+      average_duration: totals.avgTalkTimeSeconds,
+      total_talk_time_seconds: totals.totalTalkTimeSeconds,
+      calls_by_user: [...byUser.entries()].map(([id, stats]) => ({
+        user_id: id,
+        total: stats.totalCalls,
+        completed: stats.connected,
+        answered: stats.connected,
+        missed: stats.incomingMissed + stats.outgoingNotConnected,
+        average_duration: stats.avgTalkTimeSeconds,
       })),
     };
   },

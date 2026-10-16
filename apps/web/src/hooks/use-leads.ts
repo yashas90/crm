@@ -84,6 +84,9 @@ export type CallRecord = {
   phoneNumber: string;
   direction: string;
   status: string;
+  /** Shared report classification: answered, missed, or not_connected. */
+  metricStatus?: "answered" | "missed" | "not_connected";
+  talkSeconds?: number;
   durationSeconds: number;
   startedAt: string;
   disposition: string | null;
@@ -322,8 +325,10 @@ export function useCalls(params: CallsQueryParams) {
 export type CallSummary = {
   total_calls: number;
   completed_calls: number;
+  answered_calls?: number;
   missed_calls: number;
   average_duration: number;
+  total_talk_time_seconds?: number;
 };
 
 export function useCallSummary(params: CallsQueryParams) {

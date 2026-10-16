@@ -1,13 +1,15 @@
 import { classifyNativeTalk, outcomeFromTalkSeconds } from "@/lib/callOutcomeFromTalk";
 
 describe("outcomeFromTalkSeconds", () => {
-  it("maps positive talk time to answered", () => {
-    expect(outcomeFromTalkSeconds(1)).toBe("answered");
+  it("maps real talk time to answered", () => {
+    expect(outcomeFromTalkSeconds(3)).toBe("answered");
     expect(outcomeFromTalkSeconds(42)).toBe("answered");
   });
 
-  it("maps zero talk time to no_answer", () => {
+  it("maps ringing artifacts and zero talk time to no_answer", () => {
     expect(outcomeFromTalkSeconds(0)).toBe("no_answer");
+    expect(outcomeFromTalkSeconds(1)).toBe("no_answer");
+    expect(outcomeFromTalkSeconds(2)).toBe("no_answer");
   });
 });
 

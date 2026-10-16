@@ -42,6 +42,8 @@ export function CallLogsReportPanel({ dateFrom, dateTo }: CallLogsReportPanelPro
   const weekSummary = useCallSummary(weekRange);
   const monthSummary = useCallSummary(monthRange);
 
+  const rangeSummary = useCallSummary({ date_from: dateFrom, date_to: dateTo });
+
   const callsList = useCalls({
     date_from: dateFrom,
     date_to: dateTo,
@@ -55,15 +57,10 @@ export function CallLogsReportPanel({ dateFrom, dateTo }: CallLogsReportPanelPro
     return leadIds.size;
   }, [callsList.data?.items]);
 
-  const totalDurationSeconds = useMemo(() => {
-    return (callsList.data?.items ?? []).reduce((sum, call) => sum + call.durationSeconds, 0);
-  }, [callsList.data?.items]);
-
-  const unansweredCount = useMemo(() => {
-    return (callsList.data?.items ?? []).filter(
-      (call) => call.status === "missed" || call.outcome === "no_answer",
-    ).length;
-  }, [callsList.data?.items]);
+  const totalDurationSeconds = rangeSummary.data?.total_talk_time_seconds ?? 0;
+  const unansweredCount = rangeSummary.data?.missed_calls ?? 0;
+  const answeredCount =
+    rangeSummary.data?.answered_calls ?? rangeSummary.data?.completed_calls ?? 0;
 
   return (
     <div className="space-y-6">
@@ -71,22 +68,22 @@ export function CallLogsReportPanel({ dateFrom, dateTo }: CallLogsReportPanelPro
         <StatCard
           title="Calls today"
           value={todaySummary.data?.total_calls ?? 0}
-          hint={`${todaySummary.data?.missed_calls ?? 0} unanswered`}
+          hint={`${todaySummary.data?.missed_calls ?? 0} not answered`}
         />
         <StatCard
           title="Calls this week"
           value={weekSummary.data?.total_calls ?? 0}
-          hint={`Avg ${weekSummary.data?.average_duration ?? 0}s`}
+          hint={`Avg talk ${weekSummary.data?.average_duration ?? 0}s`}
         />
         <StatCard
           title="Calls this month"
           value={monthSummary.data?.total_calls ?? 0}
-          hint={`${monthSummary.data?.completed_calls ?? 0} completed`}
+          hint={`${monthSummary.data?.answered_calls ?? monthSummary.data?.completed_calls ?? 0} answered`}
         />
         <StatCard
           title="Total talk time (range)"
           value={formatDuration(totalDurationSeconds)}
-          hint={`${callsPerLead} leads with calls`}
+          hint={`${answeredCount} answered · ${callsPerLead} leads on this page`}
         />
       </div>
 
@@ -94,8 +91,8 @@ export function CallLogsReportPanel({ dateFrom, dateTo }: CallLogsReportPanelPro
         <StatCard title="Unanswered in range" value={unansweredCount} />
         <StatCard
           title="Calls in range"
-          value={callsList.data?.total ?? callsList.data?.items.length ?? 0}
-          hint="Includes dial pad and all mobile logs"
+          value={rangeSummary.data?.total_calls ?? callsList.data?.total ?? 0}
+          hint="Same answered and talk-time rules as the call report"
         />
       </div>
 
