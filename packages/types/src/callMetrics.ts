@@ -7,8 +7,18 @@
 
 export const DEFAULT_MIN_TALK_SECONDS = 3;
 
-/** Same agent + phone + start within this window is one call. */
+/**
+ * Same agent + phone + start within this window is one logged row.
+ * Used for a double submit of the same log, not for matching the app log to the phone log.
+ */
 export const CALL_DEDUPE_WINDOW_MS = 2_000;
+
+/**
+ * One dial recorded by the app and by the phone.
+ * The app stamps dial-tap or talk-start. The phone stamps when the call was placed.
+ * Ring time and the delay until the agent returns to the app sit between those clocks.
+ */
+export const CALL_CROSS_SOURCE_WINDOW_MS = 2 * 60 * 1000;
 
 /** Outcomes and statuses that mean the customer did not have a conversation. */
 export const EXPLICIT_NON_ANSWER_TOKENS = [

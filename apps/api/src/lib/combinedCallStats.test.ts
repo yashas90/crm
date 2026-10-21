@@ -82,6 +82,131 @@ describe("combined call stats", () => {
     expect(stats?.connected).toBe(1);
   });
 
+  it("counts one dial when the app log and the phone log are a ring apart", () => {
+    const dialed = istWallClockToDate("2026-10-21", 11, 0);
+    const device = classifyDeviceCall({
+      userId: agentId,
+      phone: "9876543210",
+      callType: "OUTGOING",
+      startedAt: dialed,
+      durationSeconds: 40,
+      callLogId: "os-200",
+    });
+    // App stamps talk-start: dial time plus ring, not the phone-log clock.
+    const lead = classifyLeadCall({
+      userId: agentId,
+      phone: "+91 98765 43210",
+      startedAt: new Date(dialed.getTime() + 45_000),
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 40,
+    });
+    const data = classifyDataCall({
+      userId: agentId,
+      phone: "09876543210",
+      calledAt: new Date(dialed.getTime() + 50_000),
+      outcome: "interested",
+      durationSeconds: 40,
+    });
+
+    const stats = aggregateCombinedCalls([device, lead, data]).byUser.get(agentId);
+
+    expect(stats?.totalCalls).toBe(1);
+    expect(stats?.outgoingAnswered).toBe(1);
+    expect(stats?.outgoingNotConnected).toBe(0);
+    expect(stats?.totalTalkTimeSeconds).toBe(40);
+  });
+
+  it("keeps a redial as a second call when each attempt is on the phone log", () => {
+    const first = istWallClockToDate("2026-10-21", 11, 5);
+    const second = new Date(first.getTime() + 45_000);
+    const missed = classifyDeviceCall({
+      userId: agentId,
+      phone: "9876543210",
+      callType: "OUTGOING",
+      startedAt: first,
+      durationSeconds: 0,
+      callLogId: "os-301",
+    });
+    const missedLog = classifyLeadCall({
+      userId: agentId,
+      phone: "9876543210",
+      startedAt: new Date(first.getTime() + 20_000),
+      direction: "outgoing",
+      status: "missed",
+      outcome: "no_answer",
+      disposition: "no_answer",
+      durationSeconds: 0,
+    });
+    const answered = classifyDeviceCall({
+      userId: agentId,
+      phone: "9876543210",
+      callType: "OUTGOING",
+      startedAt: second,
+      durationSeconds: 18,
+      callLogId: "os-302",
+    });
+    const answeredLog = classifyLeadCall({
+      userId: agentId,
+      phone: "9876543210",
+      startedAt: new Date(second.getTime() + 12_000),
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 18,
+    });
+
+    const stats = aggregateCombinedCalls([missed, missedLog, answered, answeredLog]).byUser.get(
+      agentId,
+    );
+
+    expect(stats?.totalCalls).toBe(2);
+    expect(stats?.outgoingAnswered).toBe(1);
+    expect(stats?.outgoingNotConnected).toBe(1);
+    expect(stats?.totalTalkTimeSeconds).toBe(18);
+  });
+
+  it("still counts an app call that never reached the phone log", () => {
+    const started = istWallClockToDate("2026-10-21", 12, 0);
+    const web = classifyLeadCall({
+      userId: agentId,
+      phone: "9000001111",
+      startedAt: started,
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 22,
+    });
+    const phoneOnly = classifyDeviceCall({
+      userId: agentId,
+      phone: "9000002222",
+      callType: "MISSED",
+      startedAt: new Date(started.getTime() + 30_000),
+      durationSeconds: 0,
+      callLogId: "os-400",
+    });
+    const lateCopy = classifyLeadCall({
+      userId: agentId,
+      phone: "9000002222",
+      startedAt: new Date(started.getTime() + 30_000 + 3 * 60 * 1000),
+      direction: "incoming",
+      status: "missed",
+      outcome: "missed",
+      disposition: "missed",
+      durationSeconds: 0,
+    });
+
+    const stats = aggregateCombinedCalls([web, phoneOnly, lateCopy]).byUser.get(agentId);
+
+    expect(stats?.totalCalls).toBe(3);
+    expect(stats?.outgoingAnswered).toBe(1);
+    expect(stats?.incomingMissed).toBe(2);
+  });
+
   it("keeps incoming calls and does not drop them beside an outgoing call", () => {
     const started = istWallClockToDate("2026-10-15", 14, 5);
     const outgoing = classifyLeadCall({

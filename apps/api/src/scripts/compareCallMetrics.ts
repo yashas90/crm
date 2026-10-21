@@ -359,7 +359,7 @@ if (inputs.lead.length === 0 && inputs.device.length === 0) {
 }
 console.log("Old: duration > 0 and an answered label, duplicates merged inside 2 minutes.");
 console.log(
-  "New: talk >= MIN_TALK_SECONDS (default 3), duplicates inside ±2s or the same device call-log id.",
+  "New: talk >= MIN_TALK_SECONDS (default 3). Same source merges inside ±2s. App and phone logs for one dial merge inside 2 minutes. Redials stay separate.",
 );
 console.log("");
 console.log(`${pad("User", 28)} ${pad("Metric", 26)} ${pad("Old", 8)} ${pad("New", 8)} Diff`);

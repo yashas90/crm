@@ -2,17 +2,22 @@
  * One calling report for lead calls (`call_records`), data calls
  * (`contact_call_logs`), and phone-log rows (`agent_call_logs`).
  *
- * Classification goes through `classifyCall`. The same phone event is one row:
- * same device call-log id, or the same agent + phone + start within ±2 seconds.
+ * Classification goes through `classifyCall`. One dial is one row:
+ * - the same device call-log id
+ * - a second copy of that app log, or that phone log, within ±2 seconds
+ * - an app row and a phone-log row for the same agent and phone within 2 minutes
+ *
+ * Two phone-log rows more than 2 seconds apart stay two calls. A redial is a new call.
  */
 
 import {
+  CALL_CROSS_SOURCE_WINDOW_MS,
   CALL_DEDUPE_WINDOW_MS,
   type CallMetricKind,
   classifyCall,
 } from "@propninja/types/call-metrics";
 
-export const COMBINED_CALL_MATCH_WINDOW_MS = CALL_DEDUPE_WINDOW_MS;
+export const COMBINED_CALL_MATCH_WINDOW_MS = CALL_CROSS_SOURCE_WINDOW_MS;
 
 export type CombinedCallDirection = "incoming" | "outgoing";
 export type CombinedCallKind = CallMetricKind;
@@ -209,29 +214,15 @@ function samePhoneMoment(previous: CombinedCallEvent, event: CombinedCallEvent):
   );
 }
 
-/** Collapse logs of one phone event. Different numbers stay separate. */
-export function dedupeCombinedCalls(events: CombinedCallEvent[]): CombinedCallEvent[] {
-  const byDevice = new Map<string, CombinedCallEvent>();
-  const rest: CombinedCallEvent[] = [];
+function isDeviceEvent(event: CombinedCallEvent): boolean {
+  return event.sourceRank === 2 || Boolean(event.deviceCallLogId);
+}
 
-  for (const event of events) {
-    if (event.deviceCallLogId) {
-      const key = `${event.userId}:${event.deviceCallLogId}`;
-      const existing = byDevice.get(key);
-      if (existing) {
-        if (event.startedAtMs < existing.startedAtMs) existing.startedAtMs = event.startedAtMs;
-        mergeInto(existing, event);
-      } else {
-        byDevice.set(key, { ...event });
-      }
-      continue;
-    }
-    rest.push(event);
-  }
-
+/** Collapse double-submitted rows of one source. A later redial stays its own call. */
+function collapseSameMoment(events: CombinedCallEvent[]): CombinedCallEvent[] {
   const keyed: CombinedCallEvent[] = [];
   const unkeyed: CombinedCallEvent[] = [];
-  for (const event of [...byDevice.values(), ...rest]) {
+  for (const event of events) {
     if (event.phoneKey) keyed.push(event);
     else unkeyed.push({ ...event });
   }
@@ -253,6 +244,81 @@ export function dedupeCombinedCalls(events: CombinedCallEvent[]): CombinedCallEv
   }
 
   return [...kept, ...unkeyed];
+}
+
+/**
+ * Collapse logs of one phone event.
+ * Phone-log rows are the calls that happened. An app or data row for the same
+ * agent and number within 2 minutes is that same dial, not another call.
+ */
+export function dedupeCombinedCalls(events: CombinedCallEvent[]): CombinedCallEvent[] {
+  const byDevice = new Map<string, CombinedCallEvent>();
+  const withoutDeviceId: CombinedCallEvent[] = [];
+
+  for (const event of events) {
+    if (!event.deviceCallLogId) {
+      withoutDeviceId.push(event);
+      continue;
+    }
+    const key = `${event.userId}:${event.deviceCallLogId}`;
+    const existing = byDevice.get(key);
+    if (existing) {
+      if (event.startedAtMs < existing.startedAtMs) existing.startedAtMs = event.startedAtMs;
+      mergeInto(existing, event);
+    } else {
+      byDevice.set(key, { ...event });
+    }
+  }
+
+  const device: CombinedCallEvent[] = [];
+  const app: CombinedCallEvent[] = [];
+  for (const event of [...byDevice.values(), ...withoutDeviceId]) {
+    if (isDeviceEvent(event)) device.push(event);
+    else app.push(event);
+  }
+
+  const uniqueDevices = collapseSameMoment(device);
+  const uniqueApps = collapseSameMoment(app);
+
+  const devicesByPhone = new Map<string, CombinedCallEvent[]>();
+  for (const event of uniqueDevices) {
+    if (!event.phoneKey) continue;
+    const key = `${event.userId}:${event.phoneKey}`;
+    const list = devicesByPhone.get(key) ?? [];
+    list.push(event);
+    devicesByPhone.set(key, list);
+  }
+
+  const unmatched: CombinedCallEvent[] = [];
+  for (const event of uniqueApps) {
+    if (!event.phoneKey) {
+      unmatched.push(event);
+      continue;
+    }
+    const candidates = devicesByPhone.get(`${event.userId}:${event.phoneKey}`);
+    if (!candidates || candidates.length === 0) {
+      unmatched.push(event);
+      continue;
+    }
+
+    let best: CombinedCallEvent | null = null;
+    let bestDelta = Number.POSITIVE_INFINITY;
+    for (const candidate of candidates) {
+      const delta = Math.abs(event.startedAtMs - candidate.startedAtMs);
+      if (delta > CALL_CROSS_SOURCE_WINDOW_MS || delta > bestDelta) continue;
+      if (delta === bestDelta && best && candidate.startedAtMs > best.startedAtMs) continue;
+      best = candidate;
+      bestDelta = delta;
+    }
+
+    if (!best) {
+      unmatched.push(event);
+      continue;
+    }
+    mergeInto(best, event);
+  }
+
+  return [...uniqueDevices, ...unmatched];
 }
 
 export function emptyCombinedCallStats(): CombinedCallStats {
