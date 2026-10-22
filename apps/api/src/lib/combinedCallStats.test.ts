@@ -1,4 +1,4 @@
-import { MIN_TALK_SECONDS } from "@propninja/types/call-metrics";
+import { CALL_CROSS_SOURCE_WINDOW_MS, MIN_TALK_SECONDS } from "@propninja/types/call-metrics";
 import { getIstDateKey, istDateKeyBounds, istWallClockToDate } from "@propninja/types/ist";
 import { describe, expect, it } from "vitest";
 import {
@@ -169,7 +169,35 @@ describe("combined call stats", () => {
     expect(stats?.totalTalkTimeSeconds).toBe(18);
   });
 
-  it("still counts an app call that never reached the phone log", () => {
+  it("counts one unanswered dial when the app log is written after the agent returns", () => {
+    const dialed = istWallClockToDate("2026-10-22", 11, 0);
+    const phone = classifyDeviceCall({
+      userId: agentId,
+      phone: "9876543210",
+      callType: "OUTGOING",
+      startedAt: dialed,
+      durationSeconds: 0,
+      callLogId: "os-500",
+    });
+    const returned = classifyLeadCall({
+      userId: agentId,
+      phone: "+91 98765 43210",
+      startedAt: new Date(dialed.getTime() + 20 * 60 * 1000),
+      direction: "outgoing",
+      status: "missed",
+      outcome: "no_answer",
+      disposition: "no_answer",
+      durationSeconds: 0,
+    });
+
+    const stats = aggregateCombinedCalls([phone, returned]).byUser.get(agentId);
+
+    expect(stats?.totalCalls).toBe(1);
+    expect(stats?.outgoingNotConnected).toBe(1);
+    expect(stats?.outgoingAnswered).toBe(0);
+  });
+
+  it("keeps an app call that has no phone-log row, and a copy written after the match window", () => {
     const started = istWallClockToDate("2026-10-21", 12, 0);
     const web = classifyLeadCall({
       userId: agentId,
@@ -189,21 +217,47 @@ describe("combined call stats", () => {
       durationSeconds: 0,
       callLogId: "os-400",
     });
-    const lateCopy = classifyLeadCall({
+    const sameCallLoggedOnReturn = classifyLeadCall({
       userId: agentId,
       phone: "9000002222",
-      startedAt: new Date(started.getTime() + 30_000 + 3 * 60 * 1000),
+      startedAt: new Date(phoneOnly.startedAtMs + 3 * 60 * 1000),
       direction: "incoming",
       status: "missed",
       outcome: "missed",
       disposition: "missed",
       durationSeconds: 0,
     });
+    const loggedMuchLater = classifyLeadCall({
+      userId: agentId,
+      phone: "9000002222",
+      startedAt: new Date(phoneOnly.startedAtMs + CALL_CROSS_SOURCE_WINDOW_MS + 60_000),
+      direction: "incoming",
+      status: "missed",
+      outcome: "missed",
+      disposition: "missed",
+      durationSeconds: 0,
+    });
+    const earlierDeskCall = classifyLeadCall({
+      userId: agentId,
+      phone: "9000002222",
+      startedAt: new Date(phoneOnly.startedAtMs - 60 * 60 * 1000),
+      direction: "outgoing",
+      status: "completed",
+      outcome: "answered",
+      disposition: "answered",
+      durationSeconds: 15,
+    });
 
-    const stats = aggregateCombinedCalls([web, phoneOnly, lateCopy]).byUser.get(agentId);
+    const stats = aggregateCombinedCalls([
+      web,
+      phoneOnly,
+      sameCallLoggedOnReturn,
+      loggedMuchLater,
+      earlierDeskCall,
+    ]).byUser.get(agentId);
 
-    expect(stats?.totalCalls).toBe(3);
-    expect(stats?.outgoingAnswered).toBe(1);
+    expect(stats?.totalCalls).toBe(4);
+    expect(stats?.outgoingAnswered).toBe(2);
     expect(stats?.incomingMissed).toBe(2);
   });
 

@@ -14,11 +14,10 @@ export const DEFAULT_MIN_TALK_SECONDS = 3;
 export const CALL_DEDUPE_WINDOW_MS = 2_000;
 
 /**
- * One dial recorded by the app and by the phone.
- * The app stamps dial-tap or talk-start. The phone stamps when the call was placed.
- * Ring time and the delay until the agent returns to the app sit between those clocks.
+ * How long after the phone placed a call the app may still write its copy.
+ * Unanswered calls are stamped when the agent returns, not when the phone started ringing.
  */
-export const CALL_CROSS_SOURCE_WINDOW_MS = 2 * 60 * 1000;
+export const CALL_CROSS_SOURCE_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 /** Outcomes and statuses that mean the customer did not have a conversation. */
 export const EXPLICIT_NON_ANSWER_TOKENS = [

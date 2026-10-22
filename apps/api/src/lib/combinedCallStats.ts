@@ -5,8 +5,10 @@
  * Classification goes through `classifyCall`. One dial is one row:
  * - the same device call-log id
  * - a second copy of that app log, or that phone log, within ±2 seconds
- * - an app row and a phone-log row for the same agent and phone within 2 minutes
+ * - an app row written after the phone log for the same agent and phone
  *
+ * The phone log is the call that happened. The app writes its copy when the agent
+ * returns, which for an unanswered call is minutes after the phone started ringing.
  * Two phone-log rows more than 2 seconds apart stay two calls. A redial is a new call.
  */
 
@@ -246,10 +248,24 @@ function collapseSameMoment(events: CombinedCallEvent[]): CombinedCallEvent[] {
   return [...kept, ...unkeyed];
 }
 
+/** Dial-pad stamps can sit a few seconds before the phone's own clock. */
+const PHONE_LOG_CLOCK_SKEW_MS = 15_000;
+
+/**
+ * The app row belongs to this phone call when it was written after the phone
+ * started the call, and before the return window closed.
+ */
+function appLogMatchesPhoneCall(app: CombinedCallEvent, phoneCall: CombinedCallEvent): boolean {
+  const talkMs = Math.max(0, phoneCall.durationSeconds) * 1000;
+  const earliest = phoneCall.startedAtMs - PHONE_LOG_CLOCK_SKEW_MS;
+  const latest = phoneCall.startedAtMs + talkMs + CALL_CROSS_SOURCE_WINDOW_MS;
+  return app.startedAtMs >= earliest && app.startedAtMs <= latest;
+}
+
 /**
  * Collapse logs of one phone event.
  * Phone-log rows are the calls that happened. An app or data row for the same
- * agent and number within 2 minutes is that same dial, not another call.
+ * agent and number is that dial when it was written on the way back to the app.
  */
 export function dedupeCombinedCalls(events: CombinedCallEvent[]): CombinedCallEvent[] {
   const byDevice = new Map<string, CombinedCallEvent>();
@@ -302,13 +318,9 @@ export function dedupeCombinedCalls(events: CombinedCallEvent[]): CombinedCallEv
     }
 
     let best: CombinedCallEvent | null = null;
-    let bestDelta = Number.POSITIVE_INFINITY;
     for (const candidate of candidates) {
-      const delta = Math.abs(event.startedAtMs - candidate.startedAtMs);
-      if (delta > CALL_CROSS_SOURCE_WINDOW_MS || delta > bestDelta) continue;
-      if (delta === bestDelta && best && candidate.startedAtMs > best.startedAtMs) continue;
-      best = candidate;
-      bestDelta = delta;
+      if (!appLogMatchesPhoneCall(event, candidate)) continue;
+      if (!best || candidate.startedAtMs >= best.startedAtMs) best = candidate;
     }
 
     if (!best) {
