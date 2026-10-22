@@ -38,7 +38,7 @@ export async function notifyBulkLeadsAssigned(
     assignments: Record<string, number>;
     actingUserId: string;
     assignedByName: string;
-    source?: "bulk_import" | "bulk_assign";
+    source?: "bulk_import" | "bulk_assign" | "bulk_reshuffle";
   },
 ) {
   const notifications = createNotificationService(db);

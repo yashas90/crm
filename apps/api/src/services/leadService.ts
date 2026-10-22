@@ -49,6 +49,7 @@ import { normalizeStoredPhone, phoneLast10Digits, phoneMatchVariants } from "../
 import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
 import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
+import { planReshuffle } from "../lib/reshuffleLeads.js";
 import { resolveBulkImportLeadStatus } from "../lib/resolveBulkImportLeadStatus.js";
 import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
 import { type CreateLeadBody, createLeadBodySchema } from "../lib/validators/leads.js";
@@ -1594,6 +1595,74 @@ export const leadService = {
         failed.push({
           id: leadId,
           message: err instanceof Error ? err.message : "Assign failed",
+        });
+      }
+    }
+
+    return { succeeded, failed, assignmentCounts };
+  },
+
+  async bulkReshuffleLeads(input: {
+    leadIds: string[];
+    userIds: string[];
+    actingUserId: string;
+    assignWithHistory?: boolean;
+    applyNewStatus?: boolean;
+  }) {
+    const assignWithHistory = input.assignWithHistory ?? true;
+    const applyNewStatus = input.applyNewStatus ?? false;
+    const uniqueIds = [...new Set(input.leadIds)];
+
+    const rows =
+      uniqueIds.length === 0
+        ? []
+        : await db
+            .select({ id: leads.id, assignedTo: leads.assignedTo })
+            .from(leads)
+            .where(
+              and(
+                eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+                inArray(leads.id, uniqueIds),
+                isNull(leads.deletedAt),
+              ),
+            );
+
+    const current = new Map(rows.map((row) => [row.id, row.assignedTo]));
+    const known = uniqueIds
+      .filter((id) => current.has(id))
+      .map((id) => ({ id, assignedTo: current.get(id) ?? null }));
+    const plan = planReshuffle(known, input.userIds);
+
+    const succeeded: string[] = [];
+    const failed: { id: string; message: string }[] = uniqueIds
+      .filter((id) => !current.has(id))
+      .map((id) => ({ id, message: "Lead not found" }));
+    failed.push(...plan.skipped);
+    const assignmentCounts: Record<string, number> = {};
+
+    for (const assignment of plan.assignments) {
+      try {
+        const updated = await this.assignLead({
+          leadId: assignment.leadId,
+          userId: assignment.userId,
+          actingUserId: input.actingUserId,
+          assignWithHistory,
+          applyNewStatus,
+        });
+
+        if (!updated) {
+          failed.push({ id: assignment.leadId, message: "Lead or assignee not found" });
+          continue;
+        }
+
+        succeeded.push(assignment.leadId);
+        if (assignment.userId !== input.actingUserId) {
+          assignmentCounts[assignment.userId] = (assignmentCounts[assignment.userId] ?? 0) + 1;
+        }
+      } catch (err) {
+        failed.push({
+          id: assignment.leadId,
+          message: err instanceof Error ? err.message : "Reshuffle failed",
         });
       }
     }

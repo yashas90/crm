@@ -29,6 +29,7 @@ import {
   assignLeadBodySchema,
   bulkAssignLeadsBodySchema,
   bulkImportLeadsBodySchema,
+  bulkReshuffleLeadsBodySchema,
   createLeadBodySchema,
   leadScopeCountsQuerySchema,
   leadStageCountsQuerySchema,
@@ -986,6 +987,56 @@ leadsRoute.delete("/:id", async (c) => {
   });
 
   return c.json({ ok: true, data: deleted });
+});
+
+// Admin and manager only. Each selected lead moves to an agent who does not already have it.
+leadsRoute.post("/bulk-reshuffle", validate("json", bulkReshuffleLeadsBodySchema), async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+
+  if (!canAssignLead(authUser) || authUser.role === "agent") {
+    return c.json(forbiddenResponse(), 403);
+  }
+
+  const body = c.req.valid("json");
+  const assigneeGate = await assertAgentAssigneesAllowed(authUser, body.userIds);
+  if (!assigneeGate.ok) {
+    return c.json({ ok: false, error: { code: "FORBIDDEN", message: assigneeGate.message } }, 403);
+  }
+
+  const permittedLeadIds: string[] = [];
+  const permissionFailed: { id: string; message: string }[] = [];
+
+  for (const leadId of body.leadIds) {
+    const lead = await leadService.getLeadById(leadId);
+    if (!lead || !canEditLead(authUser, { assignedTo: lead.assignedTo })) {
+      permissionFailed.push({ id: leadId, message: "Lead not found" });
+      continue;
+    }
+    permittedLeadIds.push(leadId);
+  }
+
+  const result = await leadService.bulkReshuffleLeads({
+    leadIds: permittedLeadIds,
+    userIds: body.userIds,
+    actingUserId: authUser.id,
+    assignWithHistory: body.assignWithHistory,
+    applyNewStatus: body.applyNewStatus,
+  });
+
+  await notifyBulkLeadsAssigned(c.get("db"), {
+    assignments: result.assignmentCounts,
+    actingUserId: authUser.id,
+    assignedByName: authUser.name,
+    source: "bulk_reshuffle",
+  });
+
+  return c.json({
+    ok: true,
+    data: {
+      succeeded: result.succeeded,
+      failed: [...permissionFailed, ...result.failed],
+    },
+  });
 });
 
 // canAssignLead: admin, manager, and agent (with edit access to the lead).

@@ -193,6 +193,14 @@ export const assignLeadBodySchema = z.object({
   applyNewStatus: z.boolean().optional().default(false),
 });
 
+export const bulkReshuffleLeadsBodySchema = z.object({
+  leadIds: z.array(z.string().uuid()).min(1).max(500),
+  /** Agents who may receive a lead. Each lead is moved off its current agent. */
+  userIds: z.array(z.string().uuid()).min(2).max(50),
+  assignWithHistory: z.boolean().optional().default(true),
+  applyNewStatus: z.boolean().optional().default(false),
+});
+
 export const bulkAssignLeadsBodySchema = z.object({
   leadIds: z.array(z.string().uuid()).min(1).max(500),
   userIds: z.array(z.string().uuid()).min(1).max(50),

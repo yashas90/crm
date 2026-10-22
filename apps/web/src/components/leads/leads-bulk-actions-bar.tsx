@@ -56,14 +56,17 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
 
     const [statusOpen, setStatusOpen] = useState(false);
     const [assignOpen, setAssignOpen] = useState(false);
+    const [reshuffleOpen, setReshuffleOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [status, setStatus] = useState<LeadStatus>("contacted");
     const [assignUserIds, setAssignUserIds] = useState<string[]>([]);
+    const [reshuffleUserIds, setReshuffleUserIds] = useState<string[]>([]);
     const [assignWithHistory, setAssignWithHistory] = useState(true);
     const [applyNewStatus, setApplyNewStatus] = useState(false);
 
     const selectedCount = selectedIds.length;
     const hasSelection = selectedCount > 0;
+    const reshuffleAgents = (users ?? []).filter((user) => user.role === "agent");
 
     useEffect(() => {
       if (!pendingAction || !hasSelection) return;
@@ -102,6 +105,28 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
       });
       setAssignOpen(false);
       setAssignUserIds([]);
+      if (result.succeeded.length > 0) {
+        onClearSelection();
+      }
+      onDismissHint?.();
+    }
+
+    function openReshuffle() {
+      setReshuffleUserIds(reshuffleAgents.map((user) => user.id));
+      setAssignWithHistory(true);
+      setApplyNewStatus(false);
+      setReshuffleOpen(true);
+    }
+
+    async function handleReshuffleSubmit() {
+      if (reshuffleUserIds.length < 2) return;
+      const result = await bulk.reshuffle.mutateAsync({
+        leadIds: selectedIds,
+        userIds: reshuffleUserIds,
+        assignWithHistory,
+        applyNewStatus,
+      });
+      setReshuffleOpen(false);
       if (result.succeeded.length > 0) {
         onClearSelection();
       }
@@ -171,6 +196,17 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
                     }}
                   >
                     {isAgent ? "Return to Admin" : "Assign To"}
+                  </Button>
+                ) : null}
+                {canAssignLead && !isAgent ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={bulk.isBusy}
+                    onClick={openReshuffle}
+                  >
+                    Reshuffle
                   </Button>
                 ) : null}
                 {canDeleteLead ? (
@@ -343,6 +379,83 @@ export const LeadsBulkActionsBar = forwardRef<HTMLDivElement, LeadsBulkActionsBa
                   : isAgent
                     ? "Return to admin"
                     : "Assign"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={reshuffleOpen} onOpenChange={setReshuffleOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reshuffle leads</DialogTitle>
+              <DialogDescription>
+                Move {selectedCount} selected lead{selectedCount === 1 ? "" : "s"} to a different
+                agent. A lead stays off the agent who has it now.
+              </DialogDescription>
+            </DialogHeader>
+            <AgentMultiSelect
+              id="bulk-reshuffle-agents"
+              label="Agents"
+              users={reshuffleAgents}
+              selectedIds={reshuffleUserIds}
+              onChange={setReshuffleUserIds}
+              emptyHint="Select at least two agents."
+              hint={
+                reshuffleUserIds.length < 2
+                  ? "Select at least two agents so each lead can move to someone else."
+                  : "Leads are spread across these agents, skipping whoever already has each lead."
+              }
+            />
+            <fieldset className="space-y-2 rounded-xl border border-input p-3">
+              <legend className="text-sm font-medium text-foreground/90">
+                Assignment preferences
+              </legend>
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  className="mt-1 h-4 w-4 border-input"
+                  checked={assignWithHistory && !applyNewStatus}
+                  onChange={() => {
+                    setAssignWithHistory(true);
+                    setApplyNewStatus(false);
+                  }}
+                />
+                <span className="font-medium">With history</span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  className="mt-1 h-4 w-4 border-input"
+                  checked={!assignWithHistory && !applyNewStatus}
+                  onChange={() => {
+                    setAssignWithHistory(false);
+                    setApplyNewStatus(false);
+                  }}
+                />
+                <span className="font-medium">Without history</span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  className="mt-1 h-4 w-4 border-input"
+                  checked={assignWithHistory && applyNewStatus}
+                  onChange={() => {
+                    setAssignWithHistory(true);
+                    setApplyNewStatus(true);
+                  }}
+                />
+                <span className="font-medium">With history and new status</span>
+              </label>
+            </fieldset>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReshuffleOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => void handleReshuffleSubmit()}
+                disabled={reshuffleUserIds.length < 2 || bulk.reshuffle.isPending}
+              >
+                {bulk.reshuffle.isPending ? "Reshuffling..." : "Reshuffle"}
               </Button>
             </DialogFooter>
           </DialogContent>

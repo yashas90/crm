@@ -81,6 +81,20 @@ export async function bulkAssignLeads(
   }
 }
 
+export async function bulkReshuffleLeads(
+  leadIds: string[],
+  userIds: string[],
+  options?: { assignWithHistory?: boolean; applyNewStatus?: boolean },
+) {
+  const { assignWithHistory, applyNewStatus } = options ?? {};
+  return apiPost<BulkLeadResult>("/api/leads/bulk-reshuffle", {
+    leadIds,
+    userIds,
+    assignWithHistory,
+    applyNewStatus,
+  });
+}
+
 export function bulkDeleteLeads(leadIds: string[]) {
   return runBulk(leadIds, (id) => apiDelete(`/api/leads/${id}`), "Archive failed");
 }

@@ -5,6 +5,7 @@ import {
   bulkAssignLeads,
   bulkDeleteLeads,
   bulkImportLeads,
+  bulkReshuffleLeads,
   bulkUpdateLeadStatus,
   downloadLeadImportReport,
   fetchLeadImportBatches,
@@ -55,6 +56,27 @@ export function useBulkLeadActions() {
     },
   });
 
+  const reshuffle = useMutation({
+    mutationFn: ({
+      leadIds,
+      userIds,
+      assignWithHistory,
+      applyNewStatus,
+    }: {
+      leadIds: string[];
+      userIds: string[];
+      assignWithHistory?: boolean;
+      applyNewStatus?: boolean;
+    }) => bulkReshuffleLeads(leadIds, userIds, { assignWithHistory, applyNewStatus }),
+    onSuccess: async (result, variables) => {
+      await invalidateLeads();
+      summarizeBulkResult(
+        result,
+        (count) => `Reshuffled ${count} lead(s) onto ${variables.userIds.length} agents`,
+      );
+    },
+  });
+
   const archive = useMutation({
     mutationFn: (leadIds: string[]) => bulkDeleteLeads(leadIds),
     onSuccess: async (result) => {
@@ -66,8 +88,9 @@ export function useBulkLeadActions() {
   return {
     updateStatus,
     assign,
+    reshuffle,
     archive,
-    isBusy: updateStatus.isPending || assign.isPending || archive.isPending,
+    isBusy: updateStatus.isPending || assign.isPending || reshuffle.isPending || archive.isPending,
   };
 }
 
