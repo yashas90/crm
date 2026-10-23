@@ -39,7 +39,7 @@ export const META_WEBHOOK_HEALTHY_MS = 15 * 60 * 1000;
 /** Webhook deliveries older than this, with no fresh pull, are delayed rather than offline. */
 export const META_WEBHOOK_DELAYED_MS = 60 * 60 * 1000;
 /**
- * Continuous pull interval is 2 minutes. Allow a few missed ticks (deploys,
+ * Continuous pull interval is 1 minute. Allow a few missed ticks (deploys,
  * a long form scan) before the badge leaves Healthy.
  */
 export const META_POLL_HEALTHY_MS = 8 * 60 * 1000;
@@ -262,7 +262,7 @@ export async function getMetaWebhookHealth(
     queuedOrProcessing: queued?.value ?? 0,
     recoveredLeadsLast24h: recovered?.value ?? 0,
     lastReconciliationAt,
-    nextReconciliationHint: "Every 2 minutes (continuous Graph pull)",
+    nextReconciliationHint: "Every minute, with failed leads re-pulled every 30 seconds",
     tokenExpiresAt,
     tokenExpiringSoon,
   };

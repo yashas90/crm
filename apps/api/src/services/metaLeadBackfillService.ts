@@ -146,12 +146,34 @@ export async function backfillMetaLeads(
         continue;
       }
 
-      let graphLeads: Awaited<ReturnType<typeof getFormLeads>> = [];
+      let graphLeads: Awaited<ReturnType<typeof getFormLeads>>["leads"] = [];
       try {
-        graphLeads = await getFormLeads(form.formId, pageToken, {
+        const requestedPages = options.maxPages;
+        let listed = await getFormLeads(form.formId, pageToken, {
           sinceUnix,
-          maxPages: options.maxPages,
+          maxPages: requestedPages,
         });
+        if (listed.truncated) {
+          logger.warn("Meta form lead list hit the page cap; scanning further", {
+            formId: form.formId,
+            maxPages: requestedPages ?? 20,
+          });
+          listed = await getFormLeads(form.formId, pageToken, {
+            sinceUnix,
+            maxPages: Math.max((requestedPages ?? 20) * 5, 100),
+          });
+        }
+        if (listed.truncated) {
+          result.failed += 1;
+          result.errors.push({
+            formId: form.formId,
+            error: "Lead list truncated before the time window ended",
+          });
+          logger.error("Meta form lead list still truncated; some leads were not listed", {
+            formId: form.formId,
+          });
+        }
+        graphLeads = listed.leads;
       } catch (error) {
         result.failed += 1;
         const message = error instanceof Error ? error.message : String(error);

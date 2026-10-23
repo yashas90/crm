@@ -78,6 +78,37 @@ export async function recordWebhookDedupe(
   };
 }
 
+/**
+ * Keeps a lead Meta handed us but we could not ingest yet (page inactive,
+ * token missing, page not connected). The failed-lead loop re-pulls it by id
+ * until it lands or the attempt cap is reached.
+ */
+export async function rememberRejectedMetaLead(
+  change: MetaLeadgenWebhookValue,
+  reason: string,
+  orgId: string = SINGLE_TENANT_ORG_ID,
+): Promise<void> {
+  const normalized = normalizeMetaLeadgenChange(change);
+  if (!normalized) return;
+
+  const record = await recordWebhookDedupe(normalized, orgId);
+  if (!record.webhookId || record.alreadyProcessed) return;
+
+  await db
+    .update(facebookWebhooks)
+    .set({
+      status: "failed",
+      errorMessage: `Not ingested yet: ${reason}`.slice(0, 500),
+    })
+    .where(eq(facebookWebhooks.id, record.webhookId));
+
+  logger.warn("Meta lead saved for re-pull", {
+    leadgenId: normalized.leadgen_id,
+    pageId: normalized.page_id,
+    reason,
+  });
+}
+
 async function resolveProjectId(
   change: MetaLeadgenWebhookValue,
   orgId: string,

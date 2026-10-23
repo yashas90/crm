@@ -17,7 +17,11 @@ import { enqueueMetaLeadIngest, isDurableJobsEnabled } from "../lib/jobQueue.js"
 import { logger } from "../lib/logger.js";
 import { isMetaLeadgenAllowed } from "../lib/metaWebhookScope.js";
 import { metaWebhookRateLimit } from "../middleware/rateLimit.js";
-import { processLeadgenWebhook, recordWebhookDedupe } from "../services/metaLeadIngestService.js";
+import {
+  processLeadgenWebhook,
+  recordWebhookDedupe,
+  rememberRejectedMetaLead,
+} from "../services/metaLeadIngestService.js";
 
 export const metaIntegrationsRoute = new Hono();
 
@@ -48,12 +52,20 @@ async function processMetaLeadWebhook(body: MetaLeadgenWebhookBody) {
   for (const change of leadgenChanges) {
     const scopeCheck = await isMetaLeadgenAllowed(change, SINGLE_TENANT_ORG_ID);
     if (!scopeCheck.allowed) {
-      logger.info("Meta lead skipped by webhook scope", {
+      logger.info("Meta lead not ingested yet; queued for re-pull", {
         leadgenId: change.leadgen_id,
         pageId: change.page_id,
         formId: change.form_id,
         reason: scopeCheck.reason,
       });
+      try {
+        await rememberRejectedMetaLead(change, scopeCheck.reason ?? "rejected");
+      } catch (error) {
+        logger.error("Failed to save Meta lead for re-pull", {
+          leadgenId: change.leadgen_id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
       continue;
     }
 

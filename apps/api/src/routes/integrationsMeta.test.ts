@@ -7,6 +7,8 @@ const recordWebhookDedupe = vi.fn(async () => ({
   webhookId: "webhook-1",
   alreadyProcessed: false,
 }));
+const rememberRejectedMetaLead = vi.fn(async () => undefined);
+const isMetaLeadgenAllowed = vi.fn(async () => ({ allowed: true as const }));
 
 vi.mock("../lib/env.js", () => ({
   env: {
@@ -23,12 +25,13 @@ vi.mock("../lib/jobQueue.js", () => ({
 }));
 
 vi.mock("../lib/metaWebhookScope.js", () => ({
-  isMetaLeadgenAllowed: vi.fn(async () => ({ allowed: true })),
+  isMetaLeadgenAllowed,
 }));
 
 vi.mock("../services/metaLeadIngestService.js", () => ({
   processLeadgenWebhook,
   recordWebhookDedupe,
+  rememberRejectedMetaLead,
 }));
 
 vi.mock("../services/adLeadService.js", () => ({
@@ -50,6 +53,7 @@ describe("Meta integrations webhook", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    isMetaLeadgenAllowed.mockResolvedValue({ allowed: true });
     recordWebhookDedupe.mockResolvedValue({
       webhookId: "webhook-1",
       alreadyProcessed: false,
@@ -160,6 +164,46 @@ describe("Meta integrations webhook", () => {
     expect(res.status).toBe(200);
     await vi.waitFor(() => {
       expect(recordWebhookDedupe).toHaveBeenCalled();
+    });
+    expect(processLeadgenWebhook).not.toHaveBeenCalled();
+  });
+
+  it("saves a rejected lead so it can be re-pulled", async () => {
+    isMetaLeadgenAllowed.mockResolvedValueOnce({
+      allowed: false,
+      reason: "page_token_missing",
+    });
+
+    const body = JSON.stringify({
+      object: "page",
+      entry: [
+        {
+          id: "page-1",
+          changes: [
+            {
+              field: "leadgen",
+              value: { leadgen_id: "leadgen-held", page_id: "page-1", form_id: "form-1" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const res = await app.request("/api/integrations/meta/webhook", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": signBody(body, "test-app-secret"),
+      },
+      body,
+    });
+
+    expect(res.status).toBe(200);
+    await vi.waitFor(() => {
+      expect(rememberRejectedMetaLead).toHaveBeenCalledWith(
+        expect.objectContaining({ leadgen_id: "leadgen-held", page_id: "page-1" }),
+        "page_token_missing",
+      );
     });
     expect(processLeadgenWebhook).not.toHaveBeenCalled();
   });

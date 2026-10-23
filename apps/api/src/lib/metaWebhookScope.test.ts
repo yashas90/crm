@@ -57,6 +57,17 @@ describe("metaWebhookScope (DB)", () => {
     ).resolves.toMatchObject({ allowed: true, pageRowId: "p1", formRowId: "frow" });
   });
 
+  it("allows an active form that is not selected", async () => {
+    limitResults.push(
+      [{ id: "p1", isActive: true, isSelected: false, hasToken: "enc" }],
+      [{ id: "frow", isActive: true, isSelected: false }],
+    );
+    const { isMetaLeadgenAllowed } = await import("./metaWebhookScope.js");
+    await expect(
+      isMetaLeadgenAllowed({ leadgen_id: "1", page_id: "page-1", form_id: "form-a" }),
+    ).resolves.toMatchObject({ allowed: true, pageRowId: "p1", formRowId: "frow" });
+  });
+
   it("allows unknown form on known page (pre-sync)", async () => {
     limitResults.push([{ id: "p1", isActive: true, isSelected: true, hasToken: "enc" }], []);
     const { isMetaLeadgenAllowed } = await import("./metaWebhookScope.js");

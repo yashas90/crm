@@ -33,7 +33,9 @@ export async function hasDbBackedMetaPages(orgId: string = SINGLE_TENANT_ORG_ID)
 }
 
 /**
- * Allows a leadgen change only when the Page (and Form, if present) are active + selected in DB.
+ * Allows a leadgen change when the Page (and Form, if present) are active.
+ * `is_selected` does not block ingest — an unselected form still has to land
+ * in the leads bucket. Inactive pages and forms stay out until turned back on.
  */
 export async function isMetaLeadgenAllowed(
   change: MetaLeadgenWebhookValue,
@@ -58,7 +60,7 @@ export async function isMetaLeadgenAllowed(
   if (!page) {
     return { allowed: false, reason: "page_not_connected" };
   }
-  if (!page.isActive || !page.isSelected) {
+  if (!page.isActive) {
     return { allowed: false, reason: "page_disabled" };
   }
   if (!page.hasToken) {
@@ -84,7 +86,7 @@ export async function isMetaLeadgenAllowed(
   if (!form) {
     return { allowed: true, pageRowId: page.id, reason: "form_not_synced_yet" };
   }
-  if (!form.isActive || !form.isSelected) {
+  if (!form.isActive) {
     return { allowed: false, reason: "form_disabled", pageRowId: page.id, formRowId: form.id };
   }
 

@@ -613,11 +613,17 @@ export function collectGraphLeadPage<T extends { created_time?: string }>(
  * pull does not download a form's full history every cycle.
  * @see https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving
  */
+export type GraphFormLeadsResult = {
+  leads: GraphFormLeadSummary[];
+  /** Paging stopped at `maxPages` while Graph still had newer-than-cutoff rows. */
+  truncated: boolean;
+};
+
 export async function getFormLeads(
   formId: string,
   accessToken: string,
   options: { sinceUnix?: number; maxPages?: number } = {},
-): Promise<GraphFormLeadSummary[]> {
+): Promise<GraphFormLeadsResult> {
   const params: Record<string, string | number | boolean | undefined> = {
     fields: "id,created_time,ad_id,adset_id,campaign_id,form_id",
     limit: 100,
@@ -626,6 +632,7 @@ export async function getFormLeads(
   const raw: GraphFormLeadSummary[] = [];
   let nextUrl: string | undefined;
   let page = 0;
+  let truncated = false;
 
   while (page < maxPages) {
     page += 1;
@@ -649,16 +656,20 @@ export async function getFormLeads(
     raw.push(...collected.leads);
     nextUrl = json.paging?.next;
     if (!nextUrl || collected.reachedCutoff) break;
+    if (page >= maxPages) truncated = true;
   }
 
-  return filterGraphLeadsSince(raw, options.sinceUnix).map((lead) => ({
-    ...lead,
-    id: stringifyGraphId(lead.id) ?? lead.id,
-    ad_id: stringifyGraphId(lead.ad_id) ?? lead.ad_id,
-    adset_id: stringifyGraphId(lead.adset_id) ?? lead.adset_id,
-    campaign_id: stringifyGraphId(lead.campaign_id) ?? lead.campaign_id,
-    form_id: stringifyGraphId(lead.form_id) ?? lead.form_id,
-  }));
+  return {
+    truncated,
+    leads: filterGraphLeadsSince(raw, options.sinceUnix).map((lead) => ({
+      ...lead,
+      id: stringifyGraphId(lead.id) ?? lead.id,
+      ad_id: stringifyGraphId(lead.ad_id) ?? lead.ad_id,
+      adset_id: stringifyGraphId(lead.adset_id) ?? lead.adset_id,
+      campaign_id: stringifyGraphId(lead.campaign_id) ?? lead.campaign_id,
+      form_id: stringifyGraphId(lead.form_id) ?? lead.form_id,
+    })),
+  };
 }
 
 /* ─── OAuth token exchange ───────────────────────────────────────────────── */
