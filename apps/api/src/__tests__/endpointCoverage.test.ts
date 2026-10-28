@@ -566,14 +566,14 @@ describe("API endpoint coverage", () => {
   });
 
   describe("Pagination caps", () => {
-    it("GET /api/leads?pageSize=999999 — capped at 200", async ({ skip }) => {
+    it("GET /api/leads?pageSize=999999 — capped at 500", async ({ skip }) => {
       if (!hasDb) skip();
       const res = await app.request("/api/leads?pageSize=999999", {
         headers: { Authorization: `Bearer ${tokens.admin}` },
       });
       expect(res.status).toBe(200);
       const body = (await jsonBody(res)) as { data: { pageSize: number } };
-      expect(body.data.pageSize).toBeLessThanOrEqual(200);
+      expect(body.data.pageSize).toBeLessThanOrEqual(500);
     });
   });
 });

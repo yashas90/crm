@@ -6,7 +6,7 @@ export const LIST_PAGE_SIZE_DEFAULT = 50;
 /** Legacy global cap — prefer resource-specific caps below. */
 export const LIST_PAGE_SIZE_MAX = 500;
 
-export const LEADS_LIST_MAX = 200;
+export const LEADS_LIST_MAX = 500;
 export const CALLS_LIST_MAX = 100;
 
 export class QueryLimitRequiredError extends Error {

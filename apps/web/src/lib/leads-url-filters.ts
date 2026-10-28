@@ -306,7 +306,7 @@ export function leadsBaseFiltersToQuery(
   };
 }
 
-export const LEADS_PAGE_SIZES = [10, 25, 50, 100] as const;
+export const LEADS_PAGE_SIZES = [10, 25, 50, 100, 250, 500] as const;
 export type LeadsPageSize = (typeof LEADS_PAGE_SIZES)[number];
 export const DEFAULT_LEADS_PAGE_SIZE: LeadsPageSize = 25;
 

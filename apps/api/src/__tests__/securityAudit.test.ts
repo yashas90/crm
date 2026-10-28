@@ -159,13 +159,13 @@ describe("Phase 5 — Security audit", () => {
   });
 
   describe("Data exfiltration limits", () => {
-    it("leads pageSize capped at 200", async ({ skip }) => {
+    it("leads pageSize capped at 500", async ({ skip }) => {
       if (!hasDb) skip();
       const res = await app.request("/api/leads?pageSize=999999", {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       const body = (await res.json()) as { data: { pageSize: number } };
-      expect(body.data.pageSize).toBeLessThanOrEqual(200);
+      expect(body.data.pageSize).toBeLessThanOrEqual(500);
     });
 
     it("agent cannot export users CSV", async ({ skip }) => {

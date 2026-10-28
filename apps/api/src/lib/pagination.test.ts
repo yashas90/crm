@@ -13,8 +13,9 @@ describe("pagination limits", () => {
     expect(() => requireQueryLimit(undefined, 200)).toThrow(QueryLimitRequiredError);
   });
 
-  it("clamps leads to 200 max", () => {
-    expect(boundLeadsPageSize(500)).toBe(LEADS_LIST_MAX);
+  it("clamps leads to 500 max", () => {
+    expect(boundLeadsPageSize(500)).toBe(500);
+    expect(boundLeadsPageSize(9999)).toBe(LEADS_LIST_MAX);
     expect(boundLeadsPageSize(50)).toBe(50);
   });
 

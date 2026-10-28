@@ -2,6 +2,7 @@ import { LEAD_STATUSES, LEAD_TEMPERATURES } from "@propninja/types/enums";
 import { z } from "zod";
 import { leadAdvancedListQuerySchema } from "../leadAdvancedListQuery.js";
 import { normalizeLeadStageInput, normalizeLeadStatusInput } from "../leadStage.js";
+import { LEADS_LIST_MAX } from "../pagination.js";
 
 const leadStatusSchema = z.enum(LEAD_STATUSES);
 const temperatureSchema = z.enum(LEAD_TEMPERATURES);
@@ -15,7 +16,7 @@ export const listLeadsQuerySchema = z
     pageSize: z.coerce
       .number()
       .int()
-      .transform((value) => Math.min(Math.max(1, value), 200))
+      .transform((value) => Math.min(Math.max(1, value), LEADS_LIST_MAX))
       .default(25),
     assignedTo: z
       .union([z.string(), z.array(z.string())])
