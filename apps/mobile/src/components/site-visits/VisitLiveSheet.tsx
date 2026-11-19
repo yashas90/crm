@@ -362,8 +362,8 @@ export function VisitLiveSheet({
               ))}
               <Text style={styles.prompt}>Add visit photos</Text>
               <Text style={styles.meta}>
-                Camera is not wired. Pick image files. Uploads use the document library when
-                allowed; otherwise the photo stays on this phone.
+                Choose photos from this phone. They upload with the visit when the document library
+                is available; otherwise they stay on this phone until the visit syncs.
               </Text>
               <Pressable style={styles.secondary} onPress={() => void addPhotos()}>
                 <Text>Add visit photos ({photos.length})</Text>

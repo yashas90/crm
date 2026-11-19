@@ -13,6 +13,7 @@ import {
   sourcesReportQuerySchema,
 } from "../lib/validators/reports.js";
 import type { AuthUser } from "../middleware/auth.js";
+import { sendTestReportEmail } from "../services/reportEmailService.js";
 import { reportService } from "../services/reportService.js";
 import { revenuePipelineService } from "../services/revenuePipelineService.js";
 
@@ -583,4 +584,35 @@ reportsRoutes.get("/revenue-pipeline/export", async (c) => {
       "Content-Disposition": `attachment; filename="revenue-pipeline-${date}.csv"`,
     },
   });
+});
+
+reportsRoutes.post("/send-test-email", async (c) => {
+  const authUser = c.get("authUser") as AuthUser;
+  if (authUser.role !== "admin") {
+    return c.json(
+      { ok: false, error: { code: "FORBIDDEN", message: "Admin access required" } },
+      403,
+    );
+  }
+
+  const result = await sendTestReportEmail({
+    id: authUser.id,
+    email: authUser.email,
+    name: authUser.name,
+  });
+
+  if (!result.sent) {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "EMAIL_NOT_CONFIGURED",
+          message: "Email is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL on the API.",
+        },
+      },
+      503,
+    );
+  }
+
+  return c.json({ ok: true, data: { sent: true } });
 });

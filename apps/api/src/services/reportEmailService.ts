@@ -16,6 +16,7 @@ import {
 import { answeredCallFilter } from "../lib/callTalkTime.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
 import { type Database, db } from "../lib/db.js";
+import { env } from "../lib/env.js";
 import { getIstDayBounds } from "../lib/istSchedule.js";
 import { buildReportUnsubscribeUrl } from "../lib/reportUnsubscribe.js";
 import { sendHtmlEmail } from "../lib/resendEmail.js";
@@ -480,6 +481,12 @@ export async function sendTestReportEmail(
   recipient: { id: string; email: string; name: string },
   _database: Database = db,
 ) {
+  const apiKey = env.RESEND_API_KEY?.trim();
+  const from = env.RESEND_FROM_EMAIL?.trim();
+  if (!apiKey || !from) {
+    return { sent: false as const, reason: "not_configured" as const };
+  }
+
   const comparison = await aggregateDailyReportSummary();
   const metrics = summaryToMetricRows(comparison.current, comparison.previous);
   const unsubscribeUrl = buildReportUnsubscribeUrl(recipient.id);
@@ -503,6 +510,8 @@ export async function sendTestReportEmail(
       unsubscribeUrl,
     }),
   });
+
+  return { sent: true as const };
 }
 
 export async function unsubscribeUserFromReports(userId: string, database: Database = db) {
