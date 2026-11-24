@@ -19,6 +19,8 @@ const env = {
   EXPO_PUBLIC_API_URL:
     process.env.EXPO_PUBLIC_API_URL ?? "https://crm-production-e81d.up.railway.app",
   NODE_OPTIONS: process.env.NODE_OPTIONS ?? "--max-old-space-size=8192",
+  // Keep Metro lean while Gradle is also running (avoids JS heap OOM on 16GB machines).
+  METRO_MAX_WORKERS: process.env.METRO_MAX_WORKERS ?? "1",
 };
 
 const result = spawnSync(gradlew, [variant], {

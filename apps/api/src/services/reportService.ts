@@ -1,5 +1,4 @@
 import {
-  agentCallLogs,
   callRecords,
   leadActivities,
   leads,
@@ -720,16 +719,6 @@ function reportUsesLeadFilter(query: CallsReportQuery) {
   );
 }
 
-function unmatchedDeviceCallExistsSql() {
-  return sql`not exists (
-    select 1 from ${callRecords} cr
-    where cr.user_id = ${agentCallLogs.userId}
-      and cr.org_id = ${SINGLE_TENANT_ORG_ID}
-      and cr.started_at >= ${agentCallLogs.callStartTime} - interval '2 minutes'
-      and cr.started_at <= ${agentCallLogs.callStartTime} + interval '2 minutes'
-  )`;
-}
-
 function buildCallsPerUserUserWhere(query: CallsReportQuery) {
   const filters = [eq(users.orgId, SINGLE_TENANT_ORG_ID)];
 
@@ -886,12 +875,15 @@ async function buildCallsPerUserReport(query: CallsReportQuery) {
 
   const userIds = people.map((person) => person.id);
   const leadAttributeFilter = reportUsesLeadFilter(query);
+  // Calling report: lead-linked CRM calls + calling-data contacts only.
+  // Exclude device dialer (agent_call_logs) and personal/unlinked dial-pad rows.
   const events = await loadCombinedCallEvents(db, {
     from: query.dateFrom,
     to: query.dateTo,
     userIds,
     includeDataCalls: !leadAttributeFilter,
-    includeDeviceCalls: !leadAttributeFilter,
+    includeDeviceCalls: false,
+    leadLinkedOnly: true,
     leadCallFilter: callReportLeadExistsFilter(query),
   });
   const aggregated = aggregateCombinedCalls(events);
@@ -1187,7 +1179,8 @@ export const reportService = {
         to: scopedQuery.dateTo,
         userIds,
         includeDataCalls: !leadAttributeFilter,
-        includeDeviceCalls: !leadAttributeFilter,
+        includeDeviceCalls: false,
+        leadLinkedOnly: true,
         leadCallFilter: callReportLeadExistsFilter(scopedQuery),
       }),
       db
@@ -1360,10 +1353,12 @@ export const reportService = {
   },
 
   async getTeamToday(dateFrom: Date, dateTo: Date) {
+    // Lead-linked CRM calls only — no device dialer / personal unmatched rows.
     const callWhere = and(
       eq(callRecords.orgId, SINGLE_TENANT_ORG_ID),
       gte(callRecords.startedAt, dateFrom),
       lte(callRecords.startedAt, dateTo),
+      isNotNull(callRecords.leadId),
     );
 
     const leadsAssignedWhere = and(
@@ -1382,7 +1377,7 @@ export const reportService = {
       lte(tasks.completedAt, dateTo),
     );
 
-    const [orgUsers, callsMade, deviceCalls, leadsAssigned, tasksCompleted] = await Promise.all([
+    const [orgUsers, callsMade, leadsAssigned, tasksCompleted] = await Promise.all([
       db
         .select({ id: users.id, name: users.name, email: users.email })
         .from(users)
@@ -1396,20 +1391,6 @@ export const reportService = {
         .from(callRecords)
         .where(callWhere)
         .groupBy(callRecords.userId),
-      db
-        .select({
-          userId: agentCallLogs.userId,
-          callsMade: sql<number>`count(*)::int`,
-        })
-        .from(agentCallLogs)
-        .where(
-          and(
-            gte(agentCallLogs.callStartTime, dateFrom),
-            lte(agentCallLogs.callStartTime, dateTo),
-            unmatchedDeviceCallExistsSql(),
-          ),
-        )
-        .groupBy(agentCallLogs.userId),
       db
         .select({
           userId: leads.assignedTo,
@@ -1429,7 +1410,6 @@ export const reportService = {
     ]);
 
     const callsMap = new Map(callsMade.map((r) => [r.userId, r]));
-    const deviceCallsMap = new Map(deviceCalls.map((r) => [r.userId, Number(r.callsMade)]));
     const leadsMap = new Map(leadsAssigned.map((r) => [r.userId, r]));
     const tasksMap = new Map(tasksCompleted.map((r) => [r.userId, r]));
 
@@ -1439,10 +1419,9 @@ export const reportService = {
         const leadsAssignedRow = leadsMap.get(user.id);
         const tasksCompletedRow = tasksMap.get(user.id);
 
-        const callsMadeCount = (calls?.callsMade ?? 0) + (deviceCallsMap.get(user.id) ?? 0);
+        const callsMadeCount = calls?.callsMade ?? 0;
         const leadsAssignedCount = leadsAssignedRow?.leadsAssigned ?? 0;
         const tasksCompletedCount = tasksCompletedRow?.tasksCompleted ?? 0;
-
         const conversionRate =
           leadsAssignedCount > 0
             ? Number(((tasksCompletedCount / leadsAssignedCount) * 100).toFixed(2))

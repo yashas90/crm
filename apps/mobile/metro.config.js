@@ -32,6 +32,8 @@ function resolveUseSync(moduleName) {
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(projectRoot);
+// Cap workers — parallel Metro transformers OOM on 16GB Windows when Gradle+Daemon share RAM.
+config.maxWorkers = Number(process.env.METRO_MAX_WORKERS) || 2;
 config.transformer = {
   ...config.transformer,
   inlineRequires: true,

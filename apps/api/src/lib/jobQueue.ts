@@ -57,7 +57,14 @@ let queue: Queue | null = null;
 let worker: Worker | null = null;
 
 function connectionOptions(): ConnectionOptions {
-  return { url: env.REDIS_URL! };
+  return {
+    url: env.REDIS_URL!,
+    // Workers must not use finite maxRetriesPerRequest (BullMQ requirement).
+    maxRetriesPerRequest: null,
+    enableOfflineQueue: true,
+    family: 0,
+    keepAlive: 10_000,
+  };
 }
 
 async function runJob(name: string, data?: Record<string, unknown>) {

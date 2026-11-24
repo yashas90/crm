@@ -48,7 +48,10 @@ import { orderRowsByIds } from "../lib/leadListRows.js";
 import { normalizeStoredPhone, phoneLast10Digits, phoneMatchVariants } from "../lib/leadPhone.js";
 import { canonicalizeLeadSource, expandLeadSourceFilter } from "../lib/leadSourceAliases.js";
 import { logger } from "../lib/logger.js";
-import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
+import {
+  promoteNewLeadToContacted,
+  resolvedStatusForNewLeadUpdate,
+} from "../lib/promoteNewLead.js";
 import { planReshuffle } from "../lib/reshuffleLeads.js";
 import { resolveBulkImportLeadStatus } from "../lib/resolveBulkImportLeadStatus.js";
 import { sqlTimestamptz } from "../lib/sqlTimestamp.js";
@@ -130,16 +133,16 @@ export interface UpdateLeadInput {
   actingUserId: string;
   payload: Partial<{
     firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    secondaryPhone: string;
-    city: string;
-    state: string;
+    lastName: string | null;
+    email: string | null;
+    phone: string | null;
+    secondaryPhone: string | null;
+    city: string | null;
+    state: string | null;
     leadSource: string;
     leadStatus: LeadStatus;
     temperature: Temperature;
-    notes: string;
+    notes: string | null;
     tags: string[];
     nextFollowupAt: string | null;
     estimatedValue: number | null;
@@ -1296,7 +1299,7 @@ export const leadService = {
     const update: Record<string, unknown> = { updatedAt: new Date() };
 
     if (payload.firstName !== undefined) update.firstName = payload.firstName;
-    if (payload.lastName !== undefined) update.lastName = payload.lastName;
+    if (payload.lastName !== undefined) update.lastName = payload.lastName ?? "";
     if (payload.email !== undefined) update.email = payload.email;
     if (payload.phone !== undefined) update.phone = payload.phone;
     if (payload.secondaryPhone !== undefined) update.secondaryPhone = payload.secondaryPhone;
@@ -1305,9 +1308,15 @@ export const leadService = {
     if (payload.leadSource !== undefined) {
       update.leadSource = canonicalizeLeadSource(payload.leadSource) ?? null;
     }
-    if (payload.leadStatus !== undefined) update.leadStatus = payload.leadStatus;
-    if (payload.leadStatus !== undefined && payload.leadStatus !== existing.leadStatus) {
-      if ((NA_STATUSES as string[]).includes(payload.leadStatus)) {
+    const resolvedStatus = resolvedStatusForNewLeadUpdate(
+      existing.leadStatus,
+      payload.leadStatus,
+      payload.nextFollowupAt,
+    );
+
+    if (resolvedStatus !== undefined) update.leadStatus = resolvedStatus;
+    if (resolvedStatus !== undefined && resolvedStatus !== existing.leadStatus) {
+      if ((NA_STATUSES as string[]).includes(resolvedStatus)) {
         update.naSinceAt = new Date();
       } else if ((NA_STATUSES as string[]).includes(existing.leadStatus)) {
         update.naSinceAt = null;
@@ -1319,14 +1328,6 @@ export const leadService = {
     if (payload.nextFollowupAt !== undefined) {
       update.nextFollowupAt =
         payload.nextFollowupAt == null ? null : new Date(payload.nextFollowupAt);
-      // Agent-scheduled follow-up leaves New → Pending path (contacted), then Callback bucket.
-      if (
-        payload.nextFollowupAt != null &&
-        existing.leadStatus === "new" &&
-        payload.leadStatus === undefined
-      ) {
-        update.leadStatus = "contacted";
-      }
     }
     if (payload.estimatedValue !== undefined) {
       update.estimatedValue =

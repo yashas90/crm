@@ -68,20 +68,38 @@ export async function getOutgoingCallTalkSeconds(
 /** Android often writes the CallLog row a moment after the in-call UI closes. */
 export const NATIVE_TALK_RETRY_DELAYS_MS = [2000, 2500, 3000];
 
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 /**
  * Wait for the OS call-log row, retrying when it has not been flushed yet.
  * A read of 0 (not answered) is final and is not retried.
+ * Pass `signal` so a new dial cancels leftover ContentResolver poll chains.
  */
 export async function waitForOutgoingCallTalkSeconds(
   phoneNumber: string,
   afterTimestampMs: number,
   delaysMs: number[] = NATIVE_TALK_RETRY_DELAYS_MS,
+  signal?: AbortSignal,
 ): Promise<number | null> {
   let last: number | null = null;
   for (const delay of delaysMs) {
-    if (delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
+    if (signal?.aborted) return last;
+    await sleep(delay, signal);
+    if (signal?.aborted) return last;
     last = await getOutgoingCallTalkSeconds(phoneNumber, afterTimestampMs);
     if (last != null) return last;
   }

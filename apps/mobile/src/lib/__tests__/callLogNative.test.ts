@@ -54,4 +54,20 @@ describe("waitForOutgoingCallTalkSeconds", () => {
     await expect(pending).resolves.toBe(0);
     expect(getLast).toHaveBeenCalledTimes(2);
   });
+
+  it("stops retrying when aborted by a new dial", async () => {
+    jest.useFakeTimers();
+    // @ts-expect-error test override
+    Platform.OS = "android";
+    const getLast = jest.fn().mockResolvedValue(null);
+    NativeModules.CallLogModule = { getLastCallDuration: getLast };
+    const abort = new AbortController();
+
+    const pending = waitForOutgoingCallTalkSeconds("9876543210", 1, [2000, 2500], abort.signal);
+    await jest.advanceTimersByTimeAsync(500);
+    abort.abort();
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(pending).resolves.toBeNull();
+    expect(getLast).toHaveBeenCalledTimes(0);
+  });
 });

@@ -143,6 +143,8 @@ export function useAutoDialerCallLog({
     [],
   );
 
+  const talkAbortRef = useRef<AbortController | null>(null);
+
   const handleReturn = useCallback(
     (info: CallReturnInfo) => {
       const context = sessionRef.current;
@@ -153,22 +155,29 @@ export function useAutoDialerCallLog({
       const callStartMs = new Date(calledAt).getTime();
       const generation = ++nativeReadGenerationRef.current;
 
+      talkAbortRef.current?.abort();
+      const abort = new AbortController();
+      talkAbortRef.current = abort;
+
       // Android writes the call-log row after hangup. DURATION is talk time only —
       // ring time is never proof the customer picked up. Retry until the OS flushes.
-      void waitForOutgoingCallTalkSeconds(context.phoneNumber, callStartMs - 5_000).then(
-        (nativeSecs) => {
-          if (generation !== nativeReadGenerationRef.current) return;
-          const classified = classifyNativeTalk(nativeSecs);
-          const pending: PostCallPrompt = {
-            durationSeconds: classified.durationSeconds,
-            durationIsTalkOnly: classified.durationIsTalkOnly,
-            phoneNumber: context.phoneNumber,
-            leadId: context.leadId,
-            calledAt,
-          };
-          void submitCallLog(pending, classified.outcome).catch(() => undefined);
-        },
-      );
+      void waitForOutgoingCallTalkSeconds(
+        context.phoneNumber,
+        callStartMs - 5_000,
+        undefined,
+        abort.signal,
+      ).then((nativeSecs) => {
+        if (generation !== nativeReadGenerationRef.current || abort.signal.aborted) return;
+        const classified = classifyNativeTalk(nativeSecs);
+        const pending: PostCallPrompt = {
+          durationSeconds: classified.durationSeconds,
+          durationIsTalkOnly: classified.durationIsTalkOnly,
+          phoneNumber: context.phoneNumber,
+          leadId: context.leadId,
+          calledAt,
+        };
+        void submitCallLog(pending, classified.outcome).catch(() => undefined);
+      });
     },
     [submitCallLog],
   );
@@ -179,6 +188,8 @@ export function useAutoDialerCallLog({
 
   const beginCall = useCallback(
     (context: CallSessionContext) => {
+      talkAbortRef.current?.abort();
+      talkAbortRef.current = null;
       nativeReadGenerationRef.current += 1;
       sessionRef.current = context;
       callCountedRef.current = false;
@@ -189,6 +200,8 @@ export function useAutoDialerCallLog({
   );
 
   const clearAutoLoggedCall = useCallback(() => {
+    talkAbortRef.current?.abort();
+    talkAbortRef.current = null;
     setAutoLoggedCall(null);
     clearCallSession();
   }, [clearCallSession]);

@@ -4,37 +4,48 @@ import { invalidateQueriesAfterCallLog } from "@/lib/invalidateQueriesAfterCallL
  * Contract after fire-and-forget invalidation (useLogCall does not await):
  * - Mounted Today / Leads observers must get an *active* refetch so the logged
  *   call shows up when the list screen is opened right after logging.
- * - Never pass refetchType:"none" — that fixed lag but left stale lists.
+ * - Heavy reports/tasks are deferred so rapid dialing does not LMK-kill the app.
  * Device check still required: log → open list immediately → count/status update.
  */
 describe("invalidateQueriesAfterCallLog", () => {
-  it("invalidates calls, reports, leads, and tasks with active refetch (no refetchType:none)", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("invalidates calls + leads immediately; defers reports/tasks", () => {
     const invalidateQueries = jest.fn();
     const queryClient = { invalidateQueries };
 
     invalidateQueriesAfterCallLog(queryClient, { lead_id: "lead-abc" }, "user-123");
 
-    const calls = invalidateQueries.mock.calls.map((c) => c[0]);
+    const immediate = invalidateQueries.mock.calls.map((c) => c[0]);
 
-    expect(calls).toEqual(
+    expect(immediate).toEqual(
       expect.arrayContaining([
         { queryKey: ["calls"] },
-        { queryKey: ["reports"] },
         { queryKey: ["leads"] },
-        { queryKey: ["tasks"] },
         { queryKey: ["leads", "lead-abc"] },
         { queryKey: ["calls", "today", "user-123"] },
         { queryKey: ["calls", "summary", "today", "user-123"] },
       ]),
     );
+    expect(immediate.some((opts) => opts.queryKey[0] === "reports")).toBe(false);
+    expect(immediate.some((opts) => opts.queryKey[0] === "tasks")).toBe(false);
 
-    // Regression: soft-stale-only (refetchType:"none") left Today/leads lists showing
-    // old call counts / New status until a later navigation. Active refetch required.
-    for (const opts of calls) {
+    for (const opts of immediate) {
       expect(opts).not.toHaveProperty("refetchType", "none");
-      // Default RQ active refetch — omit refetchType entirely (same as active).
       expect(opts.refetchType).toBeUndefined();
     }
+
+    jest.advanceTimersByTime(2_500);
+    const deferred = invalidateQueries.mock.calls.map((c) => c[0]);
+    expect(deferred).toEqual(
+      expect.arrayContaining([{ queryKey: ["reports"] }, { queryKey: ["tasks"] }]),
+    );
   });
 
   it("keeps lead-list + today-calls keys active so open-list-after-log reflects the call", () => {
@@ -45,7 +56,6 @@ describe("invalidateQueriesAfterCallLog", () => {
       invalidateQueries.mock.calls.map((c) => [JSON.stringify(c[0].queryKey), c[0]]),
     );
 
-    // These are the mounted queries on Today / Leads after navigating back from detail.
     for (const key of [
       ["leads"],
       ["leads", "lead-xyz"],

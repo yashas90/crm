@@ -17,9 +17,19 @@ export function getRedis(): Redis | null {
     maxRetriesPerRequest: 2,
     lazyConnect: true,
     enableOfflineQueue: false,
+    // Prefer IPv4/IPv6 as resolved on Railway private network; avoid rapid reconnect storms.
+    family: 0,
+    keepAlive: 10_000,
+    connectTimeout: 10_000,
+    retryStrategy(times) {
+      // Cap backoff at 30s so a flaky Redis does not pin the event loop.
+      return Math.min(times * 250, 30_000);
+    },
   });
 
   client.on("error", (error: Error) => {
+    // Downgrade noisy reconnect races; still surface unexpected errors.
+    if (error.message.includes("already connecting/connected")) return;
     logger.error("Redis client error", { message: error.message });
   });
 
@@ -28,6 +38,7 @@ export function getRedis(): Redis | null {
   });
 
   client.on("reconnecting", (delay: number) => {
+    if (delay < 1_000) return;
     logger.warn("Redis reconnecting", { delayMs: delay });
   });
 

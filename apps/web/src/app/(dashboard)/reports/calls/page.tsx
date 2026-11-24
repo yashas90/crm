@@ -211,10 +211,10 @@ export default function CallsReportPage() {
           {labelRange.from} → {labelRange.to}
           {showTeamReport
             ? isManager
-              ? " · Every associate's calls, including phone calls synced from the field app"
+              ? " · Lead & calling-data calls only — personal / dialer phone-log calls are excluded"
               : null
             : ready
-              ? " · Your call history from the mobile app"
+              ? " · Your lead & calling-data calls only (personal dialer calls excluded)"
               : null}
         </p>
       </div>

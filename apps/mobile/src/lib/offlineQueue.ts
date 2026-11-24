@@ -2,6 +2,8 @@ import { apiFetch } from "@/lib/apiClient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const QUEUE_KEY = "propninja_pending_call_logs";
+/** Cap offline call-log queue so a long offline session cannot grow unbounded. */
+export const MAX_OFFLINE_CALL_LOGS = 50;
 
 export type QueuedRequest = {
   id: string;
@@ -39,7 +41,12 @@ export async function enqueueRequest(
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     createdAt: new Date().toISOString(),
   });
-  await writeQueue(queue);
+  // Drop oldest when over cap.
+  const trimmed =
+    queue.length > MAX_OFFLINE_CALL_LOGS
+      ? queue.slice(queue.length - MAX_OFFLINE_CALL_LOGS)
+      : queue;
+  await writeQueue(trimmed);
 }
 
 export async function flushOfflineQueue(): Promise<number> {

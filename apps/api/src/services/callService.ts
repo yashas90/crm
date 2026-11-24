@@ -272,7 +272,8 @@ export const callService = {
       to,
       userIds,
       includeDataCalls: true,
-      includeDeviceCalls: true,
+      includeDeviceCalls: false,
+      leadLinkedOnly: true,
     });
     const { byUser, totals } = aggregateCombinedCalls(events);
     const unanswered = totals.incomingMissed + totals.outgoingNotConnected;

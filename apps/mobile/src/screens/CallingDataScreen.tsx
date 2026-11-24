@@ -120,6 +120,7 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("");
   const [propertyType, setPropertyType] = useState<string | null>(null);
+  const [pendingDial, setPendingDial] = useState<CallingRow | null>(null);
   const [active, setActive] = useState<CallingRow | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
@@ -133,8 +134,12 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   const displayedRef = useRef<readonly CallingRow[]>(EMPTY_CALLING_ROWS);
   const searchRef = useRef(search);
   const activeRef = useRef(active);
+  const pendingDialRef = useRef(pendingDial);
+  const dialerBackgroundRef = useRef(false);
+  const dialStartedAtRef = useRef(0);
   searchRef.current = search;
   activeRef.current = active;
+  pendingDialRef.current = pendingDial;
 
   const status = useQuery({
     queryKey: ["calling-daily-status"],
@@ -218,7 +223,7 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
     onError: (error) => setMessage(error instanceof Error ? error.message : "Could not save"),
   });
 
-  const callInProgress = active != null;
+  const callInProgress = pendingDial != null || active != null;
   const incoming = list.data ?? EMPTY_CALLING_ROWS;
   const rows = resolveDisplayedCallingRows(displayedRef.current, incoming, callInProgress);
   displayedRef.current = rows;
@@ -278,13 +283,29 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
   if (!callInProgress) frozenHeaderRef.current = liveHeader;
   const headerModel = callInProgress ? frozenHeaderRef.current : liveHeader;
 
-  const onCallRow = useCallback((item: CallingRow) => {
-    heldOffsetRef.current = scrollOffsetRef.current;
-    Keyboard.dismiss();
-    void dialPhoneNumber(item.phone);
+  const openOutcomeFor = useCallback((item: CallingRow) => {
+    setPendingDial(null);
+    dialerBackgroundRef.current = false;
     setActive(item);
     setOutcome(null);
     setNotes("");
+  }, []);
+
+  const onCallRow = useCallback((item: CallingRow) => {
+    heldOffsetRef.current = scrollOffsetRef.current;
+    Keyboard.dismiss();
+    // Freeze the list while dialing, but do NOT mount the outcome Modal yet —
+    // showing a native Dialog while launching the Phone app crashes some Androids
+    // after repeated dials (~10). Outcome opens only after dialer return.
+    dialStartedAtRef.current = Date.now();
+    dialerBackgroundRef.current = false;
+    setPendingDial(item);
+    setActive(null);
+    setOutcome(null);
+    setNotes("");
+    void dialPhoneNumber(item.phone).then((opened) => {
+      if (!opened) setPendingDial(null);
+    });
   }, []);
 
   const renderItem = useCallback(
@@ -331,10 +352,21 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
-      if (next === "background" || next === "inactive") Keyboard.dismiss();
+      if (next === "background" || next === "inactive") {
+        Keyboard.dismiss();
+        if (pendingDialRef.current) dialerBackgroundRef.current = true;
+        return;
+      }
+      if (next !== "active" || !pendingDialRef.current) return;
+      // Prefer true dialer-return; also accept return after a short wait when OEM
+      // never delivers background (in-call overlay) so calling is never stuck.
+      const waitedMs = Date.now() - dialStartedAtRef.current;
+      if (dialerBackgroundRef.current || waitedMs >= 2_500) {
+        openOutcomeFor(pendingDialRef.current);
+      }
     });
     return () => sub.remove();
-  }, []);
+  }, [openOutcomeFor]);
 
   useLayoutEffect(() => {
     const offset = callingListRestoreOffset(callInProgress, heldOffsetRef.current);
@@ -345,6 +377,17 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.sm }]}>
+      {pendingDial && !active ? (
+        <Pressable
+          testID="calling-log-outcome-banner"
+          style={styles.pendingBanner}
+          onPress={() => openOutcomeFor(pendingDial)}
+        >
+          <Text style={styles.pendingBannerText}>
+            Call in progress — tap to log outcome for {pendingDial.name}
+          </Text>
+        </Pressable>
+      ) : null}
       <CallingHeaderContext.Provider value={headerModel}>
         <FlatList
           ref={listRef}
@@ -365,55 +408,58 @@ export function CallingDataScreen(_props: BottomTabScreenProps<MainTabParamList,
         />
       </CallingHeaderContext.Provider>
 
-      <Modal visible={active != null} animationType="slide" onRequestClose={() => undefined}>
-        <View style={[styles.modal, { paddingTop: insets.top + spacing.md }]}>
-          <Text style={styles.title}>How did the call go?</Text>
-          <Text style={styles.sub}>
-            {active?.name} · {active?.phone}
-          </Text>
-          <Text style={styles.warn}>Choose an outcome to continue. This cannot be skipped.</Text>
-          {OUTCOMES.map(([value, label]) => (
-            <Pressable key={value} onPress={() => setOutcome(value)} style={styles.option}>
-              <Text style={[styles.chipText, outcome === value && styles.selected]}>{label}</Text>
+      {/* Unmount when hidden — keeping DialogHost alive across dials crashes OEMs. */}
+      {active ? (
+        <Modal visible animationType="slide" onRequestClose={() => undefined}>
+          <View style={[styles.modal, { paddingTop: insets.top + spacing.md }]}>
+            <Text style={styles.title}>How did the call go?</Text>
+            <Text style={styles.sub}>
+              {active.name} · {active.phone}
+            </Text>
+            <Text style={styles.warn}>Choose an outcome to continue. This cannot be skipped.</Text>
+            {OUTCOMES.map(([value, label]) => (
+              <Pressable key={value} onPress={() => setOutcome(value)} style={styles.option}>
+                <Text style={[styles.chipText, outcome === value && styles.selected]}>{label}</Text>
+              </Pressable>
+            ))}
+            {outcome === "callback" ? (
+              <View style={{ gap: spacing.sm }}>
+                <Pressable onPress={() => setShowPicker("date")}>
+                  <Text style={styles.sub}>Date {callbackAt.toLocaleDateString()}</Text>
+                </Pressable>
+                <Pressable onPress={() => setShowPicker("time")}>
+                  <Text style={styles.sub}>Time {callbackAt.toLocaleTimeString()}</Text>
+                </Pressable>
+                {showPicker ? (
+                  <DateTimePicker
+                    value={callbackAt}
+                    mode={showPicker}
+                    onChange={(_event, selected) => {
+                      if (selected) setCallbackAt(selected);
+                      setShowPicker(null);
+                    }}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+            <TextInput
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Notes (optional)"
+              placeholderTextColor={colors.textMuted}
+              style={styles.input}
+            />
+            <Pressable
+              style={[styles.primary, !outcome && styles.disabled]}
+              disabled={!outcome || save.isPending}
+              onPress={() => save.mutate()}
+            >
+              <Text style={styles.primaryText}>Save Outcome</Text>
             </Pressable>
-          ))}
-          {outcome === "callback" ? (
-            <View style={{ gap: spacing.sm }}>
-              <Pressable onPress={() => setShowPicker("date")}>
-                <Text style={styles.sub}>Date {callbackAt.toLocaleDateString()}</Text>
-              </Pressable>
-              <Pressable onPress={() => setShowPicker("time")}>
-                <Text style={styles.sub}>Time {callbackAt.toLocaleTimeString()}</Text>
-              </Pressable>
-              {showPicker ? (
-                <DateTimePicker
-                  value={callbackAt}
-                  mode={showPicker}
-                  onChange={(_event, selected) => {
-                    if (selected) setCallbackAt(selected);
-                    setShowPicker(null);
-                  }}
-                />
-              ) : null}
-            </View>
-          ) : null}
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Notes (optional)"
-            placeholderTextColor={colors.textMuted}
-            style={styles.input}
-          />
-          <Pressable
-            style={[styles.primary, !outcome && styles.disabled]}
-            disabled={!outcome || save.isPending}
-            onPress={() => save.mutate()}
-          >
-            <Text style={styles.primaryText}>Save Outcome</Text>
-          </Pressable>
-          {message ? <Text style={styles.sub}>{message}</Text> : null}
-        </View>
-      </Modal>
+            {message ? <Text style={styles.sub}>{message}</Text> : null}
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -602,6 +648,20 @@ function formatCountdown(ms: number) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  pendingBanner: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+  },
+  pendingBannerText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+  },
   header: { gap: spacing.sm, marginBottom: spacing.md },
   title: { ...typography.h2, color: colors.text },
   name: { ...typography.h3, color: colors.text },

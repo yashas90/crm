@@ -14,6 +14,26 @@ export type PromoteNewLeadReason =
   | "aged_24h"
   | "backfill_contacted";
 
+/**
+ * Scheduling a callback on an untouched New lead must leave New (otherwise the
+ * aging job clears follow-ups on remaining `new` rows). Forms often re-send
+ * `leadStatus: "new"`; treat that as unset when a follow-up is being set.
+ */
+export function resolvedStatusForNewLeadUpdate(
+  existingStatus: string,
+  requestedStatus: string | undefined,
+  nextFollowupAt: string | Date | null | undefined,
+): string | undefined {
+  if (
+    existingStatus === "new" &&
+    nextFollowupAt != null &&
+    (requestedStatus === undefined || requestedStatus === "new")
+  ) {
+    return "contacted";
+  }
+  return requestedStatus;
+}
+
 export async function promoteNewLeadToContacted(
   leadId: string,
   options: { userId?: string | null; reason: PromoteNewLeadReason; at?: Date } = {

@@ -1,6 +1,7 @@
 import { LEAD_STATUSES, LEAD_TEMPERATURES } from "@propninja/types/enums";
 import { z } from "zod";
 import { leadAdvancedListQuerySchema } from "../leadAdvancedListQuery.js";
+import { isMaskedPhoneDisplay } from "../leadMasking.js";
 import { normalizeLeadStageInput, normalizeLeadStatusInput } from "../leadStage.js";
 import { LEADS_LIST_MAX } from "../pagination.js";
 
@@ -135,6 +136,38 @@ export const createLeadBodySchema = leadWritableFieldsSchema.extend({
   assignedTo: z.string().uuid().optional(),
 });
 
+const ISO_WITH_OFFSET = /(?:Z|[+-]\d{2}:\d{2})$/i;
+
+/** Accept ISO instants that omit a timezone (treat as UTC) so PATCH does not 400. */
+export function coerceIsoDatetimeWithOffset(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (ISO_WITH_OFFSET.test(trimmed)) return trimmed;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?$/.test(trimmed)) {
+    const parsed = Date.parse(`${trimmed}Z`);
+    if (!Number.isNaN(parsed)) return new Date(parsed).toISOString();
+  }
+  return trimmed;
+}
+
+const OPTIONAL_PATCH_STRING_KEYS = [
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "secondaryPhone",
+  "city",
+  "state",
+  "leadSource",
+  "notes",
+  "projectName",
+  "temperature",
+  "closeReason",
+  "closeReasonNote",
+  "stage",
+] as const;
+
 /** Coerce legacy mobile PATCH bodies before Zod validation. */
 export function preprocessUpdateLeadBody(input: unknown): unknown {
   if (typeof input !== "object" || input === null) return input;
@@ -147,15 +180,49 @@ export function preprocessUpdateLeadBody(input: unknown): unknown {
     body.assignedTo = undefined;
   }
 
+  for (const key of OPTIONAL_PATCH_STRING_KEYS) {
+    if (body[key] === null || body[key] === "") {
+      body[key] = undefined;
+    }
+  }
+
+  // Masked list/detail values must be dropped before email/phone validation.
+  if (typeof body.phone === "string" && isMaskedPhoneDisplay(body.phone)) {
+    body.phone = undefined;
+  }
+  if (typeof body.secondaryPhone === "string" && isMaskedPhoneDisplay(body.secondaryPhone)) {
+    body.secondaryPhone = undefined;
+  }
+  if (typeof body.email === "string" && body.email.includes("***")) {
+    body.email = undefined;
+  }
+
+  if (body.nextFollowupAt === "") {
+    body.nextFollowupAt = undefined;
+  } else if (typeof body.nextFollowupAt === "string") {
+    body.nextFollowupAt = coerceIsoDatetimeWithOffset(body.nextFollowupAt);
+  }
+
   if (typeof body.leadStatus === "string") {
     const normalized = normalizeLeadStatusInput(body.leadStatus);
     if (normalized) body.leadStatus = normalized;
+  }
+
+  if (body.tags === null) {
+    body.tags = undefined;
   }
 
   return body;
 }
 
 const updateLeadFieldsSchema = leadWritableFieldsSchema.partial().extend({
+  lastName: z.string().nullish(),
+  email: z.string().email().nullish(),
+  phone: z.string().min(5).nullish(),
+  secondaryPhone: z.string().nullish(),
+  city: z.string().nullish(),
+  state: z.string().nullish(),
+  notes: z.string().nullish(),
   estimatedValue: z.coerce.number().nonnegative().optional().nullable(),
   assignedTo: z.string().uuid().nullable().optional(),
   nextFollowupAt: z.string().datetime({ offset: true }).nullable().optional(),

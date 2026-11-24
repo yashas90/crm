@@ -2,7 +2,7 @@ import { checkRequiredWorkPermissions, startLocationTracking } from "@/lib/locat
 import { ScreenSuspense, lazyNamed } from "@/navigation/lazyScreen";
 import { useAuth } from "@/providers/auth-provider";
 import { colors } from "@/theme";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, View } from "react-native";
 
 const MainTabs = lazyNamed(() => import("@/navigation/MainTabs"), "MainTabs");
@@ -12,13 +12,24 @@ const LocationConsentScreen = lazyNamed(
   "LocationConsentScreen",
 );
 
+/** Skip permission re-checks on every dialer return — they remount MainTabs and look like a crash. */
+const PERMISSION_REEVAL_DEBOUNCE_MS = 60_000;
+
 export function RootNavigator() {
   const { status, logout } = useAuth();
   /** null = checking; true = must show gate; false = may enter app.
    * CRM is locked unless OS location is Allow all the time / Always. */
   const [needsPermissions, setNeedsPermissions] = useState<boolean | null>(null);
+  const lastEvalAtRef = useRef(0);
+  const consecutiveFailRef = useRef(0);
 
-  const evaluatePermissions = useCallback(async () => {
+  const evaluatePermissions = useCallback(async (opts?: { force?: boolean }) => {
+    const now = Date.now();
+    if (!opts?.force && now - lastEvalAtRef.current < PERMISSION_REEVAL_DEBOUNCE_MS) {
+      return;
+    }
+    lastEvalAtRef.current = now;
+
     const perms = await checkRequiredWorkPermissions();
     // Start GPS whenever Always location is granted — call-log must not block tracking.
     // startLocationTracking coalesces stacked calls and already flushes the offline queue.
@@ -26,29 +37,42 @@ export function RootNavigator() {
       void startLocationTracking();
     }
     if (perms.allGranted) {
+      consecutiveFailRef.current = 0;
       setNeedsPermissions(false);
       return;
     }
-    setNeedsPermissions(true);
+
+    // A single flaky battery-opt / call-log check after dialer return must not tear down
+    // the whole app (unmount MainTabs → feels like a restart mid-calling session).
+    consecutiveFailRef.current += 1;
+    setNeedsPermissions((prev) => {
+      if (prev === false && consecutiveFailRef.current < 2) return false;
+      return true;
+    });
   }, []);
 
   useEffect(() => {
     if (status !== "authenticated") {
       setNeedsPermissions(null);
+      consecutiveFailRef.current = 0;
+      lastEvalAtRef.current = 0;
       return;
     }
 
     let cancelled = false;
     void (async () => {
+      lastEvalAtRef.current = Date.now();
       const perms = await checkRequiredWorkPermissions();
       if (cancelled) return;
       if (perms.locationGranted) {
         void startLocationTracking();
       }
       if (perms.allGranted) {
+        consecutiveFailRef.current = 0;
         setNeedsPermissions(false);
         return;
       }
+      consecutiveFailRef.current = 1;
       setNeedsPermissions(true);
     })();
 
@@ -93,7 +117,7 @@ export function RootNavigator() {
       <ScreenSuspense>
         <LocationConsentScreen
           onDone={() => {
-            void evaluatePermissions();
+            void evaluatePermissions({ force: true });
           }}
         />
       </ScreenSuspense>

@@ -37,8 +37,11 @@ export function PostCallActionModal({
   onSkip,
   busy,
 }: PostCallActionModalProps) {
+  // Avoid mounting the native Modal on Android when hidden — can crash after repeated dials.
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onSkip}>
+    <Modal visible transparent animationType="slide" onRequestClose={onSkip}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <Text style={styles.title}>Call recorded</Text>

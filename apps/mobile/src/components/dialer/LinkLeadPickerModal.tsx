@@ -38,8 +38,11 @@ export function LinkLeadPickerModal({ visible, onClose, onSelect }: LinkLeadPick
     [onSelect, search],
   );
 
+  // Avoid mounting the native Modal on Android when hidden — can crash after repeated dials.
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Link to lead</Text>

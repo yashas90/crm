@@ -48,8 +48,10 @@ class CallLogModule(private val reactContext: ReactApplicationContext) :
             cursor?.use {
                 val durationIdx = it.getColumnIndexOrThrow(Calls.DURATION)
                 val numberIdx   = it.getColumnIndexOrThrow(Calls.NUMBER)
-
-                while (it.moveToNext()) {
+                // Cap scan — unbounded CallLog walks OOM / ANR after many dials.
+                var scanned = 0
+                while (it.moveToNext() && scanned < 50) {
+                    scanned += 1
                     val number   = it.getString(numberIdx) ?: continue
                     val duration = it.getLong(durationIdx)
                     if (numbersMatch(number, phoneNumber)) {

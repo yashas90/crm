@@ -30,6 +30,7 @@ import {
   bulkAssignLeadsBodySchema,
   bulkImportLeadsBodySchema,
   bulkReshuffleLeadsBodySchema,
+  coerceIsoDatetimeWithOffset,
   createLeadBodySchema,
   leadScopeCountsQuerySchema,
   leadStageCountsQuerySchema,
@@ -475,12 +476,22 @@ leadsRoute.get("/export", async (c) => {
   });
 });
 
-const followUpPatchSchema = z
-  .object({
-    nextFollowupAt: z.string().datetime({ offset: true }),
-    markComplete: z.boolean().optional(),
-  })
-  .strict();
+const followUpPatchSchema = z.preprocess(
+  (input) => {
+    if (typeof input !== "object" || input === null) return input;
+    const body = { ...(input as Record<string, unknown>) };
+    if (typeof body.nextFollowupAt === "string") {
+      body.nextFollowupAt = coerceIsoDatetimeWithOffset(body.nextFollowupAt);
+    }
+    return body;
+  },
+  z
+    .object({
+      nextFollowupAt: z.string().datetime({ offset: true }),
+      markComplete: z.boolean().optional(),
+    })
+    .strict(),
+);
 
 function scopedAgentId(authUser: AuthUser) {
   return authUser.role === "agent" ? authUser.id : undefined;
@@ -719,8 +730,29 @@ leadsRoute.get("/:id/score", async (c) => {
   const { lead, response } = await loadLeadForView(c, id, authUser);
   if (response) return response;
 
-  const breakdown = await getLeadScoreBreakdown(id);
-  if (!breakdown) {
+  try {
+    const breakdown = await getLeadScoreBreakdown(id);
+    if (!breakdown) {
+      return c.json({
+        ok: true,
+        data: {
+          enabled: false,
+          score: lead?.score ?? 0,
+          factors: [] as { label: string; points: number }[],
+        },
+      });
+    }
+
+    return c.json({
+      ok: true,
+      data: {
+        enabled: true,
+        score: breakdown.score,
+        factors: breakdown.factors,
+      },
+    });
+  } catch {
+    // Never fail lead detail over scoring — return stored score only.
     return c.json({
       ok: true,
       data: {
@@ -730,15 +762,6 @@ leadsRoute.get("/:id/score", async (c) => {
       },
     });
   }
-
-  return c.json({
-    ok: true,
-    data: {
-      enabled: true,
-      score: breakdown.score,
-      factors: breakdown.factors,
-    },
-  });
 });
 
 leadsRoute.get("/:id", async (c) => {

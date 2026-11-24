@@ -36,6 +36,7 @@ export function DialPadScreen({ navigation }: Props) {
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [resolvingTalk, setResolvingTalk] = useState(false);
   const nativeReadGenerationRef = useRef(0);
+  const talkAbortRef = useRef<AbortController | null>(null);
 
   const logCall = useLogCall();
   const normalizedPhone = useMemo(() => normalizeTelPhone(digits), [digits]);
@@ -59,9 +60,12 @@ export function DialPadScreen({ navigation }: Props) {
     setCalling(false);
     callStartRef.current = null;
     setResolvingTalk(true);
-    void waitForOutgoingCallTalkSeconds(phone, startMs - 5_000)
+    talkAbortRef.current?.abort();
+    const abort = new AbortController();
+    talkAbortRef.current = abort;
+    void waitForOutgoingCallTalkSeconds(phone, startMs - 5_000, undefined, abort.signal)
       .then((nativeSecs) => {
-        if (generation !== nativeReadGenerationRef.current) return;
+        if (generation !== nativeReadGenerationRef.current || abort.signal.aborted) return;
         const classified = classifyNativeTalk(nativeSecs);
         const endedAt = new Date();
         setPendingCall({
@@ -73,7 +77,7 @@ export function DialPadScreen({ navigation }: Props) {
         setResolvingTalk(false);
       })
       .catch(() => {
-        if (generation !== nativeReadGenerationRef.current) return;
+        if (generation !== nativeReadGenerationRef.current || abort.signal.aborted) return;
         const endedAt = new Date();
         setPendingCall({
           phoneNumber: phone,
@@ -125,6 +129,8 @@ export function DialPadScreen({ navigation }: Props) {
     const startMs = Date.now();
     callStartRef.current = startMs;
     matchedLeadIdRef.current = matchedLead?.id;
+    talkAbortRef.current?.abort();
+    talkAbortRef.current = null;
     nativeReadGenerationRef.current += 1;
     setResolvingTalk(false);
     setCalling(true);
