@@ -65,8 +65,11 @@ export async function getOutgoingCallTalkSeconds(
   }
 }
 
-/** Android often writes the CallLog row a moment after the in-call UI closes. */
-export const NATIVE_TALK_RETRY_DELAYS_MS = [2000, 2500, 3000];
+/**
+ * Android often writes / updates the CallLog row after hangup.
+ * Longer retries avoid logging no_answer+0 while talk time still flushes.
+ */
+export const NATIVE_TALK_RETRY_DELAYS_MS = [2000, 3000, 4000, 5000, 7000, 10000];
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0) return Promise.resolve();

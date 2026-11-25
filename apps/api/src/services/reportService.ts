@@ -875,14 +875,14 @@ async function buildCallsPerUserReport(query: CallsReportQuery) {
 
   const userIds = people.map((person) => person.id);
   const leadAttributeFilter = reportUsesLeadFilter(query);
-  // Calling report: lead-linked CRM calls + calling-data contacts only.
-  // Exclude device dialer (agent_call_logs) and personal/unlinked dial-pad rows.
+  // Lead-linked CRM + calling-data + phone-log rows that dialed a CRM lead.
+  // Personal / non-lead dialer stays out; lead phone-log talk fills auto-log gaps.
   const events = await loadCombinedCallEvents(db, {
     from: query.dateFrom,
     to: query.dateTo,
     userIds,
     includeDataCalls: !leadAttributeFilter,
-    includeDeviceCalls: false,
+    includeDeviceCalls: true,
     leadLinkedOnly: true,
     leadCallFilter: callReportLeadExistsFilter(query),
   });
@@ -1179,7 +1179,7 @@ export const reportService = {
         to: scopedQuery.dateTo,
         userIds,
         includeDataCalls: !leadAttributeFilter,
-        includeDeviceCalls: false,
+        includeDeviceCalls: true,
         leadLinkedOnly: true,
         leadCallFilter: callReportLeadExistsFilter(scopedQuery),
       }),

@@ -24,9 +24,9 @@ export type LoadCombinedCallEventsInput = {
   includeDataCalls: boolean;
   includeDeviceCalls: boolean;
   /**
-   * When true, only CRM `call_records` with a linked lead count.
-   * Excludes personal / dial-pad rows with no lead (device dialer is already gated by
-   * `includeDeviceCalls`).
+   * When true, only CRM `call_records` with a linked lead count, and (if device
+   * calls are included) only phone-log rows whose number matches a CRM lead.
+   * Personal / unlinked dial-pad and non-lead dialer rows stay out.
    */
   leadLinkedOnly?: boolean;
   /** Extra predicate on `call_records`, such as a lead-source exists filter. */
@@ -61,15 +61,31 @@ export async function loadCombinedCallInputs(
   const leadLinkedClause = input.leadLinkedOnly ? sql`lead_id is not null` : sql`true`;
 
   // Drop calls to the agent's own personal number even if somehow logged.
-  const notPersonalPhoneClause = sql`not exists (
+  const notPersonalPhoneOn = (userIdExpr: string, phoneExpr: string) => sql`not exists (
     select 1
     from users u
-    where u.id = call_records.user_id
+    where u.id = ${sql.raw(userIdExpr)}
       and u.personal_phone is not null
       and length(regexp_replace(u.personal_phone, '[^0-9]', '', 'g')) >= 8
-      and right(regexp_replace(coalesce(call_records.phone_number, ''), '[^0-9]', '', 'g'), 10)
+      and right(regexp_replace(coalesce(${sql.raw(phoneExpr)}, ''), '[^0-9]', '', 'g'), 10)
         = right(regexp_replace(u.personal_phone, '[^0-9]', '', 'g'), 10)
   )`;
+
+  /** Phone-log rows that dialed a CRM lead (not personal/unknown numbers). */
+  const deviceMatchesLeadClause = input.leadLinkedOnly
+    ? sql`exists (
+        select 1
+        from leads l
+        where l.org_id = ${SINGLE_TENANT_ORG_ID}::uuid
+          and l.deleted_at is null
+          and length(regexp_replace(coalesce(agent_call_logs.phone_number, ''), '[^0-9]', '', 'g')) >= 8
+          and (
+            l.phone_key = right(regexp_replace(coalesce(agent_call_logs.phone_number, ''), '[^0-9]', '', 'g'), 10)
+            or right(regexp_replace(coalesce(l.secondary_phone, ''), '[^0-9]', '', 'g'), 10)
+              = right(regexp_replace(coalesce(agent_call_logs.phone_number, ''), '[^0-9]', '', 'g'), 10)
+          )
+      )`
+    : sql`true`;
 
   const [leadRows, dataRows, deviceRows] = await Promise.all([
     database.execute(sql`
@@ -89,7 +105,7 @@ export async function loadCombinedCallInputs(
         and started_at <= ${to}
         and user_id = any(${userIdList})
         and ${leadLinkedClause}
-        and ${notPersonalPhoneClause}
+        and ${notPersonalPhoneOn("call_records.user_id", "call_records.phone_number")}
         and ${input.leadCallFilter ?? sql`true`}
     `),
     input.includeDataCalls
@@ -106,15 +122,7 @@ export async function loadCombinedCallInputs(
             and c.called_at >= ${from}
             and c.called_at <= ${to}
             and c.agent_id = any(${userIdList})
-            and not exists (
-              select 1
-              from users u
-              where u.id = c.agent_id
-                and u.personal_phone is not null
-                and length(regexp_replace(u.personal_phone, '[^0-9]', '', 'g')) >= 8
-                and right(regexp_replace(coalesce(p.phone, ''), '[^0-9]', '', 'g'), 10)
-                  = right(regexp_replace(u.personal_phone, '[^0-9]', '', 'g'), 10)
-            )
+            and ${notPersonalPhoneOn("c.agent_id", "p.phone")}
         `)
       : Promise.resolve([]),
     input.includeDeviceCalls
@@ -130,6 +138,8 @@ export async function loadCombinedCallInputs(
           where call_start_time >= ${from}
             and call_start_time <= ${to}
             and user_id = any(${userIdList})
+            and ${deviceMatchesLeadClause}
+            and ${notPersonalPhoneOn("agent_call_logs.user_id", "agent_call_logs.phone_number")}
         `)
       : Promise.resolve([]),
   ]);
@@ -228,14 +238,14 @@ export async function loadAgentTalktime(
   if (people.length === 0) return [];
 
   const sourceFilter = leadSourceExists(input.source);
-  // Calling report / Agent Talktime: leads + calling-data only — never raw device dialer
-  // or personal/unlinked dial-pad rows.
+  // Calling report / Agent Talktime: lead-linked CRM + calling-data + phone-log
+  // rows that dialed a CRM lead (fills talk time when auto-log wrote 0 / no_answer).
   const events = await loadCombinedCallEvents(database, {
     from: input.from,
     to: input.to,
     userIds: people.map((person) => person.id),
     includeDataCalls: !sourceFilter,
-    includeDeviceCalls: false,
+    includeDeviceCalls: true,
     leadLinkedOnly: true,
     leadCallFilter: sourceFilter,
   });

@@ -37,27 +37,33 @@ class CallLogModule(private val reactContext: ReactApplicationContext) :
         }
 
         try {
+            // Do not filter TYPE=OUTGOING only — some OEMs store connected dials as
+            // UNKNOWN / other types, which made auto-log write duration 0 / no_answer.
             val cursor = reactContext.contentResolver.query(
                 Calls.CONTENT_URI,
                 arrayOf(Calls.DURATION, Calls.DATE, Calls.NUMBER, Calls.TYPE),
-                "\${Calls.TYPE} = ? AND \${Calls.DATE} >= ?",
-                arrayOf(Calls.OUTGOING_TYPE.toString(), afterTimestampMs.toLong().toString()),
+                "\${Calls.DATE} >= ?",
+                arrayOf(afterTimestampMs.toLong().toString()),
                 "\${Calls.DATE} DESC",
             )
 
             cursor?.use {
                 val durationIdx = it.getColumnIndexOrThrow(Calls.DURATION)
                 val numberIdx   = it.getColumnIndexOrThrow(Calls.NUMBER)
+                val typeIdx     = it.getColumnIndexOrThrow(Calls.TYPE)
                 // Cap scan — unbounded CallLog walks OOM / ANR after many dials.
                 var scanned = 0
-                while (it.moveToNext() && scanned < 50) {
+                while (it.moveToNext() && scanned < 80) {
                     scanned += 1
                     val number   = it.getString(numberIdx) ?: continue
+                    if (!numbersMatch(number, phoneNumber)) continue
+                    val type = it.getInt(typeIdx)
+                    // Skip pure missed/rejected shells; prefer connected / outgoing / unknown.
+                    if (type == Calls.MISSED_TYPE || type == Calls.REJECTED_TYPE) continue
                     val duration = it.getLong(durationIdx)
-                    if (numbersMatch(number, phoneNumber)) {
-                        promise.resolve(duration.toDouble())
-                        return
-                    }
+                    // Newest matching row (query is DATE DESC).
+                    promise.resolve(duration.toDouble())
+                    return
                 }
             }
 

@@ -211,7 +211,7 @@ export default function CallsReportPage() {
           {labelRange.from} → {labelRange.to}
           {showTeamReport
             ? isManager
-              ? " · Lead & calling-data calls only — personal / dialer phone-log calls are excluded"
+              ? " · Lead & calling-data calls (incl. lead phone-log talk) — personal dialer excluded"
               : null
             : ready
               ? " · Your lead & calling-data calls only (personal dialer calls excluded)"

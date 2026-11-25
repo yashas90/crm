@@ -2,30 +2,34 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Contract for calling-report event loading filters.
- * Device dialer and personal/unlinked rows must stay out of report totals.
+ * Personal / non-lead dialer stays out; lead-matched phone-log talk is allowed
+ * so auto-log gaps (duration 0 / no_answer) still count real connected time.
  */
 describe("calling report call event filters", () => {
-  it("requires lead-linked CRM calls and disables device dialer for report mode", () => {
+  it("includes lead-matched device talk with lead-linked CRM and data calls", () => {
     const reportMode = {
       includeDataCalls: true,
-      includeDeviceCalls: false,
+      includeDeviceCalls: true,
       leadLinkedOnly: true,
     };
 
-    expect(reportMode.includeDeviceCalls).toBe(false);
+    expect(reportMode.includeDeviceCalls).toBe(true);
     expect(reportMode.leadLinkedOnly).toBe(true);
     expect(reportMode.includeDataCalls).toBe(true);
   });
 
-  it("keeps calling-data contacts while excluding personal dialer source", () => {
-    // Data contacts (contact_call_logs) are work calling-data and may count.
-    // agent_call_logs (raw phone dialer) must never feed Incoming/Outgoing totals.
-    const sourcesAllowed = ["call_records_lead_linked", "contact_call_logs"] as const;
-    const sourcesBlocked = ["agent_call_logs", "call_records_personal_unlinked"] as const;
+  it("allows lead phone-log rows while blocking personal/unlinked dialer", () => {
+    const sourcesAllowed = [
+      "call_records_lead_linked",
+      "contact_call_logs",
+      "agent_call_logs_lead_phone",
+    ] as const;
+    const sourcesBlocked = ["agent_call_logs_personal", "call_records_personal_unlinked"] as const;
 
     expect(sourcesAllowed).toContain("call_records_lead_linked");
     expect(sourcesAllowed).toContain("contact_call_logs");
-    expect(sourcesBlocked).toContain("agent_call_logs");
+    expect(sourcesAllowed).toContain("agent_call_logs_lead_phone");
+    expect(sourcesBlocked).toContain("agent_call_logs_personal");
     expect(sourcesBlocked).toContain("call_records_personal_unlinked");
   });
 });

@@ -260,7 +260,7 @@ export const callService = {
       to,
       userIds,
       includeDataCalls: true,
-      includeDeviceCalls: false,
+      includeDeviceCalls: true,
       leadLinkedOnly: true,
     });
     const { byUser, totals } = aggregateCombinedCalls(events);
