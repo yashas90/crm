@@ -242,7 +242,14 @@ async function findLeadByPhone(phone: string) {
     .select()
     .from(leads)
     .where(
-      and(eq(leads.orgId, SINGLE_TENANT_ORG_ID), isNull(leads.deletedAt), eq(leads.phoneKey, key)),
+      and(
+        eq(leads.orgId, SINGLE_TENANT_ORG_ID),
+        isNull(leads.deletedAt),
+        or(
+          eq(leads.phoneKey, key),
+          sql`right(regexp_replace(coalesce(${leads.secondaryPhone}, ''), '[^0-9]', '', 'g'), 10) = ${key}`,
+        ),
+      ),
     )
     .orderBy(asc(leads.createdAt), asc(leads.id))
     .limit(1);

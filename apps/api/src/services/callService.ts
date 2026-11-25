@@ -1,6 +1,6 @@
 import { callRecords, leadActivities, leads, users } from "@propninja/db";
 import { classifyCall } from "@propninja/types/call-metrics";
-import { and, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { excludeDuplicateCallRecordSql } from "../lib/callTalkTime.js";
 import { aggregateCombinedCalls } from "../lib/combinedCallStats.js";
 import { SINGLE_TENANT_ORG_ID } from "../lib/constants.js";
@@ -8,6 +8,7 @@ import { db } from "../lib/db.js";
 import { notFound } from "../lib/errors.js";
 import { loadCombinedCallEvents } from "../lib/loadCombinedCallEvents.js";
 import { promoteNewLeadToContacted } from "../lib/promoteNewLead.js";
+import { resolveLeadIdByPhone } from "../lib/resolveLeadIdByPhone.js";
 import { recalculateLeadScore } from "../services/leadScoringService.js";
 
 type CallDirection = "incoming" | "outgoing";
@@ -103,21 +104,8 @@ export const callService = {
         throw notFound("Lead not found");
       }
     } else {
-      const [foundLead] = await db
-        .select({ id: leads.id })
-        .from(leads)
-        .where(
-          and(
-            eq(leads.orgId, SINGLE_TENANT_ORG_ID),
-            isNull(leads.deletedAt),
-            or(eq(leads.phone, phoneNumber), eq(leads.secondaryPhone, phoneNumber)),
-          ),
-        )
-        .limit(1);
-
-      if (foundLead) {
-        resolvedLeadId = foundLead.id;
-      }
+      // Digit-normalized match (`9876…` ↔ `+919876…`). Exact string match misses dial-pad logs.
+      resolvedLeadId = await resolveLeadIdByPhone(db, phoneNumber);
     }
 
     const [record] = await db

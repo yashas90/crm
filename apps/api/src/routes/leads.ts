@@ -525,7 +525,11 @@ leadsRoute.get("/hot", async (c) => {
   });
 });
 
-/** Match a dialed phone to an assigned lead (dial pad). Returns null when no match or no access. */
+/**
+ * Match a dialed phone to a CRM lead (dial pad auto-link).
+ * Returns any org lead for the number so call logs get a lead_id even when the
+ * lead is on another agent's book (caller attribution stays on the dialing user).
+ */
 leadsRoute.get("/lookup-phone", async (c) => {
   const authUser = c.get("authUser") as AuthUser;
   const phone = c.req.query("phone")?.trim();
@@ -537,7 +541,7 @@ leadsRoute.get("/lookup-phone", async (c) => {
   }
 
   const lead = await leadService.lookupByPhone(phone);
-  if (!lead || !canViewLead(authUser, { assignedTo: lead.assignedTo })) {
+  if (!lead) {
     return c.json({ ok: true, data: null });
   }
 
